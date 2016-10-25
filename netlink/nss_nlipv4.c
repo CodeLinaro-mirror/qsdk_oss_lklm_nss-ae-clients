@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -85,8 +85,8 @@ static struct genl_family nss_nlipv4_family = {
 /*
  * multicast group for sending message status & events
  */
-static struct genl_multicast_group nss_nlipv4_mcgrp = {
-	.name = NSS_NLIPV4_MCAST_GRP,
+static const struct genl_multicast_group nss_nlipv4_mcgrp[] = {
+	{.name = NSS_NLIPV4_MCAST_GRP},
 };
 
 /*
@@ -266,6 +266,7 @@ static int nss_nlipv4_verify_conn_rule(struct nss_ipv4_rule_create_msg *msg, str
 					struct net_device *return_dev)
 {
 	struct nss_ipv4_connection_rule *conn = &msg->conn_rule;
+	struct nss_ipv4_nexthop *nexthop = &msg->nexthop_rule;
 	const size_t rule_sz = sizeof(struct nss_ipv4_connection_rule);
 	bool override_mtu;
 	bool valid;
@@ -297,18 +298,23 @@ static int nss_nlipv4_verify_conn_rule(struct nss_ipv4_rule_create_msg *msg, str
 	 * update flow and return interface numbers. Handle Ipsec interfaces seperately.
 	 */
 	if (flow_dev->type == NSS_IPSEC_ARPHRD_IPSEC)
-		conn->flow_interface_num = nss_ipsec_get_data_interface();
+		conn->flow_interface_num = nss_ipsec_get_ifnum(nss_ipsec_get_data_interface());
 	else if (is_vlan_dev(flow_dev))
 		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(flow_dev));
 	else
 		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(flow_dev);
 
 	if (return_dev->type == NSS_IPSEC_ARPHRD_IPSEC)
-		conn->return_interface_num = nss_ipsec_get_data_interface();
+		conn->return_interface_num = nss_ipsec_get_ifnum(nss_ipsec_get_data_interface());
 	else if (is_vlan_dev(return_dev))
 		conn->return_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(return_dev));
 	else
 		conn->return_interface_num = nss_cmn_get_interface_number_by_dev(return_dev);
+
+	nexthop->flow_nexthop = conn->flow_interface_num;
+	nexthop->return_nexthop = conn->return_interface_num;
+
+	nss_nl_info("flow_nexthop:%d return_nexthop:%d\n", nexthop->flow_nexthop, nexthop->return_nexthop);
 
 	/*
 	 * update the flow & return MTU(s)
@@ -521,15 +527,15 @@ static void nss_nlipv4_process_notify(void *app_data, struct nss_ipv4_msg *nim)
 	 * clear NSS common message items that are not useful to uspace
 	 */
 	nim->cm.interface = 0;
-	nim->cm.cb = (uint32_t)NULL;
-	nim->cm.app_data = (uint32_t)NULL;
+	nim->cm.cb = (nss_ptr_t)NULL;
+	nim->cm.app_data = (nss_ptr_t)NULL;
 
 	/*
 	 * copy the contents of the sync message into the NETLINK message
 	 */
 	memcpy(nl_nim, nim, sizeof(struct nss_ipv4_msg));
 
-	nss_nl_mcast_event(&nss_nlipv4_mcgrp, skb);
+	nss_nl_mcast_event(&nss_nlipv4_family, skb);
 }
 
 /*
@@ -549,8 +555,8 @@ static void nss_nlipv4_process_resp(void *app_data, struct nss_ipv4_msg *nim)
 	 * clear NSS common message items that are not useful to uspace
 	 */
 	nim->cm.interface = 0;
-	nim->cm.cb = (uint32_t)NULL;
-	nim->cm.app_data = (uint32_t)NULL;
+	nim->cm.cb = (nss_ptr_t)NULL;
+	nim->cm.app_data = (nss_ptr_t)NULL;
 
 	/*
 	 * copy the message response data into the NL message buffer. If, FW
@@ -795,19 +801,10 @@ bool nss_nlipv4_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	error = genl_register_family_with_ops(&nss_nlipv4_family, nss_nlipv4_ops, NSS_NLIPV4_OPS_SZ);
+	error = genl_register_family_with_ops_groups(&nss_nlipv4_family, nss_nlipv4_ops, nss_nlipv4_mcgrp);
 	if (error != 0) {
 		nss_nl_info_always("Error: unable to register IPv4 family\n");
 		return false;
-	}
-
-	/*
-	 * register NETLINK MCAST group for notifications
-	 */
-	error = genl_register_mc_group(&nss_nlipv4_family, &nss_nlipv4_mcgrp);
-	if (error != 0) {
-		nss_nl_info_always("Error: unable to register IPv4 Netlink multicast group\n");
-		goto unreg_family;
 	}
 
 	/*
@@ -816,7 +813,7 @@ bool nss_nlipv4_init(void)
 	gbl_ctx.nss = nss_ipv4_notify_register(nss_nlipv4_process_notify, &gbl_ctx);
 	if (!gbl_ctx.nss) {
 		nss_nl_info_always("Error: retreiving the NSS Context \n");
-		goto unreg_all;
+		goto unreg_family;
 	}
 
 	return true;
@@ -824,8 +821,6 @@ bool nss_nlipv4_init(void)
 	/*
 	 * undo all registeration
 	 */
-unreg_all:
-	genl_unregister_mc_group(&nss_nlipv4_family, &nss_nlipv4_mcgrp);
 unreg_family:
 	genl_unregister_family(&nss_nlipv4_family);
 
@@ -850,11 +845,6 @@ bool nss_nlipv4_exit(void)
 		nss_nl_info_always("unable to unregister IPv4 NETLINK family\n");
 		return false;
 	}
-
-	/*
-	 * unregister the multicast family
-	 */
-	genl_unregister_mc_group(&nss_nlipv4_family, &nss_nlipv4_mcgrp);
 
 	/*
 	 * Unregister the device callback handler for ipv4

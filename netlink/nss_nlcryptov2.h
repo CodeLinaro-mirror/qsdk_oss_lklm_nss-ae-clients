@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014 - 2015,2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -15,22 +15,24 @@
  */
 
 /*
- * nss_nlcrypto.h
+ * nss_nlcryptov2.h
  *	NSS Netlink Crypto API definitions
  */
-#ifndef __NSS_NLCRYPTO_H
-#define __NSS_NLCRYPTO_H
+#ifndef __NSS_NLCRYPTOV2_H
+#define __NSS_NLCRYPTOV2_H
+#define NSS_NLCRYPTOV2_HDR_POOL_SZ 1
+#define NSS_NLCRYPTOV2_DEFAULT_HDR_SZ 512
+#define NSS_NLCRYPTOV2_TIMEOUT 10
 
-
-#if defined(CONFIG_NSS_NLCRYPTO)
-#define NSS_NLCRYPTO_INIT nss_nlcrypto_init
-#define NSS_NLCRYPTO_EXIT nss_nlcrypto_exit
+#if defined(CONFIG_NSS_NLCRYPTOV2)
+#define NSS_NLCRYPTOV2_INIT nss_nlcryptov2_init
+#define NSS_NLCRYPTOV2_EXIT nss_nlcryptov2_exit
 #else
-#define NSS_NLCRYPTO_INIT 0
-#define NSS_NLCRYPTO_EXIT 0
-#endif /* !CONFIG_NSS_NLCRYPTO */
+#define NSS_NLCRYPTOV2_INIT 0
+#define NSS_NLCRYPTOV2_EXIT 0
+#endif /* !CONFIG_NSS_NLCRYPTOV2 */
 
-bool nss_nlcrypto_init(void);
-bool nss_nlcrypto_exit(void);
+bool nss_nlcryptov2_init(void);
+bool nss_nlcryptov2_exit(void);
 
-#endif /* __NSS_NLCRYPTO_H */
+#endif /* __NSS_NLCRYPTOV2_H */

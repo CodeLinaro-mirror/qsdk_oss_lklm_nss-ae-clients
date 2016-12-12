@@ -24,6 +24,7 @@
 #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
 #include <ref/ref_vsi.h>
 #include <nss_vlan_mgr.h>
+#include <fal/fal_fdb.h>
 #endif
 #include <nss_api_if.h>
 
@@ -93,7 +94,8 @@ struct nss_bridge_pvt {
 	uint32_t ifnum;				/* Dynamic interface for bridge */
 #if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
 	uint32_t vsi;				/* VSI set for bridge */
-	uint32_t port_vsi[NSS_MAX_PHYSICAL_INTERFACES];	/* port VSI set for physical interfaces */
+	uint32_t port_vsi[NSS_MAX_PHYSICAL_INTERFACES];	/* port VSI set for physical interfaces	*/
+	uint32_t lag_ports[NSS_MAX_PHYSICAL_INTERFACES]; /* List of slave ports in LAG */
 #endif
 	uint32_t mtu;				/* MTU for bridge */
 	uint8_t dev_addr[ETH_ALEN];		/* MAC address for bridge */
@@ -161,6 +163,208 @@ static struct nss_bridge_pvt *nss_bridge_mgr_find_instance(
 	spin_unlock(&br_mgr_ctx.lock);
 	return NULL;
 }
+
+#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+/*
+ * nss_bridge_mgr_update_bond_slave()
+ */
+static int nss_bridge_mgr_update_bond_slave(struct net_device *bond_master,
+		struct net_device *slave, struct nss_bridge_pvt *b_pvt, int linking)
+{
+	uint32_t *port_vsi;
+	int port_id;
+	int32_t ifnum;
+	int32_t lagid = 0;
+	int32_t bondid = 0;
+
+	/*
+	 * Figure out the aggregation id of this slave
+	 */
+	bondid = bond_get_id(bond_master);
+	if (bondid < 0) {
+		nss_bridge_mgr_warn("%p: Invalid LAG group id 0x%x\n",
+				b_pvt, bondid);
+		return -1;
+	}
+
+	lagid = bondid + NSS_LAG0_INTERFACE_NUM;
+
+	if (linking) {
+		nss_bridge_mgr_trace("%p: Bond Slave %s is added bridge\n",
+				b_pvt, slave->name);
+
+		ifnum = nss_cmn_get_interface_number_by_dev(slave);
+
+		/*
+		 * Hardware supports only PHYSICAL Ports as trunk ports
+		 */
+		if (ifnum < 0) {
+			nss_bridge_mgr_warn("%p: Interface %s is not known to NSS\n",
+					b_pvt, slave->name);
+			return -1;
+		}
+		if (ifnum >= NSS_MAX_PHYSICAL_INTERFACES) {
+			nss_bridge_mgr_warn("%p: Interface %s is not Physical Interface\n",
+					b_pvt, slave->name);
+			return -1;
+		}
+
+		nss_bridge_mgr_trace("%p: Interface %s adding into bridge\n",
+				b_pvt, slave->name);
+		port_id = ifnum;
+
+		/*
+		 * Take bridge lock as we are updating vsi and port forwarding
+		 * details in PPE Hardware
+		 */
+		spin_lock(&br_mgr_ctx.lock);
+		port_vsi = &b_pvt->port_vsi[port_id - 1];
+
+		if (ppe_port_vsi_get(0, port_id, port_vsi)) {
+			spin_unlock(&br_mgr_ctx.lock);
+			nss_bridge_mgr_warn("%p: Couldn't get VSI for port %d\n",
+					b_pvt, port_id);
+			return -1;
+		}
+
+		if (ppe_port_vsi_set(0, port_id, b_pvt->vsi)) {
+			spin_unlock(&br_mgr_ctx.lock);
+			nss_bridge_mgr_warn("%p: Couldn't set bridge VSI for port %d\n",
+					b_pvt, port_id);
+			return -1;
+		}
+
+		if (fal_fdb_port_learning_ctrl_set(0, port_id, 0,
+					FAL_MAC_FRWRD)) {
+			ppe_port_vsi_set(0, port_id, *port_vsi);
+			spin_unlock(&br_mgr_ctx.lock);
+			nss_bridge_mgr_warn("%p: Couldn't disable FDB learning for port %d\n",
+					b_pvt, port_id);
+			return -1;
+		}
+		spin_unlock(&br_mgr_ctx.lock);
+
+		if (nss_bridge_tx_join_msg(b_pvt->ifnum,
+					slave) != NSS_TX_SUCCESS) {
+			ppe_port_vsi_set(0, port_id, *port_vsi);
+			nss_bridge_mgr_warn("%p: Couldn't add port %d in bridge",
+					b_pvt, port_id);
+			return -1;
+		}
+		spin_lock(&br_mgr_ctx.lock);
+		b_pvt->lag_ports[port_id] = lagid;
+		spin_unlock(&br_mgr_ctx.lock);
+
+		return 0;
+	}
+
+	nss_bridge_mgr_trace("%p: Bond Slave %s leaving bridge\n",
+			b_pvt, slave->name);
+
+	ifnum = nss_cmn_get_interface_number_by_dev(slave);
+	if (ifnum < 0) {
+		nss_bridge_mgr_trace("%p: Interface %s is not known to NSS\n",
+				b_pvt, slave->name);
+		return -1;
+	}
+
+	if (ifnum >= NSS_MAX_PHYSICAL_INTERFACES) {
+		nss_bridge_mgr_trace("%p: Interface %s is not Physical Interface\n",
+				b_pvt, slave->name);
+		return -1;
+	}
+
+	nss_bridge_mgr_trace("%p: Interface %s leaving from bridge\n",
+			b_pvt, slave->name);
+
+	port_id = (fal_port_t)ifnum;
+
+	/*
+	 * Take bridge lock as we are updating vsi and port forwarding
+	 * details in PPE Hardware
+	 */
+	spin_lock(&br_mgr_ctx.lock);
+	port_vsi = &b_pvt->port_vsi[port_id - 1];
+
+	if (b_pvt->lag_ports[port_id] != lagid) {
+		spin_unlock(&br_mgr_ctx.lock);
+		return -1;
+	}
+
+	if (ppe_port_vsi_set(0, port_id, *port_vsi)) {
+		spin_unlock(&br_mgr_ctx.lock);
+		nss_bridge_mgr_trace("%p: Failed to restore VSI for port %d\n",
+				b_pvt, port_id);
+		return -1;
+	}
+
+	if (fal_fdb_port_learning_ctrl_set(0, port_id, 1,
+				FAL_MAC_FRWRD)) {
+		ppe_port_vsi_set(0, port_id, b_pvt->vsi);
+		spin_unlock(&br_mgr_ctx.lock);
+		nss_bridge_mgr_warn("%p: Couldn't enable FDB learning for port %d\n",
+				b_pvt, port_id);
+		return -1;
+	}
+	spin_unlock(&br_mgr_ctx.lock);
+
+	if (nss_bridge_tx_leave_msg(b_pvt->ifnum,
+				slave) != NSS_TX_SUCCESS) {
+		ppe_port_vsi_set(0, port_id, b_pvt->vsi);
+		nss_bridge_mgr_trace("%p: Failed to remove port %d from bridge\n",
+				b_pvt, port_id);
+		return -1;
+	}
+	spin_lock(&br_mgr_ctx.lock);
+	b_pvt->lag_ports[port_id] = 0;
+	spin_unlock(&br_mgr_ctx.lock);
+
+	return 0;
+}
+
+/*
+ * nss_bridge_mgr_configure_bond()
+ */
+static int nss_bridge_mgr_configure_bond(struct net_device *bond_master,
+		struct netdev_notifier_changeupper_info *cu_info)
+{
+	struct net_device *slave;
+	struct nss_bridge_pvt *b_pvt;
+
+	b_pvt = nss_bridge_mgr_find_instance(cu_info->upper_dev);
+	if (!b_pvt)
+		return NOTIFY_DONE;
+
+	nss_bridge_mgr_trace("%p: Interface %s is %s bridge %s\n",
+			b_pvt, bond_master->name, cu_info->linking?"Joining":"Leaving",
+			cu_info->upper_dev->name);
+
+	rcu_read_lock();
+	for_each_netdev_in_bond_rcu(bond_master, slave) {
+		if (nss_bridge_mgr_update_bond_slave(bond_master, slave, b_pvt, cu_info->linking?1:0)) {
+			rcu_read_unlock();
+			nss_bridge_mgr_warn("%p: Failed to update slave (%s) state in Bridge\n", b_pvt, slave->name);
+			goto cleanup;
+		}
+	}
+	rcu_read_unlock();
+
+	return NOTIFY_DONE;
+
+cleanup:
+	rcu_read_lock();
+	for_each_netdev_in_bond_rcu(bond_master, slave) {
+		if (nss_bridge_mgr_update_bond_slave(bond_master, slave, b_pvt, 0)) {
+			rcu_read_unlock();
+			nss_bridge_mgr_warn("%p: Failed to remove slave (%s) from Bridge\n", b_pvt, slave->name);
+			return NOTIFY_DONE;
+		}
+	}
+	rcu_read_unlock();
+
+	return NOTIFY_DONE;
+}
+#endif
 
 /*
  * nss_bridge_mgr_join_bridge()
@@ -326,8 +530,31 @@ static int nss_bridge_mgr_changeupper_event(struct netdev_notifier_info *info)
 		return NOTIFY_DONE;
 
 	b_pvt = nss_bridge_mgr_find_instance(cu_info->upper_dev);
-	if (!b_pvt)
+	if (!b_pvt) {
+#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+		struct net_device *bridge_master;
+
+		if (!netif_is_bond_slave(dev))
+			return NOTIFY_DONE;
+
+		bridge_master = netdev_master_upper_dev_get(cu_info->upper_dev);
+		if (!bridge_master)
+			return NOTIFY_DONE;
+
+		nss_bridge_mgr_info("%s: is a bond slave, upper_dev=%s\n",
+				dev->name, cu_info->upper_dev->name);
+
+		b_pvt = nss_bridge_mgr_find_instance(bridge_master);
+		if (!b_pvt)
+			return NOTIFY_DONE;
+
+		if (nss_bridge_mgr_update_bond_slave(cu_info->upper_dev, dev, b_pvt, cu_info->linking?1:0)) {
+			nss_bridge_mgr_warn("%p: Failed to update %s slave state in Bridge %s\n",
+					b_pvt, cu_info->upper_dev->name, bridge_master->name);
+		}
+#endif
 		return NOTIFY_DONE;
+	}
 
 	/*
 	 * Only care about interfaces known by NSS
@@ -335,6 +562,11 @@ static int nss_bridge_mgr_changeupper_event(struct netdev_notifier_info *info)
 	slave_ifnum = nss_cmn_get_interface_number_by_dev(dev);
 	if (slave_ifnum < 0) {
 		nss_bridge_mgr_warn("%s: failed to find interface number\n", dev->name);
+#if defined(NSS_BRIDGE_MGR_PPE_SUPPORT)
+		/* slave device is bond master */
+		if (netif_is_bond_master(dev))
+			return nss_bridge_mgr_configure_bond(dev, cu_info);
+#endif
 		return NOTIFY_DONE;
 	}
 

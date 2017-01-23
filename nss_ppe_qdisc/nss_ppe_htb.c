@@ -69,7 +69,8 @@ static const struct nla_policy nss_ppe_htb_policy[TCA_PPEHTB_MAX + 1] = {
  *	Validates and saves the qdisc configuration parameters.
  */
 static int nss_ppe_htb_params_validate_and_save(struct Qdisc *sch,
-		struct nlattr *opt, struct nss_ppe_shaper *shaper)
+		struct nlattr *opt, struct nss_ppe_shaper *shaper,
+		struct nss_ppe_scheduler *scheduler)
 {
 	struct nss_ppe_htb_sched_data *q = qdisc_priv(sch);
 	struct nlattr *na[TCA_PPEHTB_MAX + 1];
@@ -132,28 +133,30 @@ static int nss_ppe_htb_params_validate_and_save(struct Qdisc *sch,
 	shaper->crate = qopt->crate;
 	shaper->cburst = qopt->cburst;
 	shaper->overhead = qopt->overhead;
-	shaper->quantum = qopt->quantum;
-	shaper->priority = qopt->priority;
+
+	memset(scheduler, 0, sizeof(*scheduler));
+	scheduler->quantum = qopt->quantum;
+	scheduler->priority = qopt->priority;
 
 	/*
 	 * If quantum value is not provided, set it to
 	 * the interface's MTU value.
 	 */
-	if (!shaper->quantum) {
+	if (!scheduler->quantum) {
 		/*
 		 * If quantum was not provided, we have two options.
 		 * One, use r2q and rate to figure out the quantum. Else,
 		 * use the interface's MTU as the value of quantum.
 		 */
 		if (q->r2q && shaper->rate) {
-			shaper->quantum = (shaper->rate / q->r2q) / 8;
+			scheduler->quantum = (shaper->rate / q->r2q) / 8;
 			nss_ppe_qdisc_info("quantum not provided for htb class of qdisc %x on interface.\n"
 					"Setting quantum to %uB based on r2q %u and rate %uBps\n", sch->handle,
-					 shaper->quantum, q->r2q, shaper->rate / 8);
+					 scheduler->quantum, q->r2q, shaper->rate / 8);
 		} else {
-			shaper->quantum = mtu;
+			scheduler->quantum = mtu;
 			nss_ppe_qdisc_info("quantum value not provided for htb class of qdisc %x on interface.\n"
-					"Setting quantum to MTU %uB\n", sch->handle, shaper->quantum);
+					"Setting quantum to MTU %uB\n", sch->handle, scheduler->quantum);
 		}
 	}
 	sch_tree_unlock(sch);
@@ -161,7 +164,7 @@ static int nss_ppe_htb_params_validate_and_save(struct Qdisc *sch,
 }
 
 /*
- * nss_ppe_htb_change_class()
+ * nss_ppe_htb_class_alloc()
  *	Allocates a new class.
  */
 static struct nss_ppe_htb_class_data *nss_ppe_htb_class_alloc(struct Qdisc *sch, struct nss_ppe_htb_class_data *parent, u32 classid)
@@ -228,12 +231,13 @@ static int nss_ppe_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid
 	struct nss_qdisc *nq_parent;
 	struct nlattr *opt = tca[TCA_OPTIONS];
 	struct nss_ppe_shaper shaper;
-	bool is_exist = true;
+	struct nss_ppe_scheduler scheduler;
+	struct nss_ppe_scheduler prev_scheduler;
 	struct nss_if_msg nim_attach;
 
 	nss_ppe_qdisc_info("configuring ppehtb class %x of qdisc %x\n", classid, sch->handle);
 
-	if (nss_ppe_htb_params_validate_and_save(sch, opt, &shaper) < 0) {
+	if (nss_ppe_htb_params_validate_and_save(sch, opt, &shaper, &scheduler) < 0) {
 		nss_ppe_qdisc_warning("validation of configuration parameters for htb class %x failed\n",
 					classid);
 		return -EINVAL;
@@ -255,8 +259,6 @@ static int nss_ppe_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid
 	 * If class with a given classid is not found, we allocate a new one
 	 */
 	if (!cl) {
-		is_exist = false;
-
 		nss_ppe_qdisc_trace("ppehtb class %x not found. Allocating a new class.\n", classid);
 		cl = nss_ppe_htb_class_alloc(sch, parent, classid);
 
@@ -279,15 +281,26 @@ static int nss_ppe_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid
 		}
 
 		cl->npq.shaper = shaper;
-		cl->npq.shaper.is_valid = true;
+		cl->npq.scheduler = scheduler;
+
+		/*
+		 * TODO: Abstract the logic into nss_ppe_qdisc_node_attach()
+		 */
 		if (parent) {
 			cl->npq.parent = &parent->npq;
 			cl->npq.level = parent->npq.level - 1;
 		}
 
 		if (parentid != TC_H_ROOT) {
-			if (nss_ppe_qdisc_shaper_set(&cl->npq, false) != 0)  {
+			if (nss_ppe_qdisc_scheduler_set(&cl->npq) != 0)  {
+				nss_ppe_qdisc_warning("ppe_htb %x SSDK scheduler configuration failed\n", sch->handle);
+				nss_qdisc_destroy(&cl->npq.nq);
+				goto failure;
+			}
+
+			if (nss_ppe_qdisc_shaper_set(&cl->npq) != 0)  {
 				nss_ppe_qdisc_warning("ppe_htb %x SSDK shaper configuration failed\n", sch->handle);
+				nss_ppe_qdisc_scheduler_reset(&cl->npq);
 				nss_qdisc_destroy(&cl->npq.nq);
 				goto failure;
 			}
@@ -302,7 +315,10 @@ static int nss_ppe_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid
 		if (nss_qdisc_node_attach(nq_parent, &cl->npq.nq, &nim_attach,
 			NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH) < 0) {
 			nss_ppe_qdisc_warning("ppe_attach for class %x failed\n", classid);
-			goto failure1;
+			nss_ppe_qdisc_shaper_reset(&cl->npq);
+			nss_ppe_qdisc_scheduler_reset(&cl->npq);
+			nss_qdisc_destroy(&cl->npq.nq);
+			goto failure;
 		}
 
 		/*
@@ -332,33 +348,34 @@ static int nss_ppe_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid
 		 */
 		nss_qdisc_start_basic_stats_polling(&cl->npq.nq);
 		nss_ppe_qdisc_trace("class %x successfully allocated and initialized\n", classid);
-	}
+	} else {
+		/*
+		 * Save the previous scheduker configuration
+		 * for hadling failure conditions.
+		 */
+		prev_scheduler = cl->npq.scheduler;
 
-	cl->npq.shaper = shaper;
-	cl->npq.shaper.is_valid = true;
+		cl->npq.shaper = shaper;
+		cl->npq.scheduler = scheduler;
 
-	/*
-	 * Set configuration in SSDK
-	 */
-	if ((parentid != TC_H_ROOT) && (is_exist)) {
-		if (nss_ppe_qdisc_shaper_set(&cl->npq, true) != 0) {
+		/*
+		 * Set configuration in SSDK
+		 */
+		if (nss_ppe_qdisc_scheduler_set(&cl->npq) != 0)  {
+			nss_ppe_qdisc_warning("ppe_htb %x SSDK scheduler configuration failed\n", sch->handle);
+			return -EINVAL;
+		}
+
+		if (nss_ppe_qdisc_shaper_set(&cl->npq) != 0)  {
 			nss_ppe_qdisc_warning("ppe_htb %x SSDK shaper configuration failed\n", sch->handle);
+			cl->npq.scheduler = prev_scheduler;
+			nss_ppe_qdisc_scheduler_set(&cl->npq);
 			return -EINVAL;
 		}
 	}
 
 	nss_ppe_qdisc_info("ppehtb class %x configured successfully\n", classid);
 	return 0;
-
-failure1:
-	/*
-	 * Reset the SSDK configuration done while allocating the class.
-	 */
-	if (parentid != TC_H_ROOT) {
-		nss_ppe_qdisc_shaper_reset(&cl->npq);
-	}
-
-	nss_qdisc_destroy(&cl->npq.nq);
 
 failure:
 	if (cl) {
@@ -379,8 +396,8 @@ static void nss_ppe_htb_destroy_class(struct Qdisc *sch, struct nss_ppe_htb_clas
 				cl->npq.nq.qos_tag, sch->handle);
 
 	if (cl == &q->root) {
-		nss_ppe_qdisc_info("We do not destroy ppe_htb class %x here since this is "
-				"the qdisc %p\n", cl, sch->handle);
+		nss_ppe_qdisc_info("We do not destroy ppe_htb class %p here since this is "
+				"the qdisc %x\n", cl, sch->handle);
 		return;
 	}
 
@@ -404,6 +421,10 @@ static void nss_ppe_htb_destroy_class(struct Qdisc *sch, struct nss_ppe_htb_clas
 	 */
 	if (nss_ppe_qdisc_shaper_reset(&cl->npq) != 0) {
 		nss_ppe_qdisc_warning("ppe_htb %x SSDK reset shaper configuration failed\n", sch->handle);
+	}
+
+	if (nss_ppe_qdisc_scheduler_reset(&cl->npq) != 0) {
+		nss_ppe_qdisc_warning("ppe_htb %x SSDK reset scheduler configuration failed\n", sch->handle);
 	}
 
 	/*
@@ -630,8 +651,8 @@ static int nss_ppe_htb_dump_class(struct Qdisc *sch, unsigned long arg, struct s
 	qopt.crate = cl->npq.shaper.crate;
 	qopt.cburst = cl->npq.shaper.cburst;
 	qopt.overhead = cl->npq.shaper.overhead;
-	qopt.quantum = cl->npq.shaper.quantum;
-	qopt.priority = cl->npq.shaper.priority;
+	qopt.quantum = cl->npq.scheduler.quantum;
+	qopt.priority = cl->npq.scheduler.priority;
 
 	/*
 	 * All ppehtb group nodes are root nodes. i.e. they dont

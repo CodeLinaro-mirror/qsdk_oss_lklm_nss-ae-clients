@@ -93,6 +93,7 @@
  * Shaper/Scheduler levels.
  */
 enum nss_ppe_qdisc_level {
+	NSS_PPE_QDISC_INVALID_LEVEL,
 	NSS_PPE_QDISC_QUEUE_LEVEL,
 	NSS_PPE_QDISC_FLOW_LEVEL,
 	NSS_PPE_QDISC_PORT_LEVEL,
@@ -167,10 +168,15 @@ struct nss_ppe_shaper {
 	uint32_t burst;		/* Allowed burst */
 	uint32_t crate;		/* Ceil bandwidth */
 	uint32_t cburst;	/* Ceil burst */
+	uint32_t overhead;	/* Overhead in bytes to be added for each packet */
+};
+
+/*
+ * nss_ppe_scheduler structure
+ */
+struct nss_ppe_scheduler {
 	uint32_t quantum;	/* Quantum allocation for DRR */
 	uint32_t priority;	/* Priority value */
-	uint32_t overhead;	/* Overhead in bytes to be added for each packet */
-	bool is_valid;		/* Shaper valid */
 };
 
 /*
@@ -183,12 +189,15 @@ struct nss_ppe_qdisc {
 				/* PPE Qdisc type */
 	struct nss_ppe_queue q;	/* PPE queue related parameters */
 	struct nss_ppe_shaper shaper;	/* PPE shaper parameters */
+	struct nss_ppe_scheduler scheduler;	/* PPE scheduler parameters */
 	nss_ppe_qdisc_level_t level;	/* Level at which qdisc is configured */
 	uint32_t l0spid;	/* Level 0 SP Id configured in SSDK */
 	uint32_t l0c_drrid;	/* Level 0 c_drr Id configured in SSDK */
 	uint32_t l0e_drrid;	/* Level 0 e_drr Id configured in SSDK */
 	uint32_t l1c_drrid;	/* Level 1 c_drr Id configured in SSDK */
 	uint32_t l1e_drrid;	/* Level 1 e_drr Id configured in SSDK */
+	bool l1_valid;		/* Level 1 scheduler resources valid */
+	bool l0_valid;		/* Level 0 scheduler resources valid */
 };
 
 /*
@@ -225,7 +234,7 @@ extern int nss_ppe_qdisc_shaper_reset(struct nss_ppe_qdisc *npq);
  * nss_ppe_qdisc_shaper_set()
  *	Configures a shaper in SSDK.
  */
-extern int nss_ppe_qdisc_shaper_set(struct nss_ppe_qdisc *npq, bool is_exist);
+extern int nss_ppe_qdisc_shaper_set(struct nss_ppe_qdisc *npq);
 
 /*
  * nss_ppe_qdisc_port_num_get()

@@ -18,6 +18,7 @@
 #include <linux/inet.h>
 #include <linux/of.h>
 #include <linux/ipv6.h>
+#include <linux/kernel.h>
 #include <linux/skbuff.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
@@ -26,6 +27,9 @@
 #include <linux/debugfs.h>
 #include <linux/completion.h>
 #include <linux/vmalloc.h>
+#include <net/icmp.h>
+#include <net/route.h>
+#include <net/ip6_route.h>
 
 #include <nss_api_if.h>
 #include <nss_ipsec.h>
@@ -68,6 +72,7 @@ static void nss_ipsecmgr_flow_update(struct nss_ipsecmgr_priv *priv, struct nss_
 	 */
 	memcpy(&local_tuple, flow_tuple, sizeof(struct nss_ipsec_tuple));
 	memcpy(&flow->nim, nim, sizeof(struct nss_ipsec_msg));
+	flow->data.sa_overhead = nss_ipsecmgr_ref_overhead(ref);
 
 	/*
 	 * If, this flow is only getting updated with a new SA contents. We
@@ -882,13 +887,91 @@ struct nss_ipsecmgr_ref *nss_ipsecmgr_flow_alloc(struct nss_ipsecmgr_priv *priv,
 }
 
 /*
+ * nss_ipsecmgr_flow_process_pmtu()
+ *	process the mtu and send an ICMP error
+ *
+ * note: in case we do not send an ICMP error back to sender
+ * then we rely on post fragmentation to handle larger than
+ * MTU size packets
+ */
+bool nss_ipsecmgr_flow_process_pmtu(struct nss_ipsecmgr_priv *priv,
+			struct sk_buff *skb,
+			struct nss_ipsecmgr_flow_data *data)
+{
+	struct dst_entry *dst;
+	struct flowi6 fl6;
+	struct rtable *rt;
+	uint32_t mtu;
+
+	/*
+	 * If length of the packet is more than computed MTU,
+	 * then send ICMP PMTU error back to Linux
+	 */
+	mtu = atomic_read(&priv->outer_dst_mtu) - data->sa_overhead;
+	if (likely(mtu >= skb->len))
+		return false;
+
+	switch (skb->protocol) {
+	case htons(ETH_P_IP):
+		if (unlikely(skb_dst(skb)))
+			goto send_icmp;
+
+		rt = ip_route_output(&init_net, ip_hdr(skb)->daddr, 0, 0, 0);
+		if (IS_ERR(rt)) {
+			return false;
+		}
+
+		if (rt->rt_type != RTN_UNICAST && rt->rt_type != RTN_LOCAL) {
+			ip_rt_put(rt);
+			return false;
+		}
+
+		skb_dst_set(skb, &rt->dst);
+send_icmp:
+		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED, htonl(mtu));
+		return true;
+
+	case htons(ETH_P_IPV6):
+
+		/*
+		 * If the computed MTU is less than IPV6_MIN_MTU[1280]
+		 * proceed with post fragmentation
+		 */
+		if (unlikely(mtu < IPV6_MIN_MTU))
+			return false;
+
+		if (likely(skb_dst(skb)))
+			goto send_icmp6;
+
+		memset(&fl6, 0, sizeof(fl6));
+		memcpy(&fl6.daddr, &ipv6_hdr(skb)->saddr, sizeof(fl6.daddr));
+
+		dst = ip6_route_output(&init_net, NULL, &fl6);
+		if (IS_ERR(dst)) {
+			return false;
+		}
+
+		skb_dst_set(skb, dst);
+send_icmp6:
+		icmpv6_send(skb, ICMPV6_PKT_TOOBIG, 0, mtu);
+		return true;
+
+	default:
+		BUG_ON(true);
+	}
+
+	return true;
+}
+
+/*
  * nss_ipsecmgr_flow_offload()
  * 	check if the flow can be offloaded to NSS for encapsulation
  */
-bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *skb)
+bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *skb, struct nss_ipsecmgr_flow_data *data)
 {
 	struct nss_ipsecmgr_ref *subnet_ref, *flow_ref;
 	struct nss_ipsecmgr_key subnet_key, flow_key;
+	struct nss_ipsecmgr_flow_entry *flow;
 	struct nss_ipsec_tuple *tuple;
 	struct nss_ipsec_msg nim;
 
@@ -905,15 +988,20 @@ bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *s
 		 * flow lookup is done with read lock
 		 */
 		read_lock_bh(&ipsecmgr_ctx->lock);
-		flow_ref = nss_ipsecmgr_flow_lookup(priv, &flow_key);
-		read_unlock_bh(&ipsecmgr_ctx->lock);
 
 		/*
 		 * if flow is found then proceed with the TX
 		 */
+		flow_ref = nss_ipsecmgr_flow_lookup(priv, &flow_key);
 		if (flow_ref) {
+			flow = container_of(flow_ref, struct nss_ipsecmgr_flow_entry, ref);
+			memcpy(data, &flow->data, sizeof(*data));
+			read_unlock_bh(&ipsecmgr_ctx->lock);
 			return true;
 		}
+
+		read_unlock_bh(&ipsecmgr_ctx->lock);
+
 		/*
 		 * flow table miss results in lookup in the subnet table. If,
 		 * a match is found then a rule is inserted in NSS for encapsulating
@@ -942,7 +1030,6 @@ bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *s
 		 * same flow. The only side affect of this will be NSS getting duplicate
 		 * add requests and thus rejecting one of them
 		 */
-
 		flow_ref = nss_ipsecmgr_flow_alloc(priv, &flow_key);
 		if (!flow_ref) {
 			write_unlock_bh(&ipsecmgr_ctx->lock);
@@ -955,6 +1042,8 @@ bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *s
 		nss_ipsecmgr_ref_add(flow_ref, subnet_ref);
 		nss_ipsecmgr_ref_update(priv, flow_ref, &nim);
 
+		flow = container_of(flow_ref, struct nss_ipsecmgr_flow_entry, ref);
+		memcpy(data, &flow->data, sizeof(*data));
 		write_unlock_bh(&ipsecmgr_ctx->lock);
 
 		break;
@@ -969,15 +1058,19 @@ bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *s
 		 * flow lookup is done with read lock
 		 */
 		read_lock_bh(&ipsecmgr_ctx->lock);
-		flow_ref = nss_ipsecmgr_flow_lookup(priv, &flow_key);
-		read_unlock_bh(&ipsecmgr_ctx->lock);
 
 		/*
 		 * if flow is found then proceed with the TX
 		 */
+		flow_ref = nss_ipsecmgr_flow_lookup(priv, &flow_key);
 		if (flow_ref) {
+			flow = container_of(flow_ref, struct nss_ipsecmgr_flow_entry, ref);
+			memcpy(data, &flow->data, sizeof(*data));
+			read_unlock_bh(&ipsecmgr_ctx->lock);
 			return true;
 		}
+
+		read_unlock_bh(&ipsecmgr_ctx->lock);
 
 		/*
 		 * flow table miss results in lookup in the subnet table. If,
@@ -1019,6 +1112,8 @@ bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *s
 		nss_ipsecmgr_ref_add(flow_ref, subnet_ref);
 		nss_ipsecmgr_ref_update(priv, flow_ref, &nim);
 
+		flow = container_of(flow_ref, struct nss_ipsecmgr_flow_entry, ref);
+		memcpy(data, &flow->data, sizeof(*data));
 		write_unlock(&ipsecmgr_ctx->lock);
 		break;
 
@@ -1029,4 +1124,3 @@ bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *s
 
 	return true;
 }
-

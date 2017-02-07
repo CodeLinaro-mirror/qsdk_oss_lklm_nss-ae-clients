@@ -119,6 +119,9 @@
 
 #define NSS_IPSECMGR_DEFAULT_TUN_NAME "ipsecdummy"
 
+#define NSS_IPSECMGR_ESP_TRAIL_SZ 2 /* esp trailer size */
+#define NSS_IPSECMGR_ESP_PAD_SZ 14 /* maximum amount of padding */
+
 struct nss_ipsecmgr_ref;
 struct nss_ipsecmgr_key;
 struct nss_ipsecmgr_priv;
@@ -174,6 +177,7 @@ struct nss_ipsecmgr_priv;
 
 typedef void (*nss_ipsecmgr_ref_update_t)(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_ref *ref, struct nss_ipsec_msg *nim);
 typedef void (*nss_ipsecmgr_ref_free_t)(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_ref *ref);
+typedef uint32_t (*nss_ipsecmgr_ref_overhead_t)(struct nss_ipsecmgr_ref *ref);
 
 /*
  * Key byte stream for lookup
@@ -188,13 +192,15 @@ struct nss_ipsecmgr_key {
  * IPsec manager reference object
  */
 struct nss_ipsecmgr_ref {
-	struct list_head head;				/* parent "ref" */
-	struct list_head node;				/* child "ref" */
+	struct list_head head;			/* parent "ref" */
+	struct list_head node;			/* child "ref" */
 
-	uint32_t id;					/* identifier */
+	uint32_t id;				/* identifier */
+	struct nss_ipsecmgr_ref *parent;	/* reference to parent */
 
-	nss_ipsecmgr_ref_update_t update;		/* update function */
-	nss_ipsecmgr_ref_free_t free;			/* free function */
+	nss_ipsecmgr_ref_update_t update;	/* update function */
+	nss_ipsecmgr_ref_free_t free;		/* free function */
+	nss_ipsecmgr_ref_overhead_t overhead;	/* free function */
 };
 
 /*
@@ -238,7 +244,7 @@ struct nss_ipsecmgr_sa_entry {
 	struct nss_ipsecmgr_key key;		/* key instance */
 
 	uint32_t ifnum;				/* SA interface */
-
+	uint32_t sa_overhead;			/* max header + trailer added for SA */
 	bool esn_enabled;			/* Is ESN enabled */
 
 	struct nss_ipsecmgr_sa_pkt_stats pkts;	/* packets processed per SA */
@@ -295,6 +301,14 @@ struct nss_ipsecmgr_netmask_db {
 };
 
 /*
+ * IPsec manager flow data
+ */
+struct nss_ipsecmgr_flow_data {
+	uint32_t pkts_processed;	/* packets processed for this flow */
+	uint32_t sa_overhead;		/* max header + trailer added for SA */
+};
+
+/*
  * IPsec manager flow entry
  */
 struct nss_ipsecmgr_flow_entry {
@@ -304,8 +318,7 @@ struct nss_ipsecmgr_flow_entry {
 
 	struct nss_ipsecmgr_priv *priv;		/* ipsecmgr private reference */
 	struct nss_ipsec_msg nim;		/* IPsec message */
-
-	uint32_t pkts_processed;		/* packets processed for this flow */
+	struct nss_ipsecmgr_flow_data data;	/* Flow data */
 };
 
 /*
@@ -350,6 +363,7 @@ struct nss_ipsecmgr_callback_entry {
 struct nss_ipsecmgr_priv {
 	struct net_device *dev;			/* back pointer to tunnel device */
 	struct nss_ipsecmgr_callback_entry cb;	/* callback entry instance */
+	atomic_t outer_dst_mtu;			/* PMTU of outer tunnel DST */
 	struct rtnl_link_stats64 stats;		/* stats of IPsec tunnel */
 };
 
@@ -1098,6 +1112,9 @@ void nss_ipsecmgr_ref_add(struct nss_ipsecmgr_ref *child, struct nss_ipsecmgr_re
 void nss_ipsecmgr_ref_free(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_ref *ref);
 void nss_ipsecmgr_ref_update(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_ref *ref, struct nss_ipsec_msg *nim);
 bool nss_ipsecmgr_ref_is_child(struct nss_ipsecmgr_ref *child, struct nss_ipsecmgr_ref *parent);
+void nss_ipsecmgr_ref_set_overhead(struct nss_ipsecmgr_ref *ref,
+		nss_ipsecmgr_ref_overhead_t overhead);
+uint32_t nss_ipsecmgr_ref_overhead(struct nss_ipsecmgr_ref *ref);
 
 /*
  * Encap flow API(s)
@@ -1124,7 +1141,10 @@ void nss_ipsecmgr_decap_flow_init(struct nss_ipsec_msg *nim, enum nss_ipsec_msg_
  */
 struct nss_ipsecmgr_ref *nss_ipsecmgr_flow_alloc(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_key *key);
 struct nss_ipsecmgr_ref *nss_ipsecmgr_flow_lookup(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_key *key);
-bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv, struct sk_buff *skb);
+bool nss_ipsecmgr_flow_offload(struct nss_ipsecmgr_priv *priv,
+		struct sk_buff *skb, struct nss_ipsecmgr_flow_data *data);
+bool nss_ipsecmgr_flow_process_pmtu(struct nss_ipsecmgr_priv *priv,
+		struct sk_buff *skb, struct nss_ipsecmgr_flow_data *data);
 
 /*
  * Subnet API(s)

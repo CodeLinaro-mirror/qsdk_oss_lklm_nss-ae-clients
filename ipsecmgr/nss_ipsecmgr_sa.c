@@ -45,6 +45,7 @@ struct nss_ipsecmgr_sa_info {
 	struct nss_ipsecmgr_key sa_key;
 	struct nss_ipsecmgr_key child_key;
 	struct nss_ipsecmgr_sa *sa;
+	uint32_t fail_hash_thresh;
 
 	struct nss_ipsecmgr_ref * (*child_alloc)(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_key *key);
 	struct nss_ipsecmgr_ref * (*child_lookup)(struct nss_ipsecmgr_priv *priv, struct nss_ipsecmgr_key *key);
@@ -304,6 +305,7 @@ static bool nss_ipsecmgr_sa_add(struct nss_ipsecmgr_priv *priv, struct nss_ipsec
 	 */
 	sa = container_of(sa_ref, struct nss_ipsecmgr_sa_entry, ref);
 	sa->ifnum = info->nim.cm.interface;
+	sa->fail_hash_thresh = info->fail_hash_thresh;
 
 	memcpy(&sa->nim, &info->nim, sizeof(struct nss_ipsec_msg));
 	memset(&sa->nim.tuple, 0, sizeof(struct nss_ipsec_tuple));
@@ -864,6 +866,10 @@ bool nss_ipsecmgr_decap_add(struct net_device *tun, struct nss_ipsecmgr_sa *sa, 
 		return false;
 	}
 
+	/*
+	 * Store the fail_hash_threshold in the info
+	 */
+	info.fail_hash_thresh  = data->fail_hash_thresh;
 	info.child_alloc = nss_ipsecmgr_flow_alloc;
 	info.child_lookup = nss_ipsecmgr_flow_lookup;
 	info.sa = sa;

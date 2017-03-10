@@ -214,6 +214,7 @@ struct nss_ipsecmgr_sa_pkt_stats {
 	uint32_t fail_queue;
 	uint32_t fail_hash;
 	uint32_t fail_replay;
+	uint32_t fail_hash_cont;		/* Continous fail hash count */
 };
 
 /*
@@ -244,6 +245,9 @@ struct nss_ipsecmgr_sa_entry {
 	struct nss_ipsecmgr_priv *priv;		/* ipsecmgr private reference */
 	struct nss_ipsec_msg nim;		/* ipsec message */
 	struct nss_ipsecmgr_sa sa_info;		/* SA information */
+
+	uint32_t fail_hash_thresh;		/* continous hash fail
+						   threshold */
 };
 
 /*

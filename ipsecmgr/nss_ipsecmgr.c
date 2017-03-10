@@ -574,7 +574,7 @@ done:
 
 /*
  * nss_ipsecmgr_tunnel_update_stats()
- * 	Update tunnel rx stats
+ *	Update tunnel stats
  */
 static void nss_ipsecmgr_tunnel_update_stats(struct nss_ipsecmgr_priv *priv, struct nss_ipsec_msg *nim)
 {
@@ -603,6 +603,19 @@ static void nss_ipsecmgr_tunnel_update_stats(struct nss_ipsecmgr_priv *priv, str
 	/*
 	 * update tunnel specific stats
 	 */
+	if (nim->type == NSS_IPSEC_TYPE_ENCAP) {
+		tun_stats->tx_bytes += pkts->bytes;
+		tun_stats->tx_packets += pkts->count;
+
+		tun_stats->tx_dropped += pkts->no_headroom;
+		tun_stats->tx_dropped += pkts->no_tailroom;
+		tun_stats->tx_dropped += pkts->no_resource;
+		tun_stats->tx_dropped += pkts->fail_queue;
+		tun_stats->tx_dropped += pkts->fail_hash;
+		tun_stats->tx_dropped += pkts->fail_replay;
+		return;
+	}
+
 	tun_stats->rx_bytes += pkts->bytes;
 	tun_stats->rx_packets += pkts->count;
 
@@ -625,10 +638,12 @@ static void nss_ipsecmgr_tunnel_notify(__attribute((unused))void *app_data, stru
 	struct nss_ipsecmgr_sa_stats *sa_stats;
 	struct nss_ipsecmgr_event stats_event;
 	struct nss_ipsecmgr_sa_entry *sa;
+	struct nss_ipsec_sa_stats *pkts;
 	struct nss_ipsecmgr_priv *priv;
 	nss_ipsecmgr_event_cb_t cb_fn;
 	struct nss_ipsecmgr_ref *ref;
 	struct nss_ipsecmgr_key key;
+	bool reset_fail_hash;
 	struct net_device *dev;
 
 	BUG_ON(nim == NULL);
@@ -668,14 +683,41 @@ static void nss_ipsecmgr_tunnel_notify(__attribute((unused))void *app_data, stru
 		 */
 		nss_ipsecmgr_sa_stats_update(nim, sa);
 
+		sa_stats = &stats_event.data.stats;
+
 		/*
 		 * update tunnel stats
 		 */
+		sa_stats->fail_hash_alarm = false;
 		nss_ipsecmgr_tunnel_update_stats(priv, nim);
 
-		sa_stats = &stats_event.data.stats;
-		memcpy(&sa_stats->sa, &sa->sa_info, sizeof(struct nss_ipsecmgr_sa));
+		if ((nim->type == NSS_IPSEC_TYPE_DECAP) &&
+				sa->fail_hash_thresh) {
+			pkts = &nim->msg.stats.sa;
 
+			/*
+			 * If the fail_hash_count is zero and packet count is
+			 * non-zero. It indicates that the continuous hash
+			 * failure was a transient state hence reset the count
+			 */
+			reset_fail_hash = (!pkts->fail_hash_cont &&
+					pkts->count);
+			sa->pkts.fail_hash_cont = reset_fail_hash ? 0
+				: (sa->pkts.fail_hash_cont +
+						pkts->fail_hash_cont);
+
+			/*
+			 * Check the fail_hash_cont hash crossed the threshold,
+			 * if yes set the alarm.
+			 */
+			if (sa->pkts.fail_hash_cont >= sa->fail_hash_thresh) {
+				sa_stats->fail_hash_alarm = true;
+				sa->pkts.fail_hash_cont -= sa->fail_hash_thresh;
+			}
+		}
+
+		memcpy(&sa_stats->sa, &sa->sa_info,
+				sizeof(struct nss_ipsecmgr_sa));
 		sa_stats->crypto_index = sa->nim.msg.rule.data.crypto_index;
 		write_unlock(&ipsecmgr_ctx->lock);
 
@@ -700,6 +742,7 @@ static void nss_ipsecmgr_tunnel_notify(__attribute((unused))void *app_data, stru
 
 			cb_fn(priv->cb.app_data, &stats_event);
 		}
+
 		break;
 
 	case NSS_IPSEC_MSG_TYPE_SYNC_NODE_STATS:

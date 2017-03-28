@@ -80,6 +80,7 @@ static void nss_ppe_fifo_destroy(struct Qdisc *sch)
 	struct nss_ppe_qdisc *npq = (struct nss_ppe_qdisc *)qdisc_priv(sch);
 
 	if (sch->parent == TC_H_ROOT) {
+		nss_ppe_qdisc_mcast_queue_reset(npq);
 		nss_ppe_qdisc_scheduler_reset(npq);
 		nss_ppe_qdisc_default_conf_set(nss_ppe_qdisc_port_num_get(npq));
 	}
@@ -100,10 +101,11 @@ static const struct nla_policy nss_ppe_fifo_policy[TCA_PPEFIFO_MAX + 1] = {
 };
 
 /*
- * nss_ppe_fifo_change()
- *	Can be used to configure a fifo qdisc.
+ * nss_ppe_fifo_params_validate_and_save
+ *	Validates and saves the qdisc configuration parameters.
  */
-static int nss_ppe_fifo_change(struct Qdisc *sch, struct nlattr *opt)
+static int nss_ppe_fifo_params_validate_and_save(struct Qdisc *sch,
+						struct nlattr *opt)
 {
 	struct nss_ppe_fifo_sched_data *q;
 	struct nlattr *na[TCA_PPEFIFO_MAX + 1];
@@ -150,16 +152,68 @@ static int nss_ppe_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	sch->limit = qopt->limit;
 
 	q->set_default = qopt->set_default;
-	nss_ppe_qdisc_info("qdisc:%x limit:%u set_default:%u\n", sch->handle, qopt->limit, qopt->set_default);
-
 	q->npq.q.qlimit = q->limit;
 	q->npq.q.color_en = false;
 	q->npq.q.red_en = false;
 
 	/*
-	 * Program PPE queue parameters
+	 * Currently multicast queue configuration is based on set_default.
+	 * TODO: Enhance multicast queue configuration on the basis of
+	 * multicast parameter specified in tc commands.
 	 */
-	nss_ppe_qdisc_queue_limit_set(&q->npq);
+	q->npq.q.mcast_enable = q->set_default;
+
+	nss_ppe_qdisc_info("qdisc:%x limit:%u set_default:%u\n", sch->handle, qopt->limit, qopt->set_default);
+	return 0;
+}
+
+/*
+ * nss_ppe_fifo_change()
+ *	Can be used to configure a fifo qdisc.
+ */
+static int nss_ppe_fifo_change(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct nss_ppe_queue prev_q;
+	struct nss_ppe_fifo_sched_data *q = qdisc_priv(sch);
+
+	memset(&prev_q, 0, sizeof(prev_q));
+
+	/*
+	 * Check whether it is called at init time.
+	 */
+	if (q->npq.q.ucast_valid) {
+
+		/*
+		 * Save the previous queue configuration
+		 * for hadling failure conditions.
+		 */
+		prev_q = q->npq.q;
+		goto conf;
+	}
+
+	/*
+	 * Set the PPE configuration.
+	 * For root qdisc, SSDK schedulers and NSS configuration is done
+	 * while for non-root qdisc, the SSDK scheduler and NSS
+	 * configuration is done in corresponding graft class.
+	 */
+	if (sch->parent == TC_H_ROOT) {
+		if (nss_ppe_qdisc_scheduler_set(&q->npq) < 0) {
+			nss_ppe_qdisc_warning("%p SSDK scheduler configuration failed\n", sch);
+			return -EINVAL;
+		}
+	}
+
+conf:
+	if (nss_ppe_fifo_params_validate_and_save(sch, opt) < 0) {
+		nss_ppe_qdisc_warning("ppe_fifo %p params validate and save failed\n", sch);
+		return -EINVAL;
+	}
+
+	if (nss_ppe_qdisc_configure(&q->npq) < 0) {
+		nss_ppe_qdisc_warning("ppe_fifo %p configuration failed\n", sch);
+		goto fail;
+	}
 
 	/*
 	 * There is nothing we need to do if the qdisc is not
@@ -171,14 +225,30 @@ static int nss_ppe_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 
 	/*
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
+	 * TODO: Error handling in case more than one qdisc sets set_default on same port.
 	 */
 	if (nss_qdisc_set_default(&q->npq.nq) < 0) {
 		nss_ppe_qdisc_warning("ppe_fifo %p set_default failed\n", sch);
-		return -EINVAL;
+		goto fail;
 	}
 
 	nss_ppe_qdisc_info("ppe_fifo %p queue (qos_tag:%u) set as default\n", sch, q->npq.nq.qos_tag);
 	return 0;
+
+fail:
+	/*
+	 * Restore to previous configuration if exists.
+	 */
+	if (prev_q.ucast_valid) {
+		q->npq.q = prev_q;
+		nss_ppe_qdisc_configure(&q->npq);
+	} else {
+		if (sch->parent == TC_H_ROOT) {
+			nss_ppe_qdisc_mcast_queue_reset(&q->npq);
+			nss_ppe_qdisc_scheduler_reset(&q->npq);
+		}
+	}
+	return -EINVAL;
 }
 
 /*
@@ -203,26 +273,9 @@ static int nss_ppe_fifo_init(struct Qdisc *sch, struct nlattr *opt)
 	}
 	nss_ppe_qdisc_info("PPE fifo initialized - handle %x parent %x\n", sch->handle, sch->parent);
 
-	/*
-	 * Set the PPE configuration
-	 * For root qdisc, first SSDK schedulers and NSS configuration is done
-	 * and then limit is set while for non-root qdisc, the SSDK scheduler and NSS
-	 * configuration is done in corresponding graft class.
-	 */
-	if (sch->parent == TC_H_ROOT) {
-		if (nss_ppe_qdisc_configure(npq) < 0) {
-			nss_ppe_qdisc_warning("ppe_fifo %p configuration failed\n", sch);
-			nss_qdisc_destroy(&npq->nq);
-			return -EINVAL;
-		}
-	}
-
 	if (nss_ppe_fifo_change(sch, opt) < 0) {
 		nss_ppe_qdisc_warning("ppe_fifo %p change failed\n", sch);
 		nss_qdisc_destroy(&npq->nq);
-		if (sch->parent == TC_H_ROOT) {
-			nss_ppe_qdisc_scheduler_reset(npq);
-		}
 		return -EINVAL;
 	}
 

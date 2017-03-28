@@ -39,7 +39,9 @@
 #define NSS_PPE_QDISC_L1_SP_MAX		1
 #define NSS_PPE_QDISC_L1_CDRR_MAX	4
 #define NSS_PPE_QDISC_L1_EDRR_MAX	4
-#define NSS_PPE_QDISC_QUEUE_MAX		16
+#define NSS_PPE_QDISC_UCAST_QUEUE_MAX	16
+#define NSS_PPE_QDISC_MCAST_QUEUE_MAX	4
+
 
 #define NSS_PPE_QDISC_CPU0_L0_SP_MAX	36
 #define NSS_PPE_QDISC_CPU0_L0_CDRR_MAX	48
@@ -48,28 +50,25 @@
 #define NSS_PPE_QDISC_CPU0_L1_CDRR_MAX	8
 #define NSS_PPE_QDISC_CPU0_L1_EDRR_MAX	8
 #define NSS_PPE_QDISC_CPU0_QUEUE_MAX	144
+#define NSS_PPE_QDISC_CPU0_MCAST_QUEUE_MAX	272
 
 #define NSS_PPE_QDISC_LOOPBACK_L0_SP_MAX	1
 #define NSS_PPE_QDISC_LOOPBACK_L0_CDRR_MAX	16
 #define NSS_PPE_QDISC_LOOPBACK_L0_EDRR_MAX	16
 #define NSS_PPE_QDISC_LOOPBACK_QUEUE_MAX	16
+#define NSS_PPE_QDISC_LOOPBACK_MCAST_QUEUE_MAX	1
 
 #define NSS_PPE_QDISC_LOOPBACK_L0_SP_BASE	35
 #define NSS_PPE_QDISC_LOOPBACK_L0_CDRR_BASE	32
 #define NSS_PPE_QDISC_LOOPBACK_L0_EDRR_BASE	32
 #define NSS_PPE_QDISC_LOOPBACK_QUEUE_BASE	128
+#define NSS_PPE_QDISC_LOOPBACK_MCAST_QUEUE_BASE	256
 
 #define NSS_PPE_QDISC_PRIORITY_MAX	7
 
 #define NSS_PPE_QDISC_PORT_MAX		8
 
 #define NSS_PPE_QDISC_DRR_WT_MAX	1024
-
-/*
- * Token number is assigned the max value so as to
- * avoid the packet loss at the start of shaper process.
- */
-#define NSS_PPE_QDISC_TOKEN_MAX		0x3fffffff
 
 static struct nss_ppe_qdisc_port ppe_qdisc_port[NSS_PPE_QDISC_PORT_MAX];
 
@@ -102,116 +101,6 @@ static int nss_ppe_qdisc_loobback_l1_conf_set(void)
 
 	nss_ppe_qdisc_info("SSDK L1 configuration successful\n");
 	return 0;
-}
-
-/*
- * nss_ppe_qdisc_base_get()
- *	Returns base of the particular resource for a given port.
- */
-static uint32_t nss_ppe_qdisc_base_get(uint32_t port, nss_ppe_qdisc_res_type_t type)
-{
-	uint32_t base = 0;
-	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
-
-	spin_lock_bh(&ppe_port->lock);
-	base = ppe_port->base[type];
-	spin_unlock_bh(&ppe_port->lock);
-
-	nss_ppe_qdisc_info("port:%d, type:%d, base:%d\n", port, type, base);
-	return base;
-}
-
-/*
- * nss_ppe_qdisc_attach_free()
- *	Attaches a resource to free list.
- */
-static void nss_ppe_qdisc_attach_free(uint32_t port, struct nss_ppe_qdisc_res *res)
-{
-	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
-
-	spin_lock_bh(&ppe_port->lock);
-	res->next = ppe_port->res_free[res->type];
-	ppe_port->res_free[res->type] = res;
-	spin_unlock_bh(&ppe_port->lock);
-
-	nss_ppe_qdisc_info("port:%d, type:%d, res:%p\n", port, res->type, res);
-	return;
-}
-
-/*
- * nss_ppe_qdisc_res_free()
- *	Frees the allocated resource and attach it to free list.
- */
-static int nss_ppe_qdisc_res_free(uint32_t port, uint32_t offset, nss_ppe_qdisc_res_type_t type)
-{
-	struct nss_ppe_qdisc_res *temp = NULL;
-	struct nss_ppe_qdisc_res *res = NULL;
-	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
-
-	if (type >= NSS_PPE_QDISC_MAX_RES_TYPE) {
-		nss_ppe_qdisc_assert(false, "Resource type:%d not valid for port:%d", type, port);
-		return -1;
-	}
-
-	spin_lock_bh(&ppe_port->lock);
-	res = ppe_port->res_used[type];
-	if (res->offset == offset) {
-		ppe_port->res_used[type] = res->next;
-		res->next = NULL;
-		spin_unlock_bh(&ppe_port->lock);
-		goto success;
-	}
-
-	temp = res;
-	res = res->next;
-
-	while (res) {
-		if (res->offset == offset) {
-			temp->next = res->next;
-			res->next = NULL;
-			break;
-		} else {
-			temp = res;
-			res = res->next;
-		}
-	}
-	spin_unlock_bh(&ppe_port->lock);
-
-	if (!res) {
-		nss_ppe_qdisc_assert(false, "Resource:%d type:%d not found for port:%d", offset, type, port);
-		return -1;
-	}
-
-success:
-	nss_ppe_qdisc_attach_free(port, res);
-	nss_ppe_qdisc_info("port:%d, type:%d, res:%p\n", port, type, res);
-	return 0;
-}
-
-/*
- * nss_ppe_qdisc_res_alloc()
- *	Allocates free resource for a given port.
- */
-static struct nss_ppe_qdisc_res *nss_ppe_qdisc_res_alloc(uint32_t port, nss_ppe_qdisc_res_type_t type)
-{
-	struct nss_ppe_qdisc_res *res = NULL;
-	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
-
-	/*
-	 * Detach the resource from free list
-	 * and attach to used list.
-	 */
-	spin_lock_bh(&ppe_port->lock);
-	res = ppe_port->res_free[type];
-	if (res) {
-		ppe_port->res_free[type] = res->next;
-		res->next = ppe_port->res_used[type];
-		ppe_port->res_used[type] = res;
-	}
-	spin_unlock_bh(&ppe_port->lock);
-
-	nss_ppe_qdisc_info("port:%d, type:%d, res:%p\n", port, type, res);
-	return res;
 }
 
 /*
@@ -327,8 +216,11 @@ static int nss_ppe_qdisc_port_res_alloc(void)
 	 * Loopback port configuration
 	 * Loopback port requires only L0 resources.
 	 */
-	ppe_qdisc_port[i].max[NSS_PPE_QDISC_QUEUE] = NSS_PPE_QDISC_LOOPBACK_QUEUE_MAX;
-	ppe_qdisc_port[i].base[NSS_PPE_QDISC_QUEUE] = NSS_PPE_QDISC_LOOPBACK_QUEUE_BASE;
+	ppe_qdisc_port[i].max[NSS_PPE_QDISC_UCAST_QUEUE] = NSS_PPE_QDISC_LOOPBACK_QUEUE_MAX;
+	ppe_qdisc_port[i].base[NSS_PPE_QDISC_UCAST_QUEUE] = NSS_PPE_QDISC_LOOPBACK_QUEUE_BASE;
+
+	ppe_qdisc_port[i].max[NSS_PPE_QDISC_MCAST_QUEUE] = NSS_PPE_QDISC_LOOPBACK_MCAST_QUEUE_MAX;
+	ppe_qdisc_port[i].base[NSS_PPE_QDISC_MCAST_QUEUE] = NSS_PPE_QDISC_LOOPBACK_MCAST_QUEUE_BASE;
 
 	ppe_qdisc_port[i].max[NSS_PPE_QDISC_L0_CDRR] = NSS_PPE_QDISC_LOOPBACK_L0_CDRR_MAX;
 	ppe_qdisc_port[i].base[NSS_PPE_QDISC_L0_CDRR] = NSS_PPE_QDISC_LOOPBACK_L0_CDRR_BASE;
@@ -363,8 +255,11 @@ static int nss_ppe_qdisc_port_res_alloc(void)
 		/*
 		 * Resource configuration
 		 */
-		ppe_qdisc_port[i].max[NSS_PPE_QDISC_QUEUE] = NSS_PPE_QDISC_QUEUE_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_QDISC_QUEUE] = NSS_PPE_QDISC_CPU0_QUEUE_MAX + (i - 1) * NSS_PPE_QDISC_QUEUE_MAX;
+		ppe_qdisc_port[i].max[NSS_PPE_QDISC_UCAST_QUEUE] = NSS_PPE_QDISC_UCAST_QUEUE_MAX;
+		ppe_qdisc_port[i].base[NSS_PPE_QDISC_UCAST_QUEUE] = NSS_PPE_QDISC_CPU0_QUEUE_MAX + (i - 1) * NSS_PPE_QDISC_UCAST_QUEUE_MAX;
+
+		ppe_qdisc_port[i].max[NSS_PPE_QDISC_MCAST_QUEUE] = NSS_PPE_QDISC_MCAST_QUEUE_MAX;
+		ppe_qdisc_port[i].base[NSS_PPE_QDISC_MCAST_QUEUE] = NSS_PPE_QDISC_CPU0_MCAST_QUEUE_MAX + (i - 1) * NSS_PPE_QDISC_MCAST_QUEUE_MAX;
 
 		ppe_qdisc_port[i].max[NSS_PPE_QDISC_L0_CDRR] = NSS_PPE_QDISC_L0_CDRR_MAX;
 		ppe_qdisc_port[i].base[NSS_PPE_QDISC_L0_CDRR] = NSS_PPE_QDISC_CPU0_L0_CDRR_MAX + (i - 1) * NSS_PPE_QDISC_L0_CDRR_MAX;
@@ -426,7 +321,8 @@ static void nss_ppe_qdisc_def_conf_disable(uint32_t port)
 {
 	bool status;
 	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
-	uint32_t qid = nss_ppe_qdisc_base_get(port, NSS_PPE_QDISC_QUEUE);
+	uint32_t ucast_qid = nss_ppe_qdisc_base_get(port, NSS_PPE_QDISC_UCAST_QUEUE);
+	uint32_t mcast_qid = nss_ppe_qdisc_base_get(port, NSS_PPE_QDISC_MCAST_QUEUE);
 
 	/*
 	 * Get the default queue configuration status.
@@ -440,9 +336,13 @@ static void nss_ppe_qdisc_def_conf_disable(uint32_t port)
 	 * disable queue enqueue, dequeue and flush the queue.
 	 */
  	if (status) {
-		fal_qm_enqueue_ctrl_set(0, qid, false);
-		fal_scheduler_dequeue_ctrl_set(0, qid, false);
-		fal_queue_flush(0, port, qid);
+		fal_qm_enqueue_ctrl_set(0, ucast_qid, false);
+		fal_scheduler_dequeue_ctrl_set(0, ucast_qid, false);
+		fal_queue_flush(0, port, ucast_qid);
+
+		fal_qm_enqueue_ctrl_set(0, mcast_qid, false);
+		fal_scheduler_dequeue_ctrl_set(0, mcast_qid, false);
+		fal_queue_flush(0, port, mcast_qid);
 
 		/*
 		 * Reset the default queue configuration status.
@@ -466,9 +366,9 @@ static void nss_ppe_qdisc_queue_scheduler_disable(struct nss_ppe_qdisc *npq)
 	/*
 	 * Disable queue enqueue, dequeue and flush the queue.
 	 */
-	fal_qm_enqueue_ctrl_set(0, npq->q.qid, false);
-	fal_scheduler_dequeue_ctrl_set(0, npq->q.qid, false);
-	fal_queue_flush(0, port_num, npq->q.qid);
+	fal_qm_enqueue_ctrl_set(0, npq->q.ucast_qid, false);
+	fal_scheduler_dequeue_ctrl_set(0, npq->q.ucast_qid, false);
+	fal_queue_flush(0, port_num, npq->q.ucast_qid);
 
 	nss_ppe_qdisc_info("Disable SSDK level0 queue scheduler successful\n");
 }
@@ -482,8 +382,8 @@ static void nss_ppe_qdisc_queue_scheduler_enable(struct nss_ppe_qdisc *npq)
 	/*
 	 * Enable queue enqueue and dequeue.
 	 */
-	fal_qm_enqueue_ctrl_set(0, npq->q.qid, true);
-	fal_scheduler_dequeue_ctrl_set(0, npq->q.qid, true);
+	fal_qm_enqueue_ctrl_set(0, npq->q.ucast_qid, true);
+	fal_scheduler_dequeue_ctrl_set(0, npq->q.ucast_qid, true);
 
 	nss_ppe_qdisc_info("Enable SSDK level0 queue scheduler successful\n");
 }
@@ -507,33 +407,34 @@ static int nss_ppe_qdisc_l1_res_free(struct nss_ppe_qdisc *npq)
 	}
 
 	/*
-	 * Free Level 1 DRR resource
+	 * If l1_valid is not set, then no resources to free.
 	 */
-	if (npq->l1c_drrid) {
-		offset = npq->l1c_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L1_CDRR);
-		if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L1_CDRR) != 0) {
-			nss_ppe_qdisc_error("%p Used res:%d not found for port:%d, type:%d \n", npq, npq->l1c_drrid, port_num, NSS_PPE_QDISC_L1_CDRR);
-			return -EINVAL;
-		}
+	if (!npq->l1_valid) {
+		return 0;
 	}
 
-	if (npq->l1e_drrid) {
-		offset = npq->l1e_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L1_EDRR);
-		if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L1_EDRR) != 0) {
-			nss_ppe_qdisc_error("%p Used res:%d not found for port:%d, type:%d \n", npq, npq->l1e_drrid, port_num, NSS_PPE_QDISC_L1_EDRR);
-			return -EINVAL;
-		}
+	/*
+	 * Free Level 1 DRR resource
+	 */
+	offset = npq->l1c_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L1_CDRR);
+	if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L1_CDRR) != 0) {
+		nss_ppe_qdisc_error("Used res:%d not found for port:%d, type:%d \n", npq->l1c_drrid, port_num, NSS_PPE_QDISC_L1_CDRR);
+		return -EINVAL;
+	}
+
+	offset = npq->l1e_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L1_EDRR);
+	if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L1_EDRR) != 0) {
+		nss_ppe_qdisc_error("Used res:%d not found for port:%d, type:%d \n", npq->l1e_drrid, port_num, NSS_PPE_QDISC_L1_EDRR);
+		return -EINVAL;
 	}
 
 	/*
 	 * Free Level 0 SP resource
 	 */
-	if (npq->l0spid) {
-		offset = npq->l0spid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_SP);
-		if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L0_SP) != 0) {
-			nss_ppe_qdisc_error("%p Used res:%d not found for port:%d, type:%d \n", npq, npq->l0spid, port_num, NSS_PPE_QDISC_L0_SP);
-			return -EINVAL;
-		}
+	offset = npq->l0spid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_SP);
+	if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L0_SP) != 0) {
+		nss_ppe_qdisc_error("Used res:%d not found for port:%d, type:%d \n", npq->l0spid, port_num, NSS_PPE_QDISC_L0_SP);
+		return -EINVAL;
 	}
 
 	/*
@@ -544,7 +445,7 @@ static int nss_ppe_qdisc_l1_res_free(struct nss_ppe_qdisc *npq)
 	npq->l1e_drrid = 0;
 	npq->l1_valid = false;
 
-	nss_ppe_qdisc_info("%p SSDK level1 queue scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK level1 queue scheduler configuration successful\n");
 	return 0;
 }
 
@@ -564,13 +465,13 @@ static int nss_ppe_qdisc_l1_res_alloc(struct nss_ppe_qdisc *npq)
 	 */
 	l1c_drr = nss_ppe_qdisc_res_alloc(port_num, NSS_PPE_QDISC_L1_CDRR);
 	if (!l1c_drr) {
-		nss_ppe_qdisc_warning("%p Free res not found for port:%d, type:%d \n", npq, port_num, NSS_PPE_QDISC_L1_CDRR);
+		nss_ppe_qdisc_warning("Free res not found for port:%d, type:%d \n", port_num, NSS_PPE_QDISC_L1_CDRR);
 		goto fail;
 	}
 
 	l1e_drr = nss_ppe_qdisc_res_alloc(port_num, NSS_PPE_QDISC_L1_EDRR);
 	if (!l1e_drr) {
-		nss_ppe_qdisc_warning("%p Free res not found for port:%d, type:%d \n", npq, port_num, NSS_PPE_QDISC_L1_EDRR);
+		nss_ppe_qdisc_warning("Free res not found for port:%d, type:%d \n", port_num, NSS_PPE_QDISC_L1_EDRR);
 		goto fail;
 	}
 
@@ -579,15 +480,16 @@ static int nss_ppe_qdisc_l1_res_alloc(struct nss_ppe_qdisc *npq)
 	 */
 	l0sp = nss_ppe_qdisc_res_alloc(port_num, NSS_PPE_QDISC_L0_SP);
 	if (!l0sp) {
-		nss_ppe_qdisc_warning("%p Free res not found for port:%d, type:%d \n", npq, port_num, NSS_PPE_QDISC_L0_SP);
+		nss_ppe_qdisc_warning("Free res not found for port:%d, type:%d \n", port_num, NSS_PPE_QDISC_L0_SP);
 		goto fail;
 	}
 
 	/*
 	 * Set Res id values in qdisc
 	 */
-	npq->q.qid = 0;
-	npq->q.qid_valid = false;
+	npq->q.ucast_qid = 0;
+	npq->q.mcast_qid = 0;
+	npq->q.ucast_valid = false;
 	npq->l1_valid = true;
 	npq->l0c_drrid = 0;
 	npq->l0e_drrid = 0;
@@ -595,7 +497,7 @@ static int nss_ppe_qdisc_l1_res_alloc(struct nss_ppe_qdisc *npq)
 	npq->l1c_drrid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L1_CDRR) + l1c_drr->offset;
 	npq->l1e_drrid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L1_EDRR) + l1e_drr->offset;
 
-	nss_ppe_qdisc_info("%p level1 scheduler resource allocation successful\n", npq);
+	nss_ppe_qdisc_info("Level1 scheduler resource allocation successful\n");
 	return 0;
 
 fail:
@@ -638,11 +540,11 @@ static int nss_ppe_qdisc_l1_queue_scheduler_configure(struct nss_ppe_qdisc *npq)
 	nss_ppe_qdisc_trace("SSDK level1 configuration: Port:%d, l0spid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l1spid:%d\n",
 			port_num, npq->l0spid, l1cfg.c_drr_id, l1cfg.c_pri, l1cfg.c_drr_wt, l1cfg.e_drr_id, l1cfg.e_pri, l1cfg.e_drr_wt, l1cfg.sp_id);
 	if (fal_queue_scheduler_set(0, npq->l0spid, NSS_PPE_QDISC_FLOW_LEVEL - 1, port_num, &l1cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK level1 queue scheduler configuration failed\n", npq);
+		nss_ppe_qdisc_error("SSDK level1 queue scheduler configuration failed\n");
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK level1 queue scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK level1 queue scheduler configuration successful\n");
 	return 0;
 }
 
@@ -662,7 +564,7 @@ static int nss_ppe_qdisc_l1_queue_scheduler_set(struct nss_ppe_qdisc *npq)
 		 */
 		npq->l0spid = NSS_PPE_QDISC_LOOPBACK_L0_SP_BASE;
 
-		nss_ppe_qdisc_info("%p SSDK level1 queue scheduler configuration successful\n", npq);
+		nss_ppe_qdisc_info("SSDK level1 queue scheduler configuration successful\n");
 		return 0;
 	}
 
@@ -671,7 +573,7 @@ static int nss_ppe_qdisc_l1_queue_scheduler_set(struct nss_ppe_qdisc *npq)
 	 */
 	if (!npq->l1_valid) {
 		if (nss_ppe_qdisc_l1_res_alloc(npq) != 0) {
-			nss_ppe_qdisc_warning("%p SSDK level0 queue scheduler configuration failed\n", npq);
+			nss_ppe_qdisc_warning("SSDK level0 queue scheduler configuration failed\n");
 			return -EINVAL;
 		}
 	}
@@ -680,12 +582,12 @@ static int nss_ppe_qdisc_l1_queue_scheduler_set(struct nss_ppe_qdisc *npq)
 	 * Set Level 1 configuration
 	 */
 	if (nss_ppe_qdisc_l1_queue_scheduler_configure(npq) != 0) {
-		nss_ppe_qdisc_error("%p SSDK level1 queue scheduler configuration failed\n", npq);
+		nss_ppe_qdisc_error("SSDK level1 queue scheduler configuration failed\n");
 		nss_ppe_qdisc_l1_res_free(npq);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK level1 queue scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK level1 queue scheduler configuration successful\n");
 	return 0;
 }
 
@@ -699,45 +601,49 @@ static int nss_ppe_qdisc_l0_res_free(struct nss_ppe_qdisc *npq)
 	uint32_t port_num = nss_ppe_qdisc_port_num_get(npq);
 
 	/*
-	 * Free Level 0 DRR resource
+	 * If l0_valid is not set, then no resources to free.
 	 */
-	if (npq->l0c_drrid) {
-		offset = npq->l0c_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_CDRR);
-		if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L0_CDRR) != 0) {
-			nss_ppe_qdisc_error("%p Used res:%d not found for port:%d, type:%d \n", npq, npq->l0c_drrid, port_num, NSS_PPE_QDISC_L0_CDRR);
-			return -EINVAL;
-		}
+	if (!npq->l0_valid) {
+		return 0;
 	}
 
-	if (npq->l0e_drrid) {
-		offset = npq->l0e_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_EDRR);
-		if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L0_EDRR) != 0) {
-			nss_ppe_qdisc_error("%p Used res:%d not found for port:%d, type:%d \n", npq, npq->l0e_drrid, port_num, NSS_PPE_QDISC_L0_EDRR);
-			return -EINVAL;
-		}
+	/*
+	 * Free Level 0 DRR resource
+	 */
+	offset = npq->l0c_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_CDRR);
+	if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L0_CDRR) != 0) {
+		nss_ppe_qdisc_error("Used res:%d not found for port:%d, type:%d \n", npq->l0c_drrid, port_num, NSS_PPE_QDISC_L0_CDRR);
+		return -EINVAL;
+	}
+
+	offset = npq->l0e_drrid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_EDRR);
+	if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_L0_EDRR) != 0) {
+		nss_ppe_qdisc_error("Used res:%d not found for port:%d, type:%d \n", npq->l0e_drrid, port_num, NSS_PPE_QDISC_L0_EDRR);
+		return -EINVAL;
 	}
 
 	/*
 	 * Free Level 0 queue resource
 	 */
-	if (npq->q.qid) {
-		offset = npq->q.qid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_QUEUE);
-		if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_QUEUE) != 0) {
-			nss_ppe_qdisc_error("%p Used res:%d not found for port:%d, type:%d \n", npq, npq->q.qid, port_num, NSS_PPE_QDISC_QUEUE);
-			return -EINVAL;
-		}
+	offset = npq->q.ucast_qid - nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_UCAST_QUEUE);
+	if (nss_ppe_qdisc_res_free(port_num, offset, NSS_PPE_QDISC_UCAST_QUEUE) != 0) {
+		nss_ppe_qdisc_error("Used res:%d not found for port:%d, type:%d \n", npq->q.ucast_qid, port_num, NSS_PPE_QDISC_UCAST_QUEUE);
+		return -EINVAL;
 	}
+
 
 	/*
 	 * Reset Res id values in qdisc
 	 */
-	npq->q.qid = 0;
-	npq->q.qid_valid = false;
+	npq->q.ucast_qid = 0;
+	npq->q.mcast_qid = 0;
+	npq->q.mcast_valid = false;
+	npq->q.ucast_valid = false;
 	npq->l0c_drrid = 0;
 	npq->l0e_drrid = 0;
 	npq->l0_valid = false;
 
-	nss_ppe_qdisc_info("%p Level0 scheduler resource de-allocation successful\n", npq);
+	nss_ppe_qdisc_info("Level0 scheduler resource de-allocation successful\n");
 	return 0;
 }
 
@@ -762,14 +668,14 @@ static int nss_ppe_qdisc_l0_queue_scheduler_deconfigure(struct nss_ppe_qdisc *np
 	l0cfg.c_drr_id = npq->l0c_drrid;
 	l0cfg.e_drr_id = npq->l0e_drrid;
 
-	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
-			port_num, npq->q.qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
-	if (fal_queue_scheduler_set(0, npq->q.qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK level0 queue scheduler configuration failed\n", npq);
+	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, ucast_qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
+			port_num, npq->q.ucast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
+	if (fal_queue_scheduler_set(0, npq->q.ucast_qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
+		nss_ppe_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK level0 queue scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK level0 queue scheduler configuration successful\n");
 	return 0;
 }
 
@@ -780,16 +686,16 @@ static int nss_ppe_qdisc_l0_queue_scheduler_deconfigure(struct nss_ppe_qdisc *np
 static int nss_ppe_qdisc_l0_queue_scheduler_reset(struct nss_ppe_qdisc *npq)
 {
 	if (nss_ppe_qdisc_l0_queue_scheduler_deconfigure(npq) != 0) {
-		nss_ppe_qdisc_error("%p SSDK level0 queue scheduler configuration failed\n", npq);
+		nss_ppe_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
 		return -EINVAL;
 	}
 
 	if (nss_ppe_qdisc_l0_res_free(npq) != 0) {
-		nss_ppe_qdisc_error("%p level0 scheduler resources de-allocation failed\n", npq);
+		nss_ppe_qdisc_error("Level0 scheduler resources de-allocation failed\n");
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK level0 queue scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK level0 queue scheduler configuration successful\n");
 	return 0;
 }
 
@@ -809,44 +715,45 @@ static int nss_ppe_qdisc_l0_res_alloc(struct nss_ppe_qdisc *npq)
 	 */
 	l0c_drr = nss_ppe_qdisc_res_alloc(port_num, NSS_PPE_QDISC_L0_CDRR);
 	if (!l0c_drr) {
-		nss_ppe_qdisc_warning("%p Free res not found for port:%d, type:%d \n", npq, port_num, NSS_PPE_QDISC_L0_CDRR);
+		nss_ppe_qdisc_warning("Free res not found for port:%d, type:%d \n", port_num, NSS_PPE_QDISC_L0_CDRR);
 		goto fail;
 	}
 
 	l0e_drr = nss_ppe_qdisc_res_alloc(port_num, NSS_PPE_QDISC_L0_EDRR);
 	if (!l0e_drr) {
-		nss_ppe_qdisc_warning("%p Free res not found for port:%d, type:%d \n", npq, port_num, NSS_PPE_QDISC_L0_EDRR);
+		nss_ppe_qdisc_warning("Free res not found for port:%d, type:%d \n", port_num, NSS_PPE_QDISC_L0_EDRR);
 		goto fail;
 	}
 
 	/*
 	 * Get Level 0 queue Resource
 	 */
-	q = nss_ppe_qdisc_res_alloc(port_num, NSS_PPE_QDISC_QUEUE);
+	q = nss_ppe_qdisc_res_alloc(port_num, NSS_PPE_QDISC_UCAST_QUEUE);
 	if (!q) {
-		nss_ppe_qdisc_warning("%p Free res not found for port:%d, type:%d \n", npq, port_num, NSS_PPE_QDISC_QUEUE);
+		nss_ppe_qdisc_warning("Free res not found for port:%d, type:%d \n", port_num, NSS_PPE_QDISC_UCAST_QUEUE);
 		goto fail;
 	}
 
 	/*
 	 * Set res id values in qdisc
 	 */
-	npq->q.qid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_QUEUE) + q->offset;
-	npq->q.qid_valid = true;
+	npq->q.ucast_qid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_UCAST_QUEUE) + q->offset;
+	npq->q.ucast_valid = true;
 	npq->l0_valid = true;
 	npq->l0c_drrid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_CDRR) + l0c_drr->offset;
 	npq->l0e_drrid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_EDRR) + l0e_drr->offset;
+	npq->q.mcast_qid = 0;
 
 	if (npq->parent) {
 		npq->l0spid = npq->parent->l0spid;
 	}
 
-	nss_ppe_qdisc_info("%p Level0 scheduler resource allocation successful\n", npq);
+	nss_ppe_qdisc_info("Level0 scheduler resource allocation successful\n");
 	return 0;
 
 fail:
 	if (q) {
-		nss_ppe_qdisc_res_free(port_num, q->offset, NSS_PPE_QDISC_QUEUE);
+		nss_ppe_qdisc_res_free(port_num, q->offset, NSS_PPE_QDISC_UCAST_QUEUE);
 	}
 
 	if (l0c_drr) {
@@ -880,16 +787,34 @@ static int nss_ppe_qdisc_l0_queue_scheduler_configure(struct nss_ppe_qdisc *npq)
 	l0cfg.c_drr_id = npq->l0c_drrid;
 	l0cfg.e_drr_id = npq->l0e_drrid;
 
-	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
-			port_num, npq->q.qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
-	if (fal_queue_scheduler_set(0, npq->q.qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK level0 queue scheduler configuration failed\n", npq);
+	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, ucast_qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
+			port_num, npq->q.ucast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
+	if (fal_queue_scheduler_set(0, npq->q.ucast_qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
+		nss_ppe_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
 		return -EINVAL;
+	}
+
+	/*
+	 * This function is called at the time of queue qdisc allocation at all
+	 * levels and class allocation at NSS_PPE_QDISC_QUEUE_LEVEL.
+	 * Also invoked at time of change class at NSS_PPE_QDISC_QUEUE_LEVEL and
+	 * NSS_PPE_QDISC_SUB_QUEUE_LEVEL levels. But, mcast will be valid only in
+	 * case queue is attached at NSS_PPE_QDISC_SUB_QUEUE_LEVEL and change class
+	 * is invoked at NSS_PPE_QDISC_QUEUE_LEVEL level.
+	 * Other scenarios catering to mcast queue are handled in separate mcast APIs.
+	 */
+	if (npq->q.mcast_valid) {
+		nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, mcast_qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
+				port_num, npq->q.mcast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
+		if (fal_queue_scheduler_set(0, npq->q.mcast_qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
+			nss_ppe_qdisc_error("SSDK level0 multicast queue scheduler configuration failed\n");
+			return -EINVAL;
+		}
 	}
 
 	nss_ppe_qdisc_queue_scheduler_enable(npq);
 
-	nss_ppe_qdisc_info("%p SSDK level0 queue scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK level0 queue scheduler configuration successful\n");
 	return 0;
 }
 
@@ -912,7 +837,7 @@ static int nss_ppe_qdisc_l0_queue_scheduler_set(struct nss_ppe_qdisc *npq)
 		nss_ppe_qdisc_def_conf_disable(port_num);
 
 		if (nss_ppe_qdisc_l0_res_alloc(npq) != 0) {
-			nss_ppe_qdisc_warning("%p SSDK level0 queue scheduler configuration failed\n", npq);
+			nss_ppe_qdisc_warning("SSDK level0 queue scheduler configuration failed\n");
 			return -EINVAL;
 		}
 	}
@@ -921,12 +846,12 @@ static int nss_ppe_qdisc_l0_queue_scheduler_set(struct nss_ppe_qdisc *npq)
 	 * Set Level 0 configuration
 	 */
 	if (nss_ppe_qdisc_l0_queue_scheduler_configure(npq) != 0) {
-		nss_ppe_qdisc_error("%p SSDK level0 queue scheduler configuration failed\n", npq);
+		nss_ppe_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
 		nss_ppe_qdisc_l0_res_free(npq);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK level0 queue scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK level0 queue scheduler configuration successful\n");
 	return 0;
 }
 
@@ -942,11 +867,11 @@ static int nss_ppe_qdisc_port_shaper_reset(struct nss_ppe_qdisc *npq)
 	memset(&cfg, 0, sizeof(cfg));
 	nss_ppe_qdisc_trace("SSDK port shaper reset : Port:%d\n", port_num);
 	if (fal_port_shaper_set(0, port_num, &cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK port shaper configuration failed for port:%d\n", npq, port_num);
+		nss_ppe_qdisc_error("SSDK port shaper configuration failed for port:%d\n", port_num);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK port shaper configuration successful for port:%d\n", npq, port_num);
+	nss_ppe_qdisc_info("SSDK port shaper configuration successful for port:%d\n", port_num);
 	return 0;
 }
 
@@ -970,7 +895,7 @@ static int nss_ppe_qdisc_port_shaper_set(struct nss_ppe_qdisc *npq)
 	nss_ppe_qdisc_trace("SSDK port token set : Port:%d, c_token_number:%x, e_token_number:%x\n",
 		port_num, token.c_token_number, token.e_token_number);
 	if (fal_port_shaper_token_number_set(0, port_num, &token) != 0) {
-		nss_ppe_qdisc_error("%p SSDK port shaper token configuration failed for port:%d\n", npq, port_num);
+		nss_ppe_qdisc_error("SSDK port shaper token configuration failed for port:%d\n", port_num);
 		return -EINVAL;
 	}
 
@@ -995,11 +920,11 @@ static int nss_ppe_qdisc_port_shaper_set(struct nss_ppe_qdisc *npq)
 	nss_ppe_qdisc_trace("SSDK port shaper configuration: Port:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
 			port_num, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
 	if (fal_port_shaper_set(0, port_num, &cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK port shaper configuration failed for port:%d\n", npq, port_num);
+		nss_ppe_qdisc_error("SSDK port shaper configuration failed for port:%d\n", port_num);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK port shaper configuration successful for port:%d\n", npq, port_num);
+	nss_ppe_qdisc_info("SSDK port shaper configuration successful for port:%d\n", port_num);
 	return 0;
 }
 
@@ -1018,12 +943,12 @@ static int nss_ppe_qdisc_flow_shaper_reset(struct nss_ppe_qdisc *npq)
 	memset(&cfg, 0, sizeof(cfg));
 	nss_ppe_qdisc_trace("SSDK flow shaper reset : l0spid:%d\n", npq->l0spid);
 	if (fal_flow_shaper_set(0, npq->l0spid, &cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK flow shaper configuration failed for port:%d, l0spid:%d\n",
-			npq, port_num, npq->l0spid);
+		nss_ppe_qdisc_error("SSDK flow shaper configuration failed for port:%d, l0spid:%d\n",
+			port_num, npq->l0spid);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK flow shaper configuration successful for port:%d\n", npq, port_num);
+	nss_ppe_qdisc_info("SSDK flow shaper configuration successful for port:%d\n", port_num);
 	return 0;
 }
 
@@ -1047,8 +972,8 @@ static int nss_ppe_qdisc_flow_shaper_set(struct nss_ppe_qdisc *npq)
 	nss_ppe_qdisc_trace("SSDK flow token set : l0spid:%d, c_token_number:%x, e_token_number:%x\n",
 		npq->l0spid, token.c_token_number, token.e_token_number);
 	if (fal_flow_shaper_token_number_set(0, npq->l0spid, &token) != 0) {
-		nss_ppe_qdisc_error("%p SSDK flow shaper token configuration failed for port:%d, l0spid:%d\n",
-			npq, port_num, npq->l0spid);
+		nss_ppe_qdisc_error("SSDK flow shaper token configuration failed for port:%d, l0spid:%d\n",
+			port_num, npq->l0spid);
 		return -EINVAL;
 	}
 
@@ -1076,12 +1001,12 @@ static int nss_ppe_qdisc_flow_shaper_set(struct nss_ppe_qdisc *npq)
 	nss_ppe_qdisc_trace("SSDK flow shaper configuration: l0spid:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
 		npq->l0spid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
 	if (fal_flow_shaper_set(0, npq->l0spid, &cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK flow shaper configuration failed for port:%d, l0spid:%d\n",
-			npq, port_num, npq->l0spid);
+		nss_ppe_qdisc_error("SSDK flow shaper configuration failed for port:%d, l0spid:%d\n",
+			port_num, npq->l0spid);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK flow shaper configuration successful for port:%d\n", npq, port_num);
+	nss_ppe_qdisc_info("SSDK flow shaper configuration successful for port:%d\n", port_num);
 	return 0;
 }
 
@@ -1098,15 +1023,15 @@ static int nss_ppe_qdisc_queue_shaper_reset(struct nss_ppe_qdisc *npq)
 	 * Reset queue shaper configuration
 	 */
 	memset(&cfg, 0, sizeof(cfg));
-	nss_ppe_qdisc_trace("SSDK queue shaper reset : qid:%d\n", npq->q.qid);
-	if (fal_queue_shaper_set(0, npq->q.qid, &cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK queue shaper configuration failed for port:%d, qid:%d\n",
-			npq, port_num, npq->q.qid);
+	nss_ppe_qdisc_trace("SSDK queue shaper reset : ucast_qid:%d\n", npq->q.ucast_qid);
+	if (fal_queue_shaper_set(0, npq->q.ucast_qid, &cfg) != 0) {
+		nss_ppe_qdisc_error("SSDK queue shaper configuration failed for port:%d, ucast_qid:%d\n",
+			port_num, npq->q.ucast_qid);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK queue shaper configuration successful for port:%d\n",
-		npq, port_num);
+	nss_ppe_qdisc_info("SSDK queue shaper configuration successful for port:%d\n",
+		port_num);
 	return 0;
 }
 
@@ -1127,10 +1052,10 @@ static int nss_ppe_qdisc_queue_shaper_set(struct nss_ppe_qdisc *npq)
 	token.c_token_number = NSS_PPE_QDISC_TOKEN_MAX;
 	token.e_token_number = NSS_PPE_QDISC_TOKEN_MAX;
 
-	nss_ppe_qdisc_trace("SSDK queue token set : qid:%d, c_token_number:%x, e_token_number:%x\n",
-		npq->q.qid, token.c_token_number, token.e_token_number);
-	if (fal_queue_shaper_token_number_set(0, npq->q.qid, &token) != 0) {
-		nss_ppe_qdisc_error("%p SSDK queue shaper token configuration failed\n", npq);
+	nss_ppe_qdisc_trace("SSDK queue token set : ucast_qid:%d, c_token_number:%x, e_token_number:%x\n",
+		npq->q.ucast_qid, token.c_token_number, token.e_token_number);
+	if (fal_queue_shaper_token_number_set(0, npq->q.ucast_qid, &token) != 0) {
+		nss_ppe_qdisc_error("SSDK queue shaper token configuration failed\n");
 		return -EINVAL;
 	}
 
@@ -1155,15 +1080,30 @@ static int nss_ppe_qdisc_queue_shaper_set(struct nss_ppe_qdisc *npq)
 	cfg.cir = cfg.cir * NSS_PPE_QDISC_HW_FREQ_SCALING;
 	cfg.eir = cfg.eir * NSS_PPE_QDISC_HW_FREQ_SCALING;
 
-	nss_ppe_qdisc_trace("SSDK queue shaper configuration: qid:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
-		npq->q.qid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
-	if (fal_queue_shaper_set(0, npq->q.qid, &cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK level1 configuration failed\n", npq);
+	nss_ppe_qdisc_trace("SSDK queue shaper configuration: ucast_qid:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
+		npq->q.ucast_qid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
+	if (fal_queue_shaper_set(0, npq->q.ucast_qid, &cfg) != 0) {
+		nss_ppe_qdisc_error("SSDK queue shaper configuration failed\n");
 		return -EINVAL;
-
 	}
 
-	nss_ppe_qdisc_info("%p SSDK queue shaper configuration successful for port:%d\n", npq, port_num);
+	/*
+	 * This function is called at the time of class allocation and change at
+	 * NSS_PPE_QDISC_QUEUE_LEVEL. But, mcast will be valid only in case queue
+	 * is attached at NSS_PPE_QDISC_SUB_QUEUE_LEVEL and change class is invoked
+	 * at NSS_PPE_QDISC_QUEUE_LEVEL level.
+	 * Other scenarios catering to mcast queue are handled in separate mcast APIs.
+	 */
+	if (npq->q.mcast_valid) {
+		nss_ppe_qdisc_trace("SSDK multicast queue shaper configuration: mcast_qid:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
+			npq->q.mcast_qid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
+		if (fal_queue_shaper_set(0, npq->q.mcast_qid, &cfg) != 0) {
+			nss_ppe_qdisc_error("SSDK multicast queue shaper configuration failed\n");
+			return -EINVAL;
+		}
+	}
+
+	nss_ppe_qdisc_info("SSDK queue shaper configuration successful for port:%d\n", port_num);
 	return 0;
 }
 
@@ -1187,6 +1127,116 @@ static int nss_ppe_qdisc_max_level_get(struct nss_ppe_qdisc *npq)
 }
 
 /*
+ * nss_ppe_qdisc_base_get()
+ *	Returns base of the particular resource for a given port.
+ */
+uint32_t nss_ppe_qdisc_base_get(uint32_t port, nss_ppe_qdisc_res_type_t type)
+{
+	uint32_t base = 0;
+	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
+
+	spin_lock_bh(&ppe_port->lock);
+	base = ppe_port->base[type];
+	spin_unlock_bh(&ppe_port->lock);
+
+	nss_ppe_qdisc_info("port:%d, type:%d, base:%d\n", port, type, base);
+	return base;
+}
+
+/*
+ * nss_ppe_qdisc_attach_free()
+ *	Attaches a resource to free list.
+ */
+void nss_ppe_qdisc_attach_free(uint32_t port, struct nss_ppe_qdisc_res *res)
+{
+	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
+
+	spin_lock_bh(&ppe_port->lock);
+	res->next = ppe_port->res_free[res->type];
+	ppe_port->res_free[res->type] = res;
+	spin_unlock_bh(&ppe_port->lock);
+
+	nss_ppe_qdisc_info("port:%d, type:%d, res:%p\n", port, res->type, res);
+	return;
+}
+
+/*
+ * nss_ppe_qdisc_res_free()
+ *	Frees the allocated resource and attach it to free list.
+ */
+int nss_ppe_qdisc_res_free(uint32_t port, uint32_t offset, nss_ppe_qdisc_res_type_t type)
+{
+	struct nss_ppe_qdisc_res *temp = NULL;
+	struct nss_ppe_qdisc_res *res = NULL;
+	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
+
+	if (type >= NSS_PPE_QDISC_MAX_RES_TYPE) {
+		nss_ppe_qdisc_assert(false, "Resource type:%d not valid for port:%d", type, port);
+		return -1;
+	}
+
+	spin_lock_bh(&ppe_port->lock);
+	res = ppe_port->res_used[type];
+	if (res->offset == offset) {
+		ppe_port->res_used[type] = res->next;
+		res->next = NULL;
+		spin_unlock_bh(&ppe_port->lock);
+		goto success;
+	}
+
+	temp = res;
+	res = res->next;
+
+	while (res) {
+		if (res->offset == offset) {
+			temp->next = res->next;
+			res->next = NULL;
+			break;
+		} else {
+			temp = res;
+			res = res->next;
+		}
+	}
+	spin_unlock_bh(&ppe_port->lock);
+
+	if (!res) {
+		nss_ppe_qdisc_assert(false, "Resource:%d type:%d not found for port:%d", offset, type, port);
+		return -1;
+	}
+
+success:
+	nss_ppe_qdisc_attach_free(port, res);
+	nss_ppe_qdisc_info("port:%d, type:%d, res:%p\n", port, type, res);
+	return 0;
+}
+
+/*
+ * nss_ppe_qdisc_res_alloc()
+ *	Allocates free resource for a given port.
+ */
+struct nss_ppe_qdisc_res *nss_ppe_qdisc_res_alloc(uint32_t port, nss_ppe_qdisc_res_type_t type)
+{
+	struct nss_ppe_qdisc_res *res = NULL;
+	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port];
+
+	/*
+	 * Detach the resource from free list
+	 * and attach to used list.
+	 */
+	spin_lock_bh(&ppe_port->lock);
+	res = ppe_port->res_free[type];
+	if (res) {
+		ppe_port->res_free[type] = res->next;
+		res->next = ppe_port->res_used[type];
+		ppe_port->res_used[type] = res;
+	}
+	spin_unlock_bh(&ppe_port->lock);
+
+	nss_ppe_qdisc_info("port:%d, type:%d, res:%p\n", port, type, res);
+	return res;
+}
+
+/*
  * nss_ppe_qdisc_default_conf_set()
  *	Sets default queue scheduler in SSDK.
  */
@@ -1196,7 +1246,8 @@ int nss_ppe_qdisc_default_conf_set(uint32_t port_num)
 	fal_qos_scheduler_cfg_t l0cfg;
 	fal_ac_obj_t obj;
 	uint32_t l0spid;
-	uint32_t qid;
+	uint32_t ucast_qid;
+	uint32_t mcast_qid;
 	struct nss_ppe_qdisc_port *ppe_port = &ppe_qdisc_port[port_num];
 
 	/*
@@ -1240,24 +1291,36 @@ conf:
 	l0cfg.e_drr_wt = 1;
 	l0cfg.c_drr_id = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_CDRR);
 	l0cfg.e_drr_id = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_EDRR);
-	qid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_QUEUE);
+	ucast_qid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_UCAST_QUEUE);
+	mcast_qid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_MCAST_QUEUE);
 
-	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
-			port_num, qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
-	if (fal_queue_scheduler_set(0, qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
+	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, ucast_qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
+			port_num, ucast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
+	if (fal_queue_scheduler_set(0, ucast_qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
+		nss_ppe_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
+		return -EINVAL;
+	}
+
+	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, mcast_qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
+			port_num, mcast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
+	if (fal_queue_scheduler_set(0, mcast_qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
 		nss_ppe_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
 		return -EINVAL;
 	}
 
 	memset(&obj, 0, sizeof(obj));
-	obj.obj_id = qid;
+	obj.obj_id = ucast_qid;
+	fal_ac_prealloc_buffer_set(0, &obj, 0);
+	obj.obj_id = mcast_qid;
 	fal_ac_prealloc_buffer_set(0, &obj, 0);
 
 	/*
 	 * Enable queue enqueue and dequeue.
 	 */
-	fal_qm_enqueue_ctrl_set(0, qid, true);
-	fal_scheduler_dequeue_ctrl_set(0, qid, true);
+	fal_qm_enqueue_ctrl_set(0, ucast_qid, true);
+	fal_qm_enqueue_ctrl_set(0, mcast_qid, true);
+	fal_scheduler_dequeue_ctrl_set(0, ucast_qid, true);
+	fal_scheduler_dequeue_ctrl_set(0, mcast_qid, true);
 
 	/*
 	 * Set the default queue configuration status.
@@ -1280,18 +1343,14 @@ int nss_ppe_qdisc_queue_limit_set(struct nss_ppe_qdisc *npq)
 	fal_ac_static_threshold_t cfg;
 
 	/*
-	 * We have nothing to do when qid is not known
+	 * Unicast queue configuration.
 	 */
-	if (!npq->q.qid_valid) {
-		return 0;
-	}
-
 	memset(&obj, 0, sizeof(obj));
-	obj.obj_id = npq->q.qid;
+	obj.obj_id = npq->q.ucast_qid;
 
-	nss_ppe_qdisc_trace("SSDK queue buffer set: qid:%d, qlimit:%d\n", npq->q.qid, npq->q.qlimit);
+	nss_ppe_qdisc_trace("SSDK queue buffer set: ucast_qid:%d, qlimit:%d\n", npq->q.ucast_qid, npq->q.qlimit);
 	if (fal_ac_prealloc_buffer_set(0, &obj, npq->q.qlimit) != 0) {
-		nss_ppe_qdisc_error("%p SSDK queue configuration failed\n", npq);
+		nss_ppe_qdisc_error("SSDK queue configuration failed\n");
 		return -EINVAL;
 	}
 
@@ -1299,14 +1358,34 @@ int nss_ppe_qdisc_queue_limit_set(struct nss_ppe_qdisc *npq)
 	cfg.wred_enable = npq->q.red_en;
 	cfg.green_max = npq->q.max_th[NSS_PPE_COLOR_GREEN];
 	cfg.green_min_off = npq->q.min_th[NSS_PPE_COLOR_GREEN];
-	nss_ppe_qdisc_trace("SSDK queue ac threshold set: qid:%d, wred_enable:%d, green_max:%d, green_min_off:%d\n",
-		npq->q.qid, cfg.wred_enable, cfg.green_max, cfg.green_min_off);
+	nss_ppe_qdisc_trace("SSDK queue ac threshold set: ucast_qid:%d, wred_enable:%d, green_max:%d, green_min_off:%d\n",
+		npq->q.ucast_qid, cfg.wred_enable, cfg.green_max, cfg.green_min_off);
 	if (fal_ac_static_threshold_set(0, &obj, &cfg) != 0) {
-		nss_ppe_qdisc_error("%p SSDK queue configuration failed\n", npq);
+		nss_ppe_qdisc_error("SSDK queue configuration failed\n");
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK queue configuration successful\n", npq);
+	/*
+	 * Multicast queue configuration.
+	 */
+	if (npq->q.mcast_valid) {
+		obj.obj_id = npq->q.mcast_qid;
+
+		nss_ppe_qdisc_trace("SSDK multicast queue buffer set: mcast_qid:%d, qlimit:%d\n", npq->q.mcast_qid, npq->q.qlimit);
+		if (fal_ac_prealloc_buffer_set(0, &obj, npq->q.qlimit) != 0) {
+			nss_ppe_qdisc_error("SSDK multicast queue configuration failed\n");
+			return -EINVAL;
+		}
+
+		nss_ppe_qdisc_trace("SSDK multicast queue ac threshold set: mcast_qid:%d, wred_enable:%d, green_max:%d, green_min_off:%d\n",
+			npq->q.mcast_qid, cfg.wred_enable, cfg.green_max, cfg.green_min_off);
+		if (fal_ac_static_threshold_set(0, &obj, &cfg) != 0) {
+			nss_ppe_qdisc_error("SSDK multicast queue configuration failed\n");
+			return -EINVAL;
+		}
+	}
+
+	nss_ppe_qdisc_info("SSDK queue configuration successful\n");
 	return 0;
 }
 
@@ -1319,33 +1398,33 @@ int nss_ppe_qdisc_scheduler_reset(struct nss_ppe_qdisc *npq)
 	if (npq->level == NSS_PPE_QDISC_PORT_LEVEL) {
 		if (npq->nq.is_root) {
 			if (nss_ppe_qdisc_l0_queue_scheduler_reset(npq) != 0) {
-				nss_ppe_qdisc_warning("SSDK Level0 queue scheduler reset failed %p\n", npq);
+				nss_ppe_qdisc_warning("SSDK Level0 queue scheduler reset failed\n");
 				return -EINVAL;
 			}
 
 			if (nss_ppe_qdisc_l1_res_free(npq) != 0) {
-				nss_ppe_qdisc_warning("SSDK Level1 queue scheduler reset failed %p\n", npq);
+				nss_ppe_qdisc_warning("SSDK Level1 queue scheduler reset failed\n");
 				return -EINVAL;
 			}
 		}
-		nss_ppe_qdisc_info("%p SSDK reset scheduler successful\n", npq);
+		nss_ppe_qdisc_info("SSDK reset scheduler successful\n");
 		return 0;
 	}
 
 	if (npq->level == NSS_PPE_QDISC_FLOW_LEVEL) {
 		if (!npq->nq.is_class) {
 			if (nss_ppe_qdisc_l0_queue_scheduler_reset(npq) < 0) {
-				nss_ppe_qdisc_warning("SSDK Level0 configuration for attach of new qdisc %p failed\n", npq);
+				nss_ppe_qdisc_warning("SSDK Level0 configuration for attach of new qdisc failed\n");
 				return -EINVAL;
 			}
 		}
 		if (nss_ppe_qdisc_l1_res_free(npq) != 0) {
-			nss_ppe_qdisc_warning("SSDK Level1 queue scheduler reset failed %p\n", npq);
+			nss_ppe_qdisc_warning("SSDK Level1 queue scheduler reset failed\n");
 			return -EINVAL;
 		}
 	} else if (npq->level == NSS_PPE_QDISC_QUEUE_LEVEL) {
 		if (nss_ppe_qdisc_l0_queue_scheduler_reset(npq) != 0) {
-			nss_ppe_qdisc_warning("SSDK Level0 queue scheduler reset failed %p\n", npq);
+			nss_ppe_qdisc_warning("SSDK Level0 queue scheduler reset failed\n");
 			return -EINVAL;
 		}
 	} else {
@@ -1358,7 +1437,7 @@ int nss_ppe_qdisc_scheduler_reset(struct nss_ppe_qdisc *npq)
 		nss_ppe_qdisc_queue_scheduler_disable(npq);
 	}
 
-	nss_ppe_qdisc_info("%p SSDK reset scheduler successful\n", npq);
+	nss_ppe_qdisc_info("SSDK reset scheduler successful\n");
 	return 0;
 }
 
@@ -1376,35 +1455,35 @@ int nss_ppe_qdisc_scheduler_set(struct nss_ppe_qdisc *npq)
 		 */
 		if (npq->nq.is_root) {
 			if (nss_ppe_qdisc_l1_queue_scheduler_set(npq) < 0) {
-				nss_ppe_qdisc_warning("SSDK Level1 configuration for attach of new qdisc %p failed\n", npq);
+				nss_ppe_qdisc_warning("SSDK Level1 configuration failed\n");
 				return -EINVAL;
 			}
 
 			if (nss_ppe_qdisc_l0_queue_scheduler_set(npq) < 0) {
 				nss_ppe_qdisc_l1_res_free(npq);
-				nss_ppe_qdisc_warning("SSDK Level0 configuration for attach of new qdisc %p failed\n", npq);
+				nss_ppe_qdisc_warning("SSDK Level0 configuration failed\n");
 				return -EINVAL;
 			}
 		}
-		nss_ppe_qdisc_info("%p SSDK scheduler configuration successful\n", npq);
+		nss_ppe_qdisc_info("SSDK scheduler configuration successful\n");
 		return 0;
 	}
 
 	if (npq->level == NSS_PPE_QDISC_FLOW_LEVEL) {
 		if (nss_ppe_qdisc_l1_queue_scheduler_set(npq) < 0) {
-			nss_ppe_qdisc_warning("SSDK Level1 configuration for attach of new qdisc %p failed\n", npq);
+			nss_ppe_qdisc_warning("SSDK Level1 configuration failed\n");
 			return -EINVAL;
 		}
 
 		if (!npq->nq.is_class) {
 			if (nss_ppe_qdisc_l0_queue_scheduler_set(npq) < 0) {
-				nss_ppe_qdisc_warning("SSDK Level0 configuration for attach of new qdisc %p failed\n", npq);
+				nss_ppe_qdisc_warning("SSDK Level0 configuration failed\n");
 				return -EINVAL;
 			}
 		}
 	} else if (npq->level == NSS_PPE_QDISC_QUEUE_LEVEL) {
 		if (nss_ppe_qdisc_l0_queue_scheduler_set(npq) < 0) {
-			nss_ppe_qdisc_warning("SSDK Level0 configuration for attach of new qdisc %p failed\n", npq);
+			nss_ppe_qdisc_warning("SSDK Level0 configuration failed\n");
 			return -EINVAL;
 		}
 
@@ -1424,7 +1503,7 @@ int nss_ppe_qdisc_scheduler_set(struct nss_ppe_qdisc *npq)
 		nss_ppe_qdisc_queue_scheduler_enable(npq);
 	}
 
-	nss_ppe_qdisc_info("%p SSDK scheduler configuration successful\n", npq);
+	nss_ppe_qdisc_info("SSDK scheduler configuration successful\n");
 	return 0;
 }
 
@@ -1436,28 +1515,28 @@ int nss_ppe_qdisc_shaper_reset(struct nss_ppe_qdisc *npq)
 {
 	if (npq->level == NSS_PPE_QDISC_PORT_LEVEL) {
 		if (nss_ppe_qdisc_port_shaper_reset(npq) != 0) {
-				nss_ppe_qdisc_warning("%p Reset Port shaper failed\n", npq);
+				nss_ppe_qdisc_warning("Reset Port shaper failed\n");
 			return -EINVAL;
 		}
-		nss_ppe_qdisc_info("%p SSDK reset shaper successful\n", npq);
+		nss_ppe_qdisc_info("SSDK reset shaper successful\n");
 		return 0;
 	}
 
 	if (npq->level == NSS_PPE_QDISC_FLOW_LEVEL) {
 		if (nss_ppe_qdisc_flow_shaper_reset(npq) != 0) {
-			nss_ppe_qdisc_warning("%p Reset Flow shaper failed\n", npq);
+			nss_ppe_qdisc_warning("Reset Flow shaper failed\n");
 			return -EINVAL;
 		}
-		nss_ppe_qdisc_info("%p SSDK reset shaper successful\n", npq);
+		nss_ppe_qdisc_info("SSDK reset shaper successful\n");
 		return 0;
 	}
 
 	if (nss_ppe_qdisc_queue_shaper_reset(npq) != 0) {
-		nss_ppe_qdisc_warning("%p Reset Queue shaper failed\n", npq);
+		nss_ppe_qdisc_warning("Reset Queue shaper failed\n");
 			return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK reset shaper successful\n", npq);
+	nss_ppe_qdisc_info("SSDK reset shaper successful\n");
 	return 0;
 }
 
@@ -1469,28 +1548,28 @@ int nss_ppe_qdisc_shaper_set(struct nss_ppe_qdisc *npq)
 {
 	if (npq->level == NSS_PPE_QDISC_PORT_LEVEL) {
 		if (nss_ppe_qdisc_port_shaper_set(npq) != 0) {
-			nss_ppe_qdisc_warning("%p Port shaper configuration failed\n", npq);
+			nss_ppe_qdisc_warning("Port shaper configuration failed\n");
 			return -EINVAL;
 		}
-		nss_ppe_qdisc_info("%p SSDK set shaper successful\n", npq);
+		nss_ppe_qdisc_info("SSDK set shaper successful\n");
 		return 0;
 	}
 
 	if (npq->level == NSS_PPE_QDISC_FLOW_LEVEL) {
 		if (nss_ppe_qdisc_flow_shaper_set(npq) != 0) {
-			nss_ppe_qdisc_warning("%p Port shaper configuration failed\n", npq);
+			nss_ppe_qdisc_warning("Port shaper configuration failed\n");
 			return -EINVAL;
 		}
-		nss_ppe_qdisc_info("%p SSDK set shaper successful\n", npq);
+		nss_ppe_qdisc_info("SSDK set shaper successful\n");
 		return 0;
 	}
 
 	if (nss_ppe_qdisc_queue_shaper_set(npq) != 0) {
-		nss_ppe_qdisc_warning("%p Queue shaper configuration failed\n", npq);
+		nss_ppe_qdisc_warning("Queue shaper configuration failed\n");
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("%p SSDK set shaper successful\n", npq);
+	nss_ppe_qdisc_info("SSDK set shaper successful\n");
 	return 0;
 }
 
@@ -1510,7 +1589,7 @@ int nss_ppe_qdisc_port_num_get(struct nss_ppe_qdisc *npq)
 		port_num = npq->nq.nss_interface_number;
 	}
 
-	nss_ppe_qdisc_info("Qdisc:%p, port:%d\n", npq, port_num);
+	nss_ppe_qdisc_info("port:%d\n", port_num);
 	return port_num;
 }
 
@@ -1520,7 +1599,7 @@ int nss_ppe_qdisc_port_num_get(struct nss_ppe_qdisc *npq)
  */
 int nss_ppe_qdisc_is_depth_valid(struct nss_ppe_qdisc *npq)
 {
-	nss_ppe_qdisc_trace("Qdisc:%p, level:%d\n", npq, npq->level);
+	nss_ppe_qdisc_trace("level:%d\n", npq->level);
 	if (npq->level == NSS_PPE_QDISC_QUEUE_LEVEL) {
 		return false;
 	}
@@ -1553,6 +1632,11 @@ int nss_ppe_qdisc_node_detach(struct nss_ppe_qdisc *npq, struct Qdisc *old)
 		return -EINVAL;
 	}
 
+	if (nss_ppe_qdisc_mcast_queue_reset(npq_old) < 0) {
+		nss_ppe_qdisc_warning("SSDK scheduler reset for detach of old qdisc %x failed\n", old->handle);
+		return -EINVAL;
+	}
+
 	if (nss_ppe_qdisc_scheduler_reset(npq_old) < 0) {
 		nss_ppe_qdisc_warning("SSDK scheduler reset for detach of old qdisc %x failed\n", old->handle);
 		return -EINVAL;
@@ -1569,10 +1653,10 @@ int nss_ppe_qdisc_node_detach(struct nss_ppe_qdisc *npq, struct Qdisc *old)
 int nss_ppe_qdisc_node_attach(struct nss_ppe_qdisc *npq, struct Qdisc *new)
 {
 	struct nss_if_msg nim_attach;
-	struct nss_if_msg nim;
 	struct nss_ppe_qdisc *npq_new = qdisc_priv(new);
 	struct nss_qdisc *nq_new = qdisc_priv(new);
-	int qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_QUEUE);
+	int ucast_qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_UCAST_QUEUE);
+	bool mcast_enable = npq_new->q.mcast_enable;
 
 	nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = npq->nq.qos_tag;
 	nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_attach.child_qos_tag = nq_new->qos_tag;
@@ -1584,16 +1668,30 @@ int nss_ppe_qdisc_node_attach(struct nss_ppe_qdisc *npq, struct Qdisc *new)
 
 	/*
 	 * Set SSDK configuration
+	 * TODO: New qdisc can be of mode NSS_QDISC_MODE_NSS.
+	 * We cannot typecast it to nss_ppe_qdisc type.
+	 * This typecasting will go once we move PPE Qdisc to NSS Qdisc.
 	 */
 	npq_new->level = npq->level - 1;
 	npq_new->l0spid = npq->l0spid;
 	npq_new->q = npq->q;
+	npq_new->q.mcast_enable = mcast_enable;
+
 	if (nss_ppe_qdisc_scheduler_set(npq_new) < 0) {
 		nss_ppe_qdisc_warning("SSDK scheduler configuration for attach of new qdisc %x failed\n", new->handle);
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_queue_limit_set(npq_new);
+	/*
+	 * Configure unicast and multicast queue, offset and limit in NSS
+	 * as this information was not available at queue init time.
+	 */
+	if (nss_ppe_qdisc_configure(npq_new) < 0) {
+		nss_ppe_qdisc_mcast_queue_reset(npq_new);
+		nss_ppe_qdisc_scheduler_reset(npq_new);
+		nss_ppe_qdisc_warning("SSDK scheduler configuration for attach of new qdisc %x failed\n", new->handle);
+		return -EINVAL;
+	}
 
 	/*
 	 * If new qdisc is not of type PPE, then configure a simple fifo
@@ -1601,24 +1699,10 @@ int nss_ppe_qdisc_node_attach(struct nss_ppe_qdisc *npq, struct Qdisc *new)
 	 * portion of the tree will get enqueued to.
 	 */
 	if (nq_new->mode != NSS_QDISC_MODE_PPE) {
-		if (nss_qdisc_set_hybrid_mode(nq_new, NSS_QDISC_HYBRID_MODE_ENABLE, npq_new->q.qid - qbase) < 0) {
-			nss_qdisc_warning("nss qdisc %p configuration failed\n", npq);
+		if (nss_qdisc_set_hybrid_mode(nq_new, NSS_QDISC_HYBRID_MODE_ENABLE, npq_new->q.ucast_qid - ucast_qbase) < 0) {
+			nss_qdisc_warning("nss qdisc configuration failed\n");
+				nss_ppe_qdisc_mcast_queue_reset(npq_new);
 				nss_ppe_qdisc_scheduler_reset(npq_new);
-			return -EINVAL;
-		}
-	} else {
-		/*
-		 * Send the configuration message to NSS.
-		 */
-		nss_ppe_qdisc_queue_limit_set(npq_new);
-		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = nq_new->qos_tag;
-		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.type = npq_new->sub_type;
-		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.base = qbase;
-		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.offset = npq_new->q.qid - qbase;
-		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.port = nq_new->nss_interface_number;
-		if (nss_qdisc_configure(nq_new, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-			nss_qdisc_warning("ppe qdisc %p configuration failed\n", npq);
-				nss_ppe_qdisc_scheduler_reset(npq);
 			return -EINVAL;
 		}
 	}
@@ -1634,28 +1718,56 @@ int nss_ppe_qdisc_node_attach(struct nss_ppe_qdisc *npq, struct Qdisc *new)
 int nss_ppe_qdisc_configure(struct nss_ppe_qdisc *npq)
 {
 	struct nss_if_msg nim;
-	int qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_QUEUE);
+	int ucast_qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_UCAST_QUEUE);
+	int mcast_qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_MCAST_QUEUE);
 
-	if (nss_ppe_qdisc_scheduler_set(npq) < 0) {
-		nss_ppe_qdisc_warning("%p SSDK scheduler configuration failed\n", npq);
+	/*
+	 * We have nothing to do when qid is not known
+	 */
+	if (!npq->q.ucast_valid) {
+		return 0;
+	}
+
+	if (nss_ppe_qdisc_mcast_queue_set(npq) < 0) {
+		nss_ppe_qdisc_warning("SSDK multicast queueue configuration failed\n");
 		return -EINVAL;
 	}
 
 	/*
-	 * NSS Configuration.
+	 * Program PPE queue parameters
 	 */
-	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = npq->nq.qos_tag;
-	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.type = npq->sub_type;
-	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.base = qbase;
-	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.offset = npq->q.qid - qbase;
-	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.port = nss_ppe_qdisc_port_num_get(npq);
-	if (nss_qdisc_configure(&npq->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-		nss_ppe_qdisc_warning("Qdisc:%p configuration failed\n", npq);
-		nss_ppe_qdisc_scheduler_reset(npq);
+	if (nss_ppe_qdisc_queue_limit_set(npq) < 0) {
+		nss_ppe_qdisc_warning("SSDK multicast queueue configuration failed\n");
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("Qdisc:%p configured successfully.\n", npq);
+	/*
+	 * Send configuration to NSS only if it is PPE qdisc.
+	 */
+	if (npq->nq.mode != NSS_QDISC_MODE_PPE) {
+		return 0;
+	}
+
+	memset(&nim, 0, sizeof(struct nss_if_msg));
+	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = npq->nq.qos_tag;
+	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.type = npq->sub_type;
+	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.ucast_base = ucast_qbase;
+	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.ucast_offset = npq->q.ucast_qid - ucast_qbase;
+	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.limit = npq->q.qlimit;
+
+	if (npq->q.mcast_valid) {
+		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.mcast_base = mcast_qbase;
+		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.mcast_offset = npq->q.mcast_qid - mcast_qbase;
+	}
+
+	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.port = nss_ppe_qdisc_port_num_get(npq);
+
+	if (nss_qdisc_configure(&npq->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
+		nss_ppe_qdisc_warning("Qdisc configuration failed\n");
+		return -EINVAL;
+	}
+
+	nss_ppe_qdisc_info("Qdisc configured successfully\n");
 	return 0;
 }
 
@@ -1674,14 +1786,16 @@ int nss_ppe_qdisc_init(struct Qdisc *sch, struct nss_ppe_qdisc *npq, nss_shaper_
 	npq->parent = NULL;
 	npq->sub_type = sub_type;
 	npq->q.qlimit = qdisc_dev(sch)->tx_queue_len ? : 1;
-	npq->q.qid_valid = false;
+	npq->q.ucast_valid = false;
+	npq->q.mcast_valid = false;
+	npq->q.mcast_enable = false;
 	npq->l1_valid = false;
 	npq->l0_valid = false;
 	npq->level = nss_ppe_qdisc_max_level_get(npq) - 1;
-	memset(&npq->shaper, 0, sizeof(struct nss_ppe_shaper *));
-	memset(&npq->scheduler, 0, sizeof(struct nss_ppe_scheduler *));
+	memset(&npq->shaper, 0, sizeof(struct nss_ppe_shaper));
+	memset(&npq->scheduler, 0, sizeof(struct nss_ppe_scheduler));
 
-	nss_ppe_qdisc_info("Qdisc:%p initialization successful\n", npq);
+	nss_ppe_qdisc_info("Qdisc initialization successful\n");
 	return 0;
 }
 

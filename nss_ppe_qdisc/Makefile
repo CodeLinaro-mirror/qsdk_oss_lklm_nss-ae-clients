@@ -7,5 +7,6 @@ ccflags-y := -I$(obj)/../exports -I$(obj)/../nss_qdisc -I$(srctree)/net/bridge -
 obj-m += qca-nss-ppe-qdisc.o
 qca-nss-ppe-qdisc-objs := 	nss_ppe_fifo.o \
 				nss_ppe_htb.o \
+				nss_ppe_mc.o \
 				nss_ppe_qdisc.o \
 				nss_ppe_red.o

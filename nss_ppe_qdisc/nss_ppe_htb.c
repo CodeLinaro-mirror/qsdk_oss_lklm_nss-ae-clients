@@ -237,6 +237,7 @@ static int nss_ppe_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid
 
 	nss_ppe_qdisc_info("configuring ppehtb class %x of qdisc %x\n", classid, sch->handle);
 
+	memset(&prev_scheduler, 0, sizeof(prev_scheduler));
 	if (nss_ppe_htb_params_validate_and_save(sch, opt, &shaper, &scheduler) < 0) {
 		nss_ppe_qdisc_warning("validation of configuration parameters for htb class %x failed\n",
 					classid);
@@ -350,7 +351,7 @@ static int nss_ppe_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid
 		nss_ppe_qdisc_trace("class %x successfully allocated and initialized\n", classid);
 	} else {
 		/*
-		 * Save the previous scheduker configuration
+		 * Save the previous scheduler configuration
 		 * for hadling failure conditions.
 		 */
 		prev_scheduler = cl->npq.scheduler;

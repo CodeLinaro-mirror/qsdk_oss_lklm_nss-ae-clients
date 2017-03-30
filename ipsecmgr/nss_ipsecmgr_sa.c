@@ -473,14 +473,9 @@ void nss_ipsecmgr_copy_sa_data(struct nss_ipsec_msg *nim, struct nss_ipsecmgr_sa
 	data->esp_seq_skip = sa_data->esp.seq_skip;
 	data->use_pattern = sa_data->use_pattern;
 	data->dscp = sa_data->esp.dscp;
-
-	if (sa_data->esp.dscp_copy) {
-		data->sa_dscp_mask = NSS_IPSECMGR_DSCP_MASK_OFF;
-		data->flow_dscp_mask = NSS_IPSECMGR_DSCP_MASK_ON;
-	} else {
-		data->sa_dscp_mask = NSS_IPSECMGR_DSCP_MASK_ON;
-		data->flow_dscp_mask = NSS_IPSECMGR_DSCP_MASK_OFF;
-	}
+	data->df = !!sa_data->esp.df;
+	data->copy_dscp = !!sa_data->esp.dscp_copy;
+	data->copy_df = !!sa_data->esp.df_copy;
 }
 
 /*

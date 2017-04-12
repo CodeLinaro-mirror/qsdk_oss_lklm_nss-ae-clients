@@ -1927,34 +1927,44 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 			"bridge\n", __func__, nq->qdisc, nq->type);
 
 		/*
-		 * As we are a root qdisc on this bridge then we have to create a
-		 * virtual interface to represent this bridge in the NSS. This will
-		 * allow us to bounce packets to the NSS for bridge shaping action.
+		 * Since we are a root qdisc on this bridge, we have to create a
+		 * virtual interface to represent this bridge in the NSS (if is does
+		 * not already exist). This will allow us to bounce packets to the
+		 * NSS for bridge shaping.
 		 */
-		nq->virt_if_ctx = nss_virt_if_create_sync(dev);
-		if (!nq->virt_if_ctx) {
-			nss_qdisc_error("%s: Qdisc %p (type %d): cannot create virtual "
-				"interface\n", __func__, nq->qdisc, nq->type);
-			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
-			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
-			goto init_fail;
+		nq->nss_interface_number = nss_cmn_get_interface_number(nq->nss_shaping_ctx, dev);
+		if (nq->nss_interface_number < 0) {
+
+			/*
+			 * Case where bridge interface is not already represented
+			 * in the firmware (by clients such as bridge_mgr).
+			 */
+			nq->virt_if_ctx = nss_virt_if_create_sync(dev);
+			if (!nq->virt_if_ctx) {
+				nss_qdisc_error("%s: Qdisc %p (type %d): cannot create virtual "
+					"interface\n", __func__, nq->qdisc, nq->type);
+				nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
+				atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
+				goto init_fail;
+			}
+			nss_qdisc_info("%s: Qdisc %p (type %d): virtual interface registered "
+				"in NSS: %p\n", __func__, nq->qdisc, nq->type, nq->virt_if_ctx);
+
+			/*
+			 * We are the one who have created the virtual interface, so we
+			 * must ensure it is destroyed whenever we are done.
+			 */
+			nq->destroy_virtual_interface = true;
+
+			/*
+			 * Save the virtual interface number
+			 */
+			nq->nss_interface_number = nss_virt_if_get_interface_num(nq->virt_if_ctx);
+			nss_qdisc_info("%s: Qdisc %p (type %d) virtual interface number: %d\n",
+					__func__, nq->qdisc, nq->type, nq->nss_interface_number);
 		}
-		nss_qdisc_info("%s: Qdisc %p (type %d): virtual interface registered "
-			"in NSS: %p\n", __func__, nq->qdisc, nq->type, nq->virt_if_ctx);
 
-		/*
-		 * We are the one who have created the virtual interface, so we
-		 * must ensure it is destroyed whenever we are done.
-		 */
-		nq->destroy_virtual_interface = true;
-
-		/*
-		 * Get the virtual interface number, and set the related flags
-		 */
-		nq->nss_interface_number = nss_virt_if_get_interface_num(nq->virt_if_ctx);
-		nq->is_virtual = true;
-		nss_qdisc_info("%s: Qdisc %p (type %d) virtual interface number: %d\n",
-				__func__, nq->qdisc, nq->type, nq->nss_interface_number);
+		nq->is_virtual = nss_cmn_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
 
 		/*
 		 * The root qdisc will get packets enqueued to it, so it must

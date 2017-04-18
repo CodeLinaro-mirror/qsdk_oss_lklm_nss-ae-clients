@@ -64,8 +64,13 @@ ifeq ($(findstring 3.4, $(KERNELVERSION)),)
 obj-y+=map/map-t/
 endif
 
-ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
+# GRE manager
+ifeq ($(findstring 3.14, $(KERNELVERSION)), 3.14)
+obj-y+=gre/
+endif
+
 # Bridge manager
+ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
 obj-y += bridge/
 endif
 

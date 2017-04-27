@@ -30,7 +30,6 @@
 #include <linux/debugfs.h>
 #include <linux/vmalloc.h>
 
-#include <nss_crypto_if.h>
 #include <nss_ipsecmgr.h>
 
 #include "nss_ipsecmgr_priv.h"

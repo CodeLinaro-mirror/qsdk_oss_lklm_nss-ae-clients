@@ -30,7 +30,6 @@
 #include <nss_api_if.h>
 #include <nss_ipsec.h>
 #include <nss_ipsecmgr.h>
-#include <nss_crypto_if.h>
 
 #include "nss_ipsecmgr_priv.h"
 

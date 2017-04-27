@@ -28,8 +28,11 @@
 #include <nss_api_if.h>
 #include <nss_ipsec.h>
 #include <nss_ipsecmgr.h>
+#if defined(NSS_IPSECMGR_IPQ807X_SUPPORT)
+#include <nss_crypto_api.h>
+#else
 #include <nss_crypto_if.h>
-
+#endif
 #include "nss_ipsecmgr_priv.h"
 
 extern struct nss_ipsecmgr_drv *ipsecmgr_ctx;

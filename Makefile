@@ -13,7 +13,9 @@ obj-y+= nss_ppe_qdisc/
 endif
 
 # DTLS manager
+ifneq ($(SoC), ipq807x)
 obj-y+=dtls/
+endif
 
 # CAPWAP Manager
 ifneq ($(SoC), ipq807x)

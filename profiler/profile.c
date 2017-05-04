@@ -373,7 +373,7 @@ static int profile_open(struct inode *inode, struct file *filp)
  * return a udp packet ready to send to the profiler tool
  * when there are no packets left to make, return 0
  */
-static int profile_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
+static ssize_t profile_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 {
 	int result = 0;
 	int slen = 0;
@@ -400,7 +400,7 @@ static int profile_read(struct file *filp, char *buf, size_t count, loff_t *f_po
 	if (pn->profile_first_packet) {
 		result = profile_make_stats_packet(buf, count, pn);
 		pn->profile_first_packet = 0;
-		profileInfo("%d profile_make_stats_packet %d\n", result, count);
+		profileInfo("%d profile_make_stats_packet %zd\n", result, count);
 
 #ifdef	PROFILE_SEP_STAT
 		/*
@@ -421,7 +421,7 @@ static int profile_read(struct file *filp, char *buf, size_t count, loff_t *f_po
 	if (result == 0) {
 		pn->profile_first_packet = 1;
 	}
-	profileInfo("%d: profile_make_data_packet %d %d\n", result, count, slen);
+	profileInfo("%d: profile_make_data_packet %zd %d\n", result, count, slen);
 
 	profileInfo("%d: read\n", pn->pnc.enabled);
 	if (pn->pnc.enabled < 0) {
@@ -499,7 +499,7 @@ static int parse_sys_stat_event_req(const char *buf, size_t count,
 	char *cp;
 	int result;
 
-	printk("%d cmd buf %s\n", count, buf);
+	printk("%zd cmd buf %s\n", count, buf);
 	if (count < 19) /* minimum data for sys_stat_event request */
 		return	-EINVAL;
 
@@ -565,7 +565,7 @@ static int parse_sys_stat_event_req(const char *buf, size_t count,
 	db->hd_magic = UBI32_PROFILE_HD_MAGIC | NSS_PROFILER_SET_SYS_STAT_EVENT;
 	result = nss_profiler_if_tx_buf(pio->ctx, &pio->pnc.un, sizeof(pio->pnc.un),
 				profiler_handle_stat_event_reply, pio);
-	profileInfo("%p: %d send cmd %x to FW ret %d\n",
+	profileInfo("%p: %zd send cmd %x to FW ret %d\n",
 			db, count, db->hd_magic, result);
 	return	count;
 }
@@ -582,7 +582,7 @@ static int parseDbgData(const char *buf, size_t count, struct debug_box *db)
 	char *cp;
 	int n;
 
-	printk("%p: buf (%s) cnt %d\n", buf, buf, count);
+	printk("%p: buf (%s) cnt %zd\n", buf, buf, count);
 	if (sscanf(buf, "%x", (uint32_t *)&db->base_addr) != 1) {
 		printk("%s: cannot get base addr\n", __func__);
 		return	-EINVAL;
@@ -623,7 +623,7 @@ noea:		printk("%s: no enough arguments\n", __func__);
 			printk("n %d : %s\n", n, cp);
 			break;
 		}
-		printk("write %x to off %x\n", db->data[n], n * sizeof(db->data[0]));
+		printk("write %x to off %x\n", db->data[n], n * (int)sizeof(db->data[0]));
 		n++;
 		cp = strchr(cp, ' ');
 	} while (cp && n < MAX_DB_WR);
@@ -656,7 +656,7 @@ static void profiler_handle_debug_reply(struct nss_ctx_instance *nss_ctx, struct
 /*
  * a generic Krait <--> NSS debug interface
  */
-static int debug_if(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
+static ssize_t debug_if(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
 {
 	int result;
 	struct debug_box *db;
@@ -730,7 +730,7 @@ static int profile_rate_open(struct inode *inode, struct file *filp)
 	return single_open(filp, profile_rate_show, NULL);
 }
 
-static int profile_rate_write(struct file *filp, const char *buf, size_t len, loff_t *off)
+static ssize_t profile_rate_write(struct file *filp, const char *buf, size_t len, loff_t *off)
 {
 	*off = 0;
 	return 0;

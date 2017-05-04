@@ -8,7 +8,7 @@ ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BUILD_ID)"
 obj-y+= profiler/
 obj-y+= nss_qdisc/
 
-ifeq ($(SoC), ipq807x)
+ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
 obj-y+= nss_ppe_qdisc/
 endif
 
@@ -18,7 +18,7 @@ obj-y+=dtls/
 endif
 
 # CAPWAP Manager
-ifneq ($(SoC), ipq807x)
+ifneq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
 obj-y+= capwapmgr/
 endif
 
@@ -52,7 +52,7 @@ obj-y+=l2tp/l2tpv2/
 obj-y+= pptp/
 
 #IPsecmgr
-ifneq ($(SoC), ipq807x)
+ifneq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
 obj-y+= ipsecmgr/
 endif
 
@@ -64,7 +64,7 @@ ifeq ($(findstring 3.4, $(KERNELVERSION)),)
 obj-y+=map/map-t/
 endif
 
-ifeq ($(SoC), ipq807x)
+ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
 # Bridge manager
 obj-y += bridge/
 endif

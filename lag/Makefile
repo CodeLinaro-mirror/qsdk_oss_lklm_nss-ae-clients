@@ -1,6 +1,6 @@
 # Makefile for the lagmgr client
 
-ifeq ($(SoC), ipq807x)
+ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
 ccflags-y += -DNSS_LAG_PPE_SUPPORT
 endif
 

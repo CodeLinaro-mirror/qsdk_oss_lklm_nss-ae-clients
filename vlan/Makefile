@@ -4,7 +4,7 @@ ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BUILD_ID)"
 obj-m += qca-nss-vlan.o
 qca-nss-vlan-objs := nss_vlan_mgr.o
 
-ifeq ($(SoC), ipq807x)
+ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
 ccflags-y += -DNSS_VLAN_MGR_PPE_SUPPORT
 endif
 

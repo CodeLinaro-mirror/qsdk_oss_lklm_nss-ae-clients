@@ -197,6 +197,11 @@ static struct nss_connmgr_pptp_session_entry *nss_connmgr_add_pptp_session(struc
 	 */
 	dev_hold(dev);
 	pptp_session_data->dev = dev;
+
+	/*
+	 * Note: ip_dev_find does a hold on the physical device,
+	 * which is released when PPTP session goes down
+	 */
 	physical_dev = ip_dev_find(&init_net, data->src_ip);
 	if (!physical_dev) {
 		nss_connmgr_pptp_info("%p: couldn't find a phycal dev %s\n", dev, dev->name);
@@ -205,7 +210,6 @@ static struct nss_connmgr_pptp_session_entry *nss_connmgr_add_pptp_session(struc
 		return NULL;
 	}
 
-	dev_hold(physical_dev);
 	pptp_session_data->phy_dev = physical_dev;
 
 	/*

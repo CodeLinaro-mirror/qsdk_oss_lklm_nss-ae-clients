@@ -656,8 +656,10 @@ static void profiler_handle_debug_reply(struct nss_ctx_instance *nss_ctx, struct
 /*
  * a generic Krait <--> NSS debug interface
  */
-static ssize_t debug_if(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
+static ssize_t debug_if(struct file *filp,
+			const char __user *ubuf, size_t count, loff_t *f_pos)
 {
+	char *buf;
 	int result;
 	struct debug_box *db;
 	struct profile_io *pio = (struct profile_io *)filp->private_data;
@@ -670,11 +672,22 @@ static ssize_t debug_if(struct file *filp, const char *buf, size_t count, loff_t
 		return -EPERM;
 	}
 
+	buf = kmalloc(count, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (copy_from_user(buf, ubuf, count)) {
+		kfree(buf);
+		printk(KERN_ERR "copy_from_user\n");
+		return -EIO;
+	}
+
 	db = (struct debug_box *) &pio->pnc;
 	db->dlen = db->opts = 0;
 
 	if (!isdigit(buf[0])) {
 		result = parse_sys_stat_event_req(buf, count, db, pio);
+		kfree(buf);
 
 		if ((result > 0) && (filp->f_flags & O_RDWR)) {
 			/*
@@ -686,6 +699,7 @@ static ssize_t debug_if(struct file *filp, const char *buf, size_t count, loff_t
 	}
 
 	result = parseDbgData(buf, count, db);
+	kfree(buf);
 	if (result < 0) {
 		return	result;
 	}

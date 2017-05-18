@@ -416,6 +416,7 @@ void nss_ipsecmgr_v4_subnet_tuple2key(struct nss_ipsec_tuple *tuple, struct nss_
  */
 void nss_ipsecmgr_v6_subnet_tuple2key(struct nss_ipsec_tuple *tuple, struct nss_ipsecmgr_key *key)
 {
+	uint32_t pos;
 	uint32_t i;
 
 	nss_ipsecmgr_key_reset(key);
@@ -424,7 +425,8 @@ void nss_ipsecmgr_v6_subnet_tuple2key(struct nss_ipsec_tuple *tuple, struct nss_
 	nss_ipsecmgr_key_write_8(key, tuple->proto_next_hdr, NSS_IPSECMGR_KEY_POS_IP_PROTO);
 
 	for (i = 0; i < 4; i++) {
-		nss_ipsecmgr_key_write_32(key, tuple->dst_addr[i], NSS_IPSECMGR_KEY_POS_IPV6_DST + (i * BITS_PER_LONG));
+		pos = NSS_IPSECMGR_KEY_POS_IPV6_DST + (i * NSS_IPSECMGR_BITS_PER_WORD);
+		nss_ipsecmgr_key_write_32(key, tuple->dst_addr[i], pos);
 	}
 
 	key->len = NSS_IPSECMGR_KEY_LEN_IPV6_SUBNET;

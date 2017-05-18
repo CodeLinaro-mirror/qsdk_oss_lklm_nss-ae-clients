@@ -114,6 +114,9 @@
 #define NSS_IPSECMGR_PER_FLOW_BUF_DST_IP_SIZE 100
 #define NSS_IPSECMGR_PER_FLOW_BUF_TYPE_SIZE 100
 
+#define NSS_IPSECMGR_BITS_PER_WORD (sizeof(uint32_t) * BITS_PER_BYTE)
+#define NSS_IPSECMGR_BITS2WORD(p) ((p) / NSS_IPSECMGR_BITS_PER_WORD)
+
 #define NSS_IPSECMGR_DEFAULT_TUN_NAME "ipsecdummy"
 
 struct nss_ipsecmgr_ref;
@@ -421,10 +424,10 @@ static inline uint8_t nss_ipsecmgr_key_read_8(struct nss_ipsecmgr_key *key, enum
 	uint32_t data;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	data = key->data[idx];
 
-	switch (p % BITS_PER_LONG) {
+	switch (p % NSS_IPSECMGR_BITS_PER_WORD) {
 	case 0: /* bits[0:7] */
 		return (uint8_t)data;
 	case 8: /* bits[8:15] */
@@ -447,14 +450,14 @@ static inline void nss_ipsecmgr_key_write_8(struct nss_ipsecmgr_key *key, uint8_
 	uint32_t *data, *mask;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	data = &key->data[idx];
 	mask = &key->mask[idx];
 
 	/*
 	 * clear data with mask, update data & save mask
 	 */
-	switch (p % BITS_PER_LONG) {
+	switch (p % NSS_IPSECMGR_BITS_PER_WORD) {
 	case 0: /* bits[0:7] */
 		*data &= ~NSS_IPSECMGR_GENMASK(7, 0);
 		*data |= v;
@@ -491,13 +494,13 @@ static inline void nss_ipsecmgr_key_clear_8(struct nss_ipsecmgr_key *key, enum n
 	uint32_t *mask;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	mask = &key->mask[idx];
 
 	/*
 	 * clear data with mask, update data & save mask
 	 */
-	switch (p % BITS_PER_LONG) {
+	switch (p % NSS_IPSECMGR_BITS_PER_WORD) {
 	case 0: /* bits[0:7] */
 		*mask &= ~NSS_IPSECMGR_GENMASK(7, 0);
 		break;
@@ -525,10 +528,10 @@ static inline uint16_t nss_ipsecmgr_key_read_16(struct nss_ipsecmgr_key *key, en
 	uint32_t data;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	data = key->data[idx];
 
-	switch (p % BITS_PER_LONG) {
+	switch (p % NSS_IPSECMGR_BITS_PER_WORD) {
 	case 0: /* bits[0:7] */
 		return (uint16_t)data;
 	case 16: /* bits[16:23] */
@@ -547,14 +550,14 @@ static inline void nss_ipsecmgr_key_write_16(struct nss_ipsecmgr_key *key, uint1
 	uint32_t *data, *mask;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	data = &key->data[idx];
 	mask = &key->mask[idx];
 
 	/*
 	 * clear data with mask, update data & save mask
 	 */
-	switch (p % BITS_PER_LONG) {
+	switch (p % NSS_IPSECMGR_BITS_PER_WORD) {
 	case 0: /* bits[0:15] */
 		*data &= ~NSS_IPSECMGR_GENMASK(15, 0);
 		*data |= v;
@@ -581,13 +584,13 @@ static inline void nss_ipsecmgr_key_clear_16(struct nss_ipsecmgr_key *key, enum 
 	uint32_t *mask;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	mask = &key->mask[idx];
 
 	/*
 	 * clear data with mask, update data & save mask
 	 */
-	switch (p % BITS_PER_LONG) {
+	switch (p % NSS_IPSECMGR_BITS_PER_WORD) {
 	case 0: /* bits[0:15] */
 		*mask &= ~NSS_IPSECMGR_GENMASK(15, 0);
 		break;
@@ -608,7 +611,7 @@ static inline uint32_t nss_ipsecmgr_key_read_32(struct nss_ipsecmgr_key *key, en
 {
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	return key->data[idx];
 }
 
@@ -621,7 +624,7 @@ static inline void nss_ipsecmgr_key_write_32(struct nss_ipsecmgr_key *key, uint3
 	uint32_t *data, *mask;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	data = &key->data[idx];
 	mask = &key->mask[idx];
 
@@ -640,7 +643,7 @@ static inline void nss_ipsecmgr_key_clear_32(struct nss_ipsecmgr_key *key, enum 
 {
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	key->mask[idx] = 0;
 }
 
@@ -652,7 +655,7 @@ static inline void nss_ipsecmgr_key_clear_64(struct nss_ipsecmgr_key *key, enum 
 {
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	key->mask[idx] = 0;
 	key->mask[idx + 1] = 0;
 }
@@ -665,7 +668,7 @@ static inline void nss_ipsecmgr_key_clear_128(struct nss_ipsecmgr_key *key, enum
 {
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 
 	memset(&key->mask[idx], 0, sizeof(uint32_t) * 4);
 }
@@ -680,7 +683,7 @@ static inline void nss_ipsecmgr_key_read(struct nss_ipsecmgr_key *key, uint32_t 
 	uint16_t idx;
 	int delta;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	delta = NSS_IPSECMGR_MAX_KEY_WORDS - idx;
 
 	n = n > delta ? delta : n;
@@ -704,7 +707,7 @@ static inline void nss_ipsecmgr_key_write(struct nss_ipsecmgr_key *key, uint32_t
 	uint16_t idx;
 	int delta;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	delta = NSS_IPSECMGR_MAX_KEY_WORDS - idx;
 
 	n = n > delta ? delta : n;
@@ -726,7 +729,7 @@ static inline void nss_ipsecmgr_key_write_mask(struct nss_ipsecmgr_key *key, uin
 {
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	key->mask[idx] = m;
 }
 
@@ -738,7 +741,7 @@ static inline uint32_t nss_ipsecmgr_key_read_mask32(struct nss_ipsecmgr_key *key
 {
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 
 	return key->mask[idx];
 }
@@ -752,7 +755,7 @@ static inline uint64_t nss_ipsecmgr_key_read_mask64(struct nss_ipsecmgr_key *key
 	uint64_t *mask;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 
 	mask = (uint64_t *)&key->mask[idx];
 
@@ -767,7 +770,7 @@ static inline void nss_ipsecmgr_key_lshift_mask(struct nss_ipsecmgr_key *key, ui
 {
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 	key->mask[idx] <<= s;
 }
 
@@ -780,7 +783,7 @@ static inline void nss_ipsecmgr_key_lshift_mask64(struct nss_ipsecmgr_key *key, 
 	uint64_t *mask;
 	uint16_t idx;
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 
 	mask = (uint64_t *)&key->mask[idx];
 	*mask <<= s;
@@ -795,7 +798,7 @@ static inline void nss_ipsecmgr_key_lshift_mask128(struct nss_ipsecmgr_key *key,
 	uint16_t idx;
 	uint32_t mask[4];
 
-	idx = BIT_WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
+	idx = NSS_IPSECMGR_BITS2WORD(p) % NSS_IPSECMGR_MAX_KEY_WORDS;
 
 	memcpy(mask, &key->mask[idx], sizeof(uint32_t) * 4);
 

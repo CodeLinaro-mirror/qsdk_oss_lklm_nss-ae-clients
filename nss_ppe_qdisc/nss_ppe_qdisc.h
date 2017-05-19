@@ -90,10 +90,16 @@
 #define NSS_PPE_MEM_BLOCK_SIZE 256
 
 /*
+ * Token number is assigned the max value so as to
+ * avoid the packet loss at the start of shaper process.
+ */
+#define NSS_PPE_QDISC_TOKEN_MAX		0x3fffffff
+
+/*
  * Shaper/Scheduler levels.
  */
 enum nss_ppe_qdisc_level {
-	NSS_PPE_QDISC_INVALID_LEVEL,
+	NSS_PPE_QDISC_SUB_QUEUE_LEVEL,
 	NSS_PPE_QDISC_QUEUE_LEVEL,
 	NSS_PPE_QDISC_FLOW_LEVEL,
 	NSS_PPE_QDISC_PORT_LEVEL,
@@ -105,7 +111,8 @@ typedef enum nss_ppe_qdisc_level nss_ppe_qdisc_level_t;
  * Resource type.
  */
 enum nss_ppe_qdisc_res_type {
-	NSS_PPE_QDISC_QUEUE,
+	NSS_PPE_QDISC_UCAST_QUEUE,
+	NSS_PPE_QDISC_MCAST_QUEUE,
 	NSS_PPE_QDISC_L0_CDRR,
 	NSS_PPE_QDISC_L0_EDRR,
 	NSS_PPE_QDISC_L0_SP,
@@ -151,13 +158,16 @@ struct nss_ppe_qdisc_port {
  * nss_ppe_queue structure
  */
 struct nss_ppe_queue {
-	uint32_t qid;				/* Queue ID */
+	uint32_t ucast_qid;			/* Unicast Queue ID */
+	uint32_t mcast_qid;			/* Multicast Queue ID */
 	uint32_t qlimit;			/* Queue limit */
 	uint32_t min_th[NSS_PPE_COLOR_MAX];	/* Min threshold */
 	uint32_t max_th[NSS_PPE_COLOR_MAX];	/* Max threshold */
 	bool color_en;				/* Enable color mode */
 	bool red_en;				/* Enable red algorithm */
-	bool qid_valid;				/* Queue ID valid */
+	bool ucast_valid;			/* Queue ID valid */
+	bool mcast_valid;			/* Multicast configuration valid */
+	bool mcast_enable;			/* Multicast configuration enabled? */
 };
 
 /*
@@ -201,6 +211,30 @@ struct nss_ppe_qdisc {
 };
 
 /*
+ * nss_ppe_qdisc_base_get()
+ *	Returns base of the particular resource for a given port.
+ */
+uint32_t nss_ppe_qdisc_base_get(uint32_t port, nss_ppe_qdisc_res_type_t type);
+
+/*
+ * nss_ppe_qdisc_attach_free()
+ *	Attaches a resource to free list.
+ */
+void nss_ppe_qdisc_attach_free(uint32_t port, struct nss_ppe_qdisc_res *res);
+
+/*
+ * nss_ppe_qdisc_res_free()
+ *	Frees the allocated resource and attach it to free list.
+ */
+int nss_ppe_qdisc_res_free(uint32_t port, uint32_t offset, nss_ppe_qdisc_res_type_t type);
+
+/*
+ * nss_ppe_qdisc_res_alloc()
+ *	Allocates free resource for a given port.
+ */
+struct nss_ppe_qdisc_res *nss_ppe_qdisc_res_alloc(uint32_t port, nss_ppe_qdisc_res_type_t type);
+
+/*
  * nss_ppe_qdisc_default_conf_set()
  *	Used to set default queue scheduler in SSDK.
  */
@@ -211,6 +245,18 @@ extern int nss_ppe_qdisc_default_conf_set(uint32_t port_num);
  *	Used to set queue size in SSDK.
  */
 extern int nss_ppe_qdisc_queue_limit_set(struct nss_ppe_qdisc *npq);
+
+/*
+ * nss_ppe_qdisc_mcast_queue_reset()
+ *	Deconfigures and deallocates a multicast queue in SSDK.
+ */
+extern int nss_ppe_qdisc_mcast_queue_reset(struct nss_ppe_qdisc *npq);
+
+/*
+ * nss_ppe_qdisc_mcast_queue_set()
+ *	Allocates and configures a multicast queue in SSDK.
+ */
+extern int nss_ppe_qdisc_mcast_queue_set(struct nss_ppe_qdisc *npq);
 
 /*
  * nss_ppe_qdisc_scheduler_reset()

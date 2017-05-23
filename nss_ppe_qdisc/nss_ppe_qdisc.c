@@ -22,10 +22,10 @@
 /*
  * HW scaling factor
  *
- * TODO: Change the value on actual HW
+ * Change this value to 100 if testing on RUMI.
  * Frequency of RUMI is 100 times slower.
  */
-#define NSS_PPE_QDISC_HW_FREQ_SCALING	100
+#define NSS_PPE_QDISC_HW_FREQ_SCALING	1
 
 /*
  * Max Resources per port

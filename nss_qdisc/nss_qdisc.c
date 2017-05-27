@@ -2357,13 +2357,22 @@ static int nss_qdisc_if_event_cb(struct notifier_block *unused,
 		br_num = nss_cmn_get_interface_number(nss_qdisc_ctx, br);
 		br_qdisc = br->qdisc;
 		/*
-		 * TODO: Properly ensure that the interface and bridge are
-		 * shaped by us.
+		 * Ensure the interfaces involved are known to NSS.
 		 */
 		if (if_num < 0 || br_num < 0) {
 			nss_qdisc_info("No action taken since if_num is %d for %s "
 					"and br_num is %d for bridge %s\n", if_num,
 					dev->name, br_num, br->name);
+			break;
+		}
+
+		/*
+		 * Ensure we have nss qdisc configured on the bridge
+		 */
+		struct nss_qdisc *nq = (struct nss_qdisc *)qdisc_priv(br_qdisc);
+		if ((nq->mode != NSS_QDISC_MODE_NSS) && (nq->mode != NSS_QDISC_MODE_PPE)) {
+			nss_qdisc_info("No action taken since nss qdisc is not configured on "
+					" %s interface\n", br->name);
 			break;
 		}
 

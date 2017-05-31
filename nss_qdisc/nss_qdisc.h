@@ -158,6 +158,8 @@ struct nss_qdisc {
 	wait_queue_head_t wait_queue;		/* Wait queue used to wait on responses from the NSS */
 	spinlock_t lock;			/* Lock to protect the nss qdisc structure */
 	uint16_t mode;				/* Mode of Qdisc/class */
+	void *reserved;				/* Reserved to be used by ppe qdisc*/
+						/* TODO: Needs to be removed once we hide PPE Qdisc into NSS */
 };
 
 /*

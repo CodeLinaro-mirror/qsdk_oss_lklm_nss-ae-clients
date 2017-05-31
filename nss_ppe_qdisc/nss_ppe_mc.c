@@ -23,7 +23,6 @@
 int nss_ppe_qdisc_mcast_queue_reset(struct nss_ppe_qdisc *npq)
 {
 	fal_shaper_config_t cfg;
-	fal_qos_scheduler_cfg_t l0cfg;
 	uint32_t offset;
 	uint32_t port_num = nss_ppe_qdisc_port_num_get(npq);
 
@@ -49,25 +48,6 @@ int nss_ppe_qdisc_mcast_queue_reset(struct nss_ppe_qdisc *npq)
 				port_num, npq->q.mcast_qid);
 			return -EINVAL;
 		}
-	}
-
-	/*
-	 * Reset Level 0 configuration.
-	 * l0cfg structure needs to be filled to
-	 * invoke SSDK API.
-	 */
-	memset(&l0cfg, 0, sizeof(l0cfg));
-	l0cfg.sp_id = npq->l0spid;
-	l0cfg.c_drr_wt = 0;
-	l0cfg.e_drr_wt = 0;
-	l0cfg.c_drr_id = npq->l0c_drrid;
-	l0cfg.e_drr_id = npq->l0e_drrid;
-
-	nss_ppe_qdisc_trace("SSDK level0 configuration: Port:%d, mcast_qid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l0spid:%d\n",
-			port_num, npq->q.mcast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
-	if (fal_queue_scheduler_set(0, npq->q.mcast_qid, NSS_PPE_QDISC_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
-		nss_ppe_qdisc_error("SSDK level0 queue multicast scheduler configuration failed\n");
-		return -EINVAL;
 	}
 
 	/*

@@ -216,27 +216,10 @@ static int nss_ppe_red_change(struct Qdisc *sch, struct nlattr *opt)
 		 * for hadling failure conditions.
 		 */
 		prev_q = q->npq.q;
-		goto conf;
 	}
 
-	/*
-	 * Set the PPE configuration
-	 * For root qdisc, SSDK schedulers and NSS configuration is done
-	 * while for non-root qdisc, the SSDK scheduler and NSS
-	 * configuration is done in corresponding graft class.
-	 */
-	if (sch->parent == TC_H_ROOT) {
-		if (nss_ppe_qdisc_scheduler_set(&q->npq) < 0) {
-			nss_ppe_qdisc_warning("ppe_red %p configuration failed\n", sch);
-			return -EINVAL;
-		}
-	}
-
-
-conf:
 	if (nss_ppe_red_params_validate_and_save(sch, opt) < 0) {
 		nss_ppe_qdisc_warning("ppe_red %p params validate and save failed\n", sch);
-		nss_qdisc_destroy(&q->npq.nq);
 		return -EINVAL;
 	}
 
@@ -270,13 +253,20 @@ fail:
 	 * Restore to previous configuration if exists.
 	 */
 	if (prev_q.ucast_valid) {
+
+		/*
+		 * In case set_default is toggled and we have allocated/deallocated the
+		 * mcast resources during change configuration, we need to restore them
+		 * to old configuration by again deallocating/allocating them.
+		 */
+		if ((q->npq.q.mcast_enable != prev_q.mcast_enable)
+			&& (q->npq.q.mcast_valid != prev_q.mcast_valid)) {
+			prev_q.mcast_valid = q->npq.q.mcast_valid;
+			prev_q.mcast_qid = q->npq.q.mcast_qid;
+		}
+
 		q->npq.q = prev_q;
 		nss_ppe_qdisc_configure(&q->npq);
-	} else {
-		if (sch->parent == TC_H_ROOT) {
-			nss_ppe_qdisc_mcast_queue_reset(&q->npq);
-			nss_ppe_qdisc_scheduler_reset(&q->npq);
-		}
 	}
 	return -EINVAL;
 }

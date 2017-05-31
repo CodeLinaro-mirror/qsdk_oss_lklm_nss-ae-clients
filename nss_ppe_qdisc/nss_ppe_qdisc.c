@@ -40,7 +40,7 @@
 #define NSS_PPE_QDISC_L1_CDRR_MAX	4
 #define NSS_PPE_QDISC_L1_EDRR_MAX	4
 #define NSS_PPE_QDISC_UCAST_QUEUE_MAX	16
-#define NSS_PPE_QDISC_MCAST_QUEUE_MAX	4
+#define NSS_PPE_QDISC_MCAST_QUEUE_MAX	1
 
 
 #define NSS_PPE_QDISC_CPU0_L0_SP_MAX	36
@@ -744,7 +744,12 @@ static int nss_ppe_qdisc_l0_res_alloc(struct nss_ppe_qdisc *npq)
 	npq->l0e_drrid = nss_ppe_qdisc_base_get(port_num, NSS_PPE_QDISC_L0_EDRR) + l0e_drr->offset;
 	npq->q.mcast_qid = 0;
 
-	if (npq->parent) {
+	/*
+	 * If a qdisc or class is attached at queue level,
+	 * we need to set the L0 SP Id from the parent qdisc
+	 * to make connection between L0 and L1 resources.
+	 */
+	if (npq->level == NSS_PPE_QDISC_QUEUE_LEVEL) {
 		npq->l0spid = npq->parent->l0spid;
 	}
 
@@ -1482,15 +1487,26 @@ int nss_ppe_qdisc_scheduler_set(struct nss_ppe_qdisc *npq)
 			}
 		}
 	} else if (npq->level == NSS_PPE_QDISC_QUEUE_LEVEL) {
+
+		/*
+		 * This case is invoked when a Qdisc/class is attached/changed
+		 * at queue level. If a class is attached at queue level, we
+		 * disable the queue until a qdisc is attached. To check whether
+		 * this code is inovoked at init or change time, we check whether
+		 * L0 resources are allocated or not.
+		 */
+		bool conf_changed = npq->l0_valid;
+
 		if (nss_ppe_qdisc_l0_queue_scheduler_set(npq) < 0) {
 			nss_ppe_qdisc_warning("SSDK Level0 configuration failed\n");
 			return -EINVAL;
 		}
 
 		/*
-		 * Disable the scheduler unitl a child qdisc is added
+		 * This is not change configuration case, and a new class is added.
+		 * Disable the scheduler unitl a child qdisc is added.
 		 */
-		if (npq->nq.is_class) {
+		if ((!conf_changed) && (npq->nq.is_class)) {
 			nss_ppe_qdisc_queue_scheduler_disable(npq);
 		}
 	} else {
@@ -1615,7 +1631,7 @@ int nss_ppe_qdisc_node_detach(struct nss_ppe_qdisc *npq, struct Qdisc *old)
 {
 	struct nss_if_msg nim_detach;
 	struct nss_qdisc *nq_old = qdisc_priv(old);
-	struct nss_ppe_qdisc *npq_old = qdisc_priv(old);
+	struct nss_ppe_qdisc *npq_old = NULL;
 
 	if (nq_old->mode != NSS_QDISC_MODE_PPE) {
 		if (nss_qdisc_set_hybrid_mode(nq_old, NSS_QDISC_HYBRID_MODE_DISABLE, 0) < 0) {
@@ -1632,6 +1648,12 @@ int nss_ppe_qdisc_node_detach(struct nss_ppe_qdisc *npq, struct Qdisc *old)
 		return -EINVAL;
 	}
 
+	if (nq_old->mode != NSS_QDISC_MODE_PPE) {
+		npq_old = (struct nss_ppe_qdisc *)nq_old->reserved;
+	} else {
+		npq_old = qdisc_priv(old);
+	}
+
 	if (nss_ppe_qdisc_mcast_queue_reset(npq_old) < 0) {
 		nss_ppe_qdisc_warning("SSDK scheduler reset for detach of old qdisc %x failed\n", old->handle);
 		return -EINVAL;
@@ -1642,7 +1664,11 @@ int nss_ppe_qdisc_node_detach(struct nss_ppe_qdisc *npq, struct Qdisc *old)
 		return -EINVAL;
 	}
 
-	nss_ppe_qdisc_info("Qdisc:%p, node:%p\n", npq, old);
+	if (nq_old->mode != NSS_QDISC_MODE_PPE) {
+		kfree(npq_old);
+	}
+
+	nss_ppe_qdisc_info("Qdisc:%p, node:%p\n", npq, (old));
 	return 0;
 }
 
@@ -1653,10 +1679,9 @@ int nss_ppe_qdisc_node_detach(struct nss_ppe_qdisc *npq, struct Qdisc *old)
 int nss_ppe_qdisc_node_attach(struct nss_ppe_qdisc *npq, struct Qdisc *new)
 {
 	struct nss_if_msg nim_attach;
-	struct nss_ppe_qdisc *npq_new = qdisc_priv(new);
+	struct nss_ppe_qdisc *npq_new = NULL;
 	struct nss_qdisc *nq_new = qdisc_priv(new);
 	int ucast_qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_UCAST_QUEUE);
-	bool mcast_enable = npq_new->q.mcast_enable;
 
 	nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = npq->nq.qos_tag;
 	nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_attach.child_qos_tag = nq_new->qos_tag;
@@ -1667,15 +1692,33 @@ int nss_ppe_qdisc_node_attach(struct nss_ppe_qdisc *npq, struct Qdisc *new)
 	}
 
 	/*
-	 * Set SSDK configuration
-	 * TODO: New qdisc can be of mode NSS_QDISC_MODE_NSS.
-	 * We cannot typecast it to nss_ppe_qdisc type.
-	 * This typecasting will go once we move PPE Qdisc to NSS Qdisc.
+	 * In case of hybrid mode, create a dummy PPE Qdisc to allocate resources.
+	 * TODO: Needs to be removed when we move PPE Qdiscs into NSS.
 	 */
+	if (nq_new->mode != NSS_QDISC_MODE_PPE) {
+		npq_new = kzalloc(sizeof(struct nss_ppe_qdisc), GFP_KERNEL);
+		if (!npq_new) {
+			nss_ppe_qdisc_warning("nss qdisc configuration failed\n");
+			return -EINVAL;
+		}
+
+		memcpy(&npq_new->nq, nq_new, sizeof(struct nss_qdisc));
+		nq_new->reserved = (void *)npq_new;
+	} else {
+		npq_new = qdisc_priv(new);
+	}
+
+	/*
+	 * Set SSDK configuration
+	 */
+	npq_new->parent = npq;
 	npq_new->level = npq->level - 1;
 	npq_new->l0spid = npq->l0spid;
-	npq_new->q = npq->q;
-	npq_new->q.mcast_enable = mcast_enable;
+
+	if (npq_new->level == NSS_PPE_QDISC_SUB_QUEUE_LEVEL) {
+		npq_new->q.ucast_valid = npq->q.ucast_valid;
+		npq_new->q.ucast_qid = npq->q.ucast_qid;
+	}
 
 	if (nss_ppe_qdisc_scheduler_set(npq_new) < 0) {
 		nss_ppe_qdisc_warning("SSDK scheduler configuration for attach of new qdisc %x failed\n", new->handle);
@@ -1718,8 +1761,25 @@ int nss_ppe_qdisc_node_attach(struct nss_ppe_qdisc *npq, struct Qdisc *new)
 int nss_ppe_qdisc_configure(struct nss_ppe_qdisc *npq)
 {
 	struct nss_if_msg nim;
+	bool scheduler_set = false;
 	int ucast_qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_UCAST_QUEUE);
 	int mcast_qbase = nss_ppe_qdisc_base_get(nss_ppe_qdisc_port_num_get(npq), NSS_PPE_QDISC_MCAST_QUEUE);
+
+	/*
+	 * Set the PPE configuration.
+	 * This is invoked at qdisc init and chnage time.
+	 * For root qdisc, SSDK schedulers are allocated
+	 * if this is not a change configurationn case.
+	 * While for non-root qdisc, the SSDK scheduler
+	 * configuration is done in node attach.
+	 */
+	if ((npq->nq.is_root) && (!npq->q.ucast_valid)) {
+		if (nss_ppe_qdisc_scheduler_set(npq) < 0) {
+			nss_ppe_qdisc_warning("SSDK scheduler configuration failed\n");
+			return -EINVAL;
+		}
+		scheduler_set = true;
+	}
 
 	/*
 	 * We have nothing to do when qid is not known
@@ -1730,7 +1790,7 @@ int nss_ppe_qdisc_configure(struct nss_ppe_qdisc *npq)
 
 	if (nss_ppe_qdisc_mcast_queue_set(npq) < 0) {
 		nss_ppe_qdisc_warning("SSDK multicast queueue configuration failed\n");
-		return -EINVAL;
+		goto fail;
 	}
 
 	/*
@@ -1738,7 +1798,7 @@ int nss_ppe_qdisc_configure(struct nss_ppe_qdisc *npq)
 	 */
 	if (nss_ppe_qdisc_queue_limit_set(npq) < 0) {
 		nss_ppe_qdisc_warning("SSDK multicast queueue configuration failed\n");
-		return -EINVAL;
+		goto fail;
 	}
 
 	/*
@@ -1764,11 +1824,18 @@ int nss_ppe_qdisc_configure(struct nss_ppe_qdisc *npq)
 
 	if (nss_qdisc_configure(&npq->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
 		nss_ppe_qdisc_warning("Qdisc configuration failed\n");
-		return -EINVAL;
+		goto fail;
 	}
 
 	nss_ppe_qdisc_info("Qdisc configured successfully\n");
 	return 0;
+
+fail:
+	nss_ppe_qdisc_mcast_queue_reset(npq);
+	if (scheduler_set) {
+		nss_ppe_qdisc_scheduler_reset(npq);
+	}
+	return -EINVAL;
 }
 
 /*

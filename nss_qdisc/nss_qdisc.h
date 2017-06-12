@@ -28,33 +28,55 @@
 #include <br_private.h>
 #include <nss_api_if.h>
 
+#define NSS_QDISC_DEBUG_LEVEL_ERROR 1
+#define NSS_QDISC_DEBUG_LEVEL_WARN 2
+#define NSS_QDISC_DEBUG_LEVEL_INFO 3
+#define NSS_QDISC_DEBUG_LEVEL_TRACE 4
+
 /*
- * NSS QDisc debug macros
+ * Debug message for module init and exit
  */
-#if (NSS_QDISC_DEBUG_LEVEL < 1)
-#define nss_qdisc_assert(c, s, args...)
-#define nss_qdisc_error(fmt, args...)
+#define nss_qdisc_info_always(s, ...) printk(KERN_INFO"%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
+
+/*
+ * Error and warn message will be enabled by default in Makefile
+ */
+#if (NSS_QDISC_DEBUG_LEVEL < NSS_QDISC_DEBUG_LEVEL_ERROR)
+#define nss_qdisc_assert(s, ...)
+#define nss_qdisc_error(s, ...)
 #else
-#define nss_qdisc_assert(c, s, args...) if (!(c)) { printk("%d:ASSERT:"s, __LINE__, ##args); BUG(); }
-#define nss_qdisc_error(fmt, args...) printk(KERN_ERR "%d:ERROR:"fmt, __LINE__, ##args)
+#define nss_qdisc_assert(c, s, ...) { if (!(c)) { pr_emerg("ASSERT: %s:%d:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__); BUG(); } }
+#define nss_qdisc_error(s, ...) pr_err("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 
-#if (NSS_QDISC_DEBUG_LEVEL < 2)
-#define nss_qdisc_warning(fmt, args...)
+#if (NSS_QDISC_DEBUG_LEVEL < NSS_QDISC_DEBUG_LEVEL_WARN)
+#define nss_qdisc_warning(s, ...)
 #else
-#define nss_qdisc_warning(fmt, args...) printk(KERN_WARNING "%d:WARN:"fmt, __LINE__, ##args)
+#define nss_qdisc_warning(s, ...) pr_warn("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 
-#if (NSS_QDISC_DEBUG_LEVEL < 3)
-#define nss_qdisc_info(fmt, args...)
+#if defined(CONFIG_DYNAMIC_DEBUG)
+/*
+ * Compile messages for dynamic enable/disable
+ */
+#define nss_qdisc_info(s, ...) pr_debug("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
+#define nss_qdisc_trace(s, ...) pr_debug("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
+
 #else
-#define nss_qdisc_info(fmt, args...) printk(KERN_INFO "%d:INFO:"fmt, __LINE__, ##args)
+/*
+ * Statically compile messages at different levels
+ */
+#if (NSS_QDISC_DEBUG_LEVEL < NSS_QDISC_DEBUG_LEVEL_INFO)
+#define nss_qdisc_info(s, ...)
+#else
+#define nss_qdisc_info(s, ...) pr_notice("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 
-#if (NSS_QDISC_DEBUG_LEVEL < 4)
-#define nss_qdisc_trace(fmt, args...)
+#if (NSS_QDISC_DEBUG_LEVEL < NSS_QDISC_DEBUG_LEVEL_TRACE)
+#define nss_qdisc_trace(s, ...)
 #else
-#define nss_qdisc_trace(fmt, args...) printk(KERN_DEBUG "%d:TRACE:"fmt, __LINE__, ##args)
+#define nss_qdisc_trace(s, ...) pr_info("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#endif
 #endif
 
 /*

@@ -121,7 +121,7 @@ static int nss_codel_change(struct Qdisc *sch, struct nlattr *opt)
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.codel_param.cap.interval = q->interval/1000;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.codel_param.cap.target = q->target/1000;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.codel_param.cap.mtu = psched_mtu(dev);
-	nss_qdisc_info("%s: MTU size of interface %s is %u bytes\n", __func__, dev->name,
+	nss_qdisc_info("MTU size of interface %s is %u bytes\n", dev->name,
 			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.codel_param.cap.mtu);
 
 	if (nss_qdisc_configure(&q->nq, &nim,

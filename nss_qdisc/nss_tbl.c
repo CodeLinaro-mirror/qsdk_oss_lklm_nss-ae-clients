@@ -65,8 +65,8 @@ static void nss_tbl_destroy(struct Qdisc *sch)
 		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		if (nss_qdisc_node_detach(&q->nq, nq_child, &nim,
 				NSS_SHAPER_CONFIG_TYPE_TBL_DETACH) < 0) {
-			nss_qdisc_error("%s: Failed to detach child %x from nss_tbl %x\n",
-					__func__, q->qdisc->handle, q->nq.qos_tag);
+			nss_qdisc_error("Failed to detach child %x from nss_tbl %x\n",
+					q->qdisc->handle, q->nq.qos_tag);
 			return;
 		}
 	}
@@ -243,10 +243,10 @@ static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new
 	*old = q->qdisc;
 	sch_tree_unlock(sch);
 
-	nss_qdisc_info("%s:Grafting old: %p with new: %p\n", __func__, *old, new);
+	nss_qdisc_info("Grafting old: %p with new: %p\n", *old, new);
 	if (*old != &noop_qdisc) {
 		struct nss_qdisc *nq_old = (struct nss_qdisc *)qdisc_priv(*old);
-		nss_qdisc_info("%s: Detaching old: %p\n", __func__, *old);
+		nss_qdisc_info("Detaching old: %p\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		if (nss_qdisc_node_detach(&q->nq, nq_old, &nim_detach,
 				NSS_SHAPER_CONFIG_TYPE_TBL_DETACH) < 0) {
@@ -255,7 +255,7 @@ static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new
 	}
 
 	if (new != &noop_qdisc) {
-		nss_qdisc_info("%s: Attaching new: %p\n", __func__, new);
+		nss_qdisc_info("Attaching new: %p\n", new);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.tbl_attach.child_qos_tag = nq_new->qos_tag;
 		if (nss_qdisc_node_attach(&q->nq, nq_new, &nim_attach,

@@ -36,7 +36,7 @@ static inline struct nss_wrr_class_data *nss_wrr_find_class(u32 classid,
 	struct Qdisc_class_common *clc;
 	clc = qdisc_class_find(&q->clhash, classid);
 	if (clc == NULL) {
-		nss_qdisc_info("%s: cannot find class with classid %u in qdisc %p hash table %p\n", __func__, classid, sch, &q->clhash);
+		nss_qdisc_info("Cannot find class with classid %u in qdisc %p hash table %p\n", classid, sch, &q->clhash);
 		return NULL;
 	}
 	return container_of(clc, struct nss_wrr_class_data, cl_common);
@@ -60,8 +60,8 @@ static void nss_wrr_destroy_class(struct Qdisc *sch, struct nss_wrr_class_data *
 	 * only for the root qdisc.
 	 */
 	if (cl == &q->root) {
-		nss_qdisc_info("%s: We do not destroy nss_wrr class %p here since this is "
-				"the qdisc %p\n", __func__, cl, sch);
+		nss_qdisc_info("We do not destroy nss_wrr class %p here since this is "
+				"the qdisc %p\n", cl, sch);
 		return;
 	}
 
@@ -73,8 +73,8 @@ static void nss_wrr_destroy_class(struct Qdisc *sch, struct nss_wrr_class_data *
 		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		if (nss_qdisc_node_detach(&cl->nq, nq_child, &nim,
 				NSS_SHAPER_CONFIG_TYPE_WRR_GROUP_DETACH) < 0) {
-			nss_qdisc_error("%s: Failed to detach child %x from class %x\n",
-					__func__, cl->qdisc->handle, q->nq.qos_tag);
+			nss_qdisc_error("Failed to detach child %x from class %x\n",
+					cl->qdisc->handle, q->nq.qos_tag);
 			return;
 		}
 	}
@@ -113,7 +113,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	bool new_init = false;
 	int err;
 
-	nss_qdisc_info("%s: Changing nss_wrr class %u\n", __func__, classid);
+	nss_qdisc_info("Changing nss_wrr class %u\n", classid);
         if (opt == NULL)
                 return -EINVAL;
 
@@ -136,15 +136,15 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		new_init = true;
 
-		nss_qdisc_info("%s: nss_wrr class %u not found. Allocating a new class.\n", __func__, classid);
+		nss_qdisc_info("Nss_wrr class %u not found. Allocating a new class.\n", classid);
 		cl = kzalloc(sizeof(struct nss_wrr_class_data), GFP_KERNEL);
 
 		if (!cl) {
-			nss_qdisc_error("%s: Class allocation failed for classid %u\n", __func__, classid);
+			nss_qdisc_error("Class allocation failed for classid %u\n", classid);
 			return -EINVAL;
 		}
 
-		nss_qdisc_info("%s: Bf class %u allocated %p\n", __func__, classid, cl);
+		nss_qdisc_info("Bf class %u allocated %p\n", classid, cl);
 		cl->cl_common.classid = classid;
 
 		/*
@@ -156,7 +156,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		atomic_set(&cl->nq.refcnt, 1);
 		*arg = (unsigned long)cl;
 
-		nss_qdisc_info("%s: Adding classid %u to qdisc %p hash queue %p\n", __func__, classid, sch, &q->clhash);
+		nss_qdisc_info("Adding classid %u to qdisc %p hash queue %p\n", classid, sch, &q->clhash);
 
 		/*
 		 * This is where a class gets initialized. Classes do not have a init function
@@ -164,7 +164,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * here.
 		 */
 		if (nss_qdisc_init(sch, &cl->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid) < 0) {
-			nss_qdisc_error("%s: Nss init for class %u failed\n", __func__, classid);
+			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			return -EINVAL;
 		}
 
@@ -183,7 +183,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		if (nss_qdisc_node_attach(&q->nq, &cl->nq, &nim_attach,
 				NSS_SHAPER_CONFIG_TYPE_WRR_ATTACH) < 0) {
-			nss_qdisc_error("%s: Nss attach for class %u failed\n", __func__, classid);
+			nss_qdisc_error("Nss attach for class %u failed\n", classid);
 			nss_qdisc_destroy(&cl->nq);
 			return -EINVAL;
 		}
@@ -205,7 +205,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		nss_qdisc_start_basic_stats_polling(&cl->nq);
 
-		nss_qdisc_info("%s: Class %u successfully allocated\n", __func__, classid);
+		nss_qdisc_info("Class %u successfully allocated\n", classid);
 	}
 
 	qopt = nla_data(na[TCA_NSSWRR_CLASS_PARMS]);
@@ -227,7 +227,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 			nss_qdisc_info("Quantum value not provided for nss_wrr class on interface %s. "
 					"Setting quantum to %ubytes\n", dev->name, cl->quantum);
 		} else {
-			nss_qdisc_error("%s: Unsupported parent type", __func__);
+			nss_qdisc_error("Unsupported parent type");
 			return -EINVAL;
 		}
 	}
@@ -248,7 +248,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	 */
 	if (nss_qdisc_configure(&cl->nq, &nim_config,
 			NSS_SHAPER_CONFIG_TYPE_WRR_GROUP_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("%s: Failed to configure class %x\n", __func__, classid);
+		nss_qdisc_error("Failed to configure class %x\n", classid);
 
 		/*
 		 * We dont have to destroy the class if this was just a
@@ -266,7 +266,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("%s: Class %x changed successfully\n", __func__, classid);
+	nss_qdisc_info("Class %x changed successfully\n", classid);
 	return 0;
 }
 
@@ -287,7 +287,7 @@ static int nss_wrr_delete_class(struct Qdisc *sch, unsigned long arg)
 	/*
 	 * The message to NSS should be sent to the parent of this class
 	 */
-	nss_qdisc_info("%s: Detaching nss_wrr class: %p\n", __func__, cl);
+	nss_qdisc_info("Detaching nss_wrr class: %p\n", cl);
 	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_detach.child_qos_tag = cl->nq.qos_tag;
 	if (nss_qdisc_node_detach(&q->nq, &cl->nq, &nim,
@@ -301,7 +301,7 @@ static int nss_wrr_delete_class(struct Qdisc *sch, unsigned long arg)
 	refcnt = atomic_sub_return(1, &cl->nq.refcnt);
 	sch_tree_unlock(sch);
 	if (!refcnt) {
-		nss_qdisc_error("%s: Reference count should not be zero for class %p\n", __func__, cl);
+		nss_qdisc_error("Reference count should not be zero for class %p\n", cl);
 	}
 
 	return 0;
@@ -319,7 +319,7 @@ static int nss_wrr_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdis
 	nss_qdisc_info("Grafting class %p\n", sch);
 
 	if (cl == &q->root) {
-		nss_qdisc_error("%p: Can't graft root class\n", cl);
+		nss_qdisc_error("Can't graft root class %p\n", cl);
 		return -EINVAL;
 	}
 
@@ -334,10 +334,10 @@ static int nss_wrr_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdis
 	 * Since we initially attached a noop qdisc as child (in Linux),
 	 * we do not perform a detach in the NSS if its a noop qdisc.
 	 */
-	nss_qdisc_info("%s:Grafting old: %p with new: %p\n", __func__, *old, new);
+	nss_qdisc_info("Grafting old: %p with new: %p\n", *old, new);
 	if (*old != &noop_qdisc) {
 		struct nss_qdisc *nq_child = qdisc_priv(*old);
-		nss_qdisc_info("%s: Detaching old: %p\n", __func__, *old);
+		nss_qdisc_info("Detaching old: %p\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		if (nss_qdisc_node_detach(&cl->nq, nq_child, &nim_detach,
 				NSS_SHAPER_CONFIG_TYPE_WRR_GROUP_DETACH) < 0) {
@@ -350,7 +350,7 @@ static int nss_wrr_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdis
 	 * to the NSS.
 	 */
 	if (new != &noop_qdisc) {
-		nss_qdisc_info("%s: Attaching new: %p\n", __func__, new);
+		nss_qdisc_info("Attaching new: %p\n", new);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_group_attach.child_qos_tag = nq_new->qos_tag;
 		if (nss_qdisc_node_attach(&cl->nq, nq_new, &nim_attach,
@@ -518,7 +518,7 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	} else if (strncmp(sch->ops->id, "nsswfq", 6) == 0) {
 		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_param.operation_mode = NSS_SHAPER_WRR_MODE_FAIR_QUEUEING;
 	} else {
-		nss_qdisc_error("%s: Unknow qdisc association", __func__);
+		nss_qdisc_error("Unknow qdisc association");
 		nss_qdisc_destroy(&q->nq);
 		return -EINVAL;
 	}
@@ -527,7 +527,7 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	 * Send configure command to the NSS
 	 */
 	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_WRR_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("%s: Failed to configure nss_wrr qdisc %x\n", __func__, q->nq.qos_tag);
+		nss_qdisc_error("Failed to configure nss_wrr qdisc %x\n", q->nq.qos_tag);
 		nss_qdisc_destroy(&q->nq);
 		return -EINVAL;
 	}
@@ -589,8 +589,8 @@ static void nss_wrr_destroy_qdisc(struct Qdisc *sch)
 			 * care of by the nss_wrr_destroy() function.
 			 */
 			if (cl == &q->root) {
-				nss_qdisc_info("%s: We do not detach or destroy nss_wrr class %p here since this is "
-						"the qdisc %p\n", __func__, cl, sch);
+				nss_qdisc_info("We do not detach or destroy nss_wrr class %p here since this is "
+						"the qdisc %p\n", cl, sch);
 				continue;
 			}
 
@@ -607,8 +607,8 @@ static void nss_wrr_destroy_qdisc(struct Qdisc *sch)
 			nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_detach.child_qos_tag = cl->nq.qos_tag;
 			if (nss_qdisc_node_detach(&q->nq, &cl->nq, &nim, NSS_SHAPER_CONFIG_TYPE_WRR_DETACH) < 0) {
-				nss_qdisc_error("%s: Node detach failed for qdisc %x class %x\n",
-							__func__, cl->nq.qos_tag, q->nq.qos_tag);
+				nss_qdisc_error("Node detach failed for qdisc %x class %x\n",
+							cl->nq.qos_tag, q->nq.qos_tag);
 				return;
 			}
 

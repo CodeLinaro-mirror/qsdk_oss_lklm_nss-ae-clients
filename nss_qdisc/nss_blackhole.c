@@ -50,7 +50,7 @@ static struct sk_buff *nss_blackhole_dequeue(struct Qdisc *sch)
  */
 static unsigned int nss_blackhole_drop(struct Qdisc *sch)
 {
-	nss_qdisc_info("%s: qdisc %x dropping\n", __func__, sch->handle);
+	nss_qdisc_info("qdisc %x dropping\n", sch->handle);
 	return nss_qdisc_drop(sch);
 }
 
@@ -60,7 +60,7 @@ static unsigned int nss_blackhole_drop(struct Qdisc *sch)
  */
 static void nss_blackhole_reset(struct Qdisc *sch)
 {
-	nss_qdisc_info("%s: qdisc %x resetting\n", __func__, sch->handle);
+	nss_qdisc_info("qdisc %x resetting\n", sch->handle);
 	nss_qdisc_reset(sch);
 }
 
@@ -77,7 +77,7 @@ static void nss_blackhole_destroy(struct Qdisc *sch)
 	 */
 	nss_qdisc_stop_basic_stats_polling(nq);
 
-	nss_qdisc_info("%s: destroying qdisc %x\n", __func__, sch->handle);
+	nss_qdisc_info("destroying qdisc %x\n", sch->handle);
 	nss_qdisc_destroy(nq);
 }
 
@@ -121,7 +121,7 @@ static int nss_blackhole_change(struct Qdisc *sch, struct nlattr *opt)
 	sch->limit = 0;
 
 	q->set_default = qopt->set_default;
-	nss_qdisc_info("%s: qdisc set_default = %u\n", __func__, qopt->set_default);
+	nss_qdisc_info("qdisc set_default = %u\n", qopt->set_default);
 
 	/*
 	 * Underneath nss_bloackhole uses a fifo in the NSS. This is why we are sending down a configuration
@@ -133,7 +133,7 @@ static int nss_blackhole_change(struct Qdisc *sch, struct nlattr *opt)
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.limit = 0;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.drop_mode = NSS_SHAPER_FIFO_DROP_MODE_TAIL;
 	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_FIFO_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("%s: qdisc %x configuration failed\n", __func__, sch->handle);
+		nss_qdisc_error("qdisc %x configuration failed\n", sch->handle);
 		return -EINVAL;
 	}
 
@@ -148,11 +148,11 @@ static int nss_blackhole_change(struct Qdisc *sch, struct nlattr *opt)
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
 	 */
 	if (nss_qdisc_set_default(&q->nq) < 0) {
-		nss_qdisc_error("%s: qdisc %x set_default failed\n", __func__, sch->handle);
+		nss_qdisc_error("qdisc %x set_default failed\n", sch->handle);
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("%s: qdisc %x set as default\n", __func__, q->nq.qos_tag);
+	nss_qdisc_info("qdisc %x set as default\n", q->nq.qos_tag);
 	return 0;
 }
 
@@ -167,13 +167,13 @@ static int nss_blackhole_init(struct Qdisc *sch, struct nlattr *opt)
 	if (opt == NULL)
 		return -EINVAL;
 
-	nss_qdisc_info("%s: qdisc %x initializing\n", __func__, sch->handle);
+	nss_qdisc_info("qdisc %x initializing\n", sch->handle);
 	nss_blackhole_reset(sch);
 
 	if (nss_qdisc_init(sch, nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_FIFO, 0) < 0)
 		return -EINVAL;
 
-	nss_qdisc_info("%s: qdisc %x initialized with parent %x\n", __func__, sch->handle, sch->parent);
+	nss_qdisc_info("qdisc %x initialized with parent %x\n", sch->handle, sch->parent);
 	if (nss_blackhole_change(sch, opt) < 0) {
 		nss_qdisc_destroy(nq);
 		return -EINVAL;
@@ -197,7 +197,7 @@ static int nss_blackhole_dump(struct Qdisc *sch, struct sk_buff *skb)
 	struct nlattr *opts = NULL;
 	struct tc_nssblackhole_qopt opt;
 
-	nss_qdisc_info("%s: qdisc %x dumping!\n", __func__, sch->handle);
+	nss_qdisc_info("qdisc %x dumping!\n", sch->handle);
 
 	q = qdisc_priv(sch);
 	if (q == NULL) {
@@ -230,7 +230,7 @@ nla_put_failure:
  */
 static struct sk_buff *nss_blackhole_peek(struct Qdisc *sch)
 {
-	nss_qdisc_info("%s: qdisc %x peeked\n", __func__, sch->handle);
+	nss_qdisc_info("qdisc %x peeked\n", sch->handle);
 	return nss_qdisc_peek(sch);
 }
 

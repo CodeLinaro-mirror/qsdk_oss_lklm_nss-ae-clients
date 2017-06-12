@@ -58,8 +58,8 @@ static inline struct nss_htb_class_data *nss_htb_find_class(u32 classid, struct 
 	struct Qdisc_class_common *clc;
 	clc = qdisc_class_find(&q->clhash, classid);
 	if (clc == NULL) {
-		nss_qdisc_info("%s: cannot find class with classid %x in qdisc %x hash\n",
-					__func__, classid, sch->handle);
+		nss_qdisc_info("cannot find class with classid %x in qdisc %x hash\n",
+					classid, sch->handle);
 		return NULL;
 	}
 	return container_of(clc, struct nss_htb_class_data, sch_common);
@@ -91,41 +91,41 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	struct net_device *dev = qdisc_dev(sch);
 	unsigned int mtu = psched_mtu(dev);
 
-	nss_qdisc_trace("%s: configuring htb class %x of qdisc %x\n", __func__, classid, sch->handle);
+	nss_qdisc_trace("configuring htb class %x of qdisc %x\n", classid, sch->handle);
 
 	if (opt == NULL) {
-		nss_qdisc_error("%s: passing null opt for configuring htb class %x\n", __func__, classid);
+		nss_qdisc_error("passing null opt for configuring htb class %x\n", classid);
 		return -EINVAL;
 	}
 
 	err = nla_parse_nested(na, TCA_NSSHTB_MAX, opt, nss_htb_policy);
 	if (err < 0) {
-		nss_qdisc_error("%s: failed to parse configuration parameters for htb class %x\n",
-					__func__, classid);
+		nss_qdisc_error("failed to parse configuration parameters for htb class %x\n",
+					classid);
 		return err;
 	}
 
 	if (na[TCA_NSSHTB_CLASS_PARMS] == NULL) {
-		nss_qdisc_error("%s: parsed values have no content - htb class %x\n", __func__, classid);
+		nss_qdisc_error("parsed values have no content - htb class %x\n", classid);
 		return -EINVAL;
 	}
 
 	qopt = nla_data(na[TCA_NSSHTB_CLASS_PARMS]);
 
 	if (qopt->rate && !qopt->burst) {
-		nss_qdisc_error("%s: burst needed if rate is non zero - class %x\n", __func__, classid);
+		nss_qdisc_error("burst needed if rate is non zero - class %x\n", classid);
 		return -EINVAL;
 	}
 
 	if (!qopt->crate || !qopt->cburst) {
-		nss_qdisc_error("%s: crate and cburst need to be non zero - class %x\n",
-					__func__, classid);
+		nss_qdisc_error("crate and cburst need to be non zero - class %x\n",
+					classid);
 		return -EINVAL;
 	}
 
 	if (!(qopt->priority < NSS_HTB_MAX_PRIORITY)) {
-		nss_qdisc_error("%s: priority %u of htb class %x greater than max prio %u",
-					__func__, qopt->priority, classid, NSS_HTB_MAX_PRIORITY);
+		nss_qdisc_error("priority %u of htb class %x greater than max prio %u",
+					qopt->priority, classid, NSS_HTB_MAX_PRIORITY);
 		return -EINVAL;
 	}
 
@@ -159,15 +159,15 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * do we have to set one?
 		 */
 
-		nss_qdisc_trace("%s: htb class %x not found. Allocating a new class.\n", __func__, classid);
+		nss_qdisc_trace("htb class %x not found. Allocating a new class.\n", classid);
 		cl = kzalloc(sizeof(struct nss_htb_class_data), GFP_KERNEL);
 
 		if (!cl) {
-			nss_qdisc_error("%s: class allocation failed for classid %x\n", __func__, classid);
+			nss_qdisc_error("class allocation failed for classid %x\n", classid);
 			goto failure;
 		}
 
-		nss_qdisc_trace("%s: htb class %x allocated - addr %p\n", __func__, classid, cl);
+		nss_qdisc_trace("htb class %x allocated - addr %p\n", classid, cl);
 		cl->parent = parent;
 		cl->sch_common.classid = classid;
 
@@ -187,7 +187,7 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		atomic_set(&cl->nq.refcnt, 1);
 		*arg = (unsigned long)cl;
 
-		nss_qdisc_trace("%s: adding class %x to qdisc %x\n", __func__, classid, sch->handle);
+		nss_qdisc_trace("adding class %x to qdisc %x\n", classid, sch->handle);
 
 		/*
 		 * This is where a class gets initialized. Classes do not have a init function
@@ -195,7 +195,7 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * here.
 		 */
 		if (nss_qdisc_init(sch, &cl->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_HTB_GROUP, classid) < 0) {
-			nss_qdisc_error("%s: nss_init for htb class %x failed\n", __func__, classid);
+			nss_qdisc_error("nss_init for htb class %x failed\n", classid);
 			goto failure;
 		}
 
@@ -214,7 +214,7 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		if (nss_qdisc_node_attach(nq_parent, &cl->nq, &nim_attach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH) < 0) {
-			nss_qdisc_error("%s: nss_attach for class %x failed\n", __func__, classid);
+			nss_qdisc_error("nss_attach for class %x failed\n", classid);
 			nss_qdisc_destroy(&cl->nq);
 			goto failure;
 		}
@@ -246,7 +246,7 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		nss_qdisc_start_basic_stats_polling(&cl->nq);
 
-		nss_qdisc_trace("%s: class %x successfully allocated and initialized\n", __func__, classid);
+		nss_qdisc_trace("class %x successfully allocated and initialized\n", classid);
 	}
 
 	sch_tree_lock(sch);
@@ -270,13 +270,13 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		if (q->r2q && cl->rate) {
 			cl->quantum = (cl->rate / q->r2q) / 8;
-			nss_qdisc_info("%s: quantum not provided for htb class %x on interface %s\n"
+			nss_qdisc_info("quantum not provided for htb class %x on interface %s\n"
 					"Setting quantum to %uB based on r2q %u and rate %uBps\n",
-					__func__, classid, dev->name, cl->quantum, q->r2q, cl->rate / 8);
+					classid, dev->name, cl->quantum, q->r2q, cl->rate / 8);
 		} else {
 			cl->quantum = mtu;
-			nss_qdisc_info("%s: quantum value not provided for htb class %x on interface %s\n"
-					"Setting quantum to MTU %uB\n", __func__, classid, dev->name, cl->quantum);
+			nss_qdisc_info("quantum value not provided for htb class %x on interface %s\n"
+					"Setting quantum to MTU %uB\n", classid, dev->name, cl->quantum);
 		}
 	}
 
@@ -299,8 +299,8 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.max_size = mtu;
 	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.short_circuit = false;
 
-	nss_qdisc_info("%s: htb class %x - rate = %ubps burst = %ubytes crate = %ubps cburst = %ubytes MTU = %ubytes "
-			"quantum = %ubytes priority = %u\n", __func__, classid, cl->rate, cl->burst, cl->crate,
+	nss_qdisc_info("htb class %x - rate = %ubps burst = %ubytes crate = %ubps cburst = %ubytes MTU = %ubytes "
+			"quantum = %ubytes priority = %u\n", classid, cl->rate, cl->burst, cl->crate,
 			cl->cburst, mtu, cl->quantum, cl->priority);
 
 	/*
@@ -308,11 +308,11 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	 */
 	if (nss_qdisc_configure(&cl->nq, &nim_config,
 			NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("%s: failed to send configure message for htb class %x\n", __func__, classid);
+		nss_qdisc_error("failed to send configure message for htb class %x\n", classid);
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("%s: htb class %x configured successfully\n", __func__, classid);
+	nss_qdisc_info("htb class %x configured successfully\n", classid);
 	return 0;
 
 failure:
@@ -332,7 +332,7 @@ static void nss_htb_destroy_class(struct Qdisc *sch, struct nss_htb_class_data *
 	struct nss_if_msg nim;
 	struct nss_qdisc *nq_child;
 
-	nss_qdisc_trace("%s: destroying htb class %x from qdisc %x\n", __func__,
+	nss_qdisc_trace("destroying htb class %x from qdisc %x\n",
 				cl->nq.qos_tag, sch->handle);
 
 	/*
@@ -344,8 +344,8 @@ static void nss_htb_destroy_class(struct Qdisc *sch, struct nss_htb_class_data *
 		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_detach.child_qos_tag = nq_child->qos_tag;
 		if (nss_qdisc_node_detach(&cl->nq, nq_child, &nim,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
-			nss_qdisc_error("%s: failed to detach child %x from class %x\n",
-					__func__, cl->qdisc->handle, q->nq.qos_tag);
+			nss_qdisc_error("failed to detach child %x from class %x\n",
+					cl->qdisc->handle, q->nq.qos_tag);
 			return;
 		}
 	}
@@ -399,7 +399,7 @@ static int nss_htb_delete_class(struct Qdisc *sch, unsigned long arg)
 		 * The htb class to be detached has a parent class (i.e. not the root class),
 		 * so we need to send a detach msg to its parent class.
 		 */
-		nss_qdisc_info("%s: detaching from parent htb class %x ", __func__, cl->parent->nq.qos_tag);
+		nss_qdisc_info("detaching from parent htb class %x ", cl->parent->nq.qos_tag);
 		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->parent->nq.qos_tag;
 		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_detach.child_qos_tag = cl->nq.qos_tag;
 		if (nss_qdisc_node_detach(&q->nq, &cl->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
@@ -409,7 +409,7 @@ static int nss_htb_delete_class(struct Qdisc *sch, unsigned long arg)
 		/*
 		 * The message to NSS should be sent to the parent of this class
 		 */
-		nss_qdisc_info("%s: detaching from parent htb qdisc %x", __func__, q->nq.qos_tag);
+		nss_qdisc_info("detaching from parent htb qdisc %x", q->nq.qos_tag);
 		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		if (nss_qdisc_node_detach(&q->nq, &cl->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
 			return -EINVAL;
@@ -460,7 +460,7 @@ static int nss_htb_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdis
 	struct nss_qdisc *nq_new = qdisc_priv(new);
 	struct nss_qdisc *nq_old;
 
-	nss_qdisc_trace("%s: grafting htb class %x\n", __func__, cl->nq.qos_tag);
+	nss_qdisc_trace("grafting htb class %x\n", cl->nq.qos_tag);
 
 	if (new == NULL) {
 		new = &noop_qdisc;
@@ -474,15 +474,15 @@ static int nss_htb_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdis
 	 * Since we initially attached a noop qdisc as child (in Linux),
 	 * we do not perform a detach in the NSS if its a noop qdisc.
 	 */
-	nss_qdisc_info("%s: grafting old: %x with new: %x\n", __func__, (*old)->handle, new->handle);
+	nss_qdisc_info("grafting old: %x with new: %x\n", (*old)->handle, new->handle);
 	if (*old != &noop_qdisc) {
-		nss_qdisc_trace("%s: detaching old: %x\n", __func__, (*old)->handle);
+		nss_qdisc_trace("detaching old: %x\n", (*old)->handle);
 		nq_old = qdisc_priv(*old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_detach.child_qos_tag = nq_old->qos_tag;
 		if (nss_qdisc_node_detach(&cl->nq, nq_old, &nim_detach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
-			nss_qdisc_warning("%s: detach of old qdisc %x failed\n", __func__, (*old)->handle);
+			nss_qdisc_warning("detach of old qdisc %x failed\n", (*old)->handle);
 			return -EINVAL;
 		}
 	}
@@ -492,12 +492,12 @@ static int nss_htb_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdis
 	 * to the NSS.
 	 */
 	if (new != &noop_qdisc) {
-		nss_qdisc_trace("%s: attaching new: %x\n", __func__, new->handle);
+		nss_qdisc_trace("attaching new: %x\n", new->handle);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_attach.child_qos_tag = nq_new->qos_tag;
 		if (nss_qdisc_node_attach(&cl->nq, nq_new, &nim_attach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH) < 0) {
-			nss_qdisc_error("%s: attach of new qdisc %x failed\n", __func__, new->handle);
+			nss_qdisc_error("attach of new qdisc %x failed\n", new->handle);
 			return -EINVAL;
 		}
 	}
@@ -517,7 +517,7 @@ static int nss_htb_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdis
 static struct Qdisc *nss_htb_leaf_class(struct Qdisc *sch, unsigned long arg)
 {
 	struct nss_htb_class_data *cl = (struct nss_htb_class_data *)arg;
-	nss_qdisc_trace("%s: htb class %x is leaf %d\n", __func__, cl->nq.qos_tag, cl->is_leaf);
+	nss_qdisc_trace("htb class %x is leaf %d\n", cl->nq.qos_tag, cl->is_leaf);
 
 	/*
 	 * Return qdisc pointer if this is level 0 class
@@ -531,7 +531,7 @@ static struct Qdisc *nss_htb_leaf_class(struct Qdisc *sch, unsigned long arg)
  */
 static void nss_htb_qlen_notify(struct Qdisc *sch, unsigned long arg)
 {
-	nss_qdisc_trace("%s: qlen notify called for htb qdisc %x\n", __func__, sch->handle);
+	nss_qdisc_trace("qlen notify called for htb qdisc %x\n", sch->handle);
 
 	/*
 	 * Gets called when qlen of child changes (Useful for deactivating)
@@ -548,8 +548,8 @@ static unsigned long nss_htb_get_class(struct Qdisc *sch, u32 classid)
 	struct nss_htb_class_data *cl = nss_htb_find_class(classid, sch);
 
 	if (cl != NULL) {
-		nss_qdisc_trace("%s: fetched htb class %x from qdisc %x\n",
-				__func__, cl->nq.qos_tag, sch->handle);
+		nss_qdisc_trace("fetched htb class %x from qdisc %x\n",
+				cl->nq.qos_tag, sch->handle);
 		atomic_add(1, &cl->nq.refcnt);
 	}
 
@@ -563,8 +563,8 @@ static unsigned long nss_htb_get_class(struct Qdisc *sch, u32 classid)
 static void nss_htb_put_class(struct Qdisc *sch, unsigned long arg)
 {
 	struct nss_htb_class_data *cl = (struct nss_htb_class_data *)arg;
-	nss_qdisc_trace("%s: executing put on htb class %x in qdisc %x\n",
-			__func__, cl->nq.qos_tag, sch->handle);
+	nss_qdisc_trace("executing put on htb class %x in qdisc %x\n",
+			cl->nq.qos_tag, sch->handle);
 
 	/*
 	 * We are safe to destroy the qdisc if the reference count
@@ -585,7 +585,7 @@ static int nss_htb_dump_class(struct Qdisc *sch, unsigned long arg, struct sk_bu
 	struct nlattr *opts;
 	struct tc_nsshtb_class_qopt qopt;
 
-	nss_qdisc_trace("%s: dumping htb class %x of qdisc %x\n", __func__, cl->nq.qos_tag, sch->handle);
+	nss_qdisc_trace("dumping htb class %x of qdisc %x\n", cl->nq.qos_tag, sch->handle);
 
 	qopt.burst = cl->burst;
 	qopt.rate = cl->rate;
@@ -613,7 +613,7 @@ static int nss_htb_dump_class(struct Qdisc *sch, unsigned long arg, struct sk_bu
 
 nla_put_failure:
 	nla_nest_cancel(skb, opts);
-	nss_qdisc_error("%s: htb class %x dumo failed\n", __func__, cl->nq.qos_tag);
+	nss_qdisc_error("htb class %x dumo failed\n", cl->nq.qos_tag);
 	return -EMSGSIZE;
 }
 
@@ -627,7 +627,7 @@ static int nss_htb_dump_class_stats(struct Qdisc *sch, unsigned long arg, struct
 
 	if (nss_qdisc_gnet_stats_copy_basic(d, &nq->bstats) < 0 ||
 			nss_qdisc_gnet_stats_copy_queue(d, &nq->qstats) < 0) {
-		nss_qdisc_error("%s: htb class %x stats dump failed\n", __func__, nq->qos_tag);
+		nss_qdisc_error("htb class %x stats dump failed\n", nq->qos_tag);
 		return -1;
 	}
 
@@ -645,7 +645,7 @@ static void nss_htb_walk(struct Qdisc *sch, struct qdisc_walker *arg)
 	struct nss_htb_class_data *cl;
 	unsigned int i;
 
-	nss_qdisc_trace("%s: walking htb qdisc %x\n", __func__, sch->handle);
+	nss_qdisc_trace("walking htb qdisc %x\n", sch->handle);
 
 	if (arg->stop)
 		return;
@@ -720,7 +720,7 @@ static int nss_htb_change_qdisc(struct Qdisc *sch, struct nlattr *opt)
 static void nss_htb_reset_class(struct nss_htb_class_data *cl)
 {
 	nss_qdisc_reset(cl->qdisc);
-	nss_qdisc_trace("%s: htb class %x reset\n", __func__, cl->nq.qos_tag);
+	nss_qdisc_trace("htb class %x reset\n", cl->nq.qos_tag);
 }
 
 /*
@@ -740,7 +740,7 @@ static void nss_htb_reset_qdisc(struct Qdisc *sch)
 	}
 
 	nss_qdisc_reset(sch);
-	nss_qdisc_trace("%s: nss htb qdisc %x reset\n", __func__, sch->handle);
+	nss_qdisc_trace("nss htb qdisc %x reset\n", sch->handle);
 }
 
 /*
@@ -794,7 +794,7 @@ static void nss_htb_destroy_qdisc(struct Qdisc *sch)
 	 *	 will be taken care of by the graft call.
 	 */
 	nss_qdisc_destroy(&q->nq);
-	nss_qdisc_info("%s: htb qdisc %x destroyed\n", __func__, sch->handle);
+	nss_qdisc_info("htb qdisc %x destroyed\n", sch->handle);
 }
 
 /*
@@ -806,11 +806,11 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	struct nss_htb_sched_data *q = qdisc_priv(sch);
 	int err;
 
-	nss_qdisc_trace("%s: initializing htb qdisc %x\n", __func__, sch->handle);
+	nss_qdisc_trace("initializing htb qdisc %x\n", sch->handle);
 
 	err = qdisc_class_hash_init(&q->clhash);
 	if (err < 0) {
-		nss_qdisc_error("%s: hash init failed for htb qdisc %x", __func__, sch->handle);
+		nss_qdisc_error("hash init failed for htb qdisc %x", sch->handle);
 		return err;
 	}
 
@@ -818,11 +818,11 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	 * Initialize the NSSHTB shaper in NSS
 	 */
 	if (nss_qdisc_init(sch, &q->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_HTB, 0) < 0) {
-		nss_qdisc_error("%s: failed to initialize htb qdisc %x in nss", __func__, sch->handle);
+		nss_qdisc_error("failed to initialize htb qdisc %x in nss", sch->handle);
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("%s: htb qdisc initialized with handle %x\n", __func__, sch->handle);
+	nss_qdisc_info("htb qdisc initialized with handle %x\n", sch->handle);
 
 	/*
 	 * Tune HTB parameters
@@ -851,7 +851,7 @@ static int nss_htb_dump_qdisc(struct Qdisc *sch, struct sk_buff *skb)
 	struct tc_nsshtb_qopt qopt;
 	struct nlattr *nest;
 
-	nss_qdisc_trace("%s: dumping htb qdisc %x\n", __func__, sch->handle);
+	nss_qdisc_trace("dumping htb qdisc %x\n", sch->handle);
 	qopt.r2q = q->r2q;
 
 	nest = nla_nest_start(skb, TCA_OPTIONS);
@@ -893,7 +893,7 @@ static struct sk_buff *nss_htb_dequeue(struct Qdisc *sch)
  */
 static unsigned int nss_htb_drop(struct Qdisc *sch)
 {
-	nss_qdisc_trace("%s: drop called on htb qdisc %x\n", __func__, sch->handle);
+	nss_qdisc_trace("drop called on htb qdisc %x\n", sch->handle);
 	return nss_qdisc_drop(sch);
 }
 

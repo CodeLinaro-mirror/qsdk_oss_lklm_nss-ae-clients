@@ -101,8 +101,8 @@ static void nss_prio_destroy(struct Qdisc *sch)
 			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_detach.priority = i;
 			if (nss_qdisc_node_detach(&q->nq, nq_child, &nim,
 					NSS_SHAPER_CONFIG_TYPE_PRIO_DETACH) < 0) {
-				nss_qdisc_error("%s: Failed to detach child in band %d from prio %x\n",
-							__func__, i, q->nq.qos_tag);
+				nss_qdisc_error("Failed to detach child in band %d from prio %x\n",
+							i, q->nq.qos_tag);
 				return;
 			}
 		}
@@ -269,10 +269,10 @@ static int nss_prio_graft(struct Qdisc *sch, unsigned long arg,
 	*old = q->queues[band];
 	sch_tree_unlock(sch);
 
-	nss_qdisc_info("%s:Grafting old: %p with new: %p\n", __func__, *old, new);
+	nss_qdisc_info("Grafting old: %p with new: %p\n", *old, new);
 	if (*old != &noop_qdisc) {
 		struct nss_qdisc *nq_old = qdisc_priv(*old);
-		nss_qdisc_info("%s:Detaching old: %p\n", __func__, *old);
+		nss_qdisc_info("Detaching old: %p\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_detach.priority = band;
 		if (nss_qdisc_node_detach(&q->nq, nq_old, &nim_detach,
@@ -282,8 +282,8 @@ static int nss_prio_graft(struct Qdisc *sch, unsigned long arg,
 	}
 
 	if (new != &noop_qdisc) {
-		nss_qdisc_info("%s:Attaching new child with qos tag: %x, priority: %u to "
-				"qos_tag: %x\n", __func__, nq_new->qos_tag, band, q->nq.qos_tag);
+		nss_qdisc_info("Attaching new child with qos tag: %x, priority: %u to "
+				"qos_tag: %x\n", nq_new->qos_tag, band, q->nq.qos_tag);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_attach.child_qos_tag = nq_new->qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_attach.priority = band;

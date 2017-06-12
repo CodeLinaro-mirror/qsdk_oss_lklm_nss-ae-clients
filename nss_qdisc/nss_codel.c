@@ -153,7 +153,7 @@ static int nss_codel_init(struct Qdisc *sch, struct nlattr *opt)
 		return -EINVAL;
 
 	nss_codel_reset(sch);
-	if (nss_qdisc_init(sch, nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_CODEL, 0) < 0)
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_CODEL, 0) < 0)
 		return -EINVAL;
 
 	if (nss_codel_change(sch, opt) < 0) {

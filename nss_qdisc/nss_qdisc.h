@@ -28,6 +28,10 @@
 #include <br_private.h>
 #include <nss_api_if.h>
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+#include "nss_ppe.h"
+#endif
+
 #define NSS_QDISC_DEBUG_LEVEL_ERROR 1
 #define NSS_QDISC_DEBUG_LEVEL_WARN 2
 #define NSS_QDISC_DEBUG_LEVEL_INFO 3
@@ -180,8 +184,11 @@ struct nss_qdisc {
 	wait_queue_head_t wait_queue;		/* Wait queue used to wait on responses from the NSS */
 	spinlock_t lock;			/* Lock to protect the nss qdisc structure */
 	uint16_t mode;				/* Mode of Qdisc/class */
-	void *reserved;				/* Reserved to be used by ppe qdisc*/
-						/* TODO: Needs to be removed once we hide PPE Qdisc into NSS */
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	struct nss_ppe_qdisc npq;		/* PPE Qdisc */
+	bool ppe_init_failed;			/* Flag is set if PPE initialization fails */
+#endif
 };
 
 /*
@@ -293,7 +300,7 @@ extern void nss_qdisc_destroy(struct nss_qdisc *nq);
  *	Initializes a shaper in NSS, based on the position of this qdisc (child or root)
  *	and if its a normal interface or a bridge interface.
  */
-extern int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_shaper_node_type_t type, uint32_t classid);
+extern int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid);
 
 /*
  * nss_qdisc_start_basic_stats_polling()
@@ -327,9 +334,3 @@ extern int nss_qdisc_gnet_stats_copy_queue(struct gnet_dump *d,
  */
 extern struct Qdisc *nss_qdisc_replace(struct Qdisc *sch, struct Qdisc *new,
 					struct Qdisc **pold);
-
-/*
- * nss_qdisc_ppe_mod_owner_set()()
- *	Sets the nss_qdisc_ppe module owner.
- */
-extern void nss_qdisc_ppe_mod_owner_set(struct module *owner);

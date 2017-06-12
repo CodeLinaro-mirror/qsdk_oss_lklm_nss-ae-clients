@@ -15,12 +15,14 @@
  */
 
 #include "nss_qdisc.h"
+#include "nss_fifo.h"
 
 struct nss_fifo_sched_data {
 	struct nss_qdisc nq;	/* Common base class for all nss qdiscs */
 	u32 limit;			/* Queue length in packets */
 					/* TODO: Support for queue length in bytes */
 	u8 set_default;			/* Flag to set qdisc as default qdisc for enqueue */
+	bool is_bfifo;			/* Flag to identify bfifo or pfifo */
 };
 
 static int nss_fifo_enqueue(struct sk_buff *skb, struct Qdisc *sch)
@@ -62,17 +64,15 @@ static const struct nla_policy nss_fifo_policy[TCA_NSSFIFO_MAX + 1] = {
 	[TCA_NSSFIFO_PARMS] = { .len = sizeof(struct tc_nssfifo_qopt) },
 };
 
-static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
+static int nss_fifo_params_validate_and_save(struct Qdisc *sch, struct nlattr *opt)
 {
-	struct nss_fifo_sched_data *q;
 	struct nlattr *na[TCA_NSSFIFO_MAX + 1];
 	struct tc_nssfifo_qopt *qopt;
+	struct nss_fifo_sched_data *q = qdisc_priv(sch);
+	bool is_bfifo = (sch->ops == &nss_bfifo_qdisc_ops);
 	int err;
-	struct nss_if_msg nim;
 
-	q = qdisc_priv(sch);
-
-	if (opt == NULL) {
+	if (!opt) {
 		return -EINVAL;
 	}
 
@@ -80,25 +80,107 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	if (err < 0)
 		return err;
 
-	if (na[TCA_NSSFIFO_PARMS] == NULL)
+	if (!na[TCA_NSSFIFO_PARMS])
 		return -EINVAL;
 
 	qopt = nla_data(na[TCA_NSSFIFO_PARMS]);
 
-	if (!qopt->limit)
+	if (!qopt->limit) {
 		qopt->limit = qdisc_dev(sch)->tx_queue_len ? : 1;
 
-	q->limit = qopt->limit;
+		if (is_bfifo) {
+			qopt->limit *= psched_mtu(qdisc_dev(sch));
+		}
+	}
 
 	/*
 	 * Required for basic stats display
 	 */
 	sch->limit = qopt->limit;
-
+	q->limit = qopt->limit;
 	q->set_default = qopt->set_default;
-	nss_qdisc_info("limit:%u set_default:%u\n", qopt->limit, qopt->set_default);
+	q->is_bfifo = is_bfifo;
 
-	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
+	nss_qdisc_info("limit:%u set_default:%u\n", qopt->limit, qopt->set_default);
+	return 0;
+}
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+static int nss_fifo_ppe_change(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct nss_fifo_sched_data *q = qdisc_priv(sch);
+	struct nss_qdisc *nq = &q->nq;
+	struct nss_ppe_qdisc prev_npq;
+
+	/*
+	 * Save previous configuration for reset purpose.
+	 */
+	if (nq->npq.is_configured) {
+		prev_npq = nq->npq;
+	}
+
+	/*
+	 * In case of bfifo, change the queue limit to number of blocks
+	 * as PPE HW has memory in blocks of 256 bytes.
+	 */
+	if (q->is_bfifo) {
+		q->limit = q->limit / NSS_PPE_MEM_BLOCK_SIZE;
+	}
+	nq->npq.q.qlimit = q->limit;
+	nq->npq.q.color_en = false;
+	nq->npq.q.red_en = false;
+
+	/*
+	 * Currently multicast queue configuration is based on set_default.
+	 * TODO: Enhance multicast queue configuration on the basis of
+	 * multicast parameter specified in tc commands.
+	 */
+	nq->npq.q.mcast_enable = q->set_default;
+
+	if (nss_ppe_configure(&q->nq, &prev_npq) < 0) {
+		nss_qdisc_error("nss_fifo %p configuration failed\n", sch);
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	if (nq->npq.is_configured) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Fallback to nss qdisc if PPE Qdisc configuration failed at init time.
+	 */
+	if (nss_ppe_fallback_to_nss(&q->nq, opt) < 0) {
+		return -EINVAL;
+	}
+	return 0;
+}
+#endif
+
+static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct nss_fifo_sched_data *q = qdisc_priv(sch);
+	struct nss_qdisc *nq = &q->nq;
+	struct nss_if_msg nim;
+
+	if (nss_fifo_params_validate_and_save(sch, opt) < 0) {
+		nss_qdisc_warning("nss_fifo %p params validate and save failed\n", sch);
+		return -EINVAL;
+	}
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		if (nss_fifo_ppe_change(sch, opt) < 0) {
+			nss_qdisc_warning("nss_fifo %p params validate and save failed\n", sch);
+			return -EINVAL;
+		}
+		return 0;
+	}
+#endif
+
+	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = nq->qos_tag;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.limit = q->limit;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.drop_mode = NSS_SHAPER_FIFO_DROP_MODE_TAIL;
 	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_FIFO_CHANGE_PARAM) < 0) {
@@ -116,12 +198,13 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	/*
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
 	 */
-	if (nss_qdisc_set_default(&q->nq) < 0) {
+	if (nss_qdisc_set_default(nq) < 0) {
 		nss_qdisc_error("nss_fifo %p set_default failed\n", sch);
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("nss_fifo queue (qos_tag:%u) set as default\n", q->nq.qos_tag);
+	nss_qdisc_info("nss_fifo queue (qos_tag:%u) set as default\n", nq->qos_tag);
+
 	return 0;
 }
 
@@ -129,13 +212,13 @@ static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
 
-	if (opt == NULL)
+	if (!opt)
 		return -EINVAL;
 
 	nss_qdisc_info("Initializing Fifo - type %d\n", NSS_SHAPER_NODE_TYPE_FIFO);
 	nss_fifo_reset(sch);
 
-	if (nss_qdisc_init(sch, nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_FIFO, 0) < 0)
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0) < 0)
 		return -EINVAL;
 
 	nss_qdisc_info("NSS fifo initialized - handle %x parent %x\n", sch->handle, sch->parent);

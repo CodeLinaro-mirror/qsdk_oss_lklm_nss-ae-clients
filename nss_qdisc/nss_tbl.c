@@ -175,7 +175,7 @@ static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt)
 
 	q->qdisc = &noop_qdisc;
 
-	if (nss_qdisc_init(sch, &q->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_TBL, 0) < 0)
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_TBL, 0) < 0)
 		return -EINVAL;
 
 	if (nss_tbl_change(sch, opt) < 0) {

@@ -122,7 +122,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * that is registered to Linux. Therefore we initialize the NSSBF_GROUP shaper
 		 * here.
 		 */
-		if (nss_qdisc_init(sch, &cl->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_BF_GROUP, classid) < 0) {
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_BF_GROUP, classid) < 0) {
 			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			kfree(cl);
 			return -EINVAL;
@@ -707,7 +707,7 @@ static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	/*
 	 * Initialize the NSSBF shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_BF, 0) < 0)
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_BF, 0) < 0)
 		return -EINVAL;
 
 	nss_qdisc_info("Nssbf initialized - handle %x parent %x\n", sch->handle, sch->parent);

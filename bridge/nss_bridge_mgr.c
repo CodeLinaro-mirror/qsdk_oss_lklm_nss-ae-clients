@@ -608,7 +608,7 @@ static int nss_bridge_mgr_register_event(struct netdev_notifier_info *info)
 	if (ifnum < 0) {
 		nss_bridge_mgr_warn("%p: failed to alloc bridge di\n", b_pvt);
 		nss_bridge_mgr_delete_instance(b_pvt);
-		return NOTIFY_BAD;
+		return NOTIFY_DONE;
 	}
 
 	if (!nss_bridge_register(ifnum, dev, NULL, NULL, 0, b_pvt)) {
@@ -670,7 +670,7 @@ fail:
 
 	nss_bridge_mgr_delete_instance(b_pvt);
 
-	return NOTIFY_BAD;
+	return NOTIFY_DONE;
 }
 
 /*

@@ -96,6 +96,8 @@ struct nss_bridge_pvt {
 	uint32_t vsi;				/* VSI set for bridge */
 	uint32_t port_vsi[NSS_MAX_PHYSICAL_INTERFACES];	/* port VSI set for physical interfaces	*/
 	uint32_t lag_ports[NSS_MAX_PHYSICAL_INTERFACES]; /* List of slave ports in LAG */
+	int bond_dev_ref_cnt;			/* Total number of bond devices added into
+						   bridge device */
 #endif
 	uint32_t mtu;				/* MTU for bridge */
 	uint8_t dev_addr[ETH_ALEN];		/* MAC address for bridge */
@@ -233,15 +235,6 @@ static int nss_bridge_mgr_update_bond_slave(struct net_device *bond_master,
 					b_pvt, port_id);
 			return -1;
 		}
-
-		if (fal_fdb_port_learning_ctrl_set(0, port_id, 0,
-					FAL_MAC_FRWRD)) {
-			ppe_port_vsi_set(0, port_id, *port_vsi);
-			spin_unlock(&br_mgr_ctx.lock);
-			nss_bridge_mgr_warn("%p: Couldn't disable FDB learning for port %d\n",
-					b_pvt, port_id);
-			return -1;
-		}
 		spin_unlock(&br_mgr_ctx.lock);
 
 		if (nss_bridge_tx_join_msg(b_pvt->ifnum,
@@ -297,15 +290,6 @@ static int nss_bridge_mgr_update_bond_slave(struct net_device *bond_master,
 				b_pvt, port_id);
 		return -1;
 	}
-
-	if (fal_fdb_port_learning_ctrl_set(0, port_id, 1,
-				FAL_MAC_FRWRD)) {
-		ppe_port_vsi_set(0, port_id, b_pvt->vsi);
-		spin_unlock(&br_mgr_ctx.lock);
-		nss_bridge_mgr_warn("%p: Couldn't enable FDB learning for port %d\n",
-				b_pvt, port_id);
-		return -1;
-	}
 	spin_unlock(&br_mgr_ctx.lock);
 
 	if (nss_bridge_tx_leave_msg(b_pvt->ifnum,
@@ -330,6 +314,7 @@ static int nss_bridge_mgr_configure_bond(struct net_device *bond_master,
 {
 	struct net_device *slave;
 	struct nss_bridge_pvt *b_pvt;
+	fal_vsi_newaddr_lrn_t newaddr_lrn;
 
 	b_pvt = nss_bridge_mgr_find_instance(cu_info->upper_dev);
 	if (!b_pvt)
@@ -348,6 +333,45 @@ static int nss_bridge_mgr_configure_bond(struct net_device *bond_master,
 		}
 	}
 	rcu_read_unlock();
+
+	if (cu_info->linking) {
+
+		spin_lock(&br_mgr_ctx.lock);
+		if (!b_pvt->bond_dev_ref_cnt) {
+			/* Disable FDB learning in PPE */
+			newaddr_lrn.lrn_en = 0;
+			newaddr_lrn.action = FAL_MAC_FRWRD;
+			if (fal_vsi_newaddr_lrn_set(0, b_pvt->vsi, &newaddr_lrn)) {
+				spin_unlock(&br_mgr_ctx.lock);
+				nss_bridge_mgr_warn("%p: Failed to disable FDB learning for Bridge vsi\n", b_pvt);
+				goto cleanup;
+			}
+
+			/* Flush FDB entries */
+			if (fal_fdb_entry_flush(0, FAL_FDB_DEL_STATIC)) {
+				spin_unlock(&br_mgr_ctx.lock);
+				nss_bridge_mgr_warn("%p: Failed to flush FDB table in PPE\n", b_pvt);
+				goto cleanup;
+			}
+		}
+		b_pvt->bond_dev_ref_cnt++;
+		spin_unlock(&br_mgr_ctx.lock);
+	} else {
+		spin_lock(&br_mgr_ctx.lock);
+
+		if (b_pvt->bond_dev_ref_cnt)
+			b_pvt->bond_dev_ref_cnt--;
+
+		if (!b_pvt->bond_dev_ref_cnt) {
+			/* Enable FDB learning in PPE */
+			newaddr_lrn.lrn_en = 1;
+			newaddr_lrn.action = FAL_MAC_FRWRD;
+			if (fal_vsi_newaddr_lrn_set(0, b_pvt->vsi, &newaddr_lrn)) {
+				nss_bridge_mgr_warn("%p: Failed to disable FDB learning for Bridge vsi\n", b_pvt);
+			}
+		}
+		spin_unlock(&br_mgr_ctx.lock);
+	}
 
 	return NOTIFY_DONE;
 

@@ -1292,6 +1292,7 @@ static int nss_ppe_default_conf_set(uint32_t port_num)
 	fal_qos_scheduler_cfg_t l1cfg;
 	fal_qos_scheduler_cfg_t l0cfg;
 	fal_ac_obj_t obj;
+	fal_ac_ctrl_t cfg;
 	uint32_t l0spid;
 	uint32_t ucast_qid;
 	uint32_t mcast_qid;
@@ -1370,6 +1371,19 @@ conf:
 	fal_scheduler_dequeue_ctrl_set(0, mcast_qid, true);
 
 	/*
+	 * Disable force drop.
+	 * Setting ac_fc_en as false means queue will
+	 * honor flow control.
+	 */
+	memset(&cfg, 0, sizeof(cfg));
+	obj.obj_id = ucast_qid;
+	nss_qdisc_trace("SSDK queue flow control set: ucast_qid:%d, enable:%d\n", ucast_qid, cfg.ac_fc_en);
+	if (fal_ac_ctrl_set(0, &obj, &cfg) != 0) {
+		nss_qdisc_error("SSDK queue flow control set failed\n");
+		return -EINVAL;
+	}
+
+	/*
 	 * Set the default queue configuration status.
 	 */
 	spin_lock_bh(&ppe_port->lock);
@@ -1384,10 +1398,12 @@ conf:
  * nss_ppe_queue_limit_set()
  *	Sets queue size in SSDK.
  */
-static int nss_ppe_queue_limit_set(struct nss_ppe_qdisc *npq)
+static int nss_ppe_queue_limit_set(struct nss_qdisc *nq)
 {
 	fal_ac_obj_t obj;
 	fal_ac_static_threshold_t cfg;
+	fal_ac_ctrl_t ctrl_cfg;
+	struct nss_ppe_qdisc *npq = &nq->npq;
 
 	if (!npq->l0_valid) {
 		return 0;
@@ -1402,6 +1418,22 @@ static int nss_ppe_queue_limit_set(struct nss_ppe_qdisc *npq)
 	nss_qdisc_trace("SSDK queue buffer set: ucast_qid:%d, qlimit:%d\n", npq->q.ucast_qid, npq->q.qlimit);
 	if (fal_ac_prealloc_buffer_set(0, &obj, npq->q.qlimit) != 0) {
 		nss_qdisc_error("SSDK queue configuration failed\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Enable force drop for PPE qdisc.
+	 * When set to true, the flow control will be overriden
+	 * for that queue and packets drop gets enabled.
+	 */
+	memset(&ctrl_cfg, 0, sizeof(ctrl_cfg));
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		ctrl_cfg.ac_fc_en = true;
+	}
+
+	nss_qdisc_trace("SSDK queue flow control set: ucast_qid:%d, enable:%d\n", npq->q.ucast_qid, ctrl_cfg.ac_fc_en);
+	if (fal_ac_ctrl_set(0, &obj, &ctrl_cfg) != 0) {
+		nss_qdisc_error("SSDK queue flow control set failed\n");
 		return -EINVAL;
 	}
 
@@ -1821,7 +1853,7 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 	/*
 	 * Program PPE queue parameters
 	 */
-	if (nss_ppe_queue_limit_set(npq_child) < 0) {
+	if (nss_ppe_queue_limit_set(nq_child) < 0) {
 		nss_qdisc_warning("SSDK queue configuration failed\n");
 		nss_ppe_mcast_queue_reset(nq_child);
 		nss_ppe_scheduler_reset(nq_child);
@@ -1880,7 +1912,7 @@ int nss_ppe_configure(struct nss_qdisc *nq, struct nss_ppe_qdisc *prev_npq)
 	/*
 	 * Program PPE queue parameters
 	 */
-	if (nss_ppe_queue_limit_set(npq) < 0) {
+	if (nss_ppe_queue_limit_set(nq) < 0) {
 		nss_qdisc_warning("SSDK queue configuration failed\n");
 		goto fail;
 	}
@@ -1946,7 +1978,7 @@ fail:
 	}
 
 	memcpy(npq, prev_npq, sizeof(struct nss_ppe_qdisc));
-	nss_ppe_queue_limit_set(npq);
+	nss_ppe_queue_limit_set(nq);
 	nss_ppe_mcast_queue_set(nq);
 
 	nss_ppe_shaper_set(nq);

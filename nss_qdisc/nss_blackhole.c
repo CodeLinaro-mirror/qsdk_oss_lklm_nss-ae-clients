@@ -95,31 +95,24 @@ static const struct nla_policy nss_blackhole_policy[TCA_NSSBLACKHOLE_MAX + 1] = 
 static int nss_blackhole_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_blackhole_sched_data *q;
-	struct nlattr *na[TCA_NSSBLACKHOLE_MAX + 1];
 	struct tc_nssblackhole_qopt *qopt;
-	int err;
 	struct nss_if_msg nim;
 
-	q = qdisc_priv(sch);
-
-	if (opt == NULL) {
-		return -EINVAL;
+	if (!opt) {
+		return 0;
 	}
 
-	err = nla_parse_nested(na, TCA_NSSBLACKHOLE_MAX, opt, nss_blackhole_policy);
-	if (err < 0)
-		return err;
-
-	if (na[TCA_NSSBLACKHOLE_PARMS] == NULL)
+	qopt = nss_qdisc_qopt_get(opt, nss_blackhole_policy, TCA_NSSBLACKHOLE_MAX, TCA_NSSBLACKHOLE_PARMS);
+	if (!qopt) {
 		return -EINVAL;
-
-	qopt = nla_data(na[TCA_NSSBLACKHOLE_PARMS]);
+	}
 
 	/*
 	 * Required for basic stats display
 	 */
 	sch->limit = 0;
 
+	q = qdisc_priv(sch);
 	q->set_default = qopt->set_default;
 	nss_qdisc_info("qdisc set_default = %u\n", qopt->set_default);
 
@@ -141,8 +134,9 @@ static int nss_blackhole_change(struct Qdisc *sch, struct nlattr *opt)
 	 * There is nothing we need to do if the qdisc is not
 	 * set as default qdisc.
 	 */
-	if (q->set_default == 0)
+	if (q->set_default == 0) {
 		return 0;
+	}
 
 	/*
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
@@ -163,15 +157,28 @@ static int nss_blackhole_change(struct Qdisc *sch, struct nlattr *opt)
 static int nss_blackhole_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
+	struct tc_nssblackhole_qopt *qopt;
+	unsigned int accel_mode;
 
-	if (opt == NULL)
-		return -EINVAL;
+	/*
+	 * opt is NULL when no parameter is passed to TC.
+	 */
+	if (!opt) {
+		accel_mode = TCA_NSS_ACCEL_MODE_PPE;
+	} else {
+		qopt = nss_qdisc_qopt_get(opt, nss_blackhole_policy, TCA_NSSBLACKHOLE_MAX, TCA_NSSBLACKHOLE_PARMS);
+		if (!qopt) {
+			return -EINVAL;
+		}
+		accel_mode = qopt->accel_mode;
+	}
 
 	nss_qdisc_info("qdisc %x initializing\n", sch->handle);
 	nss_blackhole_reset(sch);
 
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0) < 0)
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0, accel_mode) < 0) {
 		return -EINVAL;
+	}
 
 	nss_qdisc_info("qdisc %x initialized with parent %x\n", sch->handle, sch->parent);
 	if (nss_blackhole_change(sch, opt) < 0) {
@@ -205,6 +212,7 @@ static int nss_blackhole_dump(struct Qdisc *sch, struct sk_buff *skb)
 	}
 
 	opt.set_default = q->set_default;
+	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	opts = nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL) {

@@ -226,6 +226,19 @@ enum nss_qdisc_hybrid_mode {
 };
 
 /*
+ * nss_qdisc_qopt_get()
+ *	Extracts qopt from opt.
+ */
+extern void *nss_qdisc_qopt_get(struct nlattr *opt, struct nla_policy *policy,
+				uint32_t tca_max, uint32_t tca_params);
+
+/*
+ * nss_qdisc_mode_get()
+ *	Returns the operating mode of nss_qdisc, 0 = nss-fw, 1 = ppe.
+ */
+extern uint8_t nss_qdisc_accel_mode_get(struct nss_qdisc *nq);
+
+/*
  * nss_qdisc_peek()
  *	Called to peek at the head of an nss qdisc
  */
@@ -300,7 +313,7 @@ extern void nss_qdisc_destroy(struct nss_qdisc *nq);
  *	Initializes a shaper in NSS, based on the position of this qdisc (child or root)
  *	and if its a normal interface or a bridge interface.
  */
-extern int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid);
+extern int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid, uint32_t accel_mode);
 
 /*
  * nss_qdisc_start_basic_stats_polling()

@@ -22,13 +22,13 @@
  * nss_htb class parameters
  */
 struct nss_htb_param {
-	u32 rate;				/* Allowed bandwidth for this class */
-	u32 burst;				/* Allowed burst for this class */
-	u32 crate;				/* Ceil bandwidth for this class */
-	u32 cburst;				/* Ceil burst for this class */
-	u32 quantum;				/* Quantum allocation for DRR */
-	u32 priority;				/* Priority value of this class */
-	u32 overhead;				/* Overhead in bytes to be added for each packet */
+	u32 rate;		/* Allowed bandwidth for this class */
+	u32 burst;		/* Allowed burst for this class */
+	u32 crate;		/* Ceil bandwidth for this class */
+	u32 cburst;		/* Ceil burst for this class */
+	u32 quantum;		/* Quantum allocation for DRR */
+	u32 priority;		/* Priority value of this class */
+	u32 overhead;		/* Overhead in bytes to be added for each packet */
 };
 
 /*
@@ -76,6 +76,7 @@ static inline struct nss_htb_class_data *nss_htb_find_class(u32 classid, struct 
  */
 static const struct nla_policy nss_htb_policy[TCA_NSSHTB_MAX + 1] = {
 	[TCA_NSSHTB_CLASS_PARMS] = { .len = sizeof(struct tc_nsshtb_class_qopt) },
+	[TCA_NSSHTB_QDISC_PARMS] = { .len = sizeof(struct tc_nsshtb_qopt) },
 };
 
 /*
@@ -86,12 +87,10 @@ static int nss_htb_params_validate_and_save(struct Qdisc *sch, struct nlattr **t
 					struct nss_htb_param *param)
 {
 	struct nlattr *opt = tca[TCA_OPTIONS];
-	struct nlattr *na[TCA_NSSHTB_MAX + 1];
 	struct tc_nsshtb_class_qopt *qopt;
 	struct nss_htb_sched_data *q = qdisc_priv(sch);
 	struct net_device *dev = qdisc_dev(sch);
 	unsigned int mtu = psched_mtu(dev);
-	int err;
 
 	nss_qdisc_trace("validating parameters for nsshtb class of qdisc:%x\n", sch->handle);
 
@@ -100,19 +99,10 @@ static int nss_htb_params_validate_and_save(struct Qdisc *sch, struct nlattr **t
 		return -EINVAL;
 	}
 
-	err = nla_parse_nested(na, TCA_NSSHTB_MAX, opt, nss_htb_policy);
-	if (err < 0) {
-		nss_qdisc_error("failed to parse configuration parameters for htb class %x\n",
-					sch->handle);
-		return err;
-	}
-
-	if (na[TCA_NSSHTB_CLASS_PARMS] == NULL) {
-		nss_qdisc_error("parsed values have no content - htb class %x\n", sch->handle);
+	qopt = nss_qdisc_qopt_get(opt, nss_htb_policy, TCA_NSSHTB_MAX, TCA_NSSHTB_CLASS_PARMS);
+	if (!qopt) {
 		return -EINVAL;
 	}
-
-	qopt = nla_data(na[TCA_NSSHTB_CLASS_PARMS]);
 
 	sch_tree_lock(sch);
 	if (qopt->rate && !qopt->burst) {
@@ -267,6 +257,7 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	struct nss_if_msg nim_config;
 	struct net_device *dev = qdisc_dev(sch);
 	unsigned int mtu = psched_mtu(dev);
+	unsigned int accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	nss_qdisc_trace("configuring htb class %x of qdisc %x\n", classid, sch->handle);
 
@@ -321,7 +312,7 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * here.
 		 */
 		cl->nq.parent = nq_parent;
-		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_HTB_GROUP, classid) < 0) {
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_HTB_GROUP, classid, accel_mode) < 0) {
 			nss_qdisc_error("nss_init for htb class %x failed\n", classid);
 			goto failure;
 		}
@@ -801,13 +792,14 @@ static int nss_htb_change_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	}
 
 	/*
-	 * If it is not NULL, check if the size of message is valid.
+	 * If it is not NULL, parse to get qopt.
 	 */
-	if (nla_len(opt) < sizeof(*qopt)) {
-		nss_qdisc_warning("Invalid message length: size %d expected >= %u\n", nla_len(opt), sizeof(*qopt));
+	qopt = nss_qdisc_qopt_get(opt, nss_htb_policy, TCA_NSSHTB_MAX, TCA_NSSHTB_QDISC_PARMS);
+	if (!qopt) {
 		return -EINVAL;
 	}
-	qopt = nla_data(opt);
+
+	nss_qdisc_info("Setting r2q:%u", qopt->r2q);
 
 	sch_tree_lock(sch);
 	q->r2q = qopt->r2q;
@@ -930,7 +922,9 @@ static void nss_htb_destroy_qdisc(struct Qdisc *sch)
 static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_htb_sched_data *q = qdisc_priv(sch);
+	struct tc_nsshtb_qopt *qopt;
 	int err;
+	unsigned int accel_mode;
 
 	nss_qdisc_trace("initializing htb qdisc %x\n", sch->handle);
 
@@ -940,10 +934,22 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 		return err;
 	}
 
+	if (!opt) {
+		accel_mode = TCA_NSS_ACCEL_MODE_PPE;
+	} else {
+		qopt = nss_qdisc_qopt_get(opt, nss_htb_policy, TCA_NSSHTB_MAX, TCA_NSSHTB_QDISC_PARMS);
+		if (!qopt) {
+			return -EINVAL;
+		}
+		accel_mode = qopt->accel_mode;
+	}
+
+	nss_qdisc_info("r2q = %u accel_mode = %u\n", qopt->r2q, accel_mode);
+
 	/*
 	 * Initialize the NSSHTB shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_HTB, 0) < 0) {
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_HTB, 0, accel_mode) < 0) {
 		nss_qdisc_error("failed to initialize htb qdisc %x in nss", sch->handle);
 		return -EINVAL;
 	}
@@ -973,24 +979,25 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 static int nss_htb_dump_qdisc(struct Qdisc *sch, struct sk_buff *skb)
 {
 	struct nss_htb_sched_data *q = qdisc_priv(sch);
-	unsigned char *b = skb_tail_pointer(skb);
+	struct nlattr *opts = NULL;
 	struct tc_nsshtb_qopt qopt;
-	struct nlattr *nest;
 
 	nss_qdisc_trace("dumping htb qdisc %x\n", sch->handle);
-	qopt.r2q = q->r2q;
 
-	nest = nla_nest_start(skb, TCA_OPTIONS);
-	if (nest == NULL || nla_put(skb, TCA_NSSHTB_QDISC_PARMS, sizeof(qopt), &qopt)) {
+	qopt.r2q = q->r2q;
+	qopt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
+
+	nss_qdisc_info("r2q = %u accel_mode = %u", qopt.r2q, qopt.accel_mode);
+	opts = nla_nest_start(skb, TCA_OPTIONS);
+	if (!opts || nla_put(skb, TCA_NSSHTB_QDISC_PARMS, sizeof(qopt), &qopt)) {
 		goto nla_put_failure;
 	}
 
-	nla_nest_end(skb, nest);
-	return skb->len;
+	return nla_nest_end(skb, opts);
 
  nla_put_failure:
-	nlmsg_trim(skb, b);
-	return -1;
+	nla_nest_cancel(skb, opts);
+	return -EMSGSIZE;
 }
 
 /*

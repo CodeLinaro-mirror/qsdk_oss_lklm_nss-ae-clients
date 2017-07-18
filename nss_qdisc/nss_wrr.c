@@ -25,8 +25,8 @@ struct nss_wrr_class_data {
 
 struct nss_wrr_sched_data {
 	struct nss_qdisc nq;		/* Base class used by nss_qdisc */
-	struct nss_wrr_class_data root;		/* root class */
-	struct Qdisc_class_hash clhash;		/* class hash */
+	struct nss_wrr_class_data root;	/* Root class */
+	struct Qdisc_class_hash clhash;	/* Class hash */
 };
 
 static inline struct nss_wrr_class_data *nss_wrr_find_class(u32 classid,
@@ -44,6 +44,7 @@ static inline struct nss_wrr_class_data *nss_wrr_find_class(u32 classid,
 
 static const struct nla_policy nss_wrr_policy[TCA_NSSWRR_MAX + 1] = {
 	[TCA_NSSWRR_CLASS_PARMS] = { .len = sizeof(struct tc_nsswrr_class_qopt) },
+	[TCA_NSSWRR_QDISC_PARMS] = { .len = sizeof(struct tc_nsswrr_qopt) },
 };
 
 static void nss_wrr_destroy_class(struct Qdisc *sch, struct nss_wrr_class_data *cl)
@@ -112,6 +113,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	struct net_device *dev = qdisc_dev(sch);
 	bool new_init = false;
 	int err;
+	unsigned int accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	nss_qdisc_info("Changing nss_wrr class %u\n", classid);
         if (opt == NULL)
@@ -163,7 +165,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * that is registered to Linux. Therefore we initialize the NSSWRR_GROUP shaper
 		 * here.
 		 */
-		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid) < 0) {
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid, accel_mode) < 0) {
 			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			return -EINVAL;
 		}
@@ -396,8 +398,9 @@ static unsigned long nss_wrr_get_class(struct Qdisc *sch, u32 classid)
 
 	nss_qdisc_info("Get nss_wrr class %p - class match = %p\n", sch, cl);
 
-	if (cl != NULL)
+	if (cl != NULL) {
 		atomic_add(1, &cl->nq.refcnt);
+	}
 
 	return (unsigned long)cl;
 }
@@ -490,12 +493,14 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	struct nss_wrr_sched_data *q = qdisc_priv(sch);
 	int err;
 	struct nss_if_msg nim;
+	struct tc_nsswrr_qopt *qopt;
 
 	nss_qdisc_info("Init nss_wrr qdisc %p\n", sch);
 
 	err = qdisc_class_hash_init(&q->clhash);
-	if (err < 0)
+	if (err < 0) {
 		return err;
+	}
 
 	q->root.cl_common.classid = sch->handle;
 	q->root.qdisc = &noop_qdisc;
@@ -503,11 +508,19 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	qdisc_class_hash_insert(&q->clhash, &q->root.cl_common);
 	qdisc_class_hash_grow(sch, &q->clhash);
 
+	qopt = nss_qdisc_qopt_get(opt, nss_wrr_policy, TCA_NSSWRR_MAX, TCA_NSSWRR_QDISC_PARMS);
+	if (!qopt) {
+		nss_qdisc_warning("Failed to parse input");
+		return -EINVAL;
+	}
+
 	/*
 	 * Initialize the NSSWRR shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_WRR, 0) < 0)
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_WRR, 0, qopt->accel_mode) < 0) {
+		nss_qdisc_warning("Failed init nss_wrr qdisc");
 		return -EINVAL;
+	}
 
 	/*
 	 * Configure the qdisc to operate in one of the two modes
@@ -527,7 +540,7 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	 * Send configure command to the NSS
 	 */
 	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_WRR_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("Failed to configure nss_wrr qdisc %x\n", q->nq.qos_tag);
+		nss_qdisc_warning("Failed to configure nss_wrr qdisc %x\n", q->nq.qos_tag);
 		nss_qdisc_destroy(&q->nq);
 		return -EINVAL;
 	}
@@ -544,6 +557,24 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 
 static int nss_wrr_change_qdisc(struct Qdisc *sch, struct nlattr *opt)
 {
+	struct nss_wrr_sched_data *q;
+	struct tc_nsswrr_qopt *qopt;
+
+	q = qdisc_priv(sch);
+
+	if (opt == NULL) {
+		return -EINVAL;
+	}
+
+	qopt = nss_qdisc_qopt_get(opt, nss_wrr_policy, TCA_NSSWRR_MAX, TCA_NSSWRR_QDISC_PARMS);
+	if (!qopt) {
+		return -EINVAL;
+	}
+
+	/*
+	 * WRR has no qdisc parameters that can be changed.
+	 */
+
 	return 0;
 }
 
@@ -562,7 +593,7 @@ static void nss_wrr_reset_qdisc(struct Qdisc *sch)
 
 	for (i = 0; i < q->clhash.hashsize; i++) {
 		nss_qdisc_hlist_for_each_entry(cl, n, &q->clhash.hash[i], cl_common.hnode)
-			nss_wrr_reset_class(cl);
+		nss_wrr_reset_class(cl);
 	}
 
 	nss_qdisc_reset(sch);
@@ -636,8 +667,32 @@ static void nss_wrr_destroy_qdisc(struct Qdisc *sch)
 
 static int nss_wrr_dump_qdisc(struct Qdisc *sch, struct sk_buff *skb)
 {
-	nss_qdisc_info("Nsswrr dumping qdisc\n");
-	return skb->len;
+	struct nss_wrr_sched_data *q;
+	struct nlattr *opts = NULL;
+	struct tc_nsswrr_qopt opt;
+
+	nss_qdisc_info("Nsswrr Dumping!");
+
+	q = qdisc_priv(sch);
+	if (q == NULL) {
+		return -1;
+	}
+
+	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
+
+	opts = nla_nest_start(skb, TCA_OPTIONS);
+	if (opts == NULL) {
+		goto nla_put_failure;
+	}
+	if (nla_put(skb, TCA_NSSWRR_QDISC_PARMS, sizeof(opt), &opt)) {
+		goto nla_put_failure;
+	}
+
+	return nla_nest_end(skb, opts);
+
+nla_put_failure:
+	nla_nest_cancel(skb, opts);
+	return -EMSGSIZE;
 }
 
 static int nss_wrr_enqueue(struct sk_buff *skb, struct Qdisc *sch)
@@ -652,7 +707,7 @@ static struct sk_buff *nss_wrr_dequeue(struct Qdisc *sch)
 
 static unsigned int nss_wrr_drop(struct Qdisc *sch)
 {
-	printk("In nss_wrr drop\n");
+	nss_qdisc_info("Nsswrr drop\n");
 	return nss_qdisc_drop(sch);
 }
 

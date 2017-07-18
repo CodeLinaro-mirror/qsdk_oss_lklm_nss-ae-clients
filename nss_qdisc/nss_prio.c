@@ -20,10 +20,10 @@
  * nssprio qdisc instance structure
  */
 struct nss_prio_sched_data {
-	struct nss_qdisc nq;		/* Common base class for all nss qdiscs */
-	int bands;			/* Number of priority bands to use */
+	struct nss_qdisc nq;	/* Common base class for all nss qdiscs */
+	int bands;		/* Number of priority bands to use */
 	struct Qdisc *queues[TCA_NSSPRIO_MAX_BANDS];
-					/* Array of child qdisc holder */
+				/* Array of child qdisc holder */
 };
 
 /*
@@ -138,9 +138,7 @@ static const struct nla_policy nss_prio_policy[TCA_NSSPRIO_MAX + 1] = {
 static int nss_prio_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_prio_sched_data *q;
-	struct nlattr *na[TCA_NSSPRIO_MAX + 1];
 	struct tc_nssprio_qopt *qopt;
-	int err;
 
 	q = qdisc_priv(sch);
 
@@ -160,16 +158,10 @@ static int nss_prio_change(struct Qdisc *sch, struct nlattr *opt)
 		return 0;
 	}
 
-	err = nla_parse_nested(na, TCA_NSSPRIO_MAX, opt, nss_prio_policy);
-	if (err < 0) {
-		return err;
-	}
-
-	if (na[TCA_NSSPRIO_PARMS] == NULL) {
+	qopt = nss_qdisc_qopt_get(opt, nss_prio_policy, TCA_NSSPRIO_MAX, TCA_NSSPRIO_PARMS);
+	if (!qopt) {
 		return -EINVAL;
 	}
-
-	qopt = nla_data(na[TCA_NSSPRIO_PARMS]);
 
 	if (qopt->bands > TCA_NSSPRIO_MAX_BANDS) {
 		return -EINVAL;
@@ -196,13 +188,27 @@ static int nss_prio_change(struct Qdisc *sch, struct nlattr *opt)
 static int nss_prio_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_prio_sched_data *q = qdisc_priv(sch);
+	struct tc_nssprio_qopt *qopt;
 	int i;
+	unsigned int accel_mode;
 
-	for (i = 0; i < TCA_NSSPRIO_MAX_BANDS; i++)
+	for (i = 0; i < TCA_NSSPRIO_MAX_BANDS; i++) {
 		q->queues[i] = &noop_qdisc;
+	}
 
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_PRIO, 0) < 0)
+	if (!opt) {
+		accel_mode = TCA_NSS_ACCEL_MODE_PPE;
+	} else {
+		qopt = nss_qdisc_qopt_get(opt, nss_prio_policy, TCA_NSSPRIO_MAX, TCA_NSSPRIO_PARMS);
+		if (!qopt) {
+			return -EINVAL;
+		}
+		accel_mode = qopt->accel_mode;
+	}
+
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_PRIO, 0, accel_mode) < 0) {
 		return -EINVAL;
+	}
 
 	nss_qdisc_info("Nssprio initialized - handle %x parent %x\n",
 			sch->handle, sch->parent);
@@ -231,6 +237,7 @@ static int nss_prio_dump(struct Qdisc *sch, struct sk_buff *skb)
 
 	nss_qdisc_info("Nssprio dumping");
 	qopt.bands = q->bands;
+	qopt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	opts = nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL || nla_put(skb, TCA_NSSPRIO_PARMS, sizeof(qopt), &qopt)) {

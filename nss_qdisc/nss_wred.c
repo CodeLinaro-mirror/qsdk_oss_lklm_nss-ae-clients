@@ -32,15 +32,16 @@ struct nss_wred_traffic_class {
  * nsswred private qdisc structure
  */
 struct nss_wred_sched_data {
-	struct nss_qdisc nq;			/* Common base class for all nss qdiscs */
-	u32 traffic_classes;			/* # of traffic classs in this wred*/
-	u32 def_traffic_class;			/* Default traffic class if no match */
-	enum tc_nsswred_weight_modes weight_mode;	/* Weight mode */
+	struct nss_qdisc nq;	/* Common base class for all nss qdiscs */
+	u32 traffic_classes;	/* # of traffic classs in this wred*/
+	u32 def_traffic_class;	/* Default traffic class if no match */
+	enum tc_nsswred_weight_modes weight_mode;
+				/* Weight mode */
 	struct nss_wred_traffic_class nwtc[NSS_WRED_MAX_TRAFFIC_CLASS];
-						/* Parameters for each traffic class */
-	u8 ecn;					/* Mark ECN or drop pkt */
-	u8 weighted;				/* This is a wred or red */
-	u8 set_default;				/* Flag to set qdisc as default qdisc for enqueue */
+				/* Parameters for each traffic class */
+	u8 ecn;			/* Mark ECN or drop pkt */
+	u8 weighted;		/* This is a wred or red */
+	u8 set_default;		/* Flag to set qdisc as default qdisc for enqueue */
 };
 
 /*
@@ -172,23 +173,17 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_wred_sched_data *q = qdisc_priv(sch);
 	struct nss_qdisc *nq = &q->nq;
-
-	struct nlattr *na[TCA_NSSWRED_MAX + 1];
 	struct tc_nsswred_qopt *qopt;
-	int err;
 	struct nss_if_msg nim;
 
 	if (!opt) {
 		return -EINVAL;
 	}
-	err = nla_parse_nested(na, TCA_NSSWRED_MAX, opt, nss_wred_policy);
-	if (err < 0) {
-		return err;
-	}
-	if (!na[TCA_NSSWRED_PARMS]) {
+
+	qopt = nss_qdisc_qopt_get(opt, nss_wred_policy, TCA_NSSWRED_MAX, TCA_NSSWRED_PARMS);
+	if (!qopt) {
 		return -EINVAL;
 	}
-	qopt = nla_data(na[TCA_NSSWRED_PARMS]);
 
 	nss_qdisc_info("nsswred %x traffic_classes:%d def_traffic_class: %d Weight_Mode:%d ECN:%d\n",
 			sch->handle, qopt->traffic_classes, qopt->def_traffic_class, qopt->weight_mode, qopt->ecn);
@@ -305,14 +300,21 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 static int nss_wred_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
+	struct tc_nsswred_qopt *qopt;
 
-	if (opt == NULL)
+	if (opt == NULL) {
 		return -EINVAL;
+	}
+
+	qopt = nss_qdisc_qopt_get(opt, nss_wred_policy, TCA_NSSWRED_MAX, TCA_NSSWRED_PARMS);
+	if (!qopt) {
+		return -EINVAL;
+	}
 
 	nss_qdisc_info("Initializing Wred - type %d\n", NSS_SHAPER_NODE_TYPE_WRED);
 	nss_wred_reset(sch);
 
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_WRED, 0) < 0)
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_WRED, 0, qopt->accel_mode) < 0)
 		return -EINVAL;
 
 	nss_qdisc_info("NSS wred initialized - handle %x parent %x\n", sch->handle, sch->parent);
@@ -367,6 +369,9 @@ static int nss_wred_dump(struct Qdisc *sch, struct sk_buff *skb)
 		opt.rap.exp_weight_factor = q->nwtc[0].rap.exp_weight_factor;
 		opt.rap.probability = q->nwtc[0].rap.probability;
 	}
+
+	opt.set_default = q->set_default;
+	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	opts = nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL || nla_put(skb, TCA_NSSWRED_PARMS, sizeof(opt), &opt)) {

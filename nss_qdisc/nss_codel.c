@@ -23,11 +23,12 @@ struct nss_codel_stats {
 
 struct nss_codel_sched_data {
 	struct nss_qdisc nq;	/* Common base class for all nss qdiscs */
-	u32 target;			/* Acceptable value of queue delay */
-	u32 limit;			/* Length of queue */
-	u32 interval;			/* Monitoring interval */
-	u8 set_default;			/* Flag to set qdisc as default qdisc for enqueue */
-	struct nss_codel_stats stats;	/* Contains nss_codel related stats */
+	u32 target;		/* Acceptable value of queue delay */
+	u32 limit;		/* Length of queue */
+	u32 interval;		/* Monitoring interval */
+	u8 set_default;		/* Flag to set qdisc as default qdisc for enqueue */
+	struct nss_codel_stats stats;
+				/* Contains nss_codel related stats */
 };
 
 static int nss_codel_enqueue(struct sk_buff *skb, struct Qdisc *sch)
@@ -69,25 +70,14 @@ static const struct nla_policy nss_codel_policy[TCA_NSSCODEL_MAX + 1] = {
 static int nss_codel_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_codel_sched_data *q;
-	struct nlattr *na[TCA_NSSCODEL_MAX + 1];
 	struct tc_nsscodel_qopt *qopt;
 	struct nss_if_msg nim;
-	int err;
 	struct net_device *dev = qdisc_dev(sch);
 
-	q = qdisc_priv(sch);
-
-	if (opt == NULL)
+	qopt = nss_qdisc_qopt_get(opt, nss_codel_policy, TCA_NSSCODEL_MAX, TCA_NSSCODEL_PARMS);
+	if (!qopt) {
 		return -EINVAL;
-
-	err = nla_parse_nested(na, TCA_NSSCODEL_MAX, opt, nss_codel_policy);
-	if (err < 0)
-		return err;
-
-	if (na[TCA_NSSCODEL_PARMS] == NULL)
-		return -EINVAL;
-
-	qopt = nla_data(na[TCA_NSSCODEL_PARMS]);
+	}
 
 	if (!qopt->target || !qopt->interval) {
 		nss_qdisc_error("nss_codel requires a non-zero value for target "
@@ -95,9 +85,11 @@ static int nss_codel_change(struct Qdisc *sch, struct nlattr *opt)
 		return -EINVAL;
 	}
 
-	if (!qopt->limit)
+	if (!qopt->limit) {
 		qopt->limit = dev->tx_queue_len ? : 1;
+	}
 
+	q = qdisc_priv(sch);
 	q->target = qopt->target;
 	q->limit = qopt->limit;
 	q->interval = qopt->interval;
@@ -133,14 +125,16 @@ static int nss_codel_change(struct Qdisc *sch, struct nlattr *opt)
 	 * There is nothing we need to do if the qdisc is not
 	 * set as default qdisc.
 	 */
-	if (!q->set_default)
+	if (!q->set_default) {
 		return 0;
+	}
 
 	/*
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
 	 */
-	if (nss_qdisc_set_default(&q->nq) < 0)
+	if (nss_qdisc_set_default(&q->nq) < 0) {
 		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -148,13 +142,26 @@ static int nss_codel_change(struct Qdisc *sch, struct nlattr *opt)
 static int nss_codel_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
+	struct tc_nsscodel_qopt *qopt;
 
-	if (opt == NULL)
+	if (!opt) {
 		return -EINVAL;
+	}
+
+	qopt = nss_qdisc_qopt_get(opt, nss_codel_policy, TCA_NSSCODEL_MAX, TCA_NSSCODEL_PARMS);
+	if (!qopt) {
+		return -EINVAL;
+	}
+
+	if (qopt->accel_mode != TCA_NSS_ACCEL_MODE_NSS_FW) {
+		nss_qdisc_warning("NSS codel supports only offload mode %d", TCA_NSS_ACCEL_MODE_NSS_FW);
+		return -EINVAL;
+	}
 
 	nss_codel_reset(sch);
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_CODEL, 0) < 0)
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_CODEL, 0, qopt->accel_mode) < 0) {
 		return -EINVAL;
+	}
 
 	if (nss_codel_change(sch, opt) < 0) {
 		nss_qdisc_destroy(nq);
@@ -186,12 +193,16 @@ static int nss_codel_dump(struct Qdisc *sch, struct sk_buff *skb)
 	opt.limit = q->limit;
 	opt.interval = q->interval;
 	opt.set_default = q->set_default;
+	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
+
 	opts = nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL) {
 		goto nla_put_failure;
 	}
-	if (nla_put(skb, TCA_NSSCODEL_PARMS, sizeof(opt), &opt))
+
+	if (nla_put(skb, TCA_NSSCODEL_PARMS, sizeof(opt), &opt)) {
 		goto nla_put_failure;
+	}
 
 	return nla_nest_end(skb, opts);
 

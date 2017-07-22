@@ -356,6 +356,14 @@ static int nss_bridge_mgr_configure_bond(struct net_device *bond_master,
 		}
 		b_pvt->bond_dev_ref_cnt++;
 		spin_unlock(&br_mgr_ctx.lock);
+
+		/*
+		 * Enable L2 exceptions in PPE.
+		 */
+		if (b_pvt->bond_dev_ref_cnt == 1) {
+			if (nss_ppe_tx_l2_exception_msg(NSS_PPE_INTERFACE, 1) != NSS_TX_SUCCESS)
+				nss_bridge_mgr_warn("%p: Failed to enable L2 exceptions in PPE\n", b_pvt);
+		}
 	} else {
 		spin_lock(&br_mgr_ctx.lock);
 
@@ -371,6 +379,14 @@ static int nss_bridge_mgr_configure_bond(struct net_device *bond_master,
 			}
 		}
 		spin_unlock(&br_mgr_ctx.lock);
+
+		/*
+		 * Disable L2 exceptions in PPE.
+		 */
+		if (!b_pvt->bond_dev_ref_cnt) {
+			if (nss_ppe_tx_l2_exception_msg(NSS_PPE_INTERFACE, 0) != NSS_TX_SUCCESS)
+				nss_bridge_mgr_warn("%p: Failed to disable L2 exceptions in PPE\n", b_pvt);
+		}
 	}
 
 	return NOTIFY_DONE;

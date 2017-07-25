@@ -20,7 +20,6 @@ obj-$(l2tpv2)+= l2tp/l2tpv2/
 obj-$(lag-mgr)+= lag/
 obj-$(map-t)+= map/map-t/
 obj-$(portifmgr)+= portifmgr/
-obj-$(ppe_qdisc)+= nss_ppe_qdisc/
 obj-$(pptp)+= pptp/
 obj-$(profile)+= profiler/
 obj-$(tunipip6)+= qca-nss-tunipip6.o

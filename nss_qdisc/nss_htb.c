@@ -19,6 +19,19 @@
 #define NSS_HTB_MAX_PRIORITY 4
 
 /*
+ * nss_htb class parameters
+ */
+struct nss_htb_param {
+	u32 rate;				/* Allowed bandwidth for this class */
+	u32 burst;				/* Allowed burst for this class */
+	u32 crate;				/* Ceil bandwidth for this class */
+	u32 cburst;				/* Ceil burst for this class */
+	u32 quantum;				/* Quantum allocation for DRR */
+	u32 priority;				/* Priority value of this class */
+	u32 overhead;				/* Overhead in bytes to be added for each packet */
+};
+
+/*
  * nss_htb class instance structure
  */
 struct nss_htb_class_data {
@@ -28,14 +41,7 @@ struct nss_htb_class_data {
 	struct Qdisc *qdisc;			/* Child qdisc, used by leaf classes */
 	int children;				/* Count of number of attached child classes */
 	bool is_leaf;				/* True if leaf class */
-
-	u32 rate;				/* Allowed bandwidth for this class */
-	u32 burst;				/* Allowed burst for this class */
-	u32 crate;				/* Ceil bandwidth for this class */
-	u32 cburst;				/* Ceil burst for this class */
-	u32 quantum;				/* Quantum allocation for DRR */
-	u32 priority;				/* Priority value of this class */
-	u32 overhead;				/* Overhead in bytes to be added for each packet */
+	struct nss_htb_param param;		/* Parameters for this class */
 };
 
 /*
@@ -73,6 +79,180 @@ static const struct nla_policy nss_htb_policy[TCA_NSSHTB_MAX + 1] = {
 };
 
 /*
+ * nss_htb_params_validate_and_save()
+ *	Validates and saves the qdisc configuration parameters.
+ */
+static int nss_htb_params_validate_and_save(struct Qdisc *sch, struct nlattr **tca,
+					struct nss_htb_param *param)
+{
+	struct nlattr *opt = tca[TCA_OPTIONS];
+	struct nlattr *na[TCA_NSSHTB_MAX + 1];
+	struct tc_nsshtb_class_qopt *qopt;
+	struct nss_htb_sched_data *q = qdisc_priv(sch);
+	struct net_device *dev = qdisc_dev(sch);
+	unsigned int mtu = psched_mtu(dev);
+	int err;
+
+	nss_qdisc_trace("validating parameters for nsshtb class of qdisc:%x\n", sch->handle);
+
+	if (!opt) {
+		nss_qdisc_error("passing null opt for configuring htb class %x\n", sch->handle);
+		return -EINVAL;
+	}
+
+	err = nla_parse_nested(na, TCA_NSSHTB_MAX, opt, nss_htb_policy);
+	if (err < 0) {
+		nss_qdisc_error("failed to parse configuration parameters for htb class %x\n",
+					sch->handle);
+		return err;
+	}
+
+	if (na[TCA_NSSHTB_CLASS_PARMS] == NULL) {
+		nss_qdisc_error("parsed values have no content - htb class %x\n", sch->handle);
+		return -EINVAL;
+	}
+
+	qopt = nla_data(na[TCA_NSSHTB_CLASS_PARMS]);
+
+	sch_tree_lock(sch);
+	if (qopt->rate && !qopt->burst) {
+		nss_qdisc_error("burst needed if rate is non zero - class %x\n", sch->handle);
+		sch_tree_unlock(sch);
+		return -EINVAL;
+	}
+
+	if (!qopt->crate || !qopt->cburst) {
+		nss_qdisc_error("crate and cburst need to be non zero - class %x\n",
+					sch->handle);
+		sch_tree_unlock(sch);
+		return -EINVAL;
+	}
+
+	if (!(qopt->priority < NSS_HTB_MAX_PRIORITY)) {
+		nss_qdisc_error("priority %u of htb class %x greater than max prio %u",
+					qopt->priority, sch->handle, NSS_HTB_MAX_PRIORITY);
+		sch_tree_unlock(sch);
+		return -EINVAL;
+	}
+
+	memset(param, 0, sizeof(*param));
+	param->rate = qopt->rate;
+	param->burst = qopt->burst;
+	param->crate = qopt->crate;
+	param->cburst = qopt->cburst;
+	param->overhead = qopt->overhead;
+	param->quantum = qopt->quantum;
+	param->priority = qopt->priority;
+
+	/*
+	 * If quantum value is not provided, set it to
+	 * the interface's MTU value.
+	 */
+	if (!param->quantum) {
+		/*
+		 * If quantum was not provided, we have two options.
+		 * One, use r2q and rate to figure out the quantum. Else,
+		 * use the interface's MTU as the value of quantum.
+		 */
+		if (q->r2q && param->rate) {
+			param->quantum = (param->rate / q->r2q) / 8;
+			nss_qdisc_info("quantum not provided for htb class %x on interface %s\n"
+					"Setting quantum to %uB based on r2q %u and rate %uBps\n",
+					sch->handle, dev->name, param->quantum, q->r2q, param->rate / 8);
+		} else {
+			param->quantum = mtu;
+			nss_qdisc_info("quantum value not provided for htb class %x on interface %s\n"
+					"Setting quantum to MTU %uB\n", sch->handle, dev->name, param->quantum);
+		}
+	}
+	sch_tree_unlock(sch);
+
+	return 0;
+}
+
+/*
+ * nss_htb_class_alloc()
+ *	Allocates a new class.
+ */
+static struct nss_htb_class_data *nss_htb_class_alloc(struct Qdisc *sch, struct nss_htb_class_data *parent, u32 classid)
+{
+	struct nss_htb_class_data *cl;
+	nss_qdisc_trace("creating a new htb class of qdisc:%x\n", sch->handle);
+
+	/*
+	 * check for valid classid
+	 */
+	if (!classid || TC_H_MAJ(classid ^ sch->handle) || nss_htb_find_class(classid, sch)) {
+		return NULL;
+	}
+
+	nss_qdisc_trace("htb class %x not found. Allocating a new class.\n", classid);
+	cl = kzalloc(sizeof(struct nss_htb_class_data), GFP_KERNEL);
+
+	if (!cl) {
+		nss_qdisc_error("class allocation failed for classid %x\n", classid);
+		return NULL;
+	}
+
+	nss_qdisc_trace("htb class %x allocated - addr %p\n", classid, cl);
+	cl->parent = parent;
+	cl->sch_common.classid = classid;
+
+	/*
+	 * Set this class as leaf. If a new class is attached as
+	 * child, it will set this value to false during the attach
+	 * process.
+	 */
+	cl->is_leaf = true;
+
+	/*
+	 * We make the child qdisc a noop qdisc, and
+	 * set reference count to 1. This is important,
+	 * reference count should not be 0.
+	 */
+	cl->qdisc = &noop_qdisc;
+	atomic_set(&cl->nq.refcnt, 1);
+
+	return cl;
+}
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+/*
+ * nss_htb_ppe_change_class()
+ *	Configures a class in ppe qdisc
+ */
+static int nss_htb_ppe_change_class(struct Qdisc *sch, struct nss_htb_class_data *cl, struct nss_htb_param *param)
+{
+	struct nss_ppe_qdisc prev_npq;
+
+	/*
+	 * Save the previous scheduler configuration
+	 * for handling failure conditions.
+	 */
+	prev_npq = cl->nq.npq;
+
+	cl->nq.npq.shaper_present = true;
+	cl->nq.npq.shaper.rate = param->rate;
+	cl->nq.npq.shaper.burst = param->burst;
+	cl->nq.npq.shaper.crate = param->crate;
+	cl->nq.npq.shaper.cburst = param->cburst;
+	cl->nq.npq.shaper.overhead = param->overhead;
+	cl->nq.npq.scheduler.quantum = param->quantum;
+	cl->nq.npq.scheduler.priority = param->priority;
+
+	/*
+	 * Change the configuration in SSDK
+	 */
+	if (nss_ppe_configure(&cl->nq, &prev_npq) != 0)  {
+		nss_qdisc_warning("nss_htb %x SSDK scheduler configuration failed\n", sch->handle);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+#endif
+
+/*
  * nss_htb_change_class()
  *	Configures a new class.
  */
@@ -83,49 +263,16 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	struct nss_htb_class_data *cl = (struct nss_htb_class_data *)*arg;
 	struct nss_htb_class_data *parent;
 	struct nss_qdisc *nq_parent;
-	struct nlattr *opt = tca[TCA_OPTIONS];
-	struct nlattr *na[TCA_NSSHTB_MAX + 1];
-	struct tc_nsshtb_class_qopt *qopt;
-	int err;
+	struct nss_htb_param param;
 	struct nss_if_msg nim_config;
 	struct net_device *dev = qdisc_dev(sch);
 	unsigned int mtu = psched_mtu(dev);
 
 	nss_qdisc_trace("configuring htb class %x of qdisc %x\n", classid, sch->handle);
 
-	if (opt == NULL) {
-		nss_qdisc_error("passing null opt for configuring htb class %x\n", classid);
-		return -EINVAL;
-	}
-
-	err = nla_parse_nested(na, TCA_NSSHTB_MAX, opt, nss_htb_policy);
-	if (err < 0) {
-		nss_qdisc_error("failed to parse configuration parameters for htb class %x\n",
-					classid);
-		return err;
-	}
-
-	if (na[TCA_NSSHTB_CLASS_PARMS] == NULL) {
-		nss_qdisc_error("parsed values have no content - htb class %x\n", classid);
-		return -EINVAL;
-	}
-
-	qopt = nla_data(na[TCA_NSSHTB_CLASS_PARMS]);
-
-	if (qopt->rate && !qopt->burst) {
-		nss_qdisc_error("burst needed if rate is non zero - class %x\n", classid);
-		return -EINVAL;
-	}
-
-	if (!qopt->crate || !qopt->cburst) {
-		nss_qdisc_error("crate and cburst need to be non zero - class %x\n",
-					classid);
-		return -EINVAL;
-	}
-
-	if (!(qopt->priority < NSS_HTB_MAX_PRIORITY)) {
-		nss_qdisc_error("priority %u of htb class %x greater than max prio %u",
-					qopt->priority, classid, NSS_HTB_MAX_PRIORITY);
+	if (nss_htb_params_validate_and_save(sch, tca, &param) < 0) {
+		nss_qdisc_warning("validation of configuration parameters for htb class %x failed\n",
+					sch->handle);
 		return -EINVAL;
 	}
 
@@ -141,52 +288,31 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		nq_parent = &q->nq;
 	}
 
+	if (cl) {
+#if defined(NSS_QDISC_PPE_SUPPORT)
+		if (cl->nq.mode == NSS_QDISC_MODE_PPE) {
+			if (nss_htb_ppe_change_class(sch, cl, &param) < 0) {
+				nss_qdisc_warning("nss_htb %x SSDK scheduler configuration failed\n", sch->handle);
+				return -EINVAL;
+			}
+			return 0;
+		}
+#endif
+	}
+
 	/*
 	 * If class with a given classid is not found, we allocate a new one
 	 */
 	if (!cl) {
 		struct nss_if_msg nim_attach;
-
-		/*
-		 * check for valid classid
-		 */
-		if (!classid || TC_H_MAJ(classid ^ sch->handle) || nss_htb_find_class(classid, sch)) {
-			goto failure;
-		}
-
-		/*
-		 * TODO: We are not setting a limit on the tree depth
-		 * do we have to set one?
-		 */
-
-		nss_qdisc_trace("htb class %x not found. Allocating a new class.\n", classid);
-		cl = kzalloc(sizeof(struct nss_htb_class_data), GFP_KERNEL);
+		cl = nss_htb_class_alloc(sch, parent, classid);
 
 		if (!cl) {
-			nss_qdisc_error("class allocation failed for classid %x\n", classid);
+			nss_qdisc_warning("class allocation failed for classid %x\n", classid);
 			goto failure;
 		}
 
-		nss_qdisc_trace("htb class %x allocated - addr %p\n", classid, cl);
-		cl->parent = parent;
-		cl->sch_common.classid = classid;
-
-		/*
-		 * Set this class as leaf. If a new class is attached as
-		 * child, it will set this value to false during the attach
-		 * process.
-		 */
-		cl->is_leaf = true;
-
-		/*
-		 * We make the child qdisc a noop qdisc, and
-		 * set reference count to 1. This is important,
-		 * reference count should not be 0.
-		 */
-		cl->qdisc = &noop_qdisc;
-		atomic_set(&cl->nq.refcnt, 1);
 		*arg = (unsigned long)cl;
-
 		nss_qdisc_trace("adding class %x to qdisc %x\n", classid, sch->handle);
 
 		/*
@@ -194,24 +320,33 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * that is registered to Linux. Therefore we initialize the NSSHTB_GROUP shaper
 		 * here.
 		 */
-		if (nss_qdisc_init(sch, &cl->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_HTB_GROUP, classid) < 0) {
+		cl->nq.parent = nq_parent;
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_HTB_GROUP, classid) < 0) {
 			nss_qdisc_error("nss_init for htb class %x failed\n", classid);
 			goto failure;
 		}
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+		if (cl->nq.mode == NSS_QDISC_MODE_PPE) {
+			if (nss_htb_ppe_change_class(sch, cl, &param) < 0) {
+				nss_qdisc_warning("nss_htb %x SSDK scheduler configuration failed\n", sch->handle);
+				nss_qdisc_destroy(&cl->nq);
+				goto failure;
+			}
+		}
+#endif
+
 		/*
 		 * Set qos_tag of parent to which the class needs to e attached to.
+		 * Set the child to be this class.
+		 * Send node_attach command down to the NSS
 		 */
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = nq_parent->qos_tag;
 
-		/*
-		 * Set the child to be this class.
-		 */
-		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_attach.child_qos_tag = cl->nq.qos_tag;
+		if (cl->nq.mode == NSS_QDISC_MODE_NSS) {
+			nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_attach.child_qos_tag = cl->nq.qos_tag;
+		}
 
-		/*
-		 * Send node_attach command down to the NSS
-		 */
 		if (nss_qdisc_node_attach(nq_parent, &cl->nq, &nim_attach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH) < 0) {
 			nss_qdisc_error("nss_attach for class %x failed\n", classid);
@@ -249,67 +384,37 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		nss_qdisc_trace("class %x successfully allocated and initialized\n", classid);
 	}
 
-	sch_tree_lock(sch);
-	cl->rate = qopt->rate;
-	cl->burst = qopt->burst;
-	cl->crate = qopt->crate;
-	cl->cburst = qopt->cburst;
-	cl->overhead = qopt->overhead;
-	cl->quantum = qopt->quantum;
-	cl->priority = qopt->priority;
-
-	/*
-	 * If quantum value is not provided, set it to
-	 * the interface's MTU value.
-	 */
-	if (!cl->quantum) {
-		/*
-		 * If quantum was not provided, we have two options.
-		 * One, use r2q and rate to figure out the quantum. Else,
-		 * use the interface's MTU as the value of quantum.
-		 */
-		if (q->r2q && cl->rate) {
-			cl->quantum = (cl->rate / q->r2q) / 8;
-			nss_qdisc_info("quantum not provided for htb class %x on interface %s\n"
-					"Setting quantum to %uB based on r2q %u and rate %uBps\n",
-					classid, dev->name, cl->quantum, q->r2q, cl->rate / 8);
-		} else {
-			cl->quantum = mtu;
-			nss_qdisc_info("quantum value not provided for htb class %x on interface %s\n"
-					"Setting quantum to MTU %uB\n", classid, dev->name, cl->quantum);
-		}
-	}
-
-	sch_tree_unlock(sch);
-
 	/*
 	 * Fill information that needs to be sent down to the NSS for configuring the
 	 * htb class.
 	 */
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.quantum = cl->quantum;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.priority = cl->priority;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.overhead = cl->overhead;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.rate = cl->rate;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.burst = cl->burst;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.max_size = mtu;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.short_circuit = false;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.rate = cl->crate;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.burst = cl->cburst;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.max_size = mtu;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.short_circuit = false;
+	cl->param = param;
+	if (cl->nq.mode == NSS_QDISC_MODE_NSS) {
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.quantum = cl->param.quantum;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.priority = cl->param.priority;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.overhead = cl->param.overhead;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.rate = cl->param.rate;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.burst = cl->param.burst;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.max_size = mtu;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_police.short_circuit = false;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.rate = cl->param.crate;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.burst = cl->param.cburst;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.max_size = mtu;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_param.rate_ceil.short_circuit = false;
 
-	nss_qdisc_info("htb class %x - rate = %ubps burst = %ubytes crate = %ubps cburst = %ubytes MTU = %ubytes "
-			"quantum = %ubytes priority = %u\n", classid, cl->rate, cl->burst, cl->crate,
-			cl->cburst, mtu, cl->quantum, cl->priority);
+		nss_qdisc_info("htb class %x - rate = %ubps burst = %ubytes crate = %ubps cburst = %ubytes MTU = %ubytes "
+				"quantum = %ubytes priority = %u\n", classid, cl->param.rate, cl->param.burst, cl->param.crate,
+				cl->param.cburst, mtu, cl->param.quantum, cl->param.priority);
 
-	/*
-	 * Send configure command to the NSS
-	 */
-	if (nss_qdisc_configure(&cl->nq, &nim_config,
-			NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("failed to send configure message for htb class %x\n", classid);
-		return -EINVAL;
+		/*
+		 * Send configure command to the NSS
+		 */
+		if (nss_qdisc_configure(&cl->nq, &nim_config,
+				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
+			nss_qdisc_error("failed to send configure message for htb class %x\n", classid);
+			return -EINVAL;
+		}
 	}
 
 	nss_qdisc_info("htb class %x configured successfully\n", classid);
@@ -332,8 +437,7 @@ static void nss_htb_destroy_class(struct Qdisc *sch, struct nss_htb_class_data *
 	struct nss_if_msg nim;
 	struct nss_qdisc *nq_child;
 
-	nss_qdisc_trace("destroying htb class %x from qdisc %x\n",
-				cl->nq.qos_tag, sch->handle);
+	nss_qdisc_trace("destroying htb class %x from qdisc %x\n", cl->nq.qos_tag, sch->handle);
 
 	/*
 	 * We always have to detach the child qdisc, before destroying it.
@@ -341,7 +445,11 @@ static void nss_htb_destroy_class(struct Qdisc *sch, struct nss_htb_class_data *
 	if (cl->qdisc != &noop_qdisc) {
 		nq_child = qdisc_priv(cl->qdisc);
 		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
-		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_detach.child_qos_tag = nq_child->qos_tag;
+
+		if (cl->nq.mode == NSS_QDISC_MODE_NSS) {
+			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.htb_group_detach.child_qos_tag = nq_child->qos_tag;
+		}
+
 		if (nss_qdisc_node_detach(&cl->nq, nq_child, &nim,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
 			nss_qdisc_error("failed to detach child %x from class %x\n",
@@ -587,13 +695,13 @@ static int nss_htb_dump_class(struct Qdisc *sch, unsigned long arg, struct sk_bu
 
 	nss_qdisc_trace("dumping htb class %x of qdisc %x\n", cl->nq.qos_tag, sch->handle);
 
-	qopt.burst = cl->burst;
-	qopt.rate = cl->rate;
-	qopt.crate = cl->crate;
-	qopt.cburst = cl->cburst;
-	qopt.overhead = cl->overhead;
-	qopt.quantum = cl->quantum;
-	qopt.priority = cl->priority;
+	qopt.burst = cl->param.burst;
+	qopt.rate = cl->param.rate;
+	qopt.crate = cl->param.crate;
+	qopt.cburst = cl->param.cburst;
+	qopt.overhead = cl->param.overhead;
+	qopt.quantum = cl->param.quantum;
+	qopt.priority = cl->param.priority;
 
 	/*
 	 * All htb group nodes are root nodes. i.e. they dont
@@ -753,19 +861,15 @@ static void nss_htb_destroy_qdisc(struct Qdisc *sch)
 	struct hlist_node *n __maybe_unused;
 	struct hlist_node *next;
 	struct nss_htb_class_data *cl;
-	unsigned int i;
+	unsigned int i = 0;
 
 	/*
-	 * Destroy all the classes before the root qdisc is destroyed.
+	 * Destroy all the child classes before the parent is destroyed.
 	 */
-	for (i = 0; i < q->clhash.hashsize; i++) {
+	while (q->clhash.hashelems) {
 		nss_qdisc_hlist_for_each_entry_safe(cl, n, next, &q->clhash.hash[i], sch_common.hnode) {
 
-			/*
-			 * If this is the root class, we dont have to destroy it. This will be taken
-			 * care of by the nss_htb_destroy() function.
-			 */
-			if (cl == &q->root) {
+			if (cl->children) {
 				continue;
 			}
 
@@ -776,9 +880,31 @@ static void nss_htb_destroy_qdisc(struct Qdisc *sch)
 			atomic_sub(1, &cl->nq.refcnt);
 
 			/*
+			 * We are not root class. Therefore we reduce the children count
+			 * for our parent.
+			 */
+			sch_tree_lock(sch);
+			if (cl->parent) {
+				cl->parent->children--;
+			}
+			qdisc_class_hash_remove(&q->clhash, &cl->sch_common);
+			sch_tree_unlock(sch);
+
+			/*
 			 * Now we can destroy the class.
 			 */
 			nss_htb_destroy_class(sch, cl);
+		}
+		i++;
+
+		/*
+		 * In the first iteration, all the leaf nodes will be removed.
+		 * Now the intermediate nodes (one above the leaf nodes) are
+		 * leaf nodes. So, to delete the entire tree level wise,
+		 * wrap around the index.
+		 */
+		if (i == q->clhash.hashsize) {
+			i = 0;
 		}
 	}
 	qdisc_class_hash_destroy(&q->clhash);
@@ -817,7 +943,7 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	/*
 	 * Initialize the NSSHTB shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_HTB, 0) < 0) {
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_HTB, 0) < 0) {
 		nss_qdisc_error("failed to initialize htb qdisc %x in nss", sch->handle);
 		return -EINVAL;
 	}

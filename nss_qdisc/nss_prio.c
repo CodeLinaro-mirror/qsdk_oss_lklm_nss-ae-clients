@@ -201,7 +201,7 @@ static int nss_prio_init(struct Qdisc *sch, struct nlattr *opt)
 	for (i = 0; i < TCA_NSSPRIO_MAX_BANDS; i++)
 		q->queues[i] = &noop_qdisc;
 
-	if (nss_qdisc_init(sch, &q->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_PRIO, 0) < 0)
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_PRIO, 0) < 0)
 		return -EINVAL;
 
 	nss_qdisc_info("Nssprio initialized - handle %x parent %x\n",

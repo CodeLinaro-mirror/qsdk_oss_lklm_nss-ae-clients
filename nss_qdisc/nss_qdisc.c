@@ -26,7 +26,6 @@
 #include "nss_blackhole.h"
 #include "nss_wred.h"
 
-static struct module *nss_ppe_owner;	/* NSS PPE Qdisc module owner*/
 void *nss_qdisc_ctx;			/* Shaping context for nss_qdisc */
 
 #define NSS_QDISC_COMMAND_TIMEOUT (600*HZ) /* We set 1min to be the command */
@@ -37,6 +36,72 @@ void *nss_qdisc_ctx;			/* Shaping context for nss_qdisc */
  */
 #define NSS_QDISC_ROOT_HASH_SIZE 4
 #define NSS_QDISC_ROOT_HASH_MASK (NSS_QDISC_ROOT_HASH_SIZE - 1)
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+/*
+ * nss_qdisc_ppe_init()
+ *	Initializes a shaper in PPE.
+ */
+static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t parent)
+{
+	struct net_device *dev = qdisc_dev(sch);
+	struct nss_qdisc *parent_nq = NULL;
+	struct Qdisc *parent_qdisc = NULL;
+	unsigned long parent_class;
+
+	/*
+	 * Fallback to NSS Qdisc if PPE Qdisc configuration failed.
+	 */
+	if (nq->ppe_init_failed) {
+		nss_qdisc_info("Qdisc %p (type %d) HW Qdisc initialization already tried, creating NSS Qdisc\n",
+			nq->qdisc, nq->type);
+		return 0;
+	}
+
+	/*
+	 * PPE Qdisc cannot be attached to NSS Qdisc.
+	 * PPE Qdisc initialization is not required for a class whose parent qdisc is NSS.
+	 */
+	if (parent != TC_H_ROOT) {
+		parent_qdisc = qdisc_lookup(dev, TC_H_MAJ(parent));
+		parent_nq = qdisc_priv(parent_qdisc);
+	} else if (nq->is_class) {
+		parent_nq = qdisc_priv(nq->qdisc);
+	}
+
+	if ((parent_nq) && (parent_nq->mode == NSS_QDISC_MODE_NSS)) {
+		nss_qdisc_info("HW qdisc/class %p cannot be attached to nss qdisc/class\n", nq->qdisc);
+		return 0;
+	}
+
+	/*
+	 * Set the parent if current Qdisc is not a class.
+	 * For class, parent is set before invoking nss_qdisc_init in respective qdisc files.
+	 */
+	if ((parent_nq) && (!nq->is_class)) {
+		nq->parent = parent_nq;
+
+		/*
+		 * If parent is a class.
+		 */
+		if ((parent_nq) && (TC_H_MIN(parent))) {
+			parent_class = parent_qdisc->ops->cl_ops->get(parent_qdisc, parent);
+			nq->parent = (struct nss_qdisc *)parent_class;
+			parent_qdisc->ops->cl_ops->put(parent_qdisc, parent_class);
+		}
+	}
+
+	if (nss_ppe_init(sch, nq, type) < 0) {
+		if (nq->is_class) {
+			return -1;
+		}
+		nss_qdisc_info("Qdisc %p (type %d) initializing HW Qdisc failed, initializing NSS Qdisc \n",
+			nq->qdisc, nq->type);
+	}
+
+	return 0;
+}
+#endif
 
 /*
  * nss_qdisc_msg_init()
@@ -1379,14 +1444,16 @@ int nss_qdisc_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 
 	nss_qdisc_info("Qdisc %p (type %d) attaching\n",
 			nq->qdisc, nq->type);
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		if (nss_ppe_node_attach(nq, nq_child) < 0) {
+			nss_qdisc_warning("attach of new qdisc %p failed\n", nq_child->qdisc);
+			return -EINVAL;
 
-	/*
-	 * PPE Qdisc cannot be attached to NSS Qdisc.
-	 */
-	if ((nq->mode == NSS_QDISC_MODE_NSS) && (nq_child->mode != NSS_QDISC_MODE_NSS)) {
-		nss_qdisc_warning("Qdisc %p is not nss qdisc\n", nq_child->qdisc);
-		return -EINVAL;
+		}
+		nim->msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_attach.child_qos_tag = nq_child->qos_tag;
 	}
+#endif
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
@@ -1485,6 +1552,16 @@ int nss_qdisc_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 
 	nss_qdisc_info("Qdisc %p (type %d) detaching\n",
 			nq->qdisc, nq->type);
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		if (nss_ppe_node_detach(nq, nq_child) < 0) {
+			nss_qdisc_warning("detach of old qdisc %p failed\n", nq_child->qdisc);
+			return -1;
+		}
+		nim->msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_detach.child_qos_tag = nq_child->qos_tag;
+	}
+#endif
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
@@ -1647,6 +1724,11 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 	nss_qdisc_info("Qdisc %p (type %d) destroy\n",
 			nq->qdisc, nq->type);
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		nss_ppe_destroy(nq);
+	}
+#endif
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
@@ -1718,7 +1800,7 @@ EXPORT_SYMBOL(nss_qdisc_destroy);
  *	Initializes a shaper in NSS, based on the position of this qdisc (child or root)
  *	and if its a normal interface or a bridge interface.
  */
-int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_shaper_node_type_t type, uint32_t classid)
+int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid)
 {
 	struct Qdisc *root;
 	u32 parent;
@@ -1744,7 +1826,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 * Record our qdisc, mode and type in the private region for handy use
 	 */
 	nq->qdisc = sch;
-	nq->mode = mode;
+	nq->mode = NSS_QDISC_MODE_NSS;
 	nq->type = type;
 	/*
 	 * We dont have to destroy a virtual interface unless
@@ -1816,7 +1898,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 * The root must be of PPE or nss type.
 	 * This is to prevent mixing NSS and PPE qdisc with linux qdisc.
 	 */
-	if ((parent != TC_H_ROOT) && ((root->ops->owner != THIS_MODULE) && (root->ops->owner != nss_ppe_owner))) {
+	if ((parent != TC_H_ROOT) && (root->ops->owner != THIS_MODULE)) {
 		nss_qdisc_warning("NSS qdisc %p (type %d) used along with non-NSS/PPE qdiscs,"
 			" or the interface is currently down", nq->qdisc, nq->type);
 	}
@@ -1837,6 +1919,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 */
 	if (!nq->is_root) {
 		struct nss_if_msg nim_alloc;
+
 		nss_qdisc_info("Qdisc %p (type %d) initializing non-root qdisc\n",
 				nq->qdisc, nq->type);
 
@@ -1859,6 +1942,18 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		 * Set the virtual flag
 		 */
 		nq->is_virtual = nss_cmn_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+		/*
+		 * Try initializing PPE Qdisc first.
+		 */
+		if (nss_qdisc_ppe_init(sch, nq, type, parent) < 0) {
+			nss_qdisc_error("Qdisc %p (type %d) init failed", nq->qdisc, nq->type);
+			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
+			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
+			goto init_fail;
+		}
+#endif
 
 		/*
 		 * Create a shaper node for requested type.
@@ -2026,9 +2121,17 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		}
 	}
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
 	/*
-	 * We need to issue a command to establish a shaper on the interface.
+	 * Try initializing PPE Qdisc first.
 	 */
+	if (nss_qdisc_ppe_init(sch, nq, type, parent) < 0) {
+		nss_qdisc_error("Qdisc %p (type %d) init failed", nq->qdisc, nq->type);
+		nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
+		atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
+		goto init_fail;
+	}
+#endif
 
 	/*
 	 * Create and send the shaper assign message to the NSS interface
@@ -2089,6 +2192,12 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	}
 
 init_fail:
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		nss_ppe_destroy(nq);
+	}
+#endif
 
 	/*
 	 * Destroy any virtual interfaces created by us before returning a failure.
@@ -2223,7 +2332,7 @@ static void nss_qdisc_get_stats_timer_callback(unsigned long int data)
 	 * Check if we failed to send the stats request to NSS.
 	 */
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_info("%p: stats fetch request dropped, causing ",
+		nss_qdisc_info("%p: stats fetch request dropped, causing "
 				"delay in stats fetch\n", nq->qdisc);
 
 		/*
@@ -2310,16 +2419,6 @@ int nss_qdisc_gnet_stats_copy_queue(struct gnet_dump *d,
 EXPORT_SYMBOL(nss_qdisc_gnet_stats_copy_queue);
 
 /*
- * nss_qdisc_ppe_mod_owner_set()()
- *	Sets the nss_qdisc_ppe module owner.
- */
-void nss_qdisc_ppe_mod_owner_set(struct module *owner)
-{
-	nss_ppe_owner = owner;
-}
-EXPORT_SYMBOL(nss_qdisc_ppe_mod_owner_set);
-
-/*
  * nss_qdisc_if_event_cb()
  *	Callback function that is registered to listen to events on net_device.
  */
@@ -2330,6 +2429,7 @@ static int nss_qdisc_if_event_cb(struct notifier_block *unused,
 	struct net_device *br;
 	struct Qdisc *br_qdisc;
 	int if_num, br_num;
+	struct nss_qdisc *nq;
 
 	dev = nss_qdisc_get_dev(ptr);
 	if (!dev) {
@@ -2368,7 +2468,7 @@ static int nss_qdisc_if_event_cb(struct notifier_block *unused,
 		/*
 		 * Ensure we have nss qdisc configured on the bridge
 		 */
-		struct nss_qdisc *nq = (struct nss_qdisc *)qdisc_priv(br_qdisc);
+		nq = (struct nss_qdisc *)qdisc_priv(br_qdisc);
 		if ((nq->mode != NSS_QDISC_MODE_NSS) && (nq->mode != NSS_QDISC_MODE_PPE)) {
 			nss_qdisc_info("No action taken since nss qdisc is not configured on %s interface\n",
 					br->name);
@@ -2487,6 +2587,11 @@ static int __init nss_qdisc_module_init(void)
 		return ret;
 	nss_qdisc_info("nss qdisc device notifiers registered\n");
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	nss_ppe_port_res_alloc();
+	nss_qdisc_info("nss ppe qdsic configured");
+#endif
+
 	return 0;
 }
 
@@ -2538,6 +2643,11 @@ static void __exit nss_qdisc_module_exit(void)
 	nss_qdisc_info("nsswred unregistered\n");
 
 	unregister_netdevice_notifier(&nss_qdisc_device_notifier);
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	nss_ppe_port_res_free();
+	nss_qdisc_info("nss_ppe_port_res_free\n");
+#endif
 }
 
 module_init(nss_qdisc_module_init)

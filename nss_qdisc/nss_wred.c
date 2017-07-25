@@ -40,6 +40,7 @@ struct nss_wred_sched_data {
 						/* Parameters for each traffic class */
 	u8 ecn;					/* Mark ECN or drop pkt */
 	u8 weighted;				/* This is a wred or red */
+	u8 set_default;				/* Flag to set qdisc as default qdisc for enqueue */
 };
 
 /*
@@ -104,28 +105,87 @@ static const struct nla_policy nss_wred_policy[TCA_NSSWRED_MAX + 1] = {
 	[TCA_NSSWRED_PARMS] = { .len = sizeof(struct tc_nsswred_qopt) },
 };
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+/*
+ * nss_wred_ppe_change()
+ *	Function call to configure the nssred parameters for ppe qdisc.
+ */
+static int nss_wred_ppe_change(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct nss_wred_sched_data *q = qdisc_priv(sch);
+	struct nss_qdisc *nq = &q->nq;
+	struct nss_ppe_qdisc prev_npq;
+
+	/*
+	 * Save previous configuration for reset purpose.
+	 */
+	if (nq->npq.is_configured) {
+		prev_npq = nq->npq;
+	}
+
+	/*
+	 * PPE operates in terms of memory blocks, and each block
+	 * is NSS_PPE_MEM_BLOCK_SIZE bytes in size. Therefore we divide the
+	 * input parameters which are in bytes by NSS_PPE_MEM_BLOCK_SIZE to get
+	 * the number of memory blocks to assign.
+	 */
+	nq->npq.q.red_en = true;
+	nq->npq.q.color_en = false;
+	nq->npq.q.qlimit = q->nwtc[0].limit / NSS_PPE_MEM_BLOCK_SIZE;
+	nq->npq.q.min_th[NSS_PPE_COLOR_GREEN] = q->nwtc[0].rap.min / NSS_PPE_MEM_BLOCK_SIZE;
+	nq->npq.q.max_th[NSS_PPE_COLOR_GREEN] = q->nwtc[0].rap.max / NSS_PPE_MEM_BLOCK_SIZE;
+
+	/*
+	 * Currently multicast queue configuration is based on set_default.
+	 * TODO: Enhance multicast queue configuration on the basis of
+	 * multicast parameter specified in tc commands.
+	 */
+	nq->npq.q.mcast_enable = q->set_default;
+
+	if (nss_ppe_configure(&q->nq, &prev_npq) < 0) {
+		nss_qdisc_error("nss_wred %p configuration failed\n", sch);
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	if (nq->npq.is_configured) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Fallback to nss qdisc if PPE Qdisc configuration failed at init time.
+	 */
+	if (nss_ppe_fallback_to_nss(&q->nq, opt) < 0) {
+		return -EINVAL;
+	}
+	return 0;
+}
+#endif
+
 /*
  * nss_wred_change()
  *	Function call to configure the nsswred parameters
  */
 static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 {
-	struct nss_wred_sched_data *q;
+	struct nss_wred_sched_data *q = qdisc_priv(sch);
+	struct nss_qdisc *nq = &q->nq;
+
 	struct nlattr *na[TCA_NSSWRED_MAX + 1];
 	struct tc_nsswred_qopt *qopt;
 	int err;
 	struct nss_if_msg nim;
 
-	q = qdisc_priv(sch);
-
-	if (opt == NULL) {
+	if (!opt) {
 		return -EINVAL;
 	}
 	err = nla_parse_nested(na, TCA_NSSWRED_MAX, opt, nss_wred_policy);
 	if (err < 0) {
 		return err;
 	}
-	if (na[TCA_NSSWRED_PARMS] == NULL) {
+	if (!na[TCA_NSSWRED_PARMS]) {
 		return -EINVAL;
 	}
 	qopt = nla_data(na[TCA_NSSWRED_PARMS]);
@@ -193,6 +253,17 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 		q->nwtc[qopt->traffic_id].rap.probability = qopt->rap.probability;
 		q->nwtc[qopt->traffic_id].rap.exp_weight_factor = qopt->rap.exp_weight_factor;
 	}
+	q->set_default = qopt->set_default;
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		if (nss_wred_ppe_change(sch, opt) < 0) {
+			nss_qdisc_warning("nss_wred %p params validate and save failed\n", sch);
+			return -EINVAL;
+		}
+		return 0;
+	}
+#endif
 
 	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wred_param.limit = qopt->limit;
@@ -212,17 +283,16 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 		return -EINVAL;
 	}
 
-	if (qopt->set_default == 0)
+	if (q->set_default == 0)
 		return 0;
 
 	/*
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
-	*/
+	 */
 	if (nss_qdisc_set_default(&q->nq) < 0) {
 		nss_qdisc_error("nsswred %x set_default failed\n", sch->handle);
 		return -EINVAL;
 	}
-
 	nss_qdisc_info("nsswred queue (qos_tag:%u) set as default\n", q->nq.qos_tag);
 
 	return 0;
@@ -242,7 +312,7 @@ static int nss_wred_init(struct Qdisc *sch, struct nlattr *opt)
 	nss_qdisc_info("Initializing Wred - type %d\n", NSS_SHAPER_NODE_TYPE_WRED);
 	nss_wred_reset(sch);
 
-	if (nss_qdisc_init(sch, nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_WRED, 0) < 0)
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_WRED, 0) < 0)
 		return -EINVAL;
 
 	nss_qdisc_info("NSS wred initialized - handle %x parent %x\n", sch->handle, sch->parent);

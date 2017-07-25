@@ -163,7 +163,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * that is registered to Linux. Therefore we initialize the NSSWRR_GROUP shaper
 		 * here.
 		 */
-		if (nss_qdisc_init(sch, &cl->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid) < 0) {
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid) < 0) {
 			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			return -EINVAL;
 		}
@@ -506,7 +506,7 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	/*
 	 * Initialize the NSSWRR shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_WRR, 0) < 0)
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_WRR, 0) < 0)
 		return -EINVAL;
 
 	/*

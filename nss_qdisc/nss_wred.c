@@ -130,23 +130,23 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 	}
 	qopt = nla_data(na[TCA_NSSWRED_PARMS]);
 
-	nss_qdisc_info("%s: nsswred %x traffic_classes:%d def_traffic_class: %d Weight_Mode:%d ECN:%d\n",
-			__func__, sch->handle, qopt->traffic_classes, qopt->def_traffic_class, qopt->weight_mode, qopt->ecn);
+	nss_qdisc_info("nsswred %x traffic_classes:%d def_traffic_class: %d Weight_Mode:%d ECN:%d\n",
+			sch->handle, qopt->traffic_classes, qopt->def_traffic_class, qopt->weight_mode, qopt->ecn);
 
 	if (qopt->traffic_classes) {
 		/*
 		 * This is a wred setup command, do checks again because parameters might not come from tc utility
 		 */
 		if (qopt->traffic_classes > NSS_WRED_SUPPORT_TRAFFIC_CLASS) {
-			nss_qdisc_error("%s: nsswred %x traffic classes should not exceeds %d\n", __func__, sch->handle, NSS_WRED_SUPPORT_TRAFFIC_CLASS);
+			nss_qdisc_error("nsswred %x traffic classes should not exceeds %d\n", sch->handle, NSS_WRED_SUPPORT_TRAFFIC_CLASS);
 			return -EINVAL;
 		}
 		if (qopt->def_traffic_class < 1 || qopt->def_traffic_class > qopt->traffic_classes) {
-			nss_qdisc_error("%s: nsswred %x invalid default traffic\n", __func__, sch->handle);
+			nss_qdisc_error("nsswred %x invalid default traffic\n", sch->handle);
 			return -EINVAL;
 		}
 		if (qopt->weight_mode >= TC_NSSWRED_WEIGHT_MODES) {
-			nss_qdisc_error("%s: nsswred %x invalid weight_mode\n", __func__, sch->handle);
+			nss_qdisc_error("nsswred %x invalid weight_mode\n", sch->handle);
 			return -EINVAL;
 		}
 		q->traffic_classes = qopt->traffic_classes ;
@@ -160,11 +160,11 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 			 * This is a wred traffic class command
 			 */
 			if (!q->traffic_classes) {
-				nss_qdisc_error("%s: nsswred %x not setup yet, can't accept traffic class configuration\n", __func__, sch->handle);
+				nss_qdisc_error("nsswred %x not setup yet, can't accept traffic class configuration\n", sch->handle);
 				return -EINVAL;
 			}
 			if (!qopt->limit || !qopt->rap.min || !qopt->rap.max || !qopt->weight_mode_value || !qopt->rap.exp_weight_factor) {
-				nss_qdisc_error("%s: nsswred %x Requires RED algorithm parameters and weight_mode_value\n", __func__, sch->handle);
+				nss_qdisc_error("nsswred %x Requires RED algorithm parameters and weight_mode_value\n", sch->handle);
 				return -EINVAL;
 			}
 		} else {
@@ -172,7 +172,7 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 			 * This is a red setup command
 			 */
 			if (!qopt->limit || !qopt->rap.exp_weight_factor) {
-				nss_qdisc_error("%s: nsswred %x Requires RED algorithm parameters\n", __func__, sch->handle);
+				nss_qdisc_error("nsswred %x Requires RED algorithm parameters\n", sch->handle);
 				return -EINVAL;
 			}
 			/*
@@ -208,7 +208,7 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wred_param.traffic_id = qopt->traffic_id;
 
 	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("%s: nsswred %x configuration failed\n", __func__, sch->handle);
+		nss_qdisc_error("nsswred %x configuration failed\n", sch->handle);
 		return -EINVAL;
 	}
 
@@ -219,11 +219,11 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
 	*/
 	if (nss_qdisc_set_default(&q->nq) < 0) {
-		nss_qdisc_error("%s: nsswred %x set_default failed\n", __func__, sch->handle);
+		nss_qdisc_error("nsswred %x set_default failed\n", sch->handle);
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("%s: nsswred queue (qos_tag:%u) set as default\n", __func__, q->nq.qos_tag);
+	nss_qdisc_info("nsswred queue (qos_tag:%u) set as default\n", q->nq.qos_tag);
 
 	return 0;
 }

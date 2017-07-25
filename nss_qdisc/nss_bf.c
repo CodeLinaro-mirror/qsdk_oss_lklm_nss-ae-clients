@@ -50,7 +50,7 @@ static inline struct nss_bf_class_data *nss_bf_find_class(u32 classid,
 	struct Qdisc_class_common *clc;
 	clc = qdisc_class_find(&q->clhash, classid);
 	if (clc == NULL) {
-		nss_qdisc_info("%s: cannot find class with classid %u in qdisc %p hash table %p\n", __func__, classid, sch, &q->clhash);
+		nss_qdisc_info("Cannot find class with classid %u in qdisc %p hash table %p\n", classid, sch, &q->clhash);
 		return NULL;
 	}
 	return container_of(clc, struct nss_bf_class_data, cl_common);
@@ -79,7 +79,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	struct nss_if_msg nim_config;
 	struct net_device *dev = qdisc_dev(sch);
 
-	nss_qdisc_info("%s: Changing bf class %u\n", __func__, classid);
+	nss_qdisc_info("Changing bf class %u\n", classid);
 	if (opt == NULL)
 		return -EINVAL;
 
@@ -95,15 +95,15 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	 */
 	if (!cl) {
 		struct nss_if_msg nim_attach;
-		nss_qdisc_info("%s: Bf class %u not found. Allocating a new class.\n", __func__, classid);
+		nss_qdisc_info("Bf class %u not found. Allocating a new class.\n", classid);
 		cl = kzalloc(sizeof(struct nss_bf_class_data), GFP_KERNEL);
 
 		if (!cl) {
-			nss_qdisc_error("%s: Class allocation failed for classid %u\n", __func__, classid);
+			nss_qdisc_error("Class allocation failed for classid %u\n", classid);
 			return -EINVAL;
 		}
 
-		nss_qdisc_info("%s: Bf class %u allocated %p\n", __func__, classid, cl);
+		nss_qdisc_info("Bf class %u allocated %p\n", classid, cl);
 		cl->cl_common.classid = classid;
 
 		/*
@@ -115,7 +115,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		atomic_set(&cl->nq.refcnt, 1);
 		*arg = (unsigned long)cl;
 
-		nss_qdisc_info("%s: Adding classid %u to qdisc %p hash queue %p\n", __func__, classid, sch, &q->clhash);
+		nss_qdisc_info("Adding classid %u to qdisc %p hash queue %p\n", classid, sch, &q->clhash);
 
 		/*
 		 * This is where a class gets initialized. Classes do not have a init function
@@ -123,7 +123,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * here.
 		 */
 		if (nss_qdisc_init(sch, &cl->nq, NSS_QDISC_MODE_NSS, NSS_SHAPER_NODE_TYPE_BF_GROUP, classid) < 0) {
-			nss_qdisc_error("%s: Nss init for class %u failed\n", __func__, classid);
+			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			kfree(cl);
 			return -EINVAL;
 		}
@@ -143,7 +143,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		if (nss_qdisc_node_attach(&q->nq, &cl->nq, &nim_attach,
 				NSS_SHAPER_CONFIG_TYPE_BF_ATTACH) < 0) {
-			nss_qdisc_error("%s: Nss attach for class %u failed\n", __func__, classid);
+			nss_qdisc_error("Nss attach for class %u failed\n", classid);
 			nss_qdisc_destroy(&cl->nq);
 			kfree(cl);
 			return -EINVAL;
@@ -166,7 +166,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		nss_qdisc_start_basic_stats_polling(&cl->nq);
 
-		nss_qdisc_info("%s: Class %u successfully allocated\n", __func__, classid);
+		nss_qdisc_info("Class %u successfully allocated\n", classid);
 	}
 
 	qopt = nla_data(na[TCA_NSSBF_CLASS_PARMS]);
@@ -215,11 +215,11 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	 */
 	if (nss_qdisc_configure(&cl->nq, &nim_config,
 			NSS_SHAPER_CONFIG_TYPE_BF_GROUP_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("%s: Failed to configure class %u\n", __func__, classid);
+		nss_qdisc_error("Failed to configure class %u\n", classid);
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("%s: Class %u changed successfully\n", __func__, classid);
+	nss_qdisc_info("Class %u changed successfully\n", classid);
 	return 0;
 }
 
@@ -241,8 +241,8 @@ static void nss_bf_destroy_class(struct Qdisc *sch, struct nss_bf_class_data *cl
 	 * only for the root qdisc.
 	 */
 	if (cl == &q->root) {
-		nss_qdisc_info("%s: We do not destroy bf class %p here since this is "
-				"the qdisc %p\n", __func__, cl, sch);
+		nss_qdisc_info("We do not destroy bf class %p here since this is "
+				"the qdisc %p\n", cl, sch);
 		return;
 	}
 
@@ -254,8 +254,8 @@ static void nss_bf_destroy_class(struct Qdisc *sch, struct nss_bf_class_data *cl
 		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		if (nss_qdisc_node_detach(&cl->nq, nq_child, &nim,
 				NSS_SHAPER_CONFIG_TYPE_BF_GROUP_DETACH) < 0) {
-			nss_qdisc_error("%s: Failed to detach child %x from class %x\n",
-					__func__, cl->qdisc->handle, q->nq.qos_tag);
+			nss_qdisc_error("Failed to detach child %x from class %x\n",
+					cl->qdisc->handle, q->nq.qos_tag);
 			return;
 		}
 	}
@@ -303,7 +303,7 @@ static int nss_bf_delete_class(struct Qdisc *sch, unsigned long arg)
 	/*
 	 * The message to NSS should be sent to the parent of this class
 	 */
-	nss_qdisc_info("%s: Detaching bf class: %p\n", __func__, cl);
+	nss_qdisc_info("Detaching bf class: %p\n", cl);
 	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.bf_detach.child_qos_tag = cl->nq.qos_tag;
 	if (nss_qdisc_node_detach(&q->nq, nq_child, &nim,
@@ -317,7 +317,7 @@ static int nss_bf_delete_class(struct Qdisc *sch, unsigned long arg)
 	refcnt = atomic_sub_return(1, &cl->nq.refcnt);
 	sch_tree_unlock(sch);
 	if (!refcnt) {
-		nss_qdisc_error("%s: Reference count should not be zero for class %p\n", __func__, cl);
+		nss_qdisc_error("Reference count should not be zero for class %p\n", cl);
 	}
 
 	return 0;
@@ -339,7 +339,7 @@ static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc
 	nss_qdisc_info("Grafting class %p\n", sch);
 
 	if (cl == &q->root) {
-		nss_qdisc_error("%p: Can't graft root class\n", cl);
+		nss_qdisc_error("Can't graft root class %p\n", cl);
 		return -EINVAL;
 	}
 
@@ -354,10 +354,10 @@ static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc
 	 * Since we initially attached a noop qdisc as child (in Linux),
 	 * we do not perform a detach in the NSS if its a noop qdisc.
 	 */
-	nss_qdisc_info("%s:Grafting old: %p with new: %p\n", __func__, *old, new);
+	nss_qdisc_info("Grafting old: %p with new: %p\n", *old, new);
 	if (*old != &noop_qdisc) {
 		struct nss_qdisc *nq_old = (struct nss_qdisc *)qdisc_priv(*old);
-		nss_qdisc_info("%s: Detaching old: %p\n", __func__, *old);
+		nss_qdisc_info("Detaching old: %p\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		if (nss_qdisc_node_detach(&cl->nq, nq_old, &nim_detach,
 				NSS_SHAPER_CONFIG_TYPE_BF_GROUP_DETACH) < 0) {
@@ -370,7 +370,7 @@ static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc
 	 * to the NSS.
 	 */
 	if (new != &noop_qdisc) {
-		nss_qdisc_info("%s: Attaching new: %p\n", __func__, new);
+		nss_qdisc_info("Attaching new: %p\n", new);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.bf_group_attach.child_qos_tag = nq_new->qos_tag;
 		if (nss_qdisc_node_attach(&cl->nq, nq_new, &nim_attach,
@@ -637,8 +637,8 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
 			 * care of by the nss_bf_destroy() function.
 			 */
 			if (cl == &q->root) {
-				nss_qdisc_info("%s: We do not detach or destroy bf class %p here since this is "
-						"the qdisc %p\n", __func__, cl, sch);
+				nss_qdisc_info("We do not detach or destroy bf class %p here since this is "
+						"the qdisc %p\n", cl, sch);
 				continue;
 			}
 
@@ -656,8 +656,8 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
 			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.bf_detach.child_qos_tag = cl->nq.qos_tag;
 			if (nss_qdisc_node_detach(&q->nq, &cl->nq, &nim,
 					NSS_SHAPER_CONFIG_TYPE_BF_DETACH) < 0) {
-				nss_qdisc_error("%s: Node detach failed for qdisc %x class %x\n",
-							__func__, cl->nq.qos_tag, q->nq.qos_tag);
+				nss_qdisc_error("Node detach failed for qdisc %x class %x\n",
+							cl->nq.qos_tag, q->nq.qos_tag);
 				return;
 			}
 

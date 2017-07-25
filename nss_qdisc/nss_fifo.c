@@ -96,13 +96,13 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	sch->limit = qopt->limit;
 
 	q->set_default = qopt->set_default;
-	nss_qdisc_info("%s: limit:%u set_default:%u\n", __func__, qopt->limit, qopt->set_default);
+	nss_qdisc_info("limit:%u set_default:%u\n", qopt->limit, qopt->set_default);
 
 	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.limit = q->limit;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.drop_mode = NSS_SHAPER_FIFO_DROP_MODE_TAIL;
 	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_FIFO_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("%s: nss_fifo %p configuration failed\n", __func__, sch);
+		nss_qdisc_error("nss_fifo %p configuration failed\n", sch);
 		return -EINVAL;
 	}
 
@@ -117,11 +117,11 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
 	 */
 	if (nss_qdisc_set_default(&q->nq) < 0) {
-		nss_qdisc_error("%s: nss_fifo %p set_default failed\n", __func__, sch);
+		nss_qdisc_error("nss_fifo %p set_default failed\n", sch);
 		return -EINVAL;
 	}
 
-	nss_qdisc_info("%s: nss_fifo queue (qos_tag:%u) set as default\n", __func__, q->nq.qos_tag);
+	nss_qdisc_info("nss_fifo queue (qos_tag:%u) set as default\n", q->nq.qos_tag);
 	return 0;
 }
 

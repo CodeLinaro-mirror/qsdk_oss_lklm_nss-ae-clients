@@ -67,7 +67,7 @@ static inline int nss_qdisc_get_interface_msg(bool is_bridge, uint32_t msg_type)
 		case NSS_QDISC_IF_SHAPER_CONFIG:
 			return NSS_IF_BSHAPER_CONFIG;
 		default:
-			nss_qdisc_info("%s: Unknown message type for a bridge - type %d", __func__, msg_type);
+			nss_qdisc_info("Unknown message type for a bridge - type %d", msg_type);
 			return -1;
 		}
 	} else {
@@ -79,7 +79,7 @@ static inline int nss_qdisc_get_interface_msg(bool is_bridge, uint32_t msg_type)
 		case NSS_QDISC_IF_SHAPER_CONFIG:
 			return NSS_IF_ISHAPER_CONFIG;
 		default:
-			nss_qdisc_info("%s: Unknown message type for an interface - type %d", __func__, msg_type);
+			nss_qdisc_info("Unknown message type for an interface - type %d", msg_type);
 			return -1;
 		}
 	}
@@ -95,14 +95,14 @@ static void nss_qdisc_attach_bshaper_callback(void *app_data, struct nss_if_msg 
 	struct nss_qdisc *nq = qdisc_priv(sch);
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_warning("%s: B-shaper attach FAILED - response: %d\n", __func__,
+		nss_qdisc_warning("B-shaper attach FAILED - response: %d\n",
 				nim->cm.error);
 		atomic_set(&nq->state, NSS_QDISC_STATE_FAILED_RESPONSE);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: B-shaper attach SUCCESS\n", __func__);
+	nss_qdisc_info("B-shaper attach SUCCESS\n");
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
 }
@@ -117,13 +117,13 @@ static int nss_qdisc_attach_bshaper(struct Qdisc *sch, uint32_t if_num)
 	struct nss_qdisc *nq = (struct nss_qdisc *)qdisc_priv(sch);
 	int32_t state, rc;
 
-	nss_qdisc_info("%s: Attaching B-shaper %u to interface %u\n", __func__,
+	nss_qdisc_info("Attaching B-shaper %u to interface %u\n",
 			nq->shaper_id, if_num);
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: qdisc %p (type %d) is not ready: State - %d\n",
-				__func__, sch, nq->type, state);
+		nss_qdisc_warning("qdisc %p (type %d) is not ready: State - %d\n",
+				sch, nq->type, state);
 		return -1;
 	}
 
@@ -147,8 +147,8 @@ static int nss_qdisc_attach_bshaper(struct Qdisc *sch, uint32_t if_num)
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_warning("%s: Failed to send bshaper (id: %u) attach for "
-				"interface(if_num: %u)\n", __func__, nq->shaper_id, if_num);
+		nss_qdisc_warning("Failed to send bshaper (id: %u) attach for "
+				"interface(if_num: %u)\n", nq->shaper_id, if_num);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -159,22 +159,22 @@ static int nss_qdisc_attach_bshaper(struct Qdisc *sch, uint32_t if_num)
 	 */
 	if (!wait_event_timeout(nq->wait_queue, atomic_read(&nq->state) != NSS_QDISC_STATE_IDLE,
 				NSS_QDISC_COMMAND_TIMEOUT)) {
-		nss_qdisc_error("%s: bshaper attach command for %x on interface %u timedout!\n",
-					__func__, nq->qos_tag, if_num);
+		nss_qdisc_error("bshaper attach command for %x on interface %u timedout!\n",
+					nq->qos_tag, if_num);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_error("%s: Failed to attach B-shaper %u to interface %u - state: %d\n",
-				__func__, nq->shaper_id, if_num, state);
+		nss_qdisc_error("Failed to attach B-shaper %u to interface %u - state: %d\n",
+				nq->shaper_id, if_num, state);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
 
-	nss_qdisc_info("%s: Attach of B-shaper %u to interface %u is complete\n",
-			__func__, nq->shaper_id, if_num);
+	nss_qdisc_info("Attach of B-shaper %u to interface %u is complete\n",
+			nq->shaper_id, if_num);
 	return 0;
 }
 
@@ -188,14 +188,14 @@ static void nss_qdisc_detach_bshaper_callback(void *app_data, struct nss_if_msg 
 	struct nss_qdisc *nq = qdisc_priv(sch);
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_error("%s: B-shaper detach FAILED - response: %d\n",
-				__func__, nim->cm.error);
+		nss_qdisc_error("B-shaper detach FAILED - response: %d\n",
+				nim->cm.error);
 		atomic_set(&nq->state, NSS_QDISC_STATE_FAILED_RESPONSE);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: B-shaper detach SUCCESS\n", __func__);
+	nss_qdisc_info("B-shaper detach SUCCESS\n");
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
 }
@@ -210,13 +210,13 @@ static int nss_qdisc_detach_bshaper(struct Qdisc *sch, uint32_t if_num)
 	struct nss_qdisc *nq = (struct nss_qdisc *)qdisc_priv(sch);
 	int32_t state, rc;
 
-	nss_qdisc_info("%s: Detaching B-shaper %u from interface %u\n",
-			__func__, nq->shaper_id, if_num);
+	nss_qdisc_info("Detaching B-shaper %u from interface %u\n",
+			nq->shaper_id, if_num);
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: qdisc %p (type %d) is not ready: %d\n",
-				__func__, sch, nq->type, state);
+		nss_qdisc_warning("qdisc %p (type %d) is not ready: %d\n",
+				sch, nq->type, state);
 		return -1;
 	}
 
@@ -236,8 +236,8 @@ static int nss_qdisc_detach_bshaper(struct Qdisc *sch, uint32_t if_num)
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_warning("%s: Failed to send B-shaper (id: %u) detach "
-			"for interface(if_num: %u)\n", __func__, nq->shaper_id, if_num);
+		nss_qdisc_warning("Failed to send B-shaper (id: %u) detach "
+			"for interface(if_num: %u)\n", nq->shaper_id, if_num);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -248,22 +248,22 @@ static int nss_qdisc_detach_bshaper(struct Qdisc *sch, uint32_t if_num)
 	 */
 	if (!wait_event_timeout(nq->wait_queue, atomic_read(&nq->state) != NSS_QDISC_STATE_IDLE,
 				NSS_QDISC_COMMAND_TIMEOUT)) {
-		nss_qdisc_error("%s: bshaper detach command for %x on interface %u timedout!\n",
-					__func__, nq->qos_tag, if_num);
+		nss_qdisc_error("bshaper detach command for %x on interface %u timedout!\n",
+					nq->qos_tag, if_num);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_error("%s: Failed to detach B-shaper %u from interface %u - state %d\n",
-				__func__, nq->shaper_id, if_num, state);
+		nss_qdisc_error("Failed to detach B-shaper %u from interface %u - state %d\n",
+				nq->shaper_id, if_num, state);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
 
-	nss_qdisc_info("%s: Detach of B-shaper %u to interface %u is complete.",
-			__func__, nq->shaper_id, if_num);
+	nss_qdisc_info("Detach of B-shaper %u to interface %u is complete.",
+			nq->shaper_id, if_num);
 
 	return 0;
 }
@@ -282,8 +282,8 @@ static int nss_qdisc_refresh_bshaper_assignment(struct Qdisc *br_qdisc,
 	int i;
 
 	if ((br_qdisc->parent != TC_H_ROOT) && (br_qdisc->parent != TC_H_UNSPEC)) {
-		nss_qdisc_error("%s: Qdisc not root qdisc for the bridge interface: "
-				"Handle - %x", __func__, br_qdisc->parent);
+		nss_qdisc_error("Qdisc not root qdisc for the bridge interface: "
+				"Handle - %x", br_qdisc->parent);
 		return -1;
 	}
 
@@ -302,7 +302,7 @@ static int nss_qdisc_refresh_bshaper_assignment(struct Qdisc *br_qdisc,
 		struct net_bridge_port *br_port;
 		int nss_if_num;
 
-		nss_qdisc_info("%s: Scanning device %s", __func__, dev->name);
+		nss_qdisc_info("Scanning device %s", dev->name);
 
 		rcu_read_lock();
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0))
@@ -336,7 +336,7 @@ static int nss_qdisc_refresh_bshaper_assignment(struct Qdisc *br_qdisc,
 			goto nextdev;
 		}
 
-		nss_qdisc_info("%s: Will be linking/unlinking %s to/from bridge %s\n", __func__,
+		nss_qdisc_info("Will be linking/unlinking %s to/from bridge %s\n",
 						dev->name, br_dev->name);
 		br_update.port_list[br_update.port_list_count++] = nss_if_num;
 nextdev:
@@ -344,7 +344,7 @@ nextdev:
 	}
 	read_unlock(&dev_base_lock);
 
-	nss_qdisc_info("%s: List count %d\n", __func__, br_update.port_list_count);
+	nss_qdisc_info("List count %d\n", br_update.port_list_count);
 
 	if (task == NSS_QDISC_SCAN_AND_ASSIGN_BSHAPER) {
 		/*
@@ -352,17 +352,17 @@ nextdev:
 		 */
 		for (i = 0; i < br_update.port_list_count; i++) {
 			if (nss_qdisc_attach_bshaper(br_qdisc, br_update.port_list[i]) >= 0) {
-				nss_qdisc_info("%s: Interface %u added to bridge %s\n",
-					__func__, br_update.port_list[i], br_dev->name);
+				nss_qdisc_info("Interface %u added to bridge %s\n",
+					br_update.port_list[i], br_dev->name);
 				continue;
 			}
-			nss_qdisc_error("%s: Unable to attach bshaper with shaper-id: %u, "
-				"to interface if_num: %d\n", __func__, nq->shaper_id,
+			nss_qdisc_error("Unable to attach bshaper with shaper-id: %u, "
+				"to interface if_num: %d\n", nq->shaper_id,
 				br_update.port_list[i]);
 			br_update.unassign_count = i;
 			break;
 		}
-		nss_qdisc_info("%s: Unassign count %d\n", __func__, br_update.unassign_count);
+		nss_qdisc_info("Unassign count %d\n", br_update.unassign_count);
 		if (br_update.unassign_count == 0) {
 			return 0;
 		}
@@ -374,12 +374,12 @@ nextdev:
 			if (nss_qdisc_detach_bshaper(br_qdisc, br_update.port_list[i]) >= 0) {
 				continue;
 			}
-			nss_qdisc_error("%s: Unable to detach bshaper with shaper-id: %u, "
-				"from interface if_num: %d\n", __func__, nq->shaper_id,
+			nss_qdisc_error("Unable to detach bshaper with shaper-id: %u, "
+				"from interface if_num: %d\n", nq->shaper_id,
 				br_update.port_list[i]);
 		}
 
-		nss_qdisc_info("%s: Failed to link interfaces to bridge\n", __func__);
+		nss_qdisc_info("Failed to link interfaces to bridge\n");
 		return -1;
 	} else if (task == NSS_QDISC_SCAN_AND_UNASSIGN_BSHAPER) {
 		/*
@@ -387,12 +387,12 @@ nextdev:
 		 */
 		for (i = 0; i < br_update.port_list_count; i++) {
 			if (nss_qdisc_detach_bshaper(br_qdisc, br_update.port_list[i]) >= 0) {
-				nss_qdisc_info("%s: Interface %u removed from bridge %s\n",
-					__func__, br_update.port_list[i], br_dev->name);
+				nss_qdisc_info("Interface %u removed from bridge %s\n",
+					br_update.port_list[i], br_dev->name);
 				continue;
 			}
-			nss_qdisc_error("%s: Unable to detach bshaper with shaper-id: %u, "
-				"from interface if_num: %d\n", __func__, nq->shaper_id,
+			nss_qdisc_error("Unable to detach bshaper with shaper-id: %u, "
+				"from interface if_num: %d\n", nq->shaper_id,
 				br_update.port_list[i]);
 		}
 	}
@@ -407,7 +407,7 @@ nextdev:
  */
 static void nss_qdisc_root_cleanup_final(struct nss_qdisc *nq)
 {
-	nss_qdisc_info("%s: Root qdisc %p (type %d) final cleanup\n", __func__,
+	nss_qdisc_info("Root qdisc %p (type %d) final cleanup\n",
 				nq->qdisc, nq->type);
 
 	/*
@@ -418,7 +418,7 @@ static void nss_qdisc_root_cleanup_final(struct nss_qdisc *nq)
 		/*
 		 * Unregister for bouncing to the NSS for bridge shaping
 		 */
-		nss_qdisc_info("%s: Unregister for bridge bouncing: %p\n", __func__,
+		nss_qdisc_info("Unregister for bridge bouncing: %p\n",
 				nq->bounce_context);
 		nss_shaper_unregister_shaper_bounce_bridge(nq->nss_interface_number);
 
@@ -426,8 +426,8 @@ static void nss_qdisc_root_cleanup_final(struct nss_qdisc *nq)
 		 * Unregister the virtual interface we use to act as shaper
 		 * for bridge shaping.
 		 */
-		nss_qdisc_info("%s: Release root bridge virtual interface: %p\n",
-				__func__, nq->virt_if_ctx);
+		nss_qdisc_info("Release root bridge virtual interface: %p\n",
+				nq->virt_if_ctx);
 	}
 
 	/*
@@ -439,15 +439,15 @@ static void nss_qdisc_root_cleanup_final(struct nss_qdisc *nq)
 		/*
 		 * Unregister for interface bouncing of packets
 		 */
-		nss_qdisc_info("%s: Unregister for interface bouncing: %p\n",
-				__func__, nq->bounce_context);
+		nss_qdisc_info("Unregister for interface bouncing: %p\n",
+				nq->bounce_context);
 		nss_shaper_unregister_shaper_bounce_interface(nq->nss_interface_number);
 	}
 
 	/*
 	 * Finally unregister for shaping
 	 */
-	nss_qdisc_info("%s: Unregister for shaping\n", __func__);
+	nss_qdisc_info("Unregister for shaping\n");
 	nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 
 	/*
@@ -466,7 +466,7 @@ static void nss_qdisc_root_cleanup_shaper_unassign_callback(void *app_data,
 {
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_error("%s: Root qdisc %p (type %d) shaper unsassign FAILED\n", __func__, nq->qdisc, nq->type);
+		nss_qdisc_error("Root qdisc %p (type %d) shaper unsassign FAILED\n", nq->qdisc, nq->type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_UNASSIGN_SHAPER_FAIL);
 		wake_up(&nq->wait_queue);
 		return;
@@ -485,8 +485,8 @@ static void nss_qdisc_root_cleanup_shaper_unassign(struct nss_qdisc *nq)
 	nss_tx_status_t rc;
 	int msg_type;
 
-	nss_qdisc_info("%s: Root qdisc %p (type %d): shaper unassign: %d\n",
-			__func__, nq->qdisc, nq->type, nq->shaper_id);
+	nss_qdisc_info("Root qdisc %p (type %d): shaper unassign: %d\n",
+			nq->qdisc, nq->type, nq->shaper_id);
 
 	msg_type = nss_qdisc_get_interface_msg(nq->is_bridge, NSS_QDISC_IF_SHAPER_UNASSIGN);
 	nss_qdisc_msg_init(&nim, nq->nss_interface_number, msg_type,
@@ -503,8 +503,8 @@ static void nss_qdisc_root_cleanup_shaper_unassign(struct nss_qdisc *nq)
 		return;
 	}
 
-	nss_qdisc_error("%s: Root qdisc %p (type %d): unassign command send failed: "
-		"%d, shaper id: %d\n", __func__, nq->qdisc, nq->type, rc, nq->shaper_id);
+	nss_qdisc_error("Root qdisc %p (type %d): unassign command send failed: "
+		"%d, shaper id: %d\n", nq->qdisc, nq->type, rc, nq->shaper_id);
 
 	atomic_set(&nq->state, NSS_QDISC_STATE_UNASSIGN_SHAPER_SEND_FAIL);
 	wake_up(&nq->wait_queue);
@@ -519,16 +519,16 @@ static void nss_qdisc_root_cleanup_free_node_callback(void *app_data,
 {
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_error("%s: Root qdisc %p (type %d) free FAILED response "
-					"type: %d\n", __func__, nq->qdisc, nq->type,
+		nss_qdisc_error("Root qdisc %p (type %d) free FAILED response "
+					"type: %d\n", nq->qdisc, nq->type,
 					nim->msg.shaper_configure.config.response_type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_NODE_FREE_FAIL);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: Root qdisc %p (type %d) free SUCCESS - response "
-			"type: %d\n", __func__, nq->qdisc, nq->type,
+	nss_qdisc_info("Root qdisc %p (type %d) free SUCCESS - response "
+			"type: %d\n", nq->qdisc, nq->type,
 			nim->msg.shaper_configure.config.response_type);
 
 	nss_qdisc_root_cleanup_shaper_unassign(nq);
@@ -544,8 +544,8 @@ static void nss_qdisc_root_cleanup_free_node(struct nss_qdisc *nq)
 	nss_tx_status_t rc;
 	int msg_type;
 
-	nss_qdisc_info("%s: Root qdisc %p (type %d): freeing shaper node\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Root qdisc %p (type %d): freeing shaper node\n",
+			nq->qdisc, nq->type);
 
 	/*
 	 * Construct and send the shaper configure message down to the NSS interface
@@ -566,8 +566,8 @@ static void nss_qdisc_root_cleanup_free_node(struct nss_qdisc *nq)
 		return;
 	}
 
-	nss_qdisc_error("%s: Qdisc %p (type %d): free command send "
-		"failed: %d, qos tag: %x\n", __func__, nq->qdisc, nq->type,
+	nss_qdisc_error("Qdisc %p (type %d): free command send "
+		"failed: %d, qos tag: %x\n", nq->qdisc, nq->type,
 		rc, nq->qos_tag);
 
 	atomic_set(&nq->state, NSS_QDISC_STATE_NODE_FREE_SEND_FAIL);
@@ -584,16 +584,16 @@ static void nss_qdisc_root_init_root_assign_callback(void *app_data,
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_warning("%s: Root assign FAILED for qdisc %p (type %d), "
-			"response type: %d\n", __func__, nq->qdisc, nq->type,
+		nss_qdisc_warning("Root assign FAILED for qdisc %p (type %d), "
+			"response type: %d\n", nq->qdisc, nq->type,
 			nim->msg.shaper_configure.config.response_type);
 		nq->pending_final_state = NSS_QDISC_STATE_ROOT_SET_FAIL;
 		nss_qdisc_root_cleanup_free_node(nq);
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): set as root is done. Response - %d"
-			, __func__, nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
+	nss_qdisc_info("Qdisc %p (type %d): set as root is done. Response - %d"
+			, nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
 }
@@ -610,8 +610,8 @@ static void nss_qdisc_root_init_alloc_node_callback(void *app_data,
 	int msg_type;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_info("%s: Qdisc %p (type %d) root alloc node FAILED "
-			"response type: %d\n", __func__, nq->qdisc, nq->type,
+		nss_qdisc_info("Qdisc %p (type %d) root alloc node FAILED "
+			"response type: %d\n", nq->qdisc, nq->type,
 			nim->msg.shaper_configure.config.response_type);
 
 		nq->pending_final_state = NSS_QDISC_STATE_NODE_ALLOC_FAIL;
@@ -623,8 +623,8 @@ static void nss_qdisc_root_init_alloc_node_callback(void *app_data,
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d), shaper node alloc success: %u\n",
-				__func__, nq->qdisc, nq->type, nq->shaper_id);
+	nss_qdisc_info("Qdisc %p (type %d), shaper node alloc success: %u\n",
+				nq->qdisc, nq->type, nq->shaper_id);
 
 	/*
 	 * Create and send shaper configure message to the NSS interface
@@ -642,8 +642,8 @@ static void nss_qdisc_root_init_alloc_node_callback(void *app_data,
 		return;
 	}
 
-	nss_qdisc_warning("%s: Root assign send command failed: %d\n",
-			__func__, rc);
+	nss_qdisc_warning("Root assign send command failed: %d\n",
+			rc);
 
 	nq->pending_final_state = NSS_QDISC_STATE_ROOT_SET_SEND_FAIL;
 	nss_qdisc_root_cleanup_free_node(nq);
@@ -661,8 +661,8 @@ static void nss_qdisc_root_init_shaper_assign_callback(void *app_data,
 	int msg_type;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_warning("%s: Qdisc %x (type %d): shaper assign failed - phys_if response type: %d\n",
-			__func__, nq->qos_tag, nq->type, nim->cm.error);
+		nss_qdisc_warning("Qdisc %x (type %d): shaper assign failed - phys_if response type: %d\n",
+			nq->qos_tag, nq->type, nim->cm.error);
 		/*
 		 * Unable to assign a shaper, perform cleanup from final stage
 		 */
@@ -672,20 +672,20 @@ static void nss_qdisc_root_init_shaper_assign_callback(void *app_data,
 	}
 
 	if (nim->cm.type != NSS_IF_ISHAPER_ASSIGN && nim->cm.type != NSS_IF_BSHAPER_ASSIGN) {
-		nss_qdisc_error("%s: Qdisc %x (type %d): shaper assign callback received garbage: %d\n",
-			__func__, nq->qos_tag, nq->type, nim->cm.type);
+		nss_qdisc_error("Qdisc %x (type %d): shaper assign callback received garbage: %d\n",
+			nq->qos_tag, nq->type, nim->cm.type);
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %x (type %d): shaper assign callback received sane message: %d\n",
-		__func__, nq->qos_tag, nq->type, nim->cm.type);
+	nss_qdisc_info("Qdisc %x (type %d): shaper assign callback received sane message: %d\n",
+		nq->qos_tag, nq->type, nim->cm.type);
 
 	/*
 	 * Shaper has been allocated and assigned
 	 */
 	nq->shaper_id = nim->msg.shaper_assign.new_shaper_id;
-	nss_qdisc_info("%s: Qdisc %p (type %d), shaper assigned: %u\n",
-				__func__, nq->qdisc, nq->type, nq->shaper_id);
+	nss_qdisc_info("Qdisc %p (type %d), shaper assigned: %u\n",
+				nq->qdisc, nq->type, nq->shaper_id);
 
 	/*
 	 * Create and send the shaper configure message to the NSS interface
@@ -706,8 +706,8 @@ static void nss_qdisc_root_init_shaper_assign_callback(void *app_data,
 	/*
 	 * Unable to send alloc node command, cleanup from unassigning the shaper
 	 */
-	nss_qdisc_warning("%s: Qdisc %p (type %d) create command failed: %d\n",
-			__func__, nq->qdisc, nq->type, rc);
+	nss_qdisc_warning("Qdisc %p (type %d) create command failed: %d\n",
+			nq->qdisc, nq->type, rc);
 
 	nq->pending_final_state = NSS_QDISC_STATE_NODE_ALLOC_SEND_FAIL;
 	nss_qdisc_root_cleanup_shaper_unassign(nq);
@@ -721,13 +721,13 @@ static void nss_qdisc_root_init_shaper_assign_callback(void *app_data,
  */
 static void nss_qdisc_child_cleanup_final(struct nss_qdisc *nq)
 {
-	nss_qdisc_info("%s: Final cleanup type %d: %p\n", __func__,
+	nss_qdisc_info("Final cleanup type %d: %p\n",
 			nq->type, nq->qdisc);
 
 	/*
 	 * Finally unregister for shaping
 	 */
-	nss_qdisc_info("%s: Unregister for shaping\n", __func__);
+	nss_qdisc_info("Unregister for shaping\n");
 	nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 
 	/*
@@ -748,15 +748,15 @@ static void nss_qdisc_child_cleanup_free_node_callback(void *app_data,
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_error("%s: Qdisc %p (type %d qos_tag %x): child free FAILED response type: %d\n",
-			__func__, nq->qdisc, nq->type, nq->qos_tag, nim->msg.shaper_configure.config.response_type);
+		nss_qdisc_error("Qdisc %p (type %d qos_tag %x): child free FAILED response type: %d\n",
+			nq->qdisc, nq->type, nq->qos_tag, nim->msg.shaper_configure.config.response_type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_NODE_FREE_FAIL);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): child shaper node "
-			"free complete\n", __func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): child shaper node "
+			"free complete\n", nq->qdisc, nq->type);
 
 	/*
 	 * Perform final cleanup
@@ -774,8 +774,8 @@ static void nss_qdisc_child_cleanup_free_node(struct nss_qdisc *nq)
 	nss_tx_status_t rc;
 	int msg_type;
 
-	nss_qdisc_info("%s: Qdisc %p (type %d qos_tag %x): free shaper node command\n",
-			__func__, nq->qdisc, nq->type, nq->qos_tag);
+	nss_qdisc_info("Qdisc %p (type %d qos_tag %x): free shaper node command\n",
+			nq->qdisc, nq->type, nq->qos_tag);
 
 	/*
 	 * Create and send the shaper configure message to the NSS interface
@@ -792,8 +792,8 @@ static void nss_qdisc_child_cleanup_free_node(struct nss_qdisc *nq)
 		return;
 	}
 
-	nss_qdisc_error("%s: Qdisc %p (type %d): child free node command send "
-			"failed: %d, qos tag: %x\n", __func__, nq->qdisc, nq->type,
+	nss_qdisc_error("Qdisc %p (type %d): child free node command send "
+			"failed: %d, qos tag: %x\n", nq->qdisc, nq->type,
 			rc, nq->qos_tag);
 
 	atomic_set(&nq->state, NSS_QDISC_STATE_NODE_FREE_SEND_FAIL);
@@ -809,8 +809,8 @@ static void nss_qdisc_child_init_alloc_node_callback(void *app_data, struct nss_
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): child alloc node FAILED, response "
-			"type: %d\n", __func__, nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
+		nss_qdisc_error("Qdisc %p (type %d): child alloc node FAILED, response "
+			"type: %d\n", nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
 		/*
 		 * Cleanup from final stage
 		 */
@@ -822,8 +822,8 @@ static void nss_qdisc_child_init_alloc_node_callback(void *app_data, struct nss_
 	/*
 	 * Shaper node has been allocated
 	 */
-	nss_qdisc_info("%s: Qdisc %p (type %d): shaper node successfully "
-			"created as a child node\n",__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): shaper node successfully "
+			"created as a child node\n", nq->qdisc, nq->type);
 
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
@@ -1003,8 +1003,8 @@ void nss_qdisc_reset(struct Qdisc *sch)
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
 
-	nss_qdisc_info("%s: Qdisc %p (type %d) resetting\n",
-			__func__, sch, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d) resetting\n",
+			sch, nq->type);
 
 	/*
 	 * Delete all packets pending in the output queue and reset stats
@@ -1020,8 +1020,8 @@ void nss_qdisc_reset(struct Qdisc *sch)
 		spin_unlock_bh(&nq->bounce_protection_lock);
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d) reset complete\n",
-			__func__, sch, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d) reset complete\n",
+			sch, nq->type);
 }
 EXPORT_SYMBOL(nss_qdisc_reset);
 
@@ -1038,8 +1038,8 @@ int nss_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 	 * If we are not the root qdisc then we should not be getting packets!!
 	 */
 	if (unlikely(!nq->is_root)) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): unexpected packet "
-			"for child qdisc - skb: %p\n", __func__, sch, nq->type, skb);
+		nss_qdisc_error("Qdisc %p (type %d): unexpected packet "
+			"for child qdisc - skb: %p\n", sch, nq->type, skb);
 		nss_qdisc_add_to_tail(skb, sch);
 		__netif_schedule(sch);
 		return NET_XMIT_SUCCESS;
@@ -1098,8 +1098,8 @@ int nss_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 			return NET_XMIT_SUCCESS;
 		}
 
-		nss_qdisc_trace("%s: Qdisc %p (type %d): failed to bounce for bridge %d, skb: %p\n",
-					__func__, sch, nq->type, nq->nss_interface_number, skb);
+		nss_qdisc_trace("Qdisc %p (type %d): failed to bounce for bridge %d, skb: %p\n",
+					sch, nq->type, nq->nss_interface_number, skb);
 		goto enqueue_drop;
 	}
 
@@ -1116,8 +1116,8 @@ int nss_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 	/*
 	 * We failed to bounce the packet for shaping on a virtual interface
 	 */
-	nss_qdisc_trace("%s: Qdisc %p (type %d): failed to bounce for "
-		"interface: %d, skb: %p\n", __func__, sch, nq->type,
+	nss_qdisc_trace("Qdisc %p (type %d): failed to bounce for "
+		"interface: %d, skb: %p\n", sch, nq->type,
 		nq->nss_interface_number, skb);
 
 enqueue_drop:
@@ -1166,14 +1166,14 @@ static void nss_qdisc_set_hybrid_mode_callback(void *app_data,
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): shaper node set default FAILED, response type: %d\n",
-			__func__, nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
+		nss_qdisc_error("Qdisc %p (type %d): shaper node set default FAILED, response type: %d\n",
+			nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_FAILED_RESPONSE);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): attach complete\n", __func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): attach complete\n", nq->qdisc, nq->type);
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
 }
@@ -1188,12 +1188,12 @@ int nss_qdisc_set_hybrid_mode(struct nss_qdisc *nq, enum nss_qdisc_hybrid_mode m
 	int msg_type;
 	struct nss_if_msg nim;
 
-	nss_qdisc_info("%s: Setting qdisc %p (type %d) as hybrid mode\n", __func__,
+	nss_qdisc_info("Setting qdisc %p (type %d) as hybrid mode\n",
 			nq->qdisc, nq->type);
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): qdisc state not ready: %d\n", __func__,
+		nss_qdisc_warning("Qdisc %p (type %d): qdisc state not ready: %d\n",
 				nq->qdisc, nq->type, state);
 		return -1;
 	}
@@ -1221,8 +1221,8 @@ int nss_qdisc_set_hybrid_mode(struct nss_qdisc *nq, enum nss_qdisc_hybrid_mode m
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_warning("%s: Failed to send set hybrid mode message for "
-					"qdisc type %d\n", __func__, nq->type);
+		nss_qdisc_warning("Failed to send set hybrid mode message for "
+					"qdisc type %d\n", nq->type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -1240,14 +1240,14 @@ int nss_qdisc_set_hybrid_mode(struct nss_qdisc *nq, enum nss_qdisc_hybrid_mode m
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): failed to set hybrid mode "
-			"State: %d\n", __func__, nq->qdisc, nq->type, state);
+		nss_qdisc_error("Qdisc %p (type %d): failed to set hybrid mode "
+			"State: %d\n", nq->qdisc, nq->type, state);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): shaper node set hybrid mode complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): shaper node set hybrid mode complete\n",
+			nq->qdisc, nq->type);
 	return 0;
 }
 EXPORT_SYMBOL(nss_qdisc_set_hybrid_mode);
@@ -1262,14 +1262,14 @@ static void nss_qdisc_set_default_callback(void *app_data,
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): shaper node set default FAILED, response type: %d\n",
-			__func__, nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
+		nss_qdisc_error("Qdisc %p (type %d): shaper node set default FAILED, response type: %d\n",
+			nq->qdisc, nq->type, nim->msg.shaper_configure.config.response_type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_FAILED_RESPONSE);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): attach complete\n", __func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): attach complete\n", nq->qdisc, nq->type);
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
 }
@@ -1284,12 +1284,12 @@ int nss_qdisc_set_default(struct nss_qdisc *nq)
 	int msg_type;
 	struct nss_if_msg nim;
 
-	nss_qdisc_info("%s: Setting qdisc %p (type %d) as default\n", __func__,
+	nss_qdisc_info("Setting qdisc %p (type %d) as default\n",
 			nq->qdisc, nq->type);
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): qdisc state not ready: %d\n", __func__,
+		nss_qdisc_warning("Qdisc %p (type %d): qdisc state not ready: %d\n",
 				nq->qdisc, nq->type, state);
 		return -1;
 	}
@@ -1311,8 +1311,8 @@ int nss_qdisc_set_default(struct nss_qdisc *nq)
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_warning("%s: Failed to send set default message for "
-					"qdisc type %d\n", __func__, nq->type);
+		nss_qdisc_warning("Failed to send set default message for "
+					"qdisc type %d\n", nq->type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -1330,14 +1330,14 @@ int nss_qdisc_set_default(struct nss_qdisc *nq)
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): failed to default "
-			"State: %d\n", __func__, nq->qdisc, nq->type, state);
+		nss_qdisc_error("Qdisc %p (type %d): failed to default "
+			"State: %d\n", nq->qdisc, nq->type, state);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): shaper node default complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): shaper node default complete\n",
+			nq->qdisc, nq->type);
 	return 0;
 }
 EXPORT_SYMBOL(nss_qdisc_set_default);
@@ -1352,15 +1352,15 @@ static void nss_qdisc_node_attach_callback(void *app_data,
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_info("%s: Qdisc %p (type %d) shaper node attach FAILED - response "
-			"type: %d\n", __func__, nq->qdisc, nq->type,
+		nss_qdisc_info("Qdisc %p (type %d) shaper node attach FAILED - response "
+			"type: %d\n", nq->qdisc, nq->type,
 			nim->msg.shaper_configure.config.response_type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_FAILED_RESPONSE);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: qdisc type %d: %p, attach complete\n", __func__,
+	nss_qdisc_info("qdisc type %d: %p, attach complete\n",
 			nq->type, nq->qdisc);
 
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
@@ -1377,21 +1377,21 @@ int nss_qdisc_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 	int32_t state, rc;
 	int msg_type;
 
-	nss_qdisc_info("%s: Qdisc %p (type %d) attaching\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d) attaching\n",
+			nq->qdisc, nq->type);
 
 	/*
 	 * PPE Qdisc cannot be attached to NSS Qdisc.
 	 */
 	if ((nq->mode == NSS_QDISC_MODE_NSS) && (nq_child->mode != NSS_QDISC_MODE_NSS)) {
-		nss_qdisc_warning("%s: Qdisc %p is not nss qdisc\n", __func__, nq_child->qdisc);
+		nss_qdisc_warning("Qdisc %p is not nss qdisc\n", nq_child->qdisc);
 		return -EINVAL;
 	}
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): not ready, state: %d\n",
-				__func__, nq->qdisc, nq->type, state);
+		nss_qdisc_warning("Qdisc %p (type %d): not ready, state: %d\n",
+				nq->qdisc, nq->type, state);
 		return -1;
 	}
 
@@ -1411,8 +1411,8 @@ int nss_qdisc_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_warning("%s: Failed to send configure message for "
-					"qdisc type %d\n", __func__, nq->type);
+		nss_qdisc_warning("Failed to send configure message for "
+					"qdisc type %d\n", nq->type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -1430,8 +1430,8 @@ int nss_qdisc_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_error("%s: Qdisc %p (type %d) failed to attach child "
-			"node, State: %d\n", __func__, nq->qdisc, nq->type, state);
+		nss_qdisc_error("Qdisc %p (type %d) failed to attach child "
+			"node, State: %d\n", nq->qdisc, nq->type, state);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -1443,8 +1443,8 @@ int nss_qdisc_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 	nq_child->parent = nq;
 	spin_unlock_bh(&nq_child->lock);
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): shaper node attach complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): shaper node attach complete\n",
+			nq->qdisc, nq->type);
 	return 0;
 }
 EXPORT_SYMBOL(nss_qdisc_node_attach);
@@ -1459,16 +1459,16 @@ static void nss_qdisc_node_detach_callback(void *app_data,
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_info("%s: Qdisc %p (type %d): shaper node detach FAILED - response "
-			"type: %d\n", __func__, nq->qdisc, nq->type,
+		nss_qdisc_info("Qdisc %p (type %d): shaper node detach FAILED - response "
+			"type: %d\n", nq->qdisc, nq->type,
 			nim->msg.shaper_configure.config.response_type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_FAILED_RESPONSE);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): detach complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): detach complete\n",
+			nq->qdisc, nq->type);
 
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
@@ -1483,13 +1483,13 @@ int nss_qdisc_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 {
 	int32_t state, rc, msg_type;
 
-	nss_qdisc_info("%s: Qdisc %p (type %d) detaching\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d) detaching\n",
+			nq->qdisc, nq->type);
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): not ready, state: %d\n",
-				__func__, nq->qdisc, nq->type, state);
+		nss_qdisc_warning("Qdisc %p (type %d): not ready, state: %d\n",
+				nq->qdisc, nq->type, state);
 		return -1;
 	}
 
@@ -1509,8 +1509,8 @@ int nss_qdisc_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): Failed to send configure "
-					"message.", __func__, nq->qdisc, nq->type);
+		nss_qdisc_warning("Qdisc %p (type %d): Failed to send configure "
+					"message.", nq->qdisc, nq->type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -1528,8 +1528,8 @@ int nss_qdisc_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): failed to detach child node, "
-				"State: %d\n", __func__, nq->qdisc, nq->type, state);
+		nss_qdisc_error("Qdisc %p (type %d): failed to detach child node, "
+				"State: %d\n", nq->qdisc, nq->type, state);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -1538,8 +1538,8 @@ int nss_qdisc_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 	nq_child->parent = NULL;
 	spin_unlock_bh(&nq_child->lock);
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): shaper node detach complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): shaper node detach complete\n",
+			nq->qdisc, nq->type);
 	return 0;
 }
 EXPORT_SYMBOL(nss_qdisc_node_detach);
@@ -1554,16 +1554,16 @@ static void nss_qdisc_configure_callback(void *app_data,
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_info("%s: Qdisc %p (type %d): shaper node configure FAILED "
-			"response type: %d\n", __func__, nq->qdisc, nq->type,
+		nss_qdisc_info("Qdisc %p (type %d): shaper node configure FAILED "
+			"response type: %d\n", nq->qdisc, nq->type,
 			nim->msg.shaper_configure.config.response_type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_FAILED_RESPONSE);
 		wake_up(&nq->wait_queue);
 		return;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): configuration complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): configuration complete\n",
+			nq->qdisc, nq->type);
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 	wake_up(&nq->wait_queue);
 }
@@ -1578,12 +1578,12 @@ int nss_qdisc_configure(struct nss_qdisc *nq,
 	int32_t state, rc;
 	int msg_type;
 
-	nss_qdisc_info("%s: Qdisc %p (type %d) configuring\n", __func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d) configuring\n", nq->qdisc, nq->type);
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): not ready for configure, "
-				"state : %d\n", __func__, nq->qdisc, nq->type, state);
+		nss_qdisc_warning("Qdisc %p (type %d): not ready for configure, "
+				"state : %d\n", nq->qdisc, nq->type, state);
 		return -1;
 	}
 
@@ -1603,8 +1603,8 @@ int nss_qdisc_configure(struct nss_qdisc *nq,
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): Failed to send configure "
-			"message\n", __func__, nq->qdisc, nq->type);
+		nss_qdisc_warning("Qdisc %p (type %d): Failed to send configure "
+			"message\n", nq->qdisc, nq->type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
@@ -1622,14 +1622,14 @@ int nss_qdisc_configure(struct nss_qdisc *nq,
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_error("%s: Qdisc %p (type %d): failed to configure shaper "
-			"node: State: %d\n", __func__, nq->qdisc, nq->type, state);
+		nss_qdisc_error("Qdisc %p (type %d): failed to configure shaper "
+			"node: State: %d\n", nq->qdisc, nq->type, state);
 		atomic_set(&nq->state, NSS_QDISC_STATE_READY);
 		return -1;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): shaper node configure complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): shaper node configure complete\n",
+			nq->qdisc, nq->type);
 	return 0;
 }
 EXPORT_SYMBOL(nss_qdisc_configure);
@@ -1644,14 +1644,14 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 	int32_t state;
 	nss_tx_status_t cmd_status;
 
-	nss_qdisc_info("%s: Qdisc %p (type %d) destroy\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d) destroy\n",
+			nq->qdisc, nq->type);
 
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_READY) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): destroy not ready, "
-				"state: %d\n", __func__, nq->qdisc, nq->type, state);
+		nss_qdisc_warning("Qdisc %p (type %d): destroy not ready, "
+				"state: %d\n", nq->qdisc, nq->type, state);
 		return;
 	}
 
@@ -1666,8 +1666,8 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 		 * the bshaper from all the attached interfaces.
 		 */
 		if (nq->is_bridge) {
-			nss_qdisc_info("%s: Qdisc %p (type %d): is root on bridge. Need to "
-				"unassign bshapers from its interfaces\n", __func__, nq->qdisc, nq->type);
+			nss_qdisc_info("Qdisc %p (type %d): is root on bridge. Need to "
+				"unassign bshapers from its interfaces\n", nq->qdisc, nq->type);
 			nss_qdisc_refresh_bshaper_assignment(nq->qdisc, NSS_QDISC_SCAN_AND_UNASSIGN_BSHAPER);
 		}
 
@@ -1691,8 +1691,8 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 
 	state = atomic_read(&nq->state);
 	if (state != NSS_QDISC_STATE_IDLE) {
-		nss_qdisc_error("%s: clean up for nss qdisc %x failed with "
-					"status %d\n", __func__, nq->qos_tag, state);
+		nss_qdisc_error("clean up for nss qdisc %x failed with "
+					"status %d\n", nq->qos_tag, state);
 	}
 
 	if (nq->destroy_virtual_interface) {
@@ -1702,14 +1702,14 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 		 */
 		cmd_status = nss_virt_if_destroy_sync(nq->virt_if_ctx);
 		if (cmd_status != NSS_TX_SUCCESS) {
-			nss_qdisc_error("%s: Qdisc %p virtual interface %p destroy failed: %d\n", __func__,
+			nss_qdisc_error("Qdisc %p virtual interface %p destroy failed: %d\n",
 						nq->qdisc, nq->virt_if_ctx, cmd_status);
 		}
 		nq->virt_if_ctx = NULL;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d): destroy complete\n",
-			__func__, nq->qdisc, nq->type);
+	nss_qdisc_info("Qdisc %p (type %d): destroy complete\n",
+			nq->qdisc, nq->type);
 }
 EXPORT_SYMBOL(nss_qdisc_destroy);
 
@@ -1778,11 +1778,11 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 * true for classes. This is the reason why we check for classid.
 	 */
 	if ((sch->parent == TC_H_ROOT) && (!nq->is_class)) {
-		nss_qdisc_info("%s: Qdisc %p (type %d) is root\n", __func__, nq->qdisc, nq->type);
+		nss_qdisc_info("Qdisc %p (type %d) is root\n", nq->qdisc, nq->type);
 		nq->is_root = true;
 		root = sch;
 	} else {
-		nss_qdisc_info("%s: Qdisc %p (type %d) not root\n", __func__, nq->qdisc, nq->type);
+		nss_qdisc_info("Qdisc %p (type %d) not root\n", nq->qdisc, nq->type);
 		nq->is_root = false;
 		root = qdisc_root(sch);
 	}
@@ -1792,24 +1792,24 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 * or on a net device that is represented by a virtual NSS interface (e.g. WIFI)
 	 */
 	dev = qdisc_dev(sch);
-	nss_qdisc_info("%s: Qdisc %p (type %d) init dev: %p\n", __func__, nq->qdisc, nq->type, dev);
+	nss_qdisc_info("Qdisc %p (type %d) init dev: %p\n", nq->qdisc, nq->type, dev);
 
 	/*
 	 * Determine if dev is a bridge or not as this determines if we
 	 * interract with an I or B shaper.
 	 */
 	if (dev->priv_flags & IFF_EBRIDGE) {
-		nss_qdisc_info("%s: Qdisc %p (type %d) init qdisc: %p, is bridge\n",
-			__func__, nq->qdisc, nq->type, nq->qdisc);
+		nss_qdisc_info("Qdisc %p (type %d) init qdisc: %p, is bridge\n",
+			nq->qdisc, nq->type, nq->qdisc);
 		nq->is_bridge = true;
 	} else {
-		nss_qdisc_info("%s: Qdisc %p (type %d) init qdisc: %p, not bridge\n",
-			__func__, nq->qdisc, nq->type, nq->qdisc);
+		nss_qdisc_info("Qdisc %p (type %d) init qdisc: %p, not bridge\n",
+			nq->qdisc, nq->type, nq->qdisc);
 		nq->is_bridge = false;
 	}
 
-	nss_qdisc_info("%s: Qdisc %p (type %d) init root: %p, qos tag: %x, "
-		"parent: %x rootid: %s owner: %p\n", __func__, nq->qdisc, nq->type, root,
+	nss_qdisc_info("Qdisc %p (type %d) init root: %p, qos tag: %x, "
+		"parent: %x rootid: %s owner: %p\n", nq->qdisc, nq->type, root,
 		nq->qos_tag, parent, root->ops->id, root->ops->owner);
 
 	/*
@@ -1817,8 +1817,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 * This is to prevent mixing NSS and PPE qdisc with linux qdisc.
 	 */
 	if ((parent != TC_H_ROOT) && ((root->ops->owner != THIS_MODULE) && (root->ops->owner != nss_ppe_owner))) {
-		nss_qdisc_warning("%s: NSS qdisc %p (type %d) used along with non-NSS/PPE qdiscs,"
-			" or the interface is currently down", __func__, nq->qdisc, nq->type);
+		nss_qdisc_warning("NSS qdisc %p (type %d) used along with non-NSS/PPE qdiscs,"
+			" or the interface is currently down", nq->qdisc, nq->type);
 	}
 
 	/*
@@ -1826,8 +1826,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 */
 	nq->nss_shaping_ctx = nss_shaper_register_shaping();
 	if (!nq->nss_shaping_ctx) {
-		nss_qdisc_error("%s: no shaping context returned for type %d\n",
-				__func__, nq->type);
+		nss_qdisc_error("no shaping context returned for type %d\n",
+				nq->type);
 		atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
 		goto init_fail;
 	}
@@ -1837,8 +1837,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 */
 	if (!nq->is_root) {
 		struct nss_if_msg nim_alloc;
-		nss_qdisc_info("%s: Qdisc %p (type %d) initializing non-root qdisc\n",
-				__func__, nq->qdisc, nq->type);
+		nss_qdisc_info("Qdisc %p (type %d) initializing non-root qdisc\n",
+				nq->qdisc, nq->type);
 
 		/*
 		 * The device we are operational on MUST be recognised as an NSS interface.
@@ -1848,8 +1848,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		 */
 		nq->nss_interface_number = nss_cmn_get_interface_number(nq->nss_shaping_ctx, dev);
 		if (nq->nss_interface_number < 0) {
-			nss_qdisc_error("%s: Qdisc %p (type %d) net device unknown to "
-				"nss driver %s\n", __func__, nq->qdisc, nq->type, dev->name);
+			nss_qdisc_error("Qdisc %p (type %d) net device unknown to "
+				"nss driver %s\n", nq->qdisc, nq->type, dev->name);
 			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
 			goto init_fail;
@@ -1864,8 +1864,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		 * Create a shaper node for requested type.
 		 * Essentially all we need to do is create the shaper node.
 		 */
-		nss_qdisc_info("%s: Qdisc %p (type %d) non-root (child) create\n",
-				__func__, nq->qdisc, nq->type);
+		nss_qdisc_info("Qdisc %p (type %d) non-root (child) create\n",
+				nq->qdisc, nq->type);
 
 		/*
 		 * Create and send the shaper configure message to the interface
@@ -1880,8 +1880,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim_alloc);
 
 		if (rc != NSS_TX_SUCCESS) {
-			nss_qdisc_error("%s: Qdisc %p (type %d) create command "
-				"failed: %d\n", __func__, nq->qdisc, nq->type, rc);
+			nss_qdisc_error("Qdisc %p (type %d) create command "
+				"failed: %d\n", nq->qdisc, nq->type, rc);
 			nq->pending_final_state = NSS_QDISC_STATE_CHILD_ALLOC_SEND_FAIL;
 			nss_qdisc_child_cleanup_final(nq);
 			goto init_fail;
@@ -1897,8 +1897,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		}
 
 		state = atomic_read(&nq->state);
-		nss_qdisc_info("%s: Qdisc %p (type %d): initialised with state: %d\n",
-					__func__, nq->qdisc, nq->type, state);
+		nss_qdisc_info("Qdisc %p (type %d): initialised with state: %d\n",
+					nq->qdisc, nq->type, state);
 
 		/*
 		 * If state is positive, return success
@@ -1917,14 +1917,14 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	 * bridge shaping. Further, when operating on a bridge, we monitor for
 	 * bridge port changes and assign B shapers to the interfaces of the ports.
 	 */
-	nss_qdisc_info("%s: init qdisc type %d : %p, ROOT\n", __func__, nq->type, nq->qdisc);
+	nss_qdisc_info("init qdisc type %d : %p, ROOT\n", nq->type, nq->qdisc);
 
 	/*
 	 * Detect if we are operating on a bridge or interface
 	 */
 	if (nq->is_bridge) {
-		nss_qdisc_info("%s: Qdisc %p (type %d): initializing root qdisc on "
-			"bridge\n", __func__, nq->qdisc, nq->type);
+		nss_qdisc_info("Qdisc %p (type %d): initializing root qdisc on bridge\n",
+			nq->qdisc, nq->type);
 
 		/*
 		 * Since we are a root qdisc on this bridge, we have to create a
@@ -1941,14 +1941,14 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 			 */
 			nq->virt_if_ctx = nss_virt_if_create_sync(dev);
 			if (!nq->virt_if_ctx) {
-				nss_qdisc_error("%s: Qdisc %p (type %d): cannot create virtual "
-					"interface\n", __func__, nq->qdisc, nq->type);
+				nss_qdisc_error("Qdisc %p (type %d): cannot create virtual interface\n",
+					nq->qdisc, nq->type);
 				nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 				atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
 				goto init_fail;
 			}
-			nss_qdisc_info("%s: Qdisc %p (type %d): virtual interface registered "
-				"in NSS: %p\n", __func__, nq->qdisc, nq->type, nq->virt_if_ctx);
+			nss_qdisc_info("Qdisc %p (type %d): virtual interface registered in NSS: %p\n",
+				nq->qdisc, nq->type, nq->virt_if_ctx);
 
 			/*
 			 * We are the one who have created the virtual interface, so we
@@ -1960,8 +1960,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 			 * Save the virtual interface number
 			 */
 			nq->nss_interface_number = nss_virt_if_get_interface_num(nq->virt_if_ctx);
-			nss_qdisc_info("%s: Qdisc %p (type %d) virtual interface number: %d\n",
-					__func__, nq->qdisc, nq->type, nq->nss_interface_number);
+			nss_qdisc_info("Qdisc %p (type %d) virtual interface number: %d\n",
+					nq->qdisc, nq->type, nq->nss_interface_number);
 		}
 
 		nq->is_virtual = nss_cmn_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
@@ -1974,15 +1974,15 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		nq->bounce_context = nss_shaper_register_shaper_bounce_bridge(nq->nss_interface_number,
 							nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
 		if (!nq->bounce_context) {
-			nss_qdisc_error("%s: Qdisc %p (type %d): is root but cannot register "
-					"for bridge bouncing\n", __func__, nq->qdisc, nq->type);
+			nss_qdisc_error("Qdisc %p (type %d): is root but cannot register "
+					"for bridge bouncing\n", nq->qdisc, nq->type);
 			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
 			goto init_fail;
 		}
 
 	} else {
-		nss_qdisc_info("%s: Qdisc %p (type %d): is interface\n", __func__, nq->qdisc, nq->type);
+		nss_qdisc_info("Qdisc %p (type %d): is interface\n", nq->qdisc, nq->type);
 
 		/*
 		 * The device we are operational on MUST be recognised as an NSS interface.
@@ -1992,8 +1992,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		 */
 		nq->nss_interface_number = nss_cmn_get_interface_number(nq->nss_shaping_ctx, dev);
 		if (nq->nss_interface_number < 0) {
-			nss_qdisc_error("%s: Qdisc %p (type %d): interface unknown to nss driver %s\n",
-					__func__, nq->qdisc, nq->type, dev->name);
+			nss_qdisc_error("Qdisc %p (type %d): interface unknown to nss driver %s\n",
+					nq->qdisc, nq->type, dev->name);
 			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
 			goto init_fail;
@@ -2005,11 +2005,11 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 		 */
 		nq->is_virtual = nss_cmn_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
 		if (!nq->is_virtual) {
-			nss_qdisc_info("%s: Qdisc %p (type %d): interface %u is physical\n",
-					__func__, nq->qdisc, nq->type, nq->nss_interface_number);
+			nss_qdisc_info("Qdisc %p (type %d): interface %u is physical\n",
+					nq->qdisc, nq->type, nq->nss_interface_number);
 		} else {
-			nss_qdisc_info("%s: Qdisc %p (type %d): interface %u is virtual\n",
-					__func__, nq->qdisc, nq->type, nq->nss_interface_number);
+			nss_qdisc_info("Qdisc %p (type %d): interface %u is virtual\n",
+					nq->qdisc, nq->type, nq->nss_interface_number);
 
 			/*
 			 * Register for interface bounce shaping.
@@ -2017,8 +2017,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 			nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
 								nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
 			if (!nq->bounce_context) {
-				nss_qdisc_error("%s: Qdisc %p (type %d): is root but failed "
-				"to register for interface bouncing\n", __func__, nq->qdisc, nq->type);
+				nss_qdisc_error("Qdisc %p (type %d): is root but failed "
+				"to register for interface bouncing\n", nq->qdisc, nq->type);
 				nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 				atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
 				goto init_fail;
@@ -2041,7 +2041,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim);
 
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_error("%s: shaper assign command failed: %d\n", __func__, rc);
+		nss_qdisc_error("shaper assign command failed: %d\n", rc);
 		nq->pending_final_state = NSS_QDISC_STATE_ASSIGN_SHAPER_SEND_FAIL;
 		nss_qdisc_root_cleanup_final(nq);
 		goto init_fail;
@@ -2057,8 +2057,8 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 	}
 
 	state = atomic_read(&nq->state);
-	nss_qdisc_info("%s: Qdisc %p (type %d): is initialised with state: %d\n",
-			__func__, nq->qdisc, nq->type, state);
+	nss_qdisc_info("Qdisc %p (type %d): is initialised with state: %d\n",
+			nq->qdisc, nq->type, state);
 
 	if (state > 0) {
 
@@ -2069,15 +2069,14 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 			return 0;
 		}
 
-		nss_qdisc_info("%s: This is a bridge interface. Linking bridge ...\n",
-				__func__);
+		nss_qdisc_info("This is a bridge interface. Linking bridge ...\n");
 		/*
 		 * This is a root qdisc added to a bridge interface. Now we go ahead
 		 * and add this B-shaper to interfaces known to the NSS
 		 */
 		if (nss_qdisc_refresh_bshaper_assignment(nq->qdisc, NSS_QDISC_SCAN_AND_ASSIGN_BSHAPER) < 0) {
 			nss_qdisc_destroy(nq);
-			nss_qdisc_error("%s: bridge linking failed\n", __func__);
+			nss_qdisc_error("bridge linking failed\n");
 
 			/*
 			 * We do not go to init_fail since nss_qdisc_destroy()
@@ -2085,7 +2084,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, uint16_t mode, nss_s
 			 */
 			return -1;
 		}
-		nss_qdisc_info("%s: Bridge linking complete\n", __func__);
+		nss_qdisc_info("Bridge linking complete\n");
 		return 0;
 	}
 
@@ -2101,7 +2100,7 @@ init_fail:
 		 */
 		cmd_status = nss_virt_if_destroy_sync(nq->virt_if_ctx);
 		if (cmd_status != NSS_TX_SUCCESS) {
-			nss_qdisc_error("%s: Qdisc %p virtual interface %p destroy failed: %d\n", __func__,
+			nss_qdisc_error("Qdisc %p virtual interface %p destroy failed: %d\n",
 						nq->qdisc, nq->virt_if_ctx, cmd_status);
 		}
 		nq->virt_if_ctx = NULL;
@@ -2125,8 +2124,8 @@ static void nss_qdisc_basic_stats_callback(void *app_data,
 	atomic_t *refcnt;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
-		nss_qdisc_warning("%s: Qdisc %p (type %d): Receive stats FAILED - "
-			"response: type: %d\n", __func__, qdisc, nq->type,
+		nss_qdisc_warning("Qdisc %p (type %d): Receive stats FAILED - "
+			"response: type: %d\n", qdisc, nq->type,
 			nim->msg.shaper_configure.config.response_type);
 		atomic_sub(1, &nq->pending_stat_requests);
 		wake_up(&nq->wait_queue);
@@ -2224,8 +2223,8 @@ static void nss_qdisc_get_stats_timer_callback(unsigned long int data)
 	 * Check if we failed to send the stats request to NSS.
 	 */
 	if (rc != NSS_TX_SUCCESS) {
-		nss_qdisc_info("%s: %p: stats fetch request dropped, causing ",
-				"delay in stats fetch\n", __func__, nq->qdisc);
+		nss_qdisc_info("%p: stats fetch request dropped, causing ",
+				"delay in stats fetch\n", nq->qdisc);
 
 		/*
 		 * Schedule the timer once again for re-trying. Since this is a
@@ -2371,8 +2370,8 @@ static int nss_qdisc_if_event_cb(struct notifier_block *unused,
 		 */
 		struct nss_qdisc *nq = (struct nss_qdisc *)qdisc_priv(br_qdisc);
 		if ((nq->mode != NSS_QDISC_MODE_NSS) && (nq->mode != NSS_QDISC_MODE_PPE)) {
-			nss_qdisc_info("No action taken since nss qdisc is not configured on "
-					" %s interface\n", br->name);
+			nss_qdisc_info("No action taken since nss qdisc is not configured on %s interface\n",
+					br->name);
 			break;
 		}
 
@@ -2420,73 +2419,73 @@ static int __init nss_qdisc_module_init(void)
 		return 0;
 	}
 #endif
-	nss_qdisc_info("Module initializing");
+	nss_qdisc_info("Module initializing\n");
 	nss_qdisc_ctx = nss_shaper_register_shaping();
 
 	ret = register_qdisc(&nss_pfifo_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nsspfifo registered");
+	nss_qdisc_info("nsspfifo registered\n");
 
 	ret = register_qdisc(&nss_bfifo_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nssbfifo registered");
+	nss_qdisc_info("nssbfifo registered\n");
 
 	ret = register_qdisc(&nss_codel_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nsscodel registered");
+	nss_qdisc_info("nsscodel registered\n");
 
 	ret = register_qdisc(&nss_tbl_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nsstbl registered");
+	nss_qdisc_info("nsstbl registered\n");
 
 	ret = register_qdisc(&nss_prio_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nssprio registered");
+	nss_qdisc_info("nssprio registered\n");
 
 	ret = register_qdisc(&nss_bf_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nssbf registered");
+	nss_qdisc_info("nssbf registered\n");
 
 	ret = register_qdisc(&nss_wrr_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nsswrr registered");
+	nss_qdisc_info("nsswrr registered\n");
 
 	ret = register_qdisc(&nss_wfq_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nsswfq registered");
+	nss_qdisc_info("nsswfq registered\n");
 
 	ret = register_qdisc(&nss_htb_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nsshtb registered");
+	nss_qdisc_info("nsshtb registered\n");
 
 	ret = register_qdisc(&nss_blackhole_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nssblackhole registered");
+	nss_qdisc_info("nssblackhole registered\n");
 
 	ret = register_qdisc(&nss_red_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nssred registered");
+	nss_qdisc_info("nssred registered\n");
 
 	ret = register_qdisc(&nss_wred_qdisc_ops);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nsswred registered");
+	nss_qdisc_info("nsswred registered\n");
 
 	ret = register_netdevice_notifier(&nss_qdisc_device_notifier);
 	if (ret != 0)
 		return ret;
-	nss_qdisc_info("nss qdisc device notifiers registered");
+	nss_qdisc_info("nss qdisc device notifiers registered\n");
 
 	return 0;
 }
@@ -2503,19 +2502,19 @@ static void __exit nss_qdisc_module_exit(void)
 #endif
 
 	unregister_qdisc(&nss_pfifo_qdisc_ops);
-	nss_qdisc_info("nsspfifo unregistered");
+	nss_qdisc_info("nsspfifo unregistered\n");
 
 	unregister_qdisc(&nss_bfifo_qdisc_ops);
-	nss_qdisc_info("nssbfifo unregistered");
+	nss_qdisc_info("nssbfifo unregistered\n");
 
 	unregister_qdisc(&nss_codel_qdisc_ops);
-	nss_qdisc_info("nsscodel unregistered");
+	nss_qdisc_info("nsscodel unregistered\n");
 
 	unregister_qdisc(&nss_tbl_qdisc_ops);
-	nss_qdisc_info("nsstbl unregistered");
+	nss_qdisc_info("nsstbl unregistered\n");
 
 	unregister_qdisc(&nss_prio_qdisc_ops);
-	nss_qdisc_info("nssprio unregistered");
+	nss_qdisc_info("nssprio unregistered\n");
 
 	unregister_qdisc(&nss_bf_qdisc_ops);
 	nss_qdisc_info("nssbf unregistered\n");

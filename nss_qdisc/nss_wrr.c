@@ -15,6 +15,7 @@
  */
 
 #include "nss_qdisc.h"
+#include "nss_wrr.h"
 
 struct nss_wrr_class_data {
 	struct nss_qdisc nq;		/* Base class used by nss_qdisc */
@@ -101,30 +102,147 @@ static void nss_wrr_destroy_class(struct Qdisc *sch, struct nss_wrr_class_data *
 	kfree(cl);
 }
 
+/*
+ * nss_wrr_class_params_validate_and_save()
+ *	Validates and saves the class configuration parameters.
+ */
+static int nss_wrr_class_params_validate_and_save(struct Qdisc *sch, struct nlattr **tca,
+					uint32_t *quantum)
+{
+	struct nlattr *opt = tca[TCA_OPTIONS];
+	struct tc_nsswrr_class_qopt *qopt;
+	struct nss_wrr_sched_data *q = qdisc_priv(sch);
+	struct net_device *dev = qdisc_dev(sch);
+	bool is_wrr = (sch->ops == &nss_wrr_qdisc_ops);
+
+	nss_qdisc_trace("validating parameters for nsswrr class of qdisc:%x\n", sch->handle);
+
+	if (!opt) {
+		return -EINVAL;
+	}
+
+	qopt = nss_qdisc_qopt_get(opt, nss_wrr_policy, TCA_NSSWRR_MAX, TCA_NSSWRR_CLASS_PARMS);
+	if (!qopt) {
+		return -EINVAL;
+	}
+
+	sch_tree_lock(sch);
+
+	/*
+	 * If the value of quantum is not provided default it based on the type
+	 * of operation (i.e. wrr or wfq)
+	 */
+	*quantum = qopt->quantum;
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (is_wrr) {
+		if ((qopt->quantum >= NSS_PPE_DRR_WEIGHT_MAX)) {
+			nss_qdisc_warning("quantum %u of nss_wrr class of qdisc %x should be a less than 1024\n",
+					qopt->quantum, sch->handle);
+			sch_tree_unlock(sch);
+			return -EINVAL;
+		}
+	} else if (q->nq.mode == NSS_QDISC_MODE_PPE) {
+		if ((qopt->quantum % NSS_PPE_DRR_WEIGHT_MAX) != 0) {
+			nss_qdisc_warning("nss_wfq (accel_mode %d) requires quantum to be a multiple of 1024\n",
+					nss_qdisc_accel_mode_get(&q->nq));
+			sch_tree_unlock(sch);
+			return -EINVAL;
+		}
+
+		if (qopt->quantum > (NSS_PPE_DRR_WEIGHT_MAX * NSS_PPE_DRR_WEIGHT_MAX)) {
+			nss_qdisc_warning("nss_wfq (accel_mode %d) requires quantum not exceeding 1024*1024\n",
+					nss_qdisc_accel_mode_get(&q->nq));
+			sch_tree_unlock(sch);
+			return -EINVAL;
+		}
+	}
+#endif
+
+	if (!*quantum) {
+		if (is_wrr) {
+			*quantum = 1;
+			nss_qdisc_info("Quantum value not provided for nss_wrr class on interface %s. "
+					"Setting quantum to %up\n", dev->name, *quantum);
+		} else {
+			*quantum = psched_mtu(dev);
+			nss_qdisc_info("Quantum value not provided for nss_wfq class on interface %s. "
+					"Setting quantum to %ubytes\n", dev->name, *quantum);
+		}
+	}
+
+	sch_tree_unlock(sch);
+
+	return 0;
+}
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+/*
+ * nss_wrr_ppe_change_class()
+ *	Configures a class in ppe qdisc
+ */
+static int nss_wrr_ppe_change_class(struct Qdisc *sch, struct nss_wrr_class_data *cl, uint32_t quantum)
+{
+	struct nss_ppe_qdisc prev_npq;
+	bool is_wrr = (sch->ops == &nss_wrr_qdisc_ops);
+
+	/*
+	 * Save the previous scheduler configuration
+	 * for handling failure conditions.
+	 */
+	prev_npq = cl->nq.npq;
+
+	/*
+	 * Quantum is specified in bytes for WFQ while it is in packets for WRR.
+	 */
+	if (is_wrr) {
+		cl->nq.npq.scheduler.drr_weight = nss_ppe_drr_weight_get(quantum, NSS_PPE_DRR_UNIT_PACKET);
+		cl->nq.npq.scheduler.drr_unit = NSS_PPE_DRR_UNIT_PACKET;
+	} else {
+		cl->nq.npq.scheduler.drr_weight = nss_ppe_drr_weight_get(quantum, NSS_PPE_DRR_UNIT_BYTE);
+		cl->nq.npq.scheduler.drr_unit = NSS_PPE_DRR_UNIT_BYTE;
+	}
+
+	/*
+	 * Change the configuration in SSDK
+	 */
+	if (nss_ppe_configure(&cl->nq, &prev_npq) != 0)  {
+		nss_qdisc_warning("nss_wrr %x SSDK scheduler configuration failed\n", sch->handle);
+		return -EINVAL;
+	}
+
+	cl->quantum = quantum;
+	return 0;
+}
+#endif
+
 static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		  struct nlattr **tca, unsigned long *arg)
 {
 	struct nss_wrr_sched_data *q = qdisc_priv(sch);
 	struct nss_wrr_class_data *cl = (struct nss_wrr_class_data *)*arg;
-	struct nlattr *opt = tca[TCA_OPTIONS];
-	struct nlattr *na[TCA_NSSWRR_MAX + 1];
-	struct tc_nsswrr_class_qopt *qopt;
 	struct nss_if_msg nim_config;
-	struct net_device *dev = qdisc_dev(sch);
 	bool new_init = false;
-	int err;
+	uint32_t quantum;
 	unsigned int accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	nss_qdisc_info("Changing nss_wrr class %u\n", classid);
-        if (opt == NULL)
-                return -EINVAL;
 
-        err = nla_parse_nested(na, TCA_NSSWRR_MAX, opt, nss_wrr_policy);
-        if (err < 0)
-                return err;
+	if (nss_wrr_class_params_validate_and_save(sch, tca, &quantum) < 0) {
+		nss_qdisc_warning("validation of configuration parameters for wrr class %x failed\n",
+					sch->handle);
+		return -EINVAL;
+	}
 
-        if (na[TCA_NSSWRR_CLASS_PARMS] == NULL)
-                return -EINVAL;
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (cl && (cl->nq.mode == NSS_QDISC_MODE_PPE)) {
+		if (nss_wrr_ppe_change_class(sch, cl, quantum) < 0) {
+			nss_qdisc_warning("nss_htb %x SSDK scheduler configuration failed\n", sch->handle);
+			return -EINVAL;
+		}
+		return 0;
+	}
+#endif
 
 	/*
 	 * If class with a given classid is not found, we allocate a new one
@@ -146,7 +264,7 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 			return -EINVAL;
 		}
 
-		nss_qdisc_info("Bf class %u allocated %p\n", classid, cl);
+		nss_qdisc_info("NSS_wrr class %u allocated %p\n", classid, cl);
 		cl->cl_common.classid = classid;
 
 		/*
@@ -165,29 +283,37 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * that is registered to Linux. Therefore we initialize the NSSWRR_GROUP shaper
 		 * here.
 		 */
+		cl->nq.parent = &q->nq;
 		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid, accel_mode) < 0) {
 			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			return -EINVAL;
 		}
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+		if (cl->nq.mode == NSS_QDISC_MODE_PPE) {
+			if (nss_wrr_ppe_change_class(sch, cl, quantum) < 0) {
+				nss_qdisc_warning("nss_htb %x SSDK scheduler configuration failed\n", sch->handle);
+				nss_qdisc_destroy(&cl->nq);
+				goto failure;
+			}
+		}
+#endif
 		/*
-		 * Set qos_tag of parent to which the class needs to e attached to.
+		 * Set qos_tag of parent to which the class needs to be attached to.
+		 * Set the child to be this class.
+		 * Send node_attach command down to the NSS.
 		 */
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 
-		/*
-		 * Set the child to be this class.
-		 */
-		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_attach.child_qos_tag = cl->nq.qos_tag;
+		if (cl->nq.mode == NSS_QDISC_MODE_NSS) {
+			nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_attach.child_qos_tag = cl->nq.qos_tag;
+		}
 
-		/*
-		 * Send node_attach command down to the NSS
-		 */
 		if (nss_qdisc_node_attach(&q->nq, &cl->nq, &nim_attach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH) < 0) {
 			nss_qdisc_error("Nss attach for class %u failed\n", classid);
 			nss_qdisc_destroy(&cl->nq);
-			return -EINVAL;
+			goto failure;
 		}
 
 		/*
@@ -210,66 +336,50 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		nss_qdisc_info("Class %u successfully allocated\n", classid);
 	}
 
-	qopt = nla_data(na[TCA_NSSWRR_CLASS_PARMS]);
-
-	sch_tree_lock(sch);
-
-	/*
-	 * If the value of quantum is not provided default it based on the type
-	 * of operation (i.e. wrr or wfq)
-	 */
-	cl->quantum = qopt->quantum;
-	if (!cl->quantum) {
-		if (strncmp(sch->ops->id, "nss_wrr", 6) == 0) {
-			cl->quantum = 1;
-			nss_qdisc_info("Quantum value not provided for nss_wrr class on interface %s. "
-					"Setting quantum to %up\n", dev->name, cl->quantum);
-		} else if (strncmp(sch->ops->id, "nsswfq", 6) == 0) {
-			cl->quantum = psched_mtu(dev);
-			nss_qdisc_info("Quantum value not provided for nss_wrr class on interface %s. "
-					"Setting quantum to %ubytes\n", dev->name, cl->quantum);
-		} else {
-			nss_qdisc_error("Unsupported parent type");
-			return -EINVAL;
-		}
-	}
-
-	sch_tree_unlock(sch);
+	cl->quantum = quantum;
 
 	/*
 	 * Fill information that needs to be sent down to the NSS for configuring the
-	 * bf class.
+	 * wrr class.
 	 */
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
-	nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_group_param.quantum = cl->quantum;
+	if (cl->nq.mode == NSS_QDISC_MODE_NSS) {
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
+		nim_config.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_group_param.quantum = cl->quantum;
 
-	nss_qdisc_info("Quantum = %u\n", cl->quantum);
-
-	/*
-	 * Send configure command to the NSS
-	 */
-	if (nss_qdisc_configure(&cl->nq, &nim_config,
-			NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("Failed to configure class %x\n", classid);
+		nss_qdisc_info("Quantum = %u\n", cl->quantum);
 
 		/*
-		 * We dont have to destroy the class if this was just a
-		 * change command.
+		 * Send configure command to the NSS
 		 */
-		if (!new_init) {
-			return -EINVAL;
+		if (nss_qdisc_configure(&cl->nq, &nim_config,
+				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
+			nss_qdisc_error("Failed to configure class %x\n", classid);
+
+			/*
+			 * We dont have to destroy the class if this was just a
+			 * change command.
+			 */
+			if (!new_init) {
+				return -EINVAL;
+			}
+
+			/*
+			 * Else, we have failed in the NSS and we will have to
+			 * destroy the class
+			 */
+			nss_qdisc_destroy(&cl->nq);
+			goto failure;
 		}
-
-		/*
-		 * Else, we have failed in the NSS and we will have to
-		 * destroy the class
-		 */
-		nss_wrr_destroy_class(sch, cl);
-		return -EINVAL;
 	}
 
 	nss_qdisc_info("Class %x changed successfully\n", classid);
 	return 0;
+
+failure:
+	if (cl) {
+		kfree(cl);
+	}
+	return -EINVAL;
 }
 
 static int nss_wrr_delete_class(struct Qdisc *sch, unsigned long arg)
@@ -522,27 +632,29 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 		return -EINVAL;
 	}
 
-	/*
-	 * Configure the qdisc to operate in one of the two modes
-	 */
-	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
-	if (strncmp(sch->ops->id, "nsswrr", 6) == 0) {
-		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_param.operation_mode = NSS_SHAPER_WRR_MODE_ROUND_ROBIN;
-	} else if (strncmp(sch->ops->id, "nsswfq", 6) == 0) {
-		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_param.operation_mode = NSS_SHAPER_WRR_MODE_FAIR_QUEUEING;
-	} else {
-		nss_qdisc_error("Unknow qdisc association");
-		nss_qdisc_destroy(&q->nq);
-		return -EINVAL;
-	}
+	if (q->nq.mode == NSS_QDISC_MODE_NSS) {
+		/*
+		 * Configure the qdisc to operate in one of the two modes
+		 */
+		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
+		if (strncmp(sch->ops->id, "nsswrr", 6) == 0) {
+			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_param.operation_mode = NSS_SHAPER_WRR_MODE_ROUND_ROBIN;
+		} else if (strncmp(sch->ops->id, "nsswfq", 6) == 0) {
+			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.wrr_param.operation_mode = NSS_SHAPER_WRR_MODE_FAIR_QUEUEING;
+		} else {
+			nss_qdisc_error("Unknow qdisc association");
+			nss_qdisc_destroy(&q->nq);
+			return -EINVAL;
+		}
 
-	/*
-	 * Send configure command to the NSS
-	 */
-	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-		nss_qdisc_warning("Failed to configure nss_wrr qdisc %x\n", q->nq.qos_tag);
-		nss_qdisc_destroy(&q->nq);
-		return -EINVAL;
+		/*
+		 * Send configure command to the NSS
+		 */
+		if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
+			nss_qdisc_warning("Failed to configure nss_wrr qdisc %x\n", q->nq.qos_tag);
+			nss_qdisc_destroy(&q->nq);
+			return -EINVAL;
+		}
 	}
 
 	nss_qdisc_info("Nsswrr initialized - handle %x parent %x\n", sch->handle, sch->parent);

@@ -86,6 +86,52 @@ static void nss_tbl_destroy(struct Qdisc *sch)
 	nss_qdisc_destroy(&q->nq);
 }
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+static int nss_tbl_ppe_change(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct nss_tbl_sched_data *q = qdisc_priv(sch);
+	struct nss_qdisc *nq = &q->nq;
+	struct nss_ppe_qdisc prev_npq;
+
+	/*
+	 * Save previous configuration for reset purpose
+	 */
+	if (nq->npq.is_configured) {
+		prev_npq = nq->npq;
+	}
+
+	nq->npq.shaper_present = true;
+	nq->npq.shaper.rate = q->rate;
+	nq->npq.shaper.burst = q->burst;
+	nq->npq.shaper.crate = q->rate;
+	nq->npq.shaper.cburst = q->burst;
+	nq->npq.shaper.overhead = 0;
+
+	if (nss_ppe_configure(nq, &prev_npq) != 0) {
+		nss_qdisc_warning("nss_tbl %x SSDK scheduler configuration failed\n", sch->handle);
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	if (nq->npq.is_configured) {
+		nss_qdisc_warning("nss_tbl %x SSDK scheduler configuration failed\n", sch->handle);
+		return -EINVAL;
+	}
+
+	/*
+	 * PPE qdisc config failed, try to initialize in NSS.
+	 */
+	if (nss_ppe_fallback_to_nss(nq, opt)) {
+		nss_qdisc_warning("nss_tbl %x fallback to nss failed\n", sch->handle);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+#endif
+
 static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
@@ -93,7 +139,7 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 	struct nss_if_msg nim;
 	struct net_device *dev = qdisc_dev(sch);
 
-	if (opt == NULL) {
+	if (!opt) {
 		return -EINVAL;
 	}
 
@@ -130,6 +176,16 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 	q->peakrate = qopt->peakrate;
 	nss_qdisc_info("Peak Rate = %u", qopt->peakrate);
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (q->nq.mode == NSS_QDISC_MODE_PPE) {
+		if (nss_tbl_ppe_change(sch, opt) < 0) {
+			nss_qdisc_warning("nss_tbl %x SSDK scheduler config failed\n", sch->handle);
+			return -EINVAL;
+		}
+		return 0;
+	}
+#endif
+
 	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.tbl_param.lap_cir.rate = q->rate;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.tbl_param.lap_cir.burst = q->burst;
@@ -165,7 +221,7 @@ static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt)
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
 	struct tc_nsstbl_qopt *qopt;
 
-	if (opt == NULL) {
+	if (!opt) {
 		return -EINVAL;
 	}
 

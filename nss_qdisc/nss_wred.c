@@ -144,7 +144,7 @@ static int nss_wred_ppe_change(struct Qdisc *sch, struct nlattr *opt)
 	nq->npq.q.mcast_enable = q->set_default;
 
 	if (nss_ppe_configure(&q->nq, &prev_npq) < 0) {
-		nss_qdisc_error("nss_wred %p configuration failed\n", sch);
+		nss_qdisc_warning("nss_wred %x configuration failed\n", sch->handle);
 		goto fail;
 	}
 
@@ -152,6 +152,7 @@ static int nss_wred_ppe_change(struct Qdisc *sch, struct nlattr *opt)
 
 fail:
 	if (nq->npq.is_configured) {
+		nss_qdisc_warning("nss_wred %x configuration failed\n", sch->handle);
 		return -EINVAL;
 	}
 
@@ -159,6 +160,7 @@ fail:
 	 * Fallback to nss qdisc if PPE Qdisc configuration failed at init time.
 	 */
 	if (nss_ppe_fallback_to_nss(&q->nq, opt) < 0) {
+		nss_qdisc_warning("nss_wred %x fallback to nss failed\n", sch->handle);
 		return -EINVAL;
 	}
 	return 0;

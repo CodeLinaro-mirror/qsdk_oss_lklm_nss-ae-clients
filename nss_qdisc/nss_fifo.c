@@ -119,10 +119,11 @@ static int nss_fifo_ppe_change(struct Qdisc *sch, struct nlattr *opt)
 	 * as PPE HW has memory in blocks of 256 bytes.
 	 */
 	if (q->is_bfifo) {
-		q->limit = q->limit / NSS_PPE_MEM_BLOCK_SIZE;
+		nq->npq.q.qlimit = q->limit / NSS_PPE_MEM_BLOCK_SIZE;
+	} else {
+		nq->npq.q.qlimit = q->limit;
 	}
 
-	nq->npq.q.qlimit = q->limit;
 	nq->npq.q.color_en = false;
 	nq->npq.q.red_en = false;
 
@@ -134,7 +135,7 @@ static int nss_fifo_ppe_change(struct Qdisc *sch, struct nlattr *opt)
 	nq->npq.q.mcast_enable = q->set_default;
 
 	if (nss_ppe_configure(&q->nq, &prev_npq) < 0) {
-		nss_qdisc_error("nss_fifo %p configuration failed\n", sch);
+		nss_qdisc_warning("nss_fifo %x configuration failed\n", sch->handle);
 		goto fail;
 	}
 
@@ -142,6 +143,7 @@ static int nss_fifo_ppe_change(struct Qdisc *sch, struct nlattr *opt)
 
 fail:
 	if (nq->npq.is_configured) {
+		nss_qdisc_warning("nss_fifo %x configuration failed\n", sch->handle);
 		return -EINVAL;
 	}
 
@@ -149,6 +151,7 @@ fail:
 	 * Fallback to nss qdisc if PPE Qdisc configuration failed at init time.
 	 */
 	if (nss_ppe_fallback_to_nss(&q->nq, opt) < 0) {
+		nss_qdisc_warning("nss_fifo %x fallback to nss failed\n", sch->handle);
 		return -EINVAL;
 	}
 	return 0;

@@ -80,10 +80,10 @@ static inline struct nss_htb_class_data *nss_htb_find_class(u32 classid, struct 
 }
 
 /*
- * nss_htb_params_validate_and_save()
+ * nss_htb_class_params_validate_and_save()
  *	Validates and saves the qdisc configuration parameters.
  */
-static int nss_htb_params_validate_and_save(struct Qdisc *sch, struct nlattr **tca,
+static int nss_htb_class_params_validate_and_save(struct Qdisc *sch, struct nlattr **tca,
 					struct nss_htb_param *param)
 {
 	struct nlattr *opt = tca[TCA_OPTIONS];
@@ -124,6 +124,24 @@ static int nss_htb_params_validate_and_save(struct Qdisc *sch, struct nlattr **t
 		sch_tree_unlock(sch);
 		return -EINVAL;
 	}
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (q->nq.mode == NSS_QDISC_MODE_PPE) {
+		if ((qopt->quantum % NSS_PPE_DRR_WEIGHT_MAX) != 0) {
+			nss_qdisc_warning("nsshtb (accel_mode %d) requires quantum to be a multiple of 1024\n",
+					nss_qdisc_accel_mode_get(&q->nq));
+			sch_tree_unlock(sch);
+			return -EINVAL;
+		}
+
+		if (qopt->quantum > (NSS_PPE_DRR_WEIGHT_MAX * NSS_PPE_DRR_WEIGHT_MAX)) {
+			nss_qdisc_warning("nsshtb (accel_mode %d) requires quantum not exceeding 1024*1024\n",
+					nss_qdisc_accel_mode_get(&q->nq));
+			sch_tree_unlock(sch);
+			return -EINVAL;
+		}
+	}
+#endif
 
 	memset(param, 0, sizeof(*param));
 	param->rate = qopt->rate;
@@ -227,7 +245,8 @@ static int nss_htb_ppe_change_class(struct Qdisc *sch, struct nss_htb_class_data
 	cl->nq.npq.shaper.crate = param->crate;
 	cl->nq.npq.shaper.cburst = param->cburst;
 	cl->nq.npq.shaper.overhead = param->overhead;
-	cl->nq.npq.scheduler.quantum = param->quantum;
+	cl->nq.npq.scheduler.drr_weight = nss_ppe_drr_weight_get(param->quantum, NSS_PPE_DRR_UNIT_BYTE);
+	cl->nq.npq.scheduler.drr_unit = NSS_PPE_DRR_UNIT_BYTE;
 	cl->nq.npq.scheduler.priority = param->priority;
 
 	/*
@@ -238,6 +257,7 @@ static int nss_htb_ppe_change_class(struct Qdisc *sch, struct nss_htb_class_data
 		return -EINVAL;
 	}
 
+	cl->param = *param;
 	return 0;
 }
 #endif
@@ -258,10 +278,11 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	struct net_device *dev = qdisc_dev(sch);
 	unsigned int mtu = psched_mtu(dev);
 	unsigned int accel_mode = nss_qdisc_accel_mode_get(&q->nq);
+	bool new_init = false;
 
 	nss_qdisc_trace("configuring htb class %x of qdisc %x\n", classid, sch->handle);
 
-	if (nss_htb_params_validate_and_save(sch, tca, &param) < 0) {
+	if (nss_htb_class_params_validate_and_save(sch, tca, &param) < 0) {
 		nss_qdisc_warning("validation of configuration parameters for htb class %x failed\n",
 					sch->handle);
 		return -EINVAL;
@@ -279,17 +300,15 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		nq_parent = &q->nq;
 	}
 
-	if (cl) {
 #if defined(NSS_QDISC_PPE_SUPPORT)
-		if (cl->nq.mode == NSS_QDISC_MODE_PPE) {
-			if (nss_htb_ppe_change_class(sch, cl, &param) < 0) {
-				nss_qdisc_warning("nss_htb %x SSDK scheduler configuration failed\n", sch->handle);
-				return -EINVAL;
-			}
-			return 0;
+	if (cl && (cl->nq.mode == NSS_QDISC_MODE_PPE)) {
+		if (nss_htb_ppe_change_class(sch, cl, &param) < 0) {
+			nss_qdisc_warning("nss_htb %x SSDK scheduler configuration failed\n", sch->handle);
+			return -EINVAL;
 		}
-#endif
+		return 0;
 	}
+#endif
 
 	/*
 	 * If class with a given classid is not found, we allocate a new one
@@ -304,6 +323,7 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		}
 
 		*arg = (unsigned long)cl;
+		new_init = true;
 		nss_qdisc_trace("adding class %x to qdisc %x\n", classid, sch->handle);
 
 		/*
@@ -404,7 +424,13 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		if (nss_qdisc_configure(&cl->nq, &nim_config,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
 			nss_qdisc_error("failed to send configure message for htb class %x\n", classid);
-			return -EINVAL;
+
+			if (!new_init) {
+				return -EINVAL;
+			}
+
+			nss_qdisc_destroy(&cl->nq);
+			goto failure;
 		}
 	}
 

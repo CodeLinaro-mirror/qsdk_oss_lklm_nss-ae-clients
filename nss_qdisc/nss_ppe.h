@@ -31,7 +31,18 @@
  */
 #define NSS_PPE_TOKEN_MAX		0x3fffffff
 
+#define NSS_PPE_DRR_WEIGHT_MAX		1024
+
 struct nss_qdisc;
+
+/*
+ * Quantum unit.
+ */
+enum nss_ppe_drr_unit {
+	NSS_PPE_DRR_UNIT_BYTE,
+	NSS_PPE_DRR_UNIT_PACKET,
+};
+typedef enum nss_ppe_drr_unit nss_ppe_drr_unit_t;
 
 /*
  * Shaper/Scheduler levels.
@@ -123,7 +134,9 @@ struct nss_ppe_shaper {
  * nss_ppe_scheduler structure
  */
 struct nss_ppe_scheduler {
-	uint32_t quantum;	/* Quantum allocation for DRR */
+	uint32_t drr_weight;	/* DRR weight */
+	nss_ppe_drr_unit_t drr_unit;
+				/* DRR unit*/
 	uint32_t priority;	/* Priority value */
 };
 
@@ -191,40 +204,16 @@ extern int nss_ppe_mcast_queue_reset(struct nss_qdisc *nq);
 extern int nss_ppe_mcast_queue_set(struct nss_qdisc *nq);
 
 /*
- * nss_ppe_scheduler_reset()
- *	Resets a configured scheduler in SSDK.
+ * nss_ppe_drr_weight_get()
+ *	Returns the DRR weight corresponding to quantum.
  */
-extern int nss_ppe_scheduler_reset(struct nss_qdisc *nq);
-
-/*
- * nss_ppe_scheduler_set()
- *	Configures a scheduler in SSDK.
- */
-extern int nss_ppe_scheduler_set(struct nss_qdisc *nq);
-
-/*
- * nss_ppe_shaper_reset()
- *	Resets a configured shaper in SSDK.
- */
-extern int nss_ppe_shaper_reset(struct nss_qdisc *nq);
-
-/*
- * nss_ppe_shaper_set()
- *	Configures a shaper in SSDK.
- */
-extern int nss_ppe_shaper_set(struct nss_qdisc *nq);
+extern int nss_ppe_drr_weight_get(uint32_t quantum, nss_ppe_drr_unit_t drr_unit);
 
 /*
  * nss_ppe_port_num_get()
  *	Returns the port number.
  */
 extern int nss_ppe_port_num_get(struct nss_qdisc *nq);
-
-/*
- * nss_ppe_is_depth_valid()
- *	Checks the depth of Qdisc tree.
- */
-extern int nss_ppe_is_depth_valid(struct nss_qdisc *nq);
 
 /*
  * nss_ppe_node_detach()

@@ -92,7 +92,14 @@ static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shape
 	}
 
 	if (nss_ppe_init(sch, nq, type) < 0) {
-		if (nq->is_class) {
+			/*
+			 * Class creation failures in PPE cannot use fallback to NSS-FW
+			 * because classes under a qdisc usually share resources and that
+			 * cannot happen across two data planes.
+			 * Therefore fallback only applies to qdiscs.
+			 */
+			if (nq->is_class) {
+			nss_qdisc_error("Qdisc %p (type %d) initializing HW class failed", nq->qdisc, nq->type);
 			return -1;
 		}
 		nss_qdisc_info("Qdisc %p (type %d) initializing HW Qdisc failed, initializing NSS Qdisc \n",

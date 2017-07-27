@@ -238,7 +238,7 @@ static int nss_lag_update_slave(struct netdev_notifier_info *info)
 
 		if (i == NSS_LAG_MAX_SLAVES_PER_BONDID) {
 			spin_unlock(&nss_lag_spinlock);
-			nss_lag_warn("More than max %s slaves are added\n",
+			nss_lag_warn("More than max %d slaves are added\n",
 					NSS_LAG_MAX_SLAVES_PER_BONDID);
 			return NOTIFY_DONE;
 		}

@@ -25,6 +25,10 @@ struct nss_fifo_sched_data {
 	bool is_bfifo;		/* Flag to identify bfifo or pfifo */
 };
 
+static struct nla_policy nss_fifo_policy[TCA_NSSFIFO_MAX + 1] = {
+	[TCA_NSSFIFO_PARMS] = { .len = sizeof(struct tc_nssfifo_qopt) },
+};
+
 static int nss_fifo_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
 	return nss_qdisc_enqueue(skb, sch);
@@ -59,10 +63,6 @@ static void nss_fifo_destroy(struct Qdisc *sch)
 	nss_qdisc_destroy(nq);
 	nss_qdisc_info("nss_fifo destroyed");
 }
-
-static const struct nla_policy nss_fifo_policy[TCA_NSSFIFO_MAX + 1] = {
-	[TCA_NSSFIFO_PARMS] = { .len = sizeof(struct tc_nssfifo_qopt) },
-};
 
 static int nss_fifo_params_validate_and_save(struct Qdisc *sch, struct nlattr *opt)
 {

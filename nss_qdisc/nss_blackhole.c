@@ -25,6 +25,13 @@ struct nss_blackhole_sched_data {
 };
 
 /*
+ * nss_blackhole policy structure
+ */
+static struct nla_policy nss_blackhole_policy[TCA_NSSBLACKHOLE_MAX + 1] = {
+	[TCA_NSSBLACKHOLE_PARMS] = { .len = sizeof(struct tc_nssblackhole_qopt) },
+};
+
+/*
  * nss_blackhole_enqueue()
  *	Enqueue API for nss blackhole qdisc.
  */
@@ -80,13 +87,6 @@ static void nss_blackhole_destroy(struct Qdisc *sch)
 	nss_qdisc_info("destroying qdisc %x\n", sch->handle);
 	nss_qdisc_destroy(nq);
 }
-
-/*
- * nss_blackhole policy structure
- */
-static const struct nla_policy nss_blackhole_policy[TCA_NSSBLACKHOLE_MAX + 1] = {
-	[TCA_NSSBLACKHOLE_PARMS] = { .len = sizeof(struct tc_nssblackhole_qopt) },
-};
 
 /*
  * nss_blackhole_change()

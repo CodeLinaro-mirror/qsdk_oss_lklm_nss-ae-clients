@@ -29,6 +29,11 @@ struct nss_wrr_sched_data {
 	struct Qdisc_class_hash clhash;	/* Class hash */
 };
 
+static struct nla_policy nss_wrr_policy[TCA_NSSWRR_MAX + 1] = {
+	[TCA_NSSWRR_CLASS_PARMS] = { .len = sizeof(struct tc_nsswrr_class_qopt) },
+	[TCA_NSSWRR_QDISC_PARMS] = { .len = sizeof(struct tc_nsswrr_qopt) },
+};
+
 static inline struct nss_wrr_class_data *nss_wrr_find_class(u32 classid,
 							struct Qdisc *sch)
 {
@@ -41,11 +46,6 @@ static inline struct nss_wrr_class_data *nss_wrr_find_class(u32 classid,
 	}
 	return container_of(clc, struct nss_wrr_class_data, cl_common);
 }
-
-static const struct nla_policy nss_wrr_policy[TCA_NSSWRR_MAX + 1] = {
-	[TCA_NSSWRR_CLASS_PARMS] = { .len = sizeof(struct tc_nsswrr_class_qopt) },
-	[TCA_NSSWRR_QDISC_PARMS] = { .len = sizeof(struct tc_nsswrr_qopt) },
-};
 
 static void nss_wrr_destroy_class(struct Qdisc *sch, struct nss_wrr_class_data *cl)
 {

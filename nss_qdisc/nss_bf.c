@@ -40,6 +40,14 @@ struct nss_bf_sched_data {
 };
 
 /*
+ * nss_bf_policy structure
+ */
+static struct nla_policy nss_bf_policy[TCA_NSSBF_MAX + 1] = {
+	[TCA_NSSBF_CLASS_PARMS] = { .len = sizeof(struct tc_nssbf_class_qopt) },
+	[TCA_NSSBF_QDISC_PARMS] = { .len = sizeof(struct tc_nssbf_qopt) },
+};
+
+/*
  * nss_bf_find_class()
  *	Returns a pointer to class if classid matches with a class under this qdisc.
  */
@@ -55,14 +63,6 @@ static inline struct nss_bf_class_data *nss_bf_find_class(u32 classid,
 	}
 	return container_of(clc, struct nss_bf_class_data, cl_common);
 }
-
-/*
- * nss_bf_policy structure
- */
-static const struct nla_policy nss_bf_policy[TCA_NSSBF_MAX + 1] = {
-	[TCA_NSSBF_CLASS_PARMS] = { .len = sizeof(struct tc_nssbf_class_qopt) },
-	[TCA_NSSBF_QDISC_PARMS] = { .len = sizeof(struct tc_nssbf_qopt) },
-};
 
 /*
  * nss_bf_change_class()

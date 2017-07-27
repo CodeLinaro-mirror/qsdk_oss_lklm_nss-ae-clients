@@ -25,6 +25,9 @@ struct nss_tbl_sched_data {
 	struct Qdisc *qdisc;	/* Qdisc to which it is attached to */
 };
 
+static struct nla_policy nss_tbl_policy[TCA_NSSTBL_MAX + 1] = {
+	[TCA_NSSTBL_PARMS] = { .len = sizeof(struct tc_nsstbl_qopt) },
+};
 
 static int nss_tbl_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
@@ -82,10 +85,6 @@ static void nss_tbl_destroy(struct Qdisc *sch)
 	nss_qdisc_stop_basic_stats_polling(&q->nq);
 	nss_qdisc_destroy(&q->nq);
 }
-
-static const struct nla_policy nss_tbl_policy[TCA_NSSTBL_MAX + 1] = {
-	[TCA_NSSTBL_PARMS] = { .len = sizeof(struct tc_nsstbl_qopt) },
-};
 
 static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 {

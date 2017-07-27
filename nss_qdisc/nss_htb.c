@@ -55,6 +55,14 @@ struct nss_htb_sched_data {
 };
 
 /*
+ * nss_htb_policy structure
+ */
+static struct nla_policy nss_htb_policy[TCA_NSSHTB_MAX + 1] = {
+	[TCA_NSSHTB_CLASS_PARMS] = { .len = sizeof(struct tc_nsshtb_class_qopt) },
+	[TCA_NSSHTB_QDISC_PARMS] = { .len = sizeof(struct tc_nsshtb_qopt) },
+};
+
+/*
  * nss_htb_find_class()
  *	Returns a pointer to class if classid matches with a class under this qdisc.
  */
@@ -70,14 +78,6 @@ static inline struct nss_htb_class_data *nss_htb_find_class(u32 classid, struct 
 	}
 	return container_of(clc, struct nss_htb_class_data, sch_common);
 }
-
-/*
- * nss_htb_policy structure
- */
-static const struct nla_policy nss_htb_policy[TCA_NSSHTB_MAX + 1] = {
-	[TCA_NSSHTB_CLASS_PARMS] = { .len = sizeof(struct tc_nsshtb_class_qopt) },
-	[TCA_NSSHTB_QDISC_PARMS] = { .len = sizeof(struct tc_nsshtb_qopt) },
-};
 
 /*
  * nss_htb_params_validate_and_save()

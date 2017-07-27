@@ -31,6 +31,10 @@ struct nss_codel_sched_data {
 				/* Contains nss_codel related stats */
 };
 
+static struct nla_policy nss_codel_policy[TCA_NSSCODEL_MAX + 1] = {
+	[TCA_NSSCODEL_PARMS] = { .len = sizeof(struct tc_nsscodel_qopt) },
+};
+
 static int nss_codel_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
 	return nss_qdisc_enqueue(skb, sch);
@@ -62,10 +66,6 @@ static void nss_codel_destroy(struct Qdisc *sch)
 	nss_qdisc_destroy(nq);
 	nss_qdisc_info("nss_codel destroyed");
 }
-
-static const struct nla_policy nss_codel_policy[TCA_NSSCODEL_MAX + 1] = {
-	[TCA_NSSCODEL_PARMS] = { .len = sizeof(struct tc_nsscodel_qopt) },
-};
 
 static int nss_codel_change(struct Qdisc *sch, struct nlattr *opt)
 {

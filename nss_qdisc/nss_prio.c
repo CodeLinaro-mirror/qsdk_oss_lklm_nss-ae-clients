@@ -27,6 +27,13 @@ struct nss_prio_sched_data {
 };
 
 /*
+ * nssprio policy structure
+ */
+static struct nla_policy nss_prio_policy[TCA_NSSPRIO_MAX + 1] = {
+	[TCA_NSSPRIO_PARMS] = { .len = sizeof(struct tc_nssprio_qopt) },
+};
+
+/*
  * nss_prio_enqueue()
  *	Enqueues a skb to nssprio qdisc.
  */
@@ -123,13 +130,6 @@ static void nss_prio_destroy(struct Qdisc *sch)
 	 */
 	nss_qdisc_destroy(&q->nq);
 }
-
-/*
- * nssprio policy structure
- */
-static const struct nla_policy nss_prio_policy[TCA_NSSPRIO_MAX + 1] = {
-	[TCA_NSSPRIO_PARMS] = { .len = sizeof(struct tc_nssprio_qopt) },
-};
 
 /*
  * nss_prio_change()

@@ -45,6 +45,13 @@ struct nss_wred_sched_data {
 };
 
 /*
+ * nsswred policy structure
+ */
+static struct nla_policy nss_wred_policy[TCA_NSSWRED_MAX + 1] = {
+	[TCA_NSSWRED_PARMS] = { .len = sizeof(struct tc_nsswred_qopt) },
+};
+
+/*
  * nss_wred_enqueue()
  *	Enqueue API for nsswred qdisc
  */
@@ -98,13 +105,6 @@ static void nss_wred_destroy(struct Qdisc *sch)
 	nss_qdisc_destroy(nq);
 	nss_qdisc_info("nsswred destroyed");
 }
-
-/*
- * nsswred policy structure
- */
-static const struct nla_policy nss_wred_policy[TCA_NSSWRED_MAX + 1] = {
-	[TCA_NSSWRED_PARMS] = { .len = sizeof(struct tc_nsswred_qopt) },
-};
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 /*

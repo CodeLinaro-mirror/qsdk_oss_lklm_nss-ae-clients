@@ -1015,7 +1015,6 @@ struct Qdisc *nss_qdisc_replace(struct Qdisc *sch, struct Qdisc *new,
 	return old;
 #endif
 }
-EXPORT_SYMBOL(nss_qdisc_replace);
 
 /*
  * nss_qdisc_qopt_get()
@@ -1073,7 +1072,6 @@ struct sk_buff *nss_qdisc_peek(struct Qdisc *sch)
 
 	return skb;
 }
-EXPORT_SYMBOL(nss_qdisc_peek);
 
 /*
  * nss_qdisc_drop()
@@ -1097,7 +1095,6 @@ unsigned int nss_qdisc_drop(struct Qdisc *sch)
 
 	return ret;
 }
-EXPORT_SYMBOL(nss_qdisc_drop);
 
 /*
  * nss_qdisc_reset()
@@ -1127,7 +1124,6 @@ void nss_qdisc_reset(struct Qdisc *sch)
 	nss_qdisc_info("Qdisc %p (type %d) reset complete\n",
 			sch, nq->type);
 }
-EXPORT_SYMBOL(nss_qdisc_reset);
 
 /*
  * nss_qdisc_enqueue()
@@ -1237,7 +1233,6 @@ enqueue_drop:
 
 	return NET_XMIT_DROP;
 }
-EXPORT_SYMBOL(nss_qdisc_enqueue);
 
 /*
  * nss_qdisc_dequeue()
@@ -1258,7 +1253,6 @@ inline struct sk_buff *nss_qdisc_dequeue(struct Qdisc *sch)
 		return nss_qdisc_remove_from_tail(sch);
 	}
 }
-EXPORT_SYMBOL(nss_qdisc_dequeue);
 
 /*
  * nss_qdisc_set_hybrid_mode_callback()
@@ -1354,7 +1348,6 @@ int nss_qdisc_set_hybrid_mode(struct nss_qdisc *nq, enum nss_qdisc_hybrid_mode m
 			nq->qdisc, nq->type);
 	return 0;
 }
-EXPORT_SYMBOL(nss_qdisc_set_hybrid_mode);
 
 /*
  * nss_qdisc_set_default_callback()
@@ -1444,7 +1437,6 @@ int nss_qdisc_set_default(struct nss_qdisc *nq)
 			nq->qdisc, nq->type);
 	return 0;
 }
-EXPORT_SYMBOL(nss_qdisc_set_default);
 
 /*
  * nss_qdisc_node_attach_callback()
@@ -1553,7 +1545,6 @@ int nss_qdisc_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 			nq->qdisc, nq->type);
 	return 0;
 }
-EXPORT_SYMBOL(nss_qdisc_node_attach);
 
 /*
  * nss_qdisc_node_detach_callback()
@@ -1658,7 +1649,6 @@ int nss_qdisc_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child,
 			nq->qdisc, nq->type);
 	return 0;
 }
-EXPORT_SYMBOL(nss_qdisc_node_detach);
 
 /*
  * nss_qdisc_configure_callback()
@@ -1748,7 +1738,6 @@ int nss_qdisc_configure(struct nss_qdisc *nq,
 			nq->qdisc, nq->type);
 	return 0;
 }
-EXPORT_SYMBOL(nss_qdisc_configure);
 
 /*
  * nss_qdisc_destroy()
@@ -1832,7 +1821,6 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 	nss_qdisc_info("Qdisc %p (type %d): destroy complete\n",
 			nq->qdisc, nq->type);
 }
-EXPORT_SYMBOL(nss_qdisc_destroy);
 
 /*
  * nss_qdisc_init()
@@ -1849,7 +1837,9 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	struct nss_if_msg nim;
 	int msg_type;
 	nss_tx_status_t cmd_status;
+#if defined(NSS_QDISC_PPE_SUPPORT)
 	bool mode_ppe = false;
+#endif
 
 	if (accel_mode >= TCA_NSS_ACCEL_MODE_MAX) {
 		nss_qdisc_warning("Qdisc %p (type %d) accel_mode:%u should be < %u\n",
@@ -1874,12 +1864,14 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	nq->qdisc = sch;
 	nq->type = type;
 
+#if defined(NSS_QDISC_PPE_SUPPORT)
 	/*
 	 * Record user's prefered mode input.
 	 */
 	if (accel_mode == TCA_NSS_ACCEL_MODE_PPE) {
 		mode_ppe = true;
 	}
+#endif
 
 	/*
 	 * We set mode to NSS as default, but if we are successful in creating
@@ -2276,7 +2268,6 @@ init_fail:
 
 	return -1;
 }
-EXPORT_SYMBOL(nss_qdisc_init);
 
 /*
  * nss_qdisc_basic_stats_callback()
@@ -2416,7 +2407,6 @@ void nss_qdisc_start_basic_stats_polling(struct nss_qdisc *nq)
 	atomic_set(&nq->pending_stat_requests, 1);
 	add_timer(&nq->stats_get_timer);
 }
-EXPORT_SYMBOL(nss_qdisc_start_basic_stats_polling);
 
 /*
  * nss_qdisc_stop_basic_stats_polling()
@@ -2445,7 +2435,6 @@ void nss_qdisc_stop_basic_stats_polling(struct nss_qdisc *nq)
 		nss_qdisc_error("Stats request command for %x timedout!\n", nq->qos_tag);
 	}
 }
-EXPORT_SYMBOL(nss_qdisc_stop_basic_stats_polling);
 
 /*
  * nss_qdisc_gnet_stats_copy_basic()
@@ -2460,7 +2449,6 @@ int nss_qdisc_gnet_stats_copy_basic(struct gnet_dump *d,
 	return gnet_stats_copy_basic(d, NULL, b);
 #endif
 }
-EXPORT_SYMBOL(nss_qdisc_gnet_stats_copy_basic);
 
 /*
  * nss_qdisc_gnet_stats_copy_queue()
@@ -2475,7 +2463,6 @@ int nss_qdisc_gnet_stats_copy_queue(struct gnet_dump *d,
 	return gnet_stats_copy_queue(d, NULL, q, q->qlen);
 #endif
 }
-EXPORT_SYMBOL(nss_qdisc_gnet_stats_copy_queue);
 
 /*
  * nss_qdisc_if_event_cb()

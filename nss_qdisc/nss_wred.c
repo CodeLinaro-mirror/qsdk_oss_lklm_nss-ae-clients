@@ -172,7 +172,6 @@ fail:
 static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_wred_sched_data *q = qdisc_priv(sch);
-	struct nss_qdisc *nq = &q->nq;
 	struct tc_nsswred_qopt *qopt;
 	struct nss_if_msg nim;
 
@@ -251,7 +250,7 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt)
 	q->set_default = qopt->set_default;
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
-	if (nq->mode == NSS_QDISC_MODE_PPE) {
+	if (q->nq.mode == NSS_QDISC_MODE_PPE) {
 		if (nss_wred_ppe_change(sch, opt) < 0) {
 			nss_qdisc_warning("nss_wred %p params validate and save failed\n", sch);
 			return -EINVAL;

@@ -117,7 +117,7 @@ static int nss_codel_change(struct Qdisc *sch, struct nlattr *opt)
 			nim.msg.shaper_configure.config.msg.shaper_node_config.snc.codel_param.cap.mtu);
 
 	if (nss_qdisc_configure(&q->nq, &nim,
-				NSS_SHAPER_CONFIG_TYPE_CODEL_CHANGE_PARAM) < 0) {
+				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
 		return -EINVAL;
 	}
 

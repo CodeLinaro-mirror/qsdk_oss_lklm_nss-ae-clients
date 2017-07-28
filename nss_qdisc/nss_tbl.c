@@ -67,7 +67,7 @@ static void nss_tbl_destroy(struct Qdisc *sch)
 	if (q->qdisc != &noop_qdisc) {
 		nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		if (nss_qdisc_node_detach(&q->nq, nq_child, &nim,
-				NSS_SHAPER_CONFIG_TYPE_TBL_DETACH) < 0) {
+				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
 			nss_qdisc_error("Failed to detach child %x from nss_tbl %x\n",
 					q->qdisc->handle, q->nq.qos_tag);
 			return;
@@ -153,7 +153,7 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.tbl_param.lap_pir.short_circuit = true;
 	}
 
-	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_TBL_CHANGE_PARAM) < 0) {
+	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
 		return -EINVAL;
 	}
 
@@ -251,7 +251,7 @@ static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new
 		nss_qdisc_info("Detaching old: %p\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		if (nss_qdisc_node_detach(&q->nq, nq_old, &nim_detach,
-				NSS_SHAPER_CONFIG_TYPE_TBL_DETACH) < 0) {
+				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
 			return -EINVAL;
 		}
 	}
@@ -261,7 +261,7 @@ static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.tbl_attach.child_qos_tag = nq_new->qos_tag;
 		if (nss_qdisc_node_attach(&q->nq, nq_new, &nim_attach,
-				NSS_SHAPER_CONFIG_TYPE_TBL_ATTACH) < 0) {
+				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH) < 0) {
 			return -EINVAL;
 		}
 	}

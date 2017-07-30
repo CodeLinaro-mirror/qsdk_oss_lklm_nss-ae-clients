@@ -31,42 +31,40 @@
  * TODO: These macros need to be removed once
  * configuration is read from device tree.
  */
-#define NSS_PPE_L0_SP_MAX		4
-#define NSS_PPE_L0_CDRR_MAX	16
-#define NSS_PPE_L0_EDRR_MAX	16
+#define NSS_PPE_L0_SP_MAX 		4
+#define NSS_PPE_L0_CDRR_MAX 		16
+#define NSS_PPE_L0_EDRR_MAX 		16
 #define NSS_PPE_L1_SP_MAX		1
-#define NSS_PPE_L1_CDRR_MAX	4
-#define NSS_PPE_L1_EDRR_MAX	4
-#define NSS_PPE_UCAST_QUEUE_MAX	16
-#define NSS_PPE_MCAST_QUEUE_MAX	1
+#define NSS_PPE_L1_CDRR_MAX		4
+#define NSS_PPE_L1_EDRR_MAX		4
+#define NSS_PPE_UCAST_QUEUE_MAX		16
+#define NSS_PPE_MCAST_QUEUE_MAX		1
 
 
-#define NSS_PPE_CPU0_L0_SP_MAX	36
+#define NSS_PPE_CPU0_L0_SP_MAX		36
 #define NSS_PPE_CPU0_L0_CDRR_MAX	48
 #define NSS_PPE_CPU0_L0_EDRR_MAX	48
-#define NSS_PPE_CPU0_L1_SP_MAX	1
+#define NSS_PPE_CPU0_L1_SP_MAX		1
 #define NSS_PPE_CPU0_L1_CDRR_MAX	8
 #define NSS_PPE_CPU0_L1_EDRR_MAX	8
-#define NSS_PPE_CPU0_QUEUE_MAX	144
+#define NSS_PPE_CPU0_QUEUE_MAX		144
 #define NSS_PPE_CPU0_MCAST_QUEUE_MAX	272
 
-#define NSS_PPE_LOOPBACK_L0_SP_MAX	1
-#define NSS_PPE_LOOPBACK_L0_CDRR_MAX	16
-#define NSS_PPE_LOOPBACK_L0_EDRR_MAX	16
-#define NSS_PPE_LOOPBACK_QUEUE_MAX	16
+#define NSS_PPE_LOOPBACK_L0_SP_MAX		1
+#define NSS_PPE_LOOPBACK_L0_CDRR_MAX		16
+#define NSS_PPE_LOOPBACK_L0_EDRR_MAX		16
+#define NSS_PPE_LOOPBACK_QUEUE_MAX		16
 #define NSS_PPE_LOOPBACK_MCAST_QUEUE_MAX	1
 
-#define NSS_PPE_LOOPBACK_L0_SP_BASE	35
-#define NSS_PPE_LOOPBACK_L0_CDRR_BASE	32
-#define NSS_PPE_LOOPBACK_L0_EDRR_BASE	32
-#define NSS_PPE_LOOPBACK_QUEUE_BASE	128
+#define NSS_PPE_LOOPBACK_L0_SP_BASE		35
+#define NSS_PPE_LOOPBACK_L0_CDRR_BASE		32
+#define NSS_PPE_LOOPBACK_L0_EDRR_BASE		32
+#define NSS_PPE_LOOPBACK_QUEUE_BASE		128
 #define NSS_PPE_LOOPBACK_MCAST_QUEUE_BASE	256
 
-#define NSS_PPE_PRIORITY_MAX	7
-
+#define NSS_PPE_PRIORITY_MAX		7
 #define NSS_PPE_PORT_MAX		8
-
-#define NSS_PPE_DRR_WT_MAX	1024
+#define NSS_PPE_DRR_WT_MAX		1024
 
 static struct nss_ppe_port ppe_qdisc_port[NSS_PPE_PORT_MAX];
 
@@ -1920,7 +1918,7 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 	case NSS_SHAPER_NODE_TYPE_WRED:
 		is_red = sch->ops == &nss_red_qdisc_ops;
 		if (!is_red) {
-			nss_qdisc_error("HW WRED qdisc not supported %x\n", sch->handle);
+			nss_qdisc_info("HW WRED qdisc not supported %x\n", sch->handle);
 			return -1;
 		} else {
 			nq->npq.sub_type = NSS_SHAPER_CONFIG_PPE_SN_TYPE_RED;
@@ -1934,7 +1932,7 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 		 * that should be at the root.
 		 */
 		if (sch->parent != TC_H_ROOT) {
-			nss_qdisc_error("HW HTB qdisc needs to be root %x\n", sch->handle);
+			nss_qdisc_info("HW HTB qdisc needs to be root %x\n", sch->handle);
 			return -1;
 		}
 

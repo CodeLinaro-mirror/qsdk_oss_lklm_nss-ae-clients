@@ -18,13 +18,16 @@
 
 struct nss_tbl_sched_data {
 	struct nss_qdisc nq;	/* Common base class for all nss qdiscs */
-	u32 rate;			/* Limiting rate of TBL */
-	u32 peakrate;			/* Maximum rate to control bursts */
-	u32 burst;			/* Maximum allowed burst size */
-	u32 mtu;			/* MTU of the interface attached to */
-	struct Qdisc *qdisc;		/* Qdisc to which it is attached to */
+	u32 rate;		/* Limiting rate of TBL */
+	u32 peakrate;		/* Maximum rate to control bursts */
+	u32 burst;		/* Maximum allowed burst size */
+	u32 mtu;		/* MTU of the interface attached to */
+	struct Qdisc *qdisc;	/* Qdisc to which it is attached to */
 };
 
+static struct nla_policy nss_tbl_policy[TCA_NSSTBL_MAX + 1] = {
+	[TCA_NSSTBL_PARMS] = { .len = sizeof(struct tc_nsstbl_qopt) },
+};
 
 static int nss_tbl_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
@@ -83,30 +86,21 @@ static void nss_tbl_destroy(struct Qdisc *sch)
 	nss_qdisc_destroy(&q->nq);
 }
 
-static const struct nla_policy nss_tbl_policy[TCA_NSSTBL_MAX + 1] = {
-	[TCA_NSSTBL_PARMS] = { .len = sizeof(struct tc_nsstbl_qopt) },
-};
-
 static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
-	struct nlattr *na[TCA_NSSTBL_MAX + 1];
 	struct tc_nsstbl_qopt *qopt;
 	struct nss_if_msg nim;
-	int err;
 	struct net_device *dev = qdisc_dev(sch);
 
-	if (opt == NULL)
+	if (opt == NULL) {
 		return -EINVAL;
+	}
 
-	err = nla_parse_nested(na, TCA_NSSTBL_MAX, opt, nss_tbl_policy);
-	if (err < 0)
-		return err;
-
-	if (na[TCA_NSSTBL_PARMS] == NULL)
+	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS);
+	if (!qopt) {
 		return -EINVAL;
-
-	qopt = nla_data(na[TCA_NSSTBL_PARMS]);
+	}
 
 	/*
 	 * Set MTU if it wasn't specified explicitely
@@ -169,13 +163,20 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
+	struct tc_nsstbl_qopt *qopt;
 
-	if (opt == NULL)
+	if (opt == NULL) {
 		return -EINVAL;
+	}
 
 	q->qdisc = &noop_qdisc;
 
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_TBL, 0) < 0)
+	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS);
+	if (!qopt) {
+		return -EINVAL;
+	}
+
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_TBL, 0, qopt->accel_mode) < 0)
 		return -EINVAL;
 
 	if (nss_tbl_change(sch, opt) < 0) {
@@ -196,12 +197,13 @@ static int nss_tbl_dump(struct Qdisc *sch, struct sk_buff *skb)
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
 	struct nlattr *opts = NULL;
-	struct tc_nsstbl_qopt opt = {
-		.rate		= q->rate,
-		.peakrate	= q->peakrate,
-		.burst		= q->burst,
-		.mtu		= q->mtu,
-	};
+	struct tc_nsstbl_qopt opt;
+
+	opt.rate = q->rate;
+	opt.peakrate = q->peakrate;
+	opt.burst = q->burst;
+	opt.mtu = q->mtu;
+	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	nss_qdisc_info("Nsstbl dumping");
 	opts = nla_nest_start(skb, TCA_OPTIONS);

@@ -97,6 +97,8 @@ static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shape
 		}
 		nss_qdisc_info("Qdisc %p (type %d) initializing HW Qdisc failed, initializing NSS Qdisc \n",
 			nq->qdisc, nq->type);
+	} else {
+		nss_qdisc_info("Qdisc %p (type %d) successfully created in PPE\n", nq->qdisc, nq->type);
 	}
 
 	return 0;
@@ -1016,6 +1018,43 @@ struct Qdisc *nss_qdisc_replace(struct Qdisc *sch, struct Qdisc *new,
 EXPORT_SYMBOL(nss_qdisc_replace);
 
 /*
+ * nss_qdisc_qopt_get()
+ *	Extracts qopt from opt.
+ */
+void *nss_qdisc_qopt_get(struct nlattr *opt, struct nla_policy *policy,
+				uint32_t tca_max, uint32_t tca_params)
+{
+	struct nlattr *na[tca_max + 1];
+	int err;
+
+	if (!opt) {
+		return NULL;
+	}
+
+	err = nla_parse_nested(na, tca_max, opt, policy);
+	if (err < 0)
+		return NULL;
+
+	if (na[tca_params] == NULL)
+		return NULL;
+
+	return nla_data(na[tca_params]);
+}
+
+/*
+ * nss_qdisc_mode_get()
+ *	Returns the operating mode of nss_qdisc, 0 = nss-fw, 1 = ppe.
+ */
+uint8_t nss_qdisc_accel_mode_get(struct nss_qdisc *nq)
+{
+	if (nq->mode == NSS_QDISC_MODE_PPE) {
+		return TCA_NSS_ACCEL_MODE_PPE;
+	}
+
+	return TCA_NSS_ACCEL_MODE_NSS_FW;
+}
+
+/*
  * nss_qdisc_peek()
  *	Called to peek at the head of an nss qdisc
  */
@@ -1800,7 +1839,7 @@ EXPORT_SYMBOL(nss_qdisc_destroy);
  *	Initializes a shaper in NSS, based on the position of this qdisc (child or root)
  *	and if its a normal interface or a bridge interface.
  */
-int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid)
+int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid, uint32_t accel_mode)
 {
 	struct Qdisc *root;
 	u32 parent;
@@ -1810,6 +1849,13 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	struct nss_if_msg nim;
 	int msg_type;
 	nss_tx_status_t cmd_status;
+	bool mode_ppe = false;
+
+	if (accel_mode >= TCA_NSS_ACCEL_MODE_MAX) {
+		nss_qdisc_warning("Qdisc %p (type %d) accel_mode:%u should be < %u\n",
+					sch, nq->type, accel_mode, TCA_NSS_ACCEL_MODE_MAX);
+		return -1;
+	}
 
 	/*
 	 * Initialize locks
@@ -1826,8 +1872,21 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	 * Record our qdisc, mode and type in the private region for handy use
 	 */
 	nq->qdisc = sch;
-	nq->mode = NSS_QDISC_MODE_NSS;
 	nq->type = type;
+
+	/*
+	 * Record user's prefered mode input.
+	 */
+	if (accel_mode == TCA_NSS_ACCEL_MODE_PPE) {
+		mode_ppe = true;
+	}
+
+	/*
+	 * We set mode to NSS as default, but if we are successful in creating
+	 * qdisc in PPE, then we will get changed to NSS_QDISC_MODE_PPE.
+	 */
+	nq->mode = NSS_QDISC_MODE_NSS;
+
 	/*
 	 * We dont have to destroy a virtual interface unless
 	 * we are the ones who created it. So set it to false
@@ -1947,7 +2006,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 		/*
 		 * Try initializing PPE Qdisc first.
 		 */
-		if (nss_qdisc_ppe_init(sch, nq, type, parent) < 0) {
+		if (mode_ppe && nss_qdisc_ppe_init(sch, nq, type, parent) < 0) {
 			nss_qdisc_error("Qdisc %p (type %d) init failed", nq->qdisc, nq->type);
 			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
@@ -2125,7 +2184,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	/*
 	 * Try initializing PPE Qdisc first.
 	 */
-	if (nss_qdisc_ppe_init(sch, nq, type, parent) < 0) {
+	if (mode_ppe && nss_qdisc_ppe_init(sch, nq, type, parent) < 0) {
 		nss_qdisc_error("Qdisc %p (type %d) init failed", nq->qdisc, nq->type);
 		nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 		atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);

@@ -40,6 +40,14 @@ struct nss_bf_sched_data {
 };
 
 /*
+ * nss_bf_policy structure
+ */
+static struct nla_policy nss_bf_policy[TCA_NSSBF_MAX + 1] = {
+	[TCA_NSSBF_CLASS_PARMS] = { .len = sizeof(struct tc_nssbf_class_qopt) },
+	[TCA_NSSBF_QDISC_PARMS] = { .len = sizeof(struct tc_nssbf_qopt) },
+};
+
+/*
  * nss_bf_find_class()
  *	Returns a pointer to class if classid matches with a class under this qdisc.
  */
@@ -57,13 +65,6 @@ static inline struct nss_bf_class_data *nss_bf_find_class(u32 classid,
 }
 
 /*
- * nss_bf_policy structure
- */
-static const struct nla_policy nss_bf_policy[TCA_NSSBF_MAX + 1] = {
-	[TCA_NSSBF_CLASS_PARMS] = { .len = sizeof(struct tc_nssbf_class_qopt) },
-};
-
-/*
  * nss_bf_change_class()
  *	Configures a new class.
  */
@@ -73,22 +74,20 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
 	struct nss_bf_class_data *cl = (struct nss_bf_class_data *)*arg;
 	struct nlattr *opt = tca[TCA_OPTIONS];
-	struct nlattr *na[TCA_NSSBF_MAX + 1];
 	struct tc_nssbf_class_qopt *qopt;
-	int err;
 	struct nss_if_msg nim_config;
 	struct net_device *dev = qdisc_dev(sch);
+	unsigned int accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	nss_qdisc_info("Changing bf class %u\n", classid);
-	if (opt == NULL)
+	if (!opt) {
 		return -EINVAL;
+	}
 
-	err = nla_parse_nested(na, TCA_NSSBF_MAX, opt, nss_bf_policy);
-	if (err < 0)
-		return err;
-
-	if (na[TCA_NSSBF_CLASS_PARMS] == NULL)
+	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, TCA_NSSBF_MAX, TCA_NSSBF_CLASS_PARMS);
+	if (!qopt) {
 		return -EINVAL;
+	}
 
 	/*
 	 * If class with a given classid is not found, we allocate a new one
@@ -122,7 +121,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * that is registered to Linux. Therefore we initialize the NSSBF_GROUP shaper
 		 * here.
 		 */
-		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_BF_GROUP, classid) < 0) {
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_BF_GROUP, classid, accel_mode) < 0) {
 			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			kfree(cl);
 			return -EINVAL;
@@ -168,8 +167,6 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 
 		nss_qdisc_info("Class %u successfully allocated\n", classid);
 	}
-
-	qopt = nla_data(na[TCA_NSSBF_CLASS_PARMS]);
 
 	sch_tree_lock(sch);
 	cl->rate = qopt->rate;
@@ -564,13 +561,13 @@ static int nss_bf_change_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	}
 
 	/*
-	 * If it is not NULL, check if the size of message is valid.
+	 * If it is not NULL, parse to get qopt.
 	 */
-	if (nla_len(opt) < sizeof(*qopt)) {
-		nss_qdisc_warning("Invalid message length: size %d expected >= %u\n", nla_len(opt), sizeof(*qopt));
+	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS);
+	if (!qopt) {
 		return -EINVAL;
 	}
-	qopt = nla_data(opt);
+
 	sch_tree_lock(sch);
 	q->defcls = qopt->defcls;
 	sch_tree_unlock(sch);
@@ -690,13 +687,16 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
 static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
+	struct tc_nssbf_qopt *qopt;
 	int err;
+	unsigned int accel_mode;
 
 	nss_qdisc_info("Init bf qdisc %p\n", sch);
 
 	err = qdisc_class_hash_init(&q->clhash);
-	if (err < 0)
+	if (err < 0) {
 		return err;
+	}
 
 	q->root.cl_common.classid = sch->handle;
 	q->root.qdisc = &noop_qdisc;
@@ -705,10 +705,24 @@ static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	qdisc_class_hash_grow(sch, &q->clhash);
 
 	/*
+	 * opt is NULL when no parameter is passed by user in TC.
+	 */
+	if (!opt) {
+		accel_mode = TCA_NSS_ACCEL_MODE_NSS_FW;
+	} else {
+		qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS);
+		if (!qopt) {
+			return -EINVAL;
+		}
+		accel_mode = qopt->accel_mode;
+	}
+
+	/*
 	 * Initialize the NSSBF shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_BF, 0) < 0)
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_BF, 0, accel_mode) < 0) {
 		return -EINVAL;
+	}
 
 	nss_qdisc_info("Nssbf initialized - handle %x parent %x\n", sch->handle, sch->parent);
 
@@ -735,24 +749,23 @@ static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 static int nss_bf_dump_qdisc(struct Qdisc *sch, struct sk_buff *skb)
 {
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
-	unsigned char *b = skb_tail_pointer(skb);
 	struct tc_nssbf_qopt qopt;
-	struct nlattr *nest;
+	struct nlattr *opts = NULL;
 
 	nss_qdisc_info("In bf dump qdisc\n");
 	qopt.defcls = q->defcls;
+	qopt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
-	nest = nla_nest_start(skb, TCA_OPTIONS);
-	if (nest == NULL || nla_put(skb, TCA_NSSBF_QDISC_PARMS, sizeof(qopt), &qopt)) {
+	opts = nla_nest_start(skb, TCA_OPTIONS);
+	if (!opts || nla_put(skb, TCA_NSSBF_QDISC_PARMS, sizeof(qopt), &qopt)) {
 		goto nla_put_failure;
 	}
 
-	nla_nest_end(skb, nest);
-	return skb->len;
+	return nla_nest_end(skb, opts);
 
- nla_put_failure:
-	nlmsg_trim(skb, b);
-	return -1;
+nla_put_failure:
+	nla_nest_cancel(skb, opts);
+	return -EMSGSIZE;
 }
 
 /*

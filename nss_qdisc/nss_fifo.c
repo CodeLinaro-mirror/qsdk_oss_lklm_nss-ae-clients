@@ -19,10 +19,14 @@
 
 struct nss_fifo_sched_data {
 	struct nss_qdisc nq;	/* Common base class for all nss qdiscs */
-	u32 limit;			/* Queue length in packets */
-					/* TODO: Support for queue length in bytes */
-	u8 set_default;			/* Flag to set qdisc as default qdisc for enqueue */
-	bool is_bfifo;			/* Flag to identify bfifo or pfifo */
+	u32 limit;		/* Queue length in packets */
+				/* TODO: Support for queue length in bytes */
+	u8 set_default;		/* Flag to set qdisc as default qdisc for enqueue */
+	bool is_bfifo;		/* Flag to identify bfifo or pfifo */
+};
+
+static struct nla_policy nss_fifo_policy[TCA_NSSFIFO_MAX + 1] = {
+	[TCA_NSSFIFO_PARMS] = { .len = sizeof(struct tc_nssfifo_qopt) },
 };
 
 static int nss_fifo_enqueue(struct sk_buff *skb, struct Qdisc *sch)
@@ -60,30 +64,21 @@ static void nss_fifo_destroy(struct Qdisc *sch)
 	nss_qdisc_info("nss_fifo destroyed");
 }
 
-static const struct nla_policy nss_fifo_policy[TCA_NSSFIFO_MAX + 1] = {
-	[TCA_NSSFIFO_PARMS] = { .len = sizeof(struct tc_nssfifo_qopt) },
-};
-
 static int nss_fifo_params_validate_and_save(struct Qdisc *sch, struct nlattr *opt)
 {
-	struct nlattr *na[TCA_NSSFIFO_MAX + 1];
 	struct tc_nssfifo_qopt *qopt;
 	struct nss_fifo_sched_data *q = qdisc_priv(sch);
 	bool is_bfifo = (sch->ops == &nss_bfifo_qdisc_ops);
-	int err;
 
 	if (!opt) {
 		return -EINVAL;
 	}
 
-	err = nla_parse_nested(na, TCA_NSSFIFO_MAX, opt, nss_fifo_policy);
-	if (err < 0)
-		return err;
-
-	if (!na[TCA_NSSFIFO_PARMS])
+	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS);
+	if (!qopt) {
+		nss_qdisc_warning("Invalid input to fifo %x", sch->handle);
 		return -EINVAL;
-
-	qopt = nla_data(na[TCA_NSSFIFO_PARMS]);
+	}
 
 	if (!qopt->limit) {
 		qopt->limit = qdisc_dev(sch)->tx_queue_len ? : 1;
@@ -126,6 +121,7 @@ static int nss_fifo_ppe_change(struct Qdisc *sch, struct nlattr *opt)
 	if (q->is_bfifo) {
 		q->limit = q->limit / NSS_PPE_MEM_BLOCK_SIZE;
 	}
+
 	nq->npq.q.qlimit = q->limit;
 	nq->npq.q.color_en = false;
 	nq->npq.q.red_en = false;
@@ -192,8 +188,9 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	 * There is nothing we need to do if the qdisc is not
 	 * set as default qdisc.
 	 */
-	if (q->set_default == 0)
+	if (q->set_default == 0) {
 		return 0;
+	}
 
 	/*
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
@@ -211,15 +208,25 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt)
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
+	struct tc_nssfifo_qopt *qopt;
 
-	if (!opt)
+	if (!opt) {
 		return -EINVAL;
+	}
 
 	nss_qdisc_info("Initializing Fifo - type %d\n", NSS_SHAPER_NODE_TYPE_FIFO);
 	nss_fifo_reset(sch);
 
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0) < 0)
+	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS);
+	if (!qopt) {
+		nss_qdisc_warning("Invalid input to fifo %x", sch->handle);
 		return -EINVAL;
+	}
+
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0, qopt->accel_mode) < 0) {
+		nss_qdisc_warning("Fifo %x init failed", sch->handle);
+		return -EINVAL;
+	}
 
 	nss_qdisc_info("NSS fifo initialized - handle %x parent %x\n", sch->handle, sch->parent);
 	if (nss_fifo_change(sch, opt) < 0) {
@@ -250,13 +257,16 @@ static int nss_fifo_dump(struct Qdisc *sch, struct sk_buff *skb)
 
 	opt.limit = q->limit;
 	opt.set_default = q->set_default;
+	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	opts = nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL) {
 		goto nla_put_failure;
 	}
-	if (nla_put(skb, TCA_NSSFIFO_PARMS, sizeof(opt), &opt))
+
+	if (nla_put(skb, TCA_NSSFIFO_PARMS, sizeof(opt), &opt)) {
 		goto nla_put_failure;
+	}
 
 	return nla_nest_end(skb, opts);
 

@@ -216,6 +216,18 @@ extern int nss_ppe_drr_weight_get(uint32_t quantum, nss_ppe_drr_unit_t drr_unit)
 extern int nss_ppe_port_num_get(struct nss_qdisc *nq);
 
 /*
+ * nss_ppe_set_parent()
+ *	Sets the parent of given qdisc.
+ */
+extern int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent);
+
+/*
+ * nss_ppe_get_max_prio_bands()
+ *	Returns the number of PRIO bands supported based on qdisc level.
+ */
+extern int nss_ppe_get_max_prio_bands(struct nss_qdisc *nq);
+
+/*
  * nss_ppe_node_detach()
  *	Configuration function that helps detach a child shaper node from a parent.
  */

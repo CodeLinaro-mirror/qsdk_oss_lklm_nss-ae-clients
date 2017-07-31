@@ -132,6 +132,28 @@ static void nss_prio_destroy(struct Qdisc *sch)
 }
 
 /*
+ * nss_prio_get_max_bands()
+ *	Function call to get max bamds supported
+ */
+static int nss_prio_get_max_bands(struct Qdisc *sch)
+{
+	struct nss_prio_sched_data *q = qdisc_priv(sch);
+	q = qdisc_priv(sch);
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	if (q->nq.mode == NSS_QDISC_MODE_PPE) {
+		return nss_ppe_get_max_prio_bands(&q->nq);
+	}
+#endif
+
+	if (q->nq.mode == NSS_QDISC_MODE_NSS) {
+		return TCA_NSSPRIO_MAX_BANDS;
+	}
+
+	return 0;
+}
+
+/*
  * nss_prio_change()
  *	Function call to configure the nssprio parameters
  */
@@ -147,7 +169,7 @@ static int nss_prio_change(struct Qdisc *sch, struct nlattr *opt)
 	 * (depending on the kernel version). This is still a valid create
 	 * request.
 	 */
-	if (opt == NULL) {
+	if (!opt) {
 
 		/*
 		 * If no parameter is passed, set it to the default value.
@@ -163,7 +185,9 @@ static int nss_prio_change(struct Qdisc *sch, struct nlattr *opt)
 		return -EINVAL;
 	}
 
-	if (qopt->bands > TCA_NSSPRIO_MAX_BANDS) {
+	if (qopt->bands > nss_prio_get_max_bands(sch)) {
+		nss_qdisc_warning("nssprio (accel_mode %d) requires max bands to be %d\n",
+				nss_qdisc_accel_mode_get(&q->nq), nss_prio_get_max_bands(sch));
 		return -EINVAL;
 	}
 
@@ -281,7 +305,11 @@ static int nss_prio_graft(struct Qdisc *sch, unsigned long arg,
 		struct nss_qdisc *nq_old = qdisc_priv(*old);
 		nss_qdisc_info("Detaching old: %p\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
-		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_detach.priority = band;
+
+		if (q->nq.mode == NSS_QDISC_MODE_NSS) {
+			nim_detach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_detach.priority = band;
+		}
+
 		if (nss_qdisc_node_detach(&q->nq, nq_old, &nim_detach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
 			return -EINVAL;
@@ -293,7 +321,17 @@ static int nss_prio_graft(struct Qdisc *sch, unsigned long arg,
 				"qos_tag: %x\n", nq_new->qos_tag, band, q->nq.qos_tag);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_attach.child_qos_tag = nq_new->qos_tag;
-		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_attach.priority = band;
+
+#if defined(NSS_QDISC_PPE_SUPPORT)
+		if (q->nq.mode == NSS_QDISC_MODE_PPE) {
+			nq_new->npq.scheduler.priority = band;
+		}
+#endif
+
+		if (q->nq.mode == NSS_QDISC_MODE_NSS) {
+			nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.prio_attach.priority = band;
+		}
+
 		if (nss_qdisc_node_attach(&q->nq, nq_new, &nim_attach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH) < 0) {
 			return -EINVAL;

@@ -44,11 +44,6 @@ void *nss_qdisc_ctx;			/* Shaping context for nss_qdisc */
  */
 static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t parent)
 {
-	struct net_device *dev = qdisc_dev(sch);
-	struct nss_qdisc *parent_nq = NULL;
-	struct Qdisc *parent_qdisc = NULL;
-	unsigned long parent_class;
-
 	/*
 	 * Fallback to NSS Qdisc if PPE Qdisc configuration failed.
 	 */
@@ -59,36 +54,11 @@ static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shape
 	}
 
 	/*
-	 * PPE Qdisc cannot be attached to NSS Qdisc.
-	 * PPE Qdisc initialization is not required for a class whose parent qdisc is NSS.
+	 * Set the parent of PPE qdisc.
 	 */
-	if (parent != TC_H_ROOT) {
-		parent_qdisc = qdisc_lookup(dev, TC_H_MAJ(parent));
-		parent_nq = qdisc_priv(parent_qdisc);
-	} else if (nq->is_class) {
-		parent_nq = qdisc_priv(nq->qdisc);
-	}
-
-	if ((parent_nq) && (parent_nq->mode == NSS_QDISC_MODE_NSS)) {
-		nss_qdisc_info("HW qdisc/class %p cannot be attached to nss qdisc/class\n", nq->qdisc);
+	if (nss_ppe_set_parent(sch, nq, parent) < 0) {
+		nss_qdisc_info("HW qdisc/class %x cannot be attached to nss qdisc/class %x\n", nq->qos_tag, parent);
 		return 0;
-	}
-
-	/*
-	 * Set the parent if current Qdisc is not a class.
-	 * For class, parent is set before invoking nss_qdisc_init in respective qdisc files.
-	 */
-	if ((parent_nq) && (!nq->is_class)) {
-		nq->parent = parent_nq;
-
-		/*
-		 * If parent is a class.
-		 */
-		if ((parent_nq) && (TC_H_MIN(parent))) {
-			parent_class = parent_qdisc->ops->cl_ops->get(parent_qdisc, parent);
-			nq->parent = (struct nss_qdisc *)parent_class;
-			parent_qdisc->ops->cl_ops->put(parent_qdisc, parent_class);
-		}
 	}
 
 	if (nss_ppe_init(sch, nq, type) < 0) {

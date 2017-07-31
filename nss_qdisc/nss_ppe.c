@@ -65,6 +65,12 @@
 #define NSS_PPE_PRIORITY_MAX		7
 #define NSS_PPE_PORT_MAX		8
 
+/*
+ * Max number of PRIO bands supported based on level.
+ */
+#define NSS_PPE_PORT_LEVEL_PRIO_BANDS_MAX	4
+#define NSS_PPE_FLOW_LEVEL_PRIO_BANDS_MAX	8
+
 static struct nss_ppe_port ppe_qdisc_port[NSS_PPE_PORT_MAX];
 
 /*
@@ -1708,6 +1714,79 @@ static int nss_ppe_shaper_set(struct nss_qdisc *nq)
 }
 
 /*
+ * nss_ppe_set_parent()
+ *	Sets the parent of given qdisc.
+ */
+int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
+{
+	struct net_device *dev = qdisc_dev(sch);
+	struct nss_qdisc *parent_nq = NULL;
+	struct Qdisc *parent_qdisc = NULL;
+	unsigned long parent_class;
+
+	/*
+	 * PPE Qdisc cannot be attached to NSS Qdisc.
+	 */
+	if (parent != TC_H_ROOT) {
+		parent_qdisc = qdisc_lookup(dev, TC_H_MAJ(parent));
+		parent_nq = qdisc_priv(parent_qdisc);
+	} else if (nq->is_class) {
+		parent_nq = qdisc_priv(nq->qdisc);
+	}
+
+	if ((parent_nq) && (parent_nq->mode == NSS_QDISC_MODE_NSS)) {
+		nss_qdisc_info("HW qdisc/class %p cannot be attached to nss qdisc/class\n", nq->qdisc);
+		return -1;
+	}
+
+	/*
+	 * Set the parent if current Qdisc is not a class.
+	 * For class, parent is set before invoking nss_qdisc_init in respective qdisc files.
+	 */
+	if ((parent_nq) && (!nq->is_class)) {
+		nq->parent = parent_nq;
+
+		/*
+		 * If parent is a class.
+		 *
+		 * Though PRIO is classless but PRIO bands are treated as classes by Qdisc
+		 * infrastructure i.e TC_H_MIN(parent) is true for PRIO band.
+		 * But, we donot allocate any resources for PRIO bands separately so in
+		 * case of any qdisc attached to PRIO band, the parent is set as PRIO qdisc itself.
+		 * And the below class check is applicable only for the classful qdiscs.
+		 */
+		if ((parent_nq) && (parent_nq->npq.sub_type != NSS_SHAPER_CONFIG_PPE_SN_TYPE_PRIO) && (TC_H_MIN(parent))) {
+			parent_class = parent_qdisc->ops->cl_ops->get(parent_qdisc, parent);
+			nq->parent = (struct nss_qdisc *)parent_class;
+			parent_qdisc->ops->cl_ops->put(parent_qdisc, parent_class);
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * nss_ppe_get_max_prio_bands()
+ *	Returns the number of PRIO bands supported based on qdisc level.
+ */
+int nss_ppe_get_max_prio_bands(struct nss_qdisc *nq)
+{
+	nss_ppe_level_t level = nq->npq.level;
+
+	switch (level) {
+	case NSS_PPE_PORT_LEVEL:
+		return NSS_PPE_PORT_LEVEL_PRIO_BANDS_MAX;
+
+	case NSS_PPE_FLOW_LEVEL:
+		return NSS_PPE_FLOW_LEVEL_PRIO_BANDS_MAX;
+
+	default:
+		nss_qdisc_warning("HW Qdisc not supported at this level\n");
+		return 0;
+	}
+}
+
+/*
  * nss_ppe_is_depth_valid()
  *	Checks the depth of Qdisc tree.
  */
@@ -1725,6 +1804,7 @@ static int nss_ppe_is_depth_valid(struct nss_qdisc *nq)
 
 	case NSS_SHAPER_CONFIG_PPE_SN_TYPE_HTB:
 	case NSS_SHAPER_CONFIG_PPE_SN_TYPE_WRR:
+	case NSS_SHAPER_CONFIG_PPE_SN_TYPE_PRIO:
 		valid_level = NSS_PPE_FLOW_LEVEL;
 		break;
 
@@ -2079,6 +2159,10 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 
 	case NSS_SHAPER_NODE_TYPE_WRR_GROUP:
 		nq->npq.sub_type = NSS_SHAPER_CONFIG_PPE_SN_TYPE_WRR_GROUP;
+		break;
+
+	case NSS_SHAPER_NODE_TYPE_PRIO:
+		nq->npq.sub_type = NSS_SHAPER_CONFIG_PPE_SN_TYPE_PRIO;
 		break;
 
 	default:

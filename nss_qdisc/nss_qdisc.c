@@ -2377,6 +2377,15 @@ static void nss_qdisc_get_stats_timer_callback(unsigned long int data)
  */
 void nss_qdisc_start_basic_stats_polling(struct nss_qdisc *nq)
 {
+	/*
+	 * In case the stats polling timer is already
+	 * initiated, return. This can happen only when
+	 * there is a fallback from PPE to NSS qdisc.
+	 */
+	if (atomic_read(&nq->pending_stat_requests)) {
+		return;
+	}
+
 	init_timer(&nq->stats_get_timer);
 	nq->stats_get_timer.function = nss_qdisc_get_stats_timer_callback;
 	nq->stats_get_timer.data = (unsigned long)nq;

@@ -1917,6 +1917,7 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 	 * queue in HW. This is where packets coming from the Adv QoS
 	 * portion of the tree will get enqueued to.
 	 */
+	nq_child->parent = nq;
 	npq_child->level = npq->level - 1;
 
 	if (npq_child->level == NSS_PPE_SUB_QUEUE_LEVEL) {
@@ -2002,7 +2003,7 @@ int nss_ppe_configure(struct nss_qdisc *nq, struct nss_ppe_qdisc *prev_npq)
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.type = npq->sub_type;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.limit = npq->q.qlimit;
 
-	if (npq->q.mcast_valid) {
+	if (npq->q.ucast_valid) {
 		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.ucast_base = ucast_qbase;
 		nim.msg.shaper_configure.config.msg.shaper_node_config.snc.ppe_sn_param.ucast_offset = npq->q.ucast_qid - ucast_qbase;
 	}
@@ -2073,12 +2074,9 @@ fail:
  */
 int nss_ppe_fallback_to_nss(struct nss_qdisc *nq, struct nlattr *opt)
 {
-	nss_ppe_destroy(nq);
-	memset(&nq->npq, 0, sizeof(struct nss_ppe_qdisc));
-
-	nss_qdisc_stop_basic_stats_polling(nq);
 	nss_qdisc_destroy(nq);
 
+	memset(&nq->npq, 0, sizeof(struct nss_ppe_qdisc));
 	nq->ppe_init_failed = true;
 
 	if (nq->qdisc->ops->init(nq->qdisc, opt) < 0) {

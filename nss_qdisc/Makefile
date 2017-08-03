@@ -1,7 +1,7 @@
 ccflags-y := -I$(obj)/../exports -I$(srctree)/net/bridge -DNSS_QDISC_DEBUG_LEVEL=2
 
 ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
-ccflags-y += -DNSS_QDISC_PPE_SUPPORT
+ccflags-y += -DNSS_QDISC_PPE_SUPPORT -DNSS_QDISC_BRIDGE_SUPPORT
 endif
 
 obj-m += qca-nss-qdisc.o

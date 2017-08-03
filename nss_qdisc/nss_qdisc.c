@@ -37,6 +37,23 @@ void *nss_qdisc_ctx;			/* Shaping context for nss_qdisc */
 #define NSS_QDISC_ROOT_HASH_SIZE 4
 #define NSS_QDISC_ROOT_HASH_MASK (NSS_QDISC_ROOT_HASH_SIZE - 1)
 
+/*
+ * nss_qdisc_interface_is_virtual()
+ *	Return true if it is redirect or bridge interface.
+ */
+bool nss_qdisc_interface_is_virtual(struct nss_ctx_instance *nss_ctx, int32_t if_num)
+{
+#if defined(NSS_QDISC_BRIDGE_SUPPORT)
+	return nss_cmn_interface_is_redirect(nss_ctx, if_num) || nss_bridge_verify_if_num(if_num);
+#else
+	/*
+	 * If there is no bridge client, then bridge gets represented
+	 * as a redirect interface. So this check is sufficient.
+	 */
+	return nss_cmn_interface_is_redirect(nss_ctx, if_num);
+#endif
+}
+
 #if defined(NSS_QDISC_PPE_SUPPORT)
 /*
  * nss_qdisc_ppe_init()
@@ -1969,7 +1986,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 		/*
 		 * Set the virtual flag
 		 */
-		nq->is_virtual = nss_cmn_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
+		nq->is_virtual = nss_qdisc_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 		/*
@@ -2087,7 +2104,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 					nq->qdisc, nq->type, nq->nss_interface_number);
 		}
 
-		nq->is_virtual = nss_cmn_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
+		nq->is_virtual = nss_qdisc_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
 
 		/*
 		 * The root qdisc will get packets enqueued to it, so it must
@@ -2126,7 +2143,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 		 * Is the interface virtual or not?
 		 * NOTE: If this interface is virtual then we have to bounce packets to it for shaping
 		 */
-		nq->is_virtual = nss_cmn_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
+		nq->is_virtual = nss_qdisc_interface_is_virtual(nq->nss_shaping_ctx, nq->nss_interface_number);
 		if (!nq->is_virtual) {
 			nss_qdisc_info("Qdisc %p (type %d): interface %u is physical\n",
 					nq->qdisc, nq->type, nq->nss_interface_number);

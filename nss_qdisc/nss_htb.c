@@ -241,7 +241,15 @@ static int nss_htb_ppe_change_class(struct Qdisc *sch, struct nss_htb_class_data
 
 	cl->nq.npq.shaper_present = true;
 	cl->nq.npq.shaper.rate = param->rate;
-	cl->nq.npq.shaper.burst = param->burst;
+
+	/*
+	 * By default burst is to set to cburst if not specified in TC commands.
+	 *
+	 * TODO: This is just a workaround as setting committed burst to 0
+	 * in SSDK is causing no packets to go through. This needs to be removed,
+	 * once SSDK team resolves this issue.
+	 */
+	cl->nq.npq.shaper.burst = param->burst ? param->burst : param->cburst;
 	cl->nq.npq.shaper.crate = param->crate;
 	cl->nq.npq.shaper.cburst = param->cburst;
 	cl->nq.npq.shaper.overhead = param->overhead;

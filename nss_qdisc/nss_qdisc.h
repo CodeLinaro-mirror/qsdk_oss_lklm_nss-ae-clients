@@ -188,6 +188,9 @@ struct nss_qdisc {
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	struct nss_ppe_qdisc npq;		/* PPE Qdisc */
 	bool ppe_init_failed;			/* Flag is set if PPE initialization fails */
+	bool hybrid_configured;			/* Flag is set only in root qdisc when first NSS Qdisc
+						 * is attached to PPE qdisc in the tree.
+						 */
 #endif
 };
 

@@ -1877,11 +1877,19 @@ int nss_ppe_port_num_get(struct nss_qdisc *nq)
  */
 int nss_ppe_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 {
+	struct nss_qdisc *nq_root = qdisc_priv(qdisc_root(nq->qdisc));
+
+	/*
+	 * If child qdisc is of type NSS, reset the hybrid mode and
+	 * hybrid_configured flag.
+	 */
 	if (nq_child->mode != NSS_QDISC_MODE_PPE) {
 		if (nss_qdisc_set_hybrid_mode(nq_child, NSS_QDISC_HYBRID_MODE_DISABLE, 0) < 0) {
 			nss_qdisc_warning("detach of old qdisc %p failed\n", nq_child->qdisc);
 			return -EINVAL;
 		}
+
+		nq_root->hybrid_configured = false;
 	}
 
 	nss_ppe_destroy(nq_child);
@@ -1900,6 +1908,7 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 	struct nss_ppe_qdisc *npq = &nq->npq;
 	struct nss_ppe_qdisc *npq_child = &nq_child->npq;
 	int ucast_qbase = nss_ppe_base_get(nss_ppe_port_num_get(nq), NSS_PPE_UCAST_QUEUE);
+	struct nss_qdisc *nq_root = qdisc_priv(qdisc_root(nq->qdisc));
 
 	/*
 	 * Configuration is not required if child node is a class.
@@ -1910,6 +1919,22 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 
 	if (nq_child->mode == NSS_QDISC_MODE_PPE) {
 		return 0;
+	}
+
+	/*
+	 * Return error in case NSS Qdisc is attached to PPE qdisc on bridge interface.
+	 */
+	if (nq->is_bridge) {
+		nss_qdisc_warning("NSS Qdisc cannot be attached to PPE Qdisc on bridge interface.\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Return error if hybrid QoS is already configured on the port.
+	 */
+	if (nq_root->hybrid_configured) {
+		nss_qdisc_warning("More than one NSS qdisc cannot be attached to PPE qdsic.\n");
+		return -EINVAL;
 	}
 
 	/*
@@ -1947,6 +1972,8 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 		nss_ppe_scheduler_reset(nq_child);
 		return -EINVAL;
 	}
+
+	nq_root->hybrid_configured = true;
 
 	nss_qdisc_info("Qdisc:%p, node:%p\n", nq, nq_child);
 	return 0;

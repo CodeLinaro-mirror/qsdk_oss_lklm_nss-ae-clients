@@ -1378,11 +1378,12 @@ conf:
 
 	/*
 	 * Disable force drop.
-	 * Setting ac_fc_en as false means queue will
+	 * Setting ac_fc_en as 0 means queue will
 	 * honor flow control.
 	 */
 	memset(&cfg, 0, sizeof(cfg));
 	obj.obj_id = ucast_qid;
+	cfg.ac_en = 1;
 	nss_qdisc_trace("SSDK queue flow control set: ucast_qid:%d, enable:%d\n", ucast_qid, cfg.ac_fc_en);
 	if (fal_ac_ctrl_set(0, &obj, &cfg) != 0) {
 		nss_qdisc_error("SSDK queue flow control set failed\n");
@@ -1411,7 +1412,7 @@ static int nss_ppe_queue_limit_set(struct nss_qdisc *nq)
 	fal_ac_ctrl_t ctrl_cfg;
 	struct nss_ppe_qdisc *npq = &nq->npq;
 
-	if (!npq->l0_valid) {
+	if (!npq->q.ucast_valid) {
 		return 0;
 	}
 
@@ -1429,12 +1430,13 @@ static int nss_ppe_queue_limit_set(struct nss_qdisc *nq)
 
 	/*
 	 * Enable force drop for PPE qdisc.
-	 * When set to true, the flow control will be overriden
+	 * When set to 1, the flow control will be overriden
 	 * for that queue and packets drop gets enabled.
 	 */
 	memset(&ctrl_cfg, 0, sizeof(ctrl_cfg));
+	ctrl_cfg.ac_en = 1;
 	if (nq->mode == NSS_QDISC_MODE_PPE) {
-		ctrl_cfg.ac_fc_en = true;
+		ctrl_cfg.ac_fc_en = 1;
 	}
 
 	nss_qdisc_trace("SSDK queue flow control set: ucast_qid:%d, enable:%d\n", npq->q.ucast_qid, ctrl_cfg.ac_fc_en);

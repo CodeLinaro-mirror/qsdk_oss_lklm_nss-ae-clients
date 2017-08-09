@@ -61,6 +61,8 @@ bool nss_qdisc_interface_is_virtual(struct nss_ctx_instance *nss_ctx, int32_t if
  */
 static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t parent)
 {
+	int status = 0;
+
 	/*
 	 * Fallback to NSS Qdisc if PPE Qdisc configuration failed.
 	 */
@@ -73,8 +75,12 @@ static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shape
 	/*
 	 * Set the parent of PPE qdisc.
 	 */
-	if (nss_ppe_set_parent(sch, nq, parent) < 0) {
-		nss_qdisc_info("HW qdisc/class %x cannot be attached to nss qdisc/class %x\n", nq->qos_tag, parent);
+	status = nss_ppe_set_parent(sch, nq, parent);
+	if (status == NSS_PPE_QDISC_PARENT_NOT_EXISTING) {
+		nss_qdisc_info("HW qdisc/class %x cannot be attached to non-existing parent %x\n", nq->qos_tag, parent);
+		return -1;
+	} else if (status == NSS_PPE_QDISC_PARENT_NOT_PPE) {
+		nss_qdisc_info("HW qdisc/class %x cannot be attached to NSS qdisc/class %x\n", nq->qos_tag, parent);
 		return 0;
 	}
 

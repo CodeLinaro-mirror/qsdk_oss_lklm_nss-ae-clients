@@ -33,6 +33,12 @@
 
 #define NSS_PPE_DRR_WEIGHT_MAX		1024
 
+/*
+ * Error codes
+ */
+#define NSS_PPE_QDISC_PARENT_NOT_PPE -1
+#define NSS_PPE_QDISC_PARENT_NOT_EXISTING -2
+
 struct nss_qdisc;
 
 /*

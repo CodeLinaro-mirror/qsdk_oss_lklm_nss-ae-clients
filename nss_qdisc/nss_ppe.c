@@ -1738,7 +1738,7 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 
 	if ((parent_nq) && (parent_nq->mode == NSS_QDISC_MODE_NSS)) {
 		nss_qdisc_info("HW qdisc/class %p cannot be attached to nss qdisc/class\n", nq->qdisc);
-		return -1;
+		return NSS_PPE_QDISC_PARENT_NOT_PPE;
 	}
 
 	/*
@@ -1759,6 +1759,14 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 		 */
 		if ((parent_nq) && (parent_nq->npq.sub_type != NSS_SHAPER_CONFIG_PPE_SN_TYPE_PRIO) && (TC_H_MIN(parent))) {
 			parent_class = parent_qdisc->ops->cl_ops->get(parent_qdisc, parent);
+
+			if (!parent_class) {
+				nq->parent = NULL;
+				nss_qdisc_info("HW qdisc/class %p cannot be attached to non-existing class %x\n", nq->qdisc, parent);
+				return NSS_PPE_QDISC_PARENT_NOT_EXISTING;
+
+			}
+
 			nq->parent = (struct nss_qdisc *)parent_class;
 			parent_qdisc->ops->cl_ops->put(parent_qdisc, parent_class);
 		}

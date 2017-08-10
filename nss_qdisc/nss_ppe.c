@@ -1927,6 +1927,17 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 		return 0;
 	}
 
+	/*
+	 * In case of chile attached to PRIO qdisc, scheduler configuration is
+	 * required to set the priority of child qdisc in SSDK.
+	 */
+	if (nq->npq.sub_type == NSS_SHAPER_CONFIG_PPE_SN_TYPE_PRIO) {
+		if (nss_ppe_scheduler_set(nq_child) != 0)  {
+			nss_qdisc_warning("SSDK scheduler configuration failed\n");
+			return -EINVAL;
+		}
+	}
+
 	if (nq_child->mode == NSS_QDISC_MODE_PPE) {
 		return 0;
 	}
@@ -2236,10 +2247,12 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 		}
 	}
 
+	nq->mode = NSS_QDISC_MODE_PPE;
 	if (alloc_scheduler) {
 		if (nss_ppe_scheduler_set(nq) < 0) {
 			nss_qdisc_warning("%p SSDK scheduler configuration failed\n", sch);
 			memset(&nq->npq, 0, sizeof(struct nss_ppe_qdisc));
+			nq->mode = NSS_QDISC_MODE_NSS;
 			return -1;
 		}
 	}
@@ -2248,10 +2261,6 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 		nq->npq.q = nq->parent->npq.q;
 	}
 
-	/*
-	 * Set mode and type only if schedulers are successfully allocated.
-	 */
-	nq->mode = NSS_QDISC_MODE_PPE;
 	nq->type = NSS_SHAPER_NODE_TYPE_PPE_SN;
 
 	nss_qdisc_info("Qdisc initialization successful\n");

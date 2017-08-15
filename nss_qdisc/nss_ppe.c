@@ -183,6 +183,23 @@ static bool nss_ppe_sub_type_is_queue(struct nss_ppe_qdisc *npq)
 }
 
 /*
+ * nss_ppe_max_get()
+ *	Returns maximum number of the particular resource for a given port.
+ */
+static uint32_t nss_ppe_max_get(uint32_t port, nss_ppe_res_type_t type)
+{
+	uint32_t max = 0;
+	struct nss_ppe_port *ppe_port = &ppe_qdisc_port[port];
+
+	spin_lock_bh(&ppe_port->lock);
+	max = ppe_port->max[type];
+	spin_unlock_bh(&ppe_port->lock);
+
+	nss_qdisc_info("port:%d, type:%d, max:%d\n", port, type, max);
+	return max;
+}
+
+/*
  * nss_ppe_port_res_free()
  *	Free resources allocated to PPE ports
  */
@@ -370,10 +387,10 @@ static void nss_ppe_def_conf_disable(uint32_t port)
 }
 
 /*
- * nss_ppe_queue_scheduler_disable()
- *	Disables level 0 queue scheduler in SSDK.
+ * nss_ppe_queue_disable()
+ *	Disables a queue in SSDK.
  */
-static void nss_ppe_queue_scheduler_disable(struct nss_qdisc *nq)
+static void nss_ppe_queue_disable(struct nss_qdisc *nq)
 {
 	uint32_t port_num = nss_ppe_port_num_get(nq);
 	struct nss_ppe_qdisc *npq = &nq->npq;
@@ -393,10 +410,10 @@ static void nss_ppe_queue_scheduler_disable(struct nss_qdisc *nq)
 }
 
 /*
- * nss_ppe_queue_scheduler_enable()
- *	Enables level 0 queue scheduler in SSDK.
+ * nss_ppe_queue_enable()
+ *	Enables a queue in SSDK.
  */
-static void nss_ppe_queue_scheduler_enable(struct nss_qdisc *nq)
+static void nss_ppe_queue_enable(struct nss_qdisc *nq)
 {
 	struct nss_ppe_qdisc *npq = &nq->npq;
 
@@ -540,6 +557,49 @@ fail:
 }
 
 /*
+ * nss_ppe_all_queue_disable()
+ *	Disables all queues corresponding to a port in SSDK.
+ */
+static void nss_ppe_all_queue_disable(struct nss_qdisc *nq)
+{
+	uint32_t port_num = nss_ppe_port_num_get(nq);
+	uint32_t qid = nss_ppe_base_get(port_num, NSS_PPE_UCAST_QUEUE);
+	uint32_t offset;
+
+	/*
+	 * Disable queue enqueue, dequeue and flush the queue.
+	 */
+	for (offset = 0; offset < nss_ppe_max_get(port_num, NSS_PPE_UCAST_QUEUE); offset++) {
+		fal_qm_enqueue_ctrl_set(0, qid + offset, false);
+		fal_scheduler_dequeue_ctrl_set(0, qid + offset, false);
+		fal_queue_flush(0, port_num, qid + offset);
+	}
+
+	nss_qdisc_info("Disable SSDK level0 queue scheduler successful\n");
+}
+
+/*
+ * nss_ppe_all_queue_enable()
+ *	Enables all level L0 queues corresponding to a port in SSDK.
+ */
+static void nss_ppe_all_queue_enable(struct nss_qdisc *nq)
+{
+	uint32_t port_num = nss_ppe_port_num_get(nq);
+	uint32_t qid = nss_ppe_base_get(port_num, NSS_PPE_UCAST_QUEUE);
+	uint32_t offset;
+
+	/*
+	 * Enable queue enqueue and dequeue.
+	 */
+	for (offset = 0; offset < nss_ppe_max_get(port_num, NSS_PPE_UCAST_QUEUE); offset++) {
+		fal_qm_enqueue_ctrl_set(0, qid + offset, true);
+		fal_scheduler_dequeue_ctrl_set(0, qid + offset, true);
+	}
+
+	nss_qdisc_info("Enable SSDK level0 queue scheduler successful\n");
+}
+
+/*
  * nss_ppe_l1_queue_scheduler_configure()
  *	Configures Level 1 queue scheduler in SSDK.
  */
@@ -555,8 +615,12 @@ static int nss_ppe_l1_queue_scheduler_configure(struct nss_qdisc *nq)
 	}
 
 	/*
-	 * Set Level 1 configuration
+	 * Disable all queues and set Level 1 SSDK configuration
+	 * We need to disable and flush the queues before
+	 * changing scheduler's sp_id/drr_id/priority.
 	 */
+	nss_ppe_all_queue_disable(nq);
+
 	memset(&l1cfg, 0, sizeof(l1cfg));
 	l1cfg.sp_id = port_num;
 
@@ -575,6 +639,8 @@ static int nss_ppe_l1_queue_scheduler_configure(struct nss_qdisc *nq)
 		nss_qdisc_error("SSDK level1 queue scheduler configuration failed\n");
 		return -EINVAL;
 	}
+
+	nss_ppe_all_queue_enable(nq);
 
 	nss_qdisc_info("SSDK level1 queue scheduler configuration successful\n");
 	return 0;
@@ -689,7 +755,7 @@ static int nss_ppe_l0_queue_scheduler_deconfigure(struct nss_qdisc *nq)
 	uint32_t port_num = nss_ppe_port_num_get(nq);
 	struct nss_ppe_qdisc *npq = &nq->npq;
 
-	nss_ppe_queue_scheduler_disable(nq);
+	nss_ppe_queue_disable(nq);
 
 	/*
 	 * Reset Level 0 configuration
@@ -821,8 +887,10 @@ static int nss_ppe_l0_queue_scheduler_configure(struct nss_qdisc *nq)
 	}
 
 	/*
-	 * Set Level 0 configuration
+	 * Disable queue and set Level 0 SSDK configuration
 	 */
+	nss_ppe_queue_disable(nq);
+
 	memset(&l0cfg, 0, sizeof(l0cfg));
 	l0cfg.sp_id = npq->l0spid;
 	l0cfg.c_drr_wt = npq->scheduler.drr_weight ? npq->scheduler.drr_weight : 1;
@@ -859,7 +927,7 @@ static int nss_ppe_l0_queue_scheduler_configure(struct nss_qdisc *nq)
 		}
 	}
 
-	nss_ppe_queue_scheduler_enable(nq);
+	nss_ppe_queue_enable(nq);
 
 	nss_qdisc_info("SSDK level0 queue scheduler configuration successful\n");
 	return 0;
@@ -957,8 +1025,8 @@ static int nss_ppe_port_shaper_set(struct nss_qdisc *nq)
 	cfg.couple_en = 0;
 	cfg.meter_unit = 0;
 	cfg.c_shaper_en = 1;
-	cfg.cbs = npq->shaper.burst;
-	cfg.cir = (npq->shaper.rate * 8) / 1000;
+	cfg.cbs = npq->shaper.cburst;
+	cfg.cir = (npq->shaper.crate * 8) / 1000;
 	cfg.shaper_frame_mode = 0;
 
 	/*
@@ -1541,7 +1609,7 @@ static int nss_ppe_scheduler_reset(struct nss_qdisc *nq)
 		 * and then if a qdisc say FIFO is attached at the last level, we will have all
 		 * the resources allocated and we just need to enable/disable the queue.
 		 */
-		nss_ppe_queue_scheduler_disable(nq);
+		nss_ppe_queue_disable(nq);
 	}
 
 	nss_qdisc_info("SSDK reset scheduler successful\n");
@@ -1615,7 +1683,7 @@ static int nss_ppe_scheduler_set(struct nss_qdisc *nq)
 		}
 
 		if ((!npq->is_configured) && (!nss_ppe_sub_type_is_queue(npq))) {
-			nss_ppe_queue_scheduler_disable(nq);
+			nss_ppe_queue_disable(nq);
 		}
 	} else {
 
@@ -1624,7 +1692,7 @@ static int nss_ppe_scheduler_set(struct nss_qdisc *nq)
 		 * and then if a qdisc say FIFO is attached at the last level, we will have all
 		 * the resources allocated and we just need to enable/disable the queue.
 		 */
-		nss_ppe_queue_scheduler_enable(nq);
+		nss_ppe_queue_enable(nq);
 	}
 
 	nss_qdisc_info("SSDK scheduler configuration successful\n");
@@ -2217,6 +2285,7 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 	}
 
 	nq->npq.q.qlimit = dev->tx_queue_len ? : 1;
+	nq->npq.scheduler.priority = NSS_PPE_PRIORITY_MAX;
 
 	if (nq->is_root) {
 		nq->npq.level = nss_ppe_max_level_get(nq) - 1;

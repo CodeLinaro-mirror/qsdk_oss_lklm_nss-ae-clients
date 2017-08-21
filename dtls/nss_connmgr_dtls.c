@@ -281,7 +281,7 @@ static void nss_connmgr_dtls_event_receive(void *if_ctx,
 
 		stats.tx_pkts = msg_stats->node_stats.tx_packets;
 		stats.rx_pkts = msg_stats->node_stats.rx_packets;
-		stats.rx_dropped = msg_stats->node_stats.rx_dropped;
+		stats.rx_dropped = nss_cmn_rx_dropped_sum(&msg_stats->node_stats);
 		stats.tx_auth_done = msg_stats->tx_auth_done;
 		stats.rx_auth_done = msg_stats->rx_auth_done;
 		stats.tx_cipher_done = msg_stats->tx_cipher_done;

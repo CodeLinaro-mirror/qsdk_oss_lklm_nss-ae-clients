@@ -161,9 +161,8 @@ void nss_l2tpv2_update_dev_stats(struct net_device *dev, struct nss_l2tpv2_sync_
 			 (unsigned long)sync_stats->node_stats.tx_bytes,
 			 (unsigned long)sync_stats->rx_errors,
 			 (unsigned long)sync_stats->tx_errors,
-			 (unsigned long)sync_stats->node_stats.rx_dropped,
+			 (unsigned long)nss_cmn_rx_dropped_sum(&sync_stats->node_stats),
 			 (unsigned long)sync_stats->tx_dropped);
 
 	dev_put(dev);
 }
-

@@ -394,7 +394,7 @@ static void nss_connmgr_gre_event_receive(void *if_ctx, struct nss_gre_msg *tnlm
 		dev->stats.rx_bytes += stats->rx_bytes;
 		dev->stats.tx_packets += stats->tx_packets;
 		dev->stats.tx_bytes += stats->tx_bytes;
-		dev->stats.rx_dropped += stats->rx_dropped;
+		dev->stats.rx_dropped += nss_cmn_rx_dropped_sum(stats);
 
 		tstats = this_cpu_ptr(dev->tstats);
 		u64_stats_update_begin(&tstats->syncp);

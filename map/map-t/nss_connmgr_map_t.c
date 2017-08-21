@@ -603,7 +603,7 @@ void nss_map_t_update_dev_stats(struct net_device *dev, struct nss_map_t_sync_st
 			   sync_stats->node_stats.rx_bytes,
 			   sync_stats->node_stats.tx_packets,
 			   sync_stats->node_stats.tx_bytes,
-			   sync_stats->node_stats.rx_dropped,
+			   nss_cmn_rx_dropped_sum(&sync_stats->node_stats),
 			   sync_stats->tx_dropped);
 
 	dev_put(dev);

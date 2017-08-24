@@ -13,7 +13,7 @@ ccflags-y += -DNSS_TUNIPIP6_DEBUG_LEVEL=0
 
 obj-$(bridge-mgr)+= bridge/
 obj-$(capwapmgr)+= capwapmgr/
-obj-$(dtlsmgr)+= dtls/
+obj-$(dtlsmgr)+= dtls/$(DTLSMGR_DIR)/
 obj-$(gre)+= gre/
 obj-$(ipsecmgr)+= ipsecmgr/
 obj-$(l2tpv2)+= l2tp/l2tpv2/

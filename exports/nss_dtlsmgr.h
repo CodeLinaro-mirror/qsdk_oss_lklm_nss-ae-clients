@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -22,247 +22,245 @@
 #define _NSS_DTLSMGR_H_
 
 /**
- * @brief NSS DTLS manager status
+ * NSS DTLS manager flags
+ */
+#define NSS_DTLSMGR_HDR_IPV6 0x0001			/**< L3 header is v6 or v4 */
+#define NSS_DTLSMGR_HDR_UDPLITE 0x0002			/**< L4 header is UDP-Lite or UDP */
+#define NSS_DTLSMGR_HDR_CAPWAP 0x0004			/**< CAPWAP-DTLS or DTLS header */
+#define NSS_DTLSMGR_CIPHER_MODE_GCM 0x0008		/**< Cipher mode is GCM */
+#define NSS_DTLSMGR_OUTER_UDPLITE_CSUM 0x00010000	/**< checksum UDP-Lite header */
+#define NSS_DTLSMGR_INNER_ACCEPT_ALL 0x00020000		/**< Send all error packets after DECAP */
+
+/**
+ * NSS DTLS manager status
  */
 typedef enum nss_dtlsmgr_status {
-	NSS_DTLSMGR_OK,			/**< DTLS manager status ok */
-	NSS_DTLSMGR_FAIL,		/**< DTLS manager status fail */
+	NSS_DTLSMGR_OK,			/**< Status ok */
+	NSS_DTLSMGR_FAIL,		/**< Failed due to unknown reason */
+	NSS_DTLSMGR_FAIL_NOMEM,		/**< Failed to allocate memory */
+	NSS_DTLSMGR_FAIL_NOCRYPTO,	/**< Failed to allocate crypto resource */
+	NSS_DTLSMGR_FAIL_MESSAGE,	/**< Failed to message the NSS */
 	NSS_DTLSMGR_INVALID_VERSION,	/**< Invalid DTLS version */
-	NSS_DTLSMGR_INVALID_CIPHER,	/**< Invalid cipher algorithm */
-	NSS_DTLSMGR_INVALID_AUTH,	/**< Invalid auth algorithm */
-	NSS_DTLSMGR_INVALID_KEY,	/**< Invalid key for cipher/auth */
-	NSS_DTLSMGR_CRYPTO_FAILED,	/**< Failed to allocate/initialize
-					     crypto session */
+	NSS_DTLSMGR_INVALID_ALGO,	/**< Invalid algorithm */
+	NSS_DTLSMGR_INVALID_KEYLEN,	/**< Invalid key length for cipher/auth */
 } nss_dtlsmgr_status_t;
 
 /**
- * @brief DTLS Version
+ * DTLS protocol version
  */
 enum nss_dtlsmgr_dtlsver {
-	NSS_DTLSMGR_VERSION_1_0,	/**< DTLS v1.0 */
-	NSS_DTLSMGR_VERSION_1_2,	/**< DTLS v1.2 */
-	NSS_DTLSMGR_VERSION_INVALID,	/**< DTLS version invalid */
+	NSS_DTLSMGR_VERSION_1_0,	/**< Protocol v1.0 */
+	NSS_DTLSMGR_VERSION_1_2,	/**< Protocol v1.2 */
 };
 
 /**
- * @brief NSS DTLS manager flags
+ * NSS DTLS manager supported cryptographic algorithms
  */
-enum nss_dtlsmgr_flags {
-	NSS_DTLSMGR_IPV6_ENCAP = 0x00000001,
-					/**< Outer IP header is IPv6 */
-	NSS_DTLSMGR_UDPLITE_ENCAP = 0x00000002,
-					/**< UDPLite encapsulation */
-	NSS_DTLSMGR_CAPWAP = 0x00000004,
-					/**< CAPWAP-DTLS session */
-	NSS_DTLSMGR_CAPWAP_UDPLITE_HDR_CSUM = 0x00000008,
-					/**< Generate only UDP-Lite
-					     header checksum */
-	NSS_DTLSMGR_PKT_DEBUG = 0x00000010,
-					/* DTLS packet debug */
+enum nss_dtlsmgr_algo {
+	NSS_DTLSMGR_ALGO_AES_CBC_SHA1_HMAC,	/**< AES_CBC_SHA1_HMAC */
+	NSS_DTLSMGR_ALGO_AES_CBC_SHA256_HMAC,	/**< AES_CBC_SHA256_HMAC */
+	NSS_DTLSMGR_ALGO_3DES_CBC_SHA1_HMAC,	/**< 3DES_CBC_SHA1_HMAC */
+	NSS_DTLSMGR_ALGO_3DES_CBC_SHA256_HMAC,	/**< 3DES_CBC_SHA256_HMAC */
+	NSS_DTLSMGR_ALGO_MAX
 };
 
 /**
- * @brief IPv4/IPv6 address
+ * NSS DTLS manager cryptographic structure to represent key and its length.
  */
-union nss_dtlsmgr_ip {
-	uint32_t ipv4;			/**< IPv4 address */
-	uint32_t ipv6[4];		/**< IPv6 address */
+struct nss_dtlsmgr_crypto_data {
+	const uint8_t *data;		/**< Pointer to key or nonce */
+	uint16_t len;			/**< Length of the key */
 };
 
 /**
- * @brief NSS DTLS session encap data
+ * NSS DTLS manager cryptographic data
+ */
+struct nss_dtlsmgr_crypto {
+	enum nss_dtlsmgr_algo algo;			/**< DTLS manager cryptographic algorithm */
+	struct nss_dtlsmgr_crypto_data cipher_key;	/**< Cipher key */
+	struct nss_dtlsmgr_crypto_data auth_key;	/**< Authentication key */
+	struct nss_dtlsmgr_crypto_data nonce;		/**< Nonce */
+};
+
+/**
+ * NSS DTLS manager session encapsulation data
  */
 struct nss_dtlsmgr_encap_config {
-	enum nss_dtlsmgr_dtlsver ver;	/**< Version used in DTLS header */
-	enum nss_crypto_cipher cipher_type;
-					/**< Cipher key for encap */
-	uint32_t cipher_key_len;	/**< Cipher key length */
-	uint8_t *cipher_key;		/**< Location of cipher key */
-	enum nss_crypto_auth auth_type;	/**< Auth key for encap */
-	uint32_t auth_key_len;		/**< Auth key length */
-	uint8_t *auth_key;		/**< Location of auth key */
-	uint16_t sport;			/**< Source UDP port */
-	uint16_t dport;			/**< Destination UDP port */
-	uint16_t epoch;			/**< Epoch */
-	union nss_dtlsmgr_ip sip;	/**< Source IP address */
-	union nss_dtlsmgr_ip dip;	/**< Destination IP address */
-	uint8_t ip_ttl;			/**< IP time to live */
+	struct nss_dtlsmgr_crypto crypto;	/**< Encapsulation crypto configuration */
+	enum nss_dtlsmgr_dtlsver ver;		/**< Version used in DTLS header */
+	uint32_t sip[4];			/**< Source IP address */
+	uint32_t dip[4];			/**< Destination IP address */
+	uint16_t sport;				/**< Source UDP port */
+	uint16_t dport;				/**< Destination UDP port */
+	uint16_t epoch;				/**< Epoch */
+	uint8_t ip_ttl;				/**< IP time to live */
+	uint8_t dscp;				/**< DSCP */
+	bool dscp_copy;				/**< Flag to check if DSCP needs to be copied */
+	bool df;				/**< Flag to check fragmentation */
 };
 
 /**
- * @brief NSS DTLS session decap data
+ * NSS DTLS manager session decapsulation data
  */
 struct nss_dtlsmgr_decap_config {
-	enum nss_crypto_cipher cipher_type;
-					/**< Cipher key for decap */
-	uint32_t cipher_key_len;	/**< Cipher key length */
-	uint8_t *cipher_key;		/**< Location of cipher key */
-	enum nss_crypto_auth auth_type;	/**< Auth key for decap */
-	uint32_t auth_key_len;		/**< Auth key length */
-	uint8_t *auth_key;		/**< Location of auth key */
-	uint32_t app_if;		/**< NSS I/F number of tunnel
-					     associated with DTLS session.
-					     For CAPWAP, this will be the
-					     CAPWAP tunnel NSS I/F. */
-	uint16_t replay_window_size;	/**< Anti-Replay window size */
+	struct nss_dtlsmgr_crypto crypto;	/**< Decap Crypto configuration */
+	uint32_t nexthop_ifnum;			/**< NSS I/F number to forward after de-capsulation */
+	uint16_t window_size;			/**< Anti-Replay window size */
+};
+
+/*
+ * NSS DTLS manager hardware statistics
+ */
+struct nss_dtlsmgr_hw_stats {
+	uint64_t len_error;             /**< Length error */
+	uint64_t token_error;           /**< Token error, unknown token command/instruction */
+	uint64_t bypass_error;          /**< Token contains too much bypass data */
+	uint64_t config_error;          /**< Invalid command/algorithm/mode/combination */
+	uint64_t algo_error;            /**< Unsupported algorithm */
+	uint64_t hash_ovf_error;        /**< Hash input overflow */
+	uint64_t ttl_error;             /**< TTL or HOP-Limit underflow */
+	uint64_t csum_error;            /**< Checksum error */
+	uint64_t timeout_error;         /**< Data timed-out */
 };
 
 /**
- * @brief NSS DTLS session create return parameters
+ * NSS DTLS manager session statistics
  */
-struct nss_dtlsmgr_return_data {
-	uint32_t dtls_if;		/**< NSS I/F number of DTLS session */
-	uint32_t mtu_adjust;		/**< MTU adjustment */
+struct nss_dtlsmgr_stats {
+	uint64_t tx_packets;		/**< Tx packets. */
+	uint64_t tx_bytes;		/**< Tx bytes. */
+	uint64_t rx_packets;		/**< Rx packets. */
+	uint64_t rx_bytes;		/**< Rx bytes. */
+	uint64_t rx_dropped;		/**< Rx drops. */
+	uint64_t rx_single_rec;		/**< Received single DTLS record datagrams. */
+	uint64_t rx_multi_rec;		/**< Received multiple DTLS record datagrams. */
+	uint64_t fail_crypto_resource;	/**< Failure in allocation of crypto resource. */
+	uint64_t fail_crypto_enqueue;	/**< Failure due to queue full in crypto or hardware. */
+	uint64_t fail_headroom;		/**< Failure in headroom check. */
+	uint64_t fail_tailroom;		/**< Failure in tailroom check. */
+	uint64_t fail_ver;		/**< Failure in DTLS version check. */
+	uint64_t fail_epoch;		/**< Failure in DTLS epoch check. */
+	uint64_t fail_dtls_record;	/**< Failure in reading DTLS record. */
+	uint64_t fail_capwap;		/**< Failure in Capwap classification. */
+	uint64_t fail_replay;		/**< Failure in anti-replay check. */
+	uint64_t fail_replay_dup;	/**< Failure in anti-replay; duplicate records. */
+	uint64_t fail_replay_win;	/**< Failure in anti-replay; packet outside the window. */
+	uint64_t fail_queue;		/**< Failure due to queue full in DTLS. */
+	uint64_t fail_queue_nexthop;	/**< Failure due to queue full in next_hop. */
+	uint64_t fail_pbuf_alloc;	/**< Failure in pbuf allocation. */
+	uint64_t fail_pbuf_linear;	/**< Failure in pbuf linearization. */
+	uint64_t fail_pbuf_stats;	/**< Failure in pbuf allocation for stats. */
+	uint64_t fail_pbuf_align;	/**< Failure in pbuf alignment. */
+	uint64_t fail_ctx_active;	/**< Failure in enqueue due to no active context. */
+	uint64_t fail_hwctx_active;	/**< Failure in enqueue due to no active HW context. */
+	uint64_t fail_cipher;		/**< Failure in decrypting the data. */
+	uint64_t fail_auth;		/**< Failure in authenticating the data. */
+	uint64_t fail_seq_ovf;		/**< Failure due to sequence number overflow. */
+	uint64_t fail_blk_len;		/**< Failure in decapsulation due to bad cipher block length. */
+	uint64_t fail_hash_len;		/**< Failure in decapsulation due to bad hash block length. */
+
+	struct nss_dtlsmgr_hw_stats fail_hw;		/**< Hardware failure statistics. */
+
+	uint64_t fail_cle[NSS_DTLS_CMN_CLE_MAX];	/**< Classification errors */
+
+	uint32_t seq_low;		/**< Lower 32 bits of current Tx sequence number. */
+	uint32_t seq_high;		/**< Upper 16 bits of current Tx sequence number. */
+
+	uint16_t epoch;			/**< Current Epoch value. */
 };
 
 /**
- * NSS DTLS session stats update
+ * NSS DTLS manager session stats update callback
  */
-struct nss_dtlsmgr_session_stats_update {
-	uint32_t tx_pkts;		/**< Tx packets */
-	uint32_t rx_pkts;		/**< Rx packets */
-	uint32_t rx_dropped;		/**< Rx drops */
-	uint32_t tx_auth_done;		/**< Tx authentication done */
-	uint32_t rx_auth_done;		/**< Rx successful authentication */
-	uint32_t tx_cipher_done;	/**< Tx cipher done */
-	uint32_t rx_cipher_done;	/**< Rx cipher done */
-	uint32_t tx_cbuf_alloc_fail;	/**< Tx crypto buffer allocation fail */
-	uint32_t rx_cbuf_alloc_fail;	/**< Rx crypto buffer allocation fail */
-	uint32_t tx_cenqueue_fail;	/**< Tx crypto enqueue fail */
-	uint32_t rx_cenqueue_fail;	/**< Rx crypto enqueue fail */
-	uint32_t tx_dropped_hroom;	/**< Tx drop due to
-					     insufficient headroom */
-	uint32_t tx_dropped_troom;	/**< Tx drop due to
-					     insufficient tailroom */
-	uint32_t tx_forward_enqueue_fail;
-					/**< Enqueue failed to forwarding
-					     node after encap */
-	uint32_t rx_forward_enqueue_fail;
-					/**< Enqueue failed to receiving
-					     node after decap */
-	uint32_t rx_invalid_version;	/**< Rx invalid DTLS version */
-	uint32_t rx_invalid_epoch;	/**< Rx invalid DTLS epoch */
-	uint32_t rx_malformed;		/**< Rx malformed DTLS record */
-	uint32_t rx_cipher_fail;	/**< Rx cipher fail */
-	uint32_t rx_auth_fail;		/**< Rx authentication fail */
-	uint32_t rx_capwap_classify_fail;
-					/**< Rx CAPWAP classification fail */
-	uint32_t rx_replay_fail;	/**< Rx anti-replay failures */
-	uint32_t rx_replay_duplicate;	/**< Rx anti-replay fail for
-					     duplicate record */
-	uint32_t rx_replay_out_of_window;
-					/**< Rx anti-replay fail for out
-					     of window record */
-	uint32_t outflow_queue_full;	/**< Tx drop due to encap queue full */
-	uint32_t decap_queue_full;	/**< Rx drop due to decap queue full */
-	uint32_t pbuf_alloc_fail;	/**< Buffer allocation fail */
-	uint32_t pbuf_copy_fail;	/**< Buffer copy fail */
-	uint16_t epoch;			/**< Current Epoch */
-	uint16_t tx_seq_high;		/**< Upper 16-bits of current
-					     sequence number */
-	uint32_t tx_seq_low;		/**< Lower 32-bits of current
-					     sequence number */
+typedef void (*nss_dtlsmgr_stats_notify_method_t)(struct net_device *dev, struct nss_dtlsmgr_stats *stats, bool encap);
+
+/**
+ * NSS DTLS manager session definition
+ */
+struct nss_dtlsmgr_config {
+	uint32_t flags;					/**< DTLS header flags */
+	nss_dtlsmgr_stats_notify_method_t notify;	/**< Stats update callback */
+	struct nss_dtlsmgr_encap_config encap;		/**< Encap data */
+	struct nss_dtlsmgr_decap_config decap;		/**< Decap data */
 };
 
 /**
- * NSS DTLS session stats update callback
+ * NSS DTLS manager session tx/rx cipher update parameters
  */
-typedef void (*nss_dtlsmgr_session_stats_update_cb_t)(uint32_t dtls_if, struct nss_dtlsmgr_session_stats_update *supdate);
-
-
-/**
- * @brief NSS DTLS session definition
- */
-struct nss_dtlsmgr_session_create_config {
-	uint32_t flags;				/**< Bit mask of
-						     enum nss_dtlsmgr_flags */
-	nss_dtlsmgr_session_stats_update_cb_t cb;
-						/**< Stats update callback */
-	struct nss_dtlsmgr_encap_config encap;	/**< Encap data */
-	struct nss_dtlsmgr_decap_config decap;	/**< Decap data */
-};
-
-/**
- * @brief NSS DTLS session Tx/Rx cipher update parameters
- */
-struct nss_dtlsmgr_session_update_config {
-	enum nss_crypto_cipher cipher_type;	/**< Cipher algo */
-	uint32_t cipher_key_len;		/**< Cipher key */
-	uint8_t *cipher_key;			/**< Location of cipher key */
-	enum nss_crypto_auth auth_type;		/**< Auth algo */
-	uint32_t auth_key_len;			/**< Auth key length */
-	uint8_t *auth_key;			/**< Location of auth key */
+struct nss_dtlsmgr_config_update {
+	struct nss_dtlsmgr_crypto crypto;	/**< Crypto algorithm and key data */
 	uint16_t epoch;				/**< Epoch */
+	uint16_t window_size;			/**< Anti-Replay window size */
 };
 
 /**
- * @brief Create a NSS DTLS session and associated crypto sessions
+ * nss_dtlsmgr_session_create
+ *	Create a NSS DTLS session and associated crypto sessions
  *
  * @param in_data[IN] DTLS session create data
  * @param out_data[out] Return parameters from DTLS session create operation
  *
- * @return NSS_DTLSMGR_OK for success
+ * @return
+ * NSS_DTLSMGR_OK for success
  */
-nss_dtlsmgr_status_t nss_dtlsmgr_session_create_with_crypto(struct nss_dtlsmgr_session_create_config *in_data, struct nss_dtlsmgr_return_data *out_data);
+struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg);
 
 /**
- * @brief Destroy a NSS DTLS session and associated crypto sessions
+ * nss_dtlsmgr_session_destroy
+ *	Destroy a NSS DTLS session and associated crypto sessions
  *
  * @param dtls_if[IN] NSS DTLS I/F
  *
- * @return NSS_DTLSMGR_OK for success
+ * @return
+ * NSS_DTLSMGR_OK for success
  */
-nss_dtlsmgr_status_t nss_dtlsmgr_session_destroy(uint32_t dtls_if);
+nss_dtlsmgr_status_t nss_dtlsmgr_session_destroy(struct net_device *dev);
 
 /**
- * @brief Update pending Rx cipher state of a DTLS session
+ * nss_dtlsmgr_session_update_encap
+ *	Update encapsulation cipher state of a DTLS session.
+ *	Configures new parameters into the pending encapsulation cipher
+ *	state of a DTLS session. This has no effect on the current
+ *	cipher state and its processing of packets.
  *
- * @param dtls_if[IN] NSS DTLS I/F
- * @param udata[IN] DTLS session update parameters
+ * @param dev[IN] DTLS network device
+ * @param cfg[IN] DTLS session update parameters
  *
  * @return NSS_DTLSMGR_OK for success
- *
- * Configures new parameters into the pending Rx cipher
- * state of a DTLS session. This has no effect on the current
- * cipher state and its processing of Rx packets.
  */
-nss_dtlsmgr_status_t nss_dtlsmgr_rekey_rx_cipher_update(uint32_t dtls_if, struct nss_dtlsmgr_session_update_config *udata);
+nss_dtlsmgr_status_t nss_dtlsmgr_session_update_encap(struct net_device *dev, struct nss_dtlsmgr_config_update *cfg);
 
 /**
- * @brief Update pending Tx cipher state of a DTLS session
+ * nss_dtlsmgr_session_update_decap
+ *	Update decapsulation cipher state of a DTLS session.
+ *	Configures new parameters into the pending decapsulation cipher
+ *	state of a DTLS session. This has no effect on the current
+ *	cipher state and its processing of packets.
  *
- * @param dtls_if[IN] NSS DTLS I/F
- * @param udata[IN] DTLS session update parameters
+ * @param dev[IN] DTLS network device
+ * @param cfg[IN] DTLS session update parameters
  *
  * @return NSS_DTLSMGR_OK for success
- *
- * Configures new parameters into the pending Tx cipher
- * state of a DTLS session. This has no effect on the current
- * cipher state and its processing of Tx packets.
  */
-nss_dtlsmgr_status_t nss_dtlsmgr_rekey_tx_cipher_update(uint32_t dtls_if, struct nss_dtlsmgr_session_update_config *udata);
+nss_dtlsmgr_status_t nss_dtlsmgr_session_update_decap(struct net_device *dev, struct nss_dtlsmgr_config_update *cfg);
 
 /**
- * @brief Switch Rx to new cipher state
+ * nss_dtlsmgr_session_switch_encap
+ *	Switch DTLS session from current to new for encapsulation
  *
- * @param dtls_if[IN] NSS DTLS I/F
+ * @param dev[in] DTLS network device
  *
- * @return NSS_DTLSMGR_OK for success
- *
- * Causes the Rx pending cipher state of a DTLS session
- * to become current effectively rekeying the Rx path.
+ * @return TRUE for success
  */
-nss_dtlsmgr_status_t nss_dtlsmgr_rekey_rx_cipher_switch(uint32_t dtls_if);
+bool nss_dtlsmgr_session_switch_encap(struct net_device *dev);
 
 /**
- * @brief Switch Tx to new cipher state
+ * nss_dtlsmgr_session_switch_decap
+ *	Switch DTLS session from current to new for de-capsulation
  *
- * @param dtls_if[IN] NSS DTLS I/F
+ * @param dev[in] DTLS network device
  *
- * @return NSS_DTLSMGR_OK for success
- *
- * Causes the Tx pending cipher state of a DTLS session
- * to become current effectively rekeying the Tx path.
+ * @return TRUE for success
  */
-nss_dtlsmgr_status_t nss_dtlsmgr_rekey_tx_cipher_switch(uint32_t dtls_if);
+bool nss_dtlsmgr_session_switch_decap(struct net_device *dev);
 #endif /* _NSS_DTLSMGR_H_ */

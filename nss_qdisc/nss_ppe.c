@@ -560,10 +560,10 @@ fail:
  * nss_ppe_all_queue_disable()
  *	Disables all queues corresponding to a port in SSDK.
  */
-static void nss_ppe_all_queue_disable(struct nss_qdisc *nq)
+static void nss_ppe_all_queue_disable(uint32_t port_num)
 {
-	uint32_t port_num = nss_ppe_port_num_get(nq);
 	uint32_t qid = nss_ppe_base_get(port_num, NSS_PPE_UCAST_QUEUE);
+	uint32_t mcast_qid = nss_ppe_base_get(port_num, NSS_PPE_MCAST_QUEUE);
 	uint32_t offset;
 
 	/*
@@ -575,6 +575,12 @@ static void nss_ppe_all_queue_disable(struct nss_qdisc *nq)
 		fal_queue_flush(0, port_num, qid + offset);
 	}
 
+	for (offset = 0; offset < nss_ppe_max_get(port_num, NSS_PPE_MCAST_QUEUE); offset++) {
+		fal_qm_enqueue_ctrl_set(0, mcast_qid + offset, false);
+		fal_scheduler_dequeue_ctrl_set(0, mcast_qid + offset, false);
+		fal_queue_flush(0, port_num, mcast_qid + offset);
+	}
+
 	nss_qdisc_info("Disable SSDK level0 queue scheduler successful\n");
 }
 
@@ -582,10 +588,10 @@ static void nss_ppe_all_queue_disable(struct nss_qdisc *nq)
  * nss_ppe_all_queue_enable()
  *	Enables all level L0 queues corresponding to a port in SSDK.
  */
-static void nss_ppe_all_queue_enable(struct nss_qdisc *nq)
+static void nss_ppe_all_queue_enable(uint32_t port_num)
 {
-	uint32_t port_num = nss_ppe_port_num_get(nq);
 	uint32_t qid = nss_ppe_base_get(port_num, NSS_PPE_UCAST_QUEUE);
+	uint32_t mcast_qid = nss_ppe_base_get(port_num, NSS_PPE_MCAST_QUEUE);
 	uint32_t offset;
 
 	/*
@@ -594,6 +600,11 @@ static void nss_ppe_all_queue_enable(struct nss_qdisc *nq)
 	for (offset = 0; offset < nss_ppe_max_get(port_num, NSS_PPE_UCAST_QUEUE); offset++) {
 		fal_qm_enqueue_ctrl_set(0, qid + offset, true);
 		fal_scheduler_dequeue_ctrl_set(0, qid + offset, true);
+	}
+
+	for (offset = 0; offset < nss_ppe_max_get(port_num, NSS_PPE_MCAST_QUEUE); offset++) {
+		fal_qm_enqueue_ctrl_set(0, mcast_qid + offset, true);
+		fal_scheduler_dequeue_ctrl_set(0, mcast_qid + offset, true);
 	}
 
 	nss_qdisc_info("Enable SSDK level0 queue scheduler successful\n");
@@ -619,7 +630,7 @@ static int nss_ppe_l1_queue_scheduler_configure(struct nss_qdisc *nq)
 	 * We need to disable and flush the queues before
 	 * changing scheduler's sp_id/drr_id/priority.
 	 */
-	nss_ppe_all_queue_disable(nq);
+	nss_ppe_all_queue_disable(port_num);
 
 	memset(&l1cfg, 0, sizeof(l1cfg));
 	l1cfg.sp_id = port_num;
@@ -637,10 +648,11 @@ static int nss_ppe_l1_queue_scheduler_configure(struct nss_qdisc *nq)
 			port_num, npq->l0spid, l1cfg.c_drr_id, l1cfg.c_pri, l1cfg.c_drr_wt, l1cfg.e_drr_id, l1cfg.e_pri, l1cfg.e_drr_wt, l1cfg.sp_id);
 	if (fal_queue_scheduler_set(0, npq->l0spid, NSS_PPE_FLOW_LEVEL - 1, port_num, &l1cfg) != 0) {
 		nss_qdisc_error("SSDK level1 queue scheduler configuration failed\n");
+		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
 
-	nss_ppe_all_queue_enable(nq);
+	nss_ppe_all_queue_enable(port_num);
 
 	nss_qdisc_info("SSDK level1 queue scheduler configuration successful\n");
 	return 0;
@@ -755,7 +767,7 @@ static int nss_ppe_l0_queue_scheduler_deconfigure(struct nss_qdisc *nq)
 	uint32_t port_num = nss_ppe_port_num_get(nq);
 	struct nss_ppe_qdisc *npq = &nq->npq;
 
-	nss_ppe_queue_disable(nq);
+	nss_ppe_all_queue_disable(port_num);
 
 	/*
 	 * Reset Level 0 configuration
@@ -771,8 +783,11 @@ static int nss_ppe_l0_queue_scheduler_deconfigure(struct nss_qdisc *nq)
 			port_num, npq->q.ucast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
 	if (fal_queue_scheduler_set(0, npq->q.ucast_qid, NSS_PPE_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
 		nss_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
+		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
+
+	nss_ppe_all_queue_enable(port_num);
 
 	nss_qdisc_info("SSDK level0 queue scheduler configuration successful\n");
 	return 0;
@@ -887,9 +902,11 @@ static int nss_ppe_l0_queue_scheduler_configure(struct nss_qdisc *nq)
 	}
 
 	/*
-	 * Disable queue and set Level 0 SSDK configuration
+	 * Disable all queues and set Level 0 SSDK configuration
+	 * We need to disable and flush the queues before
+	 * changing scheduler's sp_id/drr_id/priority.
 	 */
-	nss_ppe_queue_disable(nq);
+	nss_ppe_all_queue_disable(port_num);
 
 	memset(&l0cfg, 0, sizeof(l0cfg));
 	l0cfg.sp_id = npq->l0spid;
@@ -906,6 +923,7 @@ static int nss_ppe_l0_queue_scheduler_configure(struct nss_qdisc *nq)
 			port_num, npq->q.ucast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
 	if (fal_queue_scheduler_set(0, npq->q.ucast_qid, NSS_PPE_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
 		nss_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
+		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
 
@@ -923,11 +941,12 @@ static int nss_ppe_l0_queue_scheduler_configure(struct nss_qdisc *nq)
 				port_num, npq->q.mcast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
 		if (fal_queue_scheduler_set(0, npq->q.mcast_qid, NSS_PPE_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
 			nss_qdisc_error("SSDK level0 multicast queue scheduler configuration failed\n");
+			nss_ppe_all_queue_enable(port_num);
 			return -EINVAL;
 		}
 	}
 
-	nss_ppe_queue_enable(nq);
+	nss_ppe_all_queue_enable(port_num);
 
 	nss_qdisc_info("SSDK level0 queue scheduler configuration successful\n");
 	return 0;
@@ -1382,6 +1401,13 @@ static int nss_ppe_default_conf_set(uint32_t port_num)
 	}
 
 	/*
+	 * Disable all queues and set SSDK configuration
+	 * We need to disable and flush the queues before
+	 * changing scheduler's sp_id/drr_id/priority.
+	 */
+	nss_ppe_all_queue_disable(port_num);
+
+	/*
 	 * Reset Level 1 Configuration
 	 */
 	memset(&l1cfg, 0, sizeof(l1cfg));
@@ -1398,6 +1424,7 @@ static int nss_ppe_default_conf_set(uint32_t port_num)
 			port_num, l0spid, l1cfg.c_drr_id, l1cfg.c_pri, l1cfg.c_drr_wt, l1cfg.e_drr_id, l1cfg.e_pri, l1cfg.e_drr_wt, l1cfg.sp_id);
 	if (fal_queue_scheduler_set(0, l0spid, NSS_PPE_FLOW_LEVEL - 1, port_num, &l1cfg) != 0) {
 		nss_qdisc_error("SSDK level1 queue scheduler configuration failed\n");
+		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
 
@@ -1420,6 +1447,7 @@ conf:
 			port_num, ucast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
 	if (fal_queue_scheduler_set(0, ucast_qid, NSS_PPE_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
 		nss_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
+		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
 
@@ -1427,6 +1455,7 @@ conf:
 			port_num, mcast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
 	if (fal_queue_scheduler_set(0, mcast_qid, NSS_PPE_QUEUE_LEVEL - 1, port_num, &l0cfg) != 0) {
 		nss_qdisc_error("SSDK level0 queue scheduler configuration failed\n");
+		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
 
@@ -1435,14 +1464,6 @@ conf:
 	fal_ac_prealloc_buffer_set(0, &obj, 0);
 	obj.obj_id = mcast_qid;
 	fal_ac_prealloc_buffer_set(0, &obj, 0);
-
-	/*
-	 * Enable queue enqueue and dequeue.
-	 */
-	fal_qm_enqueue_ctrl_set(0, ucast_qid, true);
-	fal_qm_enqueue_ctrl_set(0, mcast_qid, true);
-	fal_scheduler_dequeue_ctrl_set(0, ucast_qid, true);
-	fal_scheduler_dequeue_ctrl_set(0, mcast_qid, true);
 
 	/*
 	 * Disable force drop.
@@ -1455,8 +1476,11 @@ conf:
 	nss_qdisc_trace("SSDK queue flow control set: ucast_qid:%d, enable:%d\n", ucast_qid, cfg.ac_fc_en);
 	if (fal_ac_ctrl_set(0, &obj, &cfg) != 0) {
 		nss_qdisc_error("SSDK queue flow control set failed\n");
+		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
+
+	nss_ppe_all_queue_enable(port_num);
 
 	/*
 	 * Set the default queue configuration status.

@@ -1826,6 +1826,11 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 		 * And the below class check is applicable only for the classful qdiscs.
 		 */
 		if ((parent_nq) && (parent_nq->npq.sub_type != NSS_SHAPER_CONFIG_PPE_SN_TYPE_PRIO) && (TC_H_MIN(parent))) {
+			if (!parent_qdisc) {
+				nss_qdisc_info("HW qdisc/class %p cannot be attached to non-existing class %x\n", nq->qdisc, parent);
+				return NSS_PPE_QDISC_PARENT_NOT_EXISTING;
+			}
+
 			parent_class = parent_qdisc->ops->cl_ops->get(parent_qdisc, parent);
 
 			if (!parent_class) {

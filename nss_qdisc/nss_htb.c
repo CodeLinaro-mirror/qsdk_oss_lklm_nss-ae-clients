@@ -951,6 +951,7 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	struct tc_nsshtb_qopt *qopt;
 	int err;
 	unsigned int accel_mode;
+	unsigned int r2q = 0;
 
 	nss_qdisc_trace("initializing htb qdisc %x\n", sch->handle);
 
@@ -968,9 +969,10 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 			return -EINVAL;
 		}
 		accel_mode = qopt->accel_mode;
+		r2q = qopt->r2q;
 	}
 
-	nss_qdisc_info("r2q = %u accel_mode = %u\n", qopt->r2q, accel_mode);
+	nss_qdisc_info("r2q = %u accel_mode = %u\n", r2q, accel_mode);
 
 	/*
 	 * Initialize the NSSHTB shaper in NSS

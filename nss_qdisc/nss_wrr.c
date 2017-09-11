@@ -111,9 +111,11 @@ static int nss_wrr_class_params_validate_and_save(struct Qdisc *sch, struct nlat
 {
 	struct nlattr *opt = tca[TCA_OPTIONS];
 	struct tc_nsswrr_class_qopt *qopt;
-	struct nss_wrr_sched_data *q = qdisc_priv(sch);
 	struct net_device *dev = qdisc_dev(sch);
 	bool is_wrr = (sch->ops == &nss_wrr_qdisc_ops);
+#if defined(NSS_QDISC_PPE_SUPPORT)
+	struct nss_wrr_sched_data *q = qdisc_priv(sch);
+#endif
 
 	nss_qdisc_trace("validating parameters for nsswrr class of qdisc:%x\n", sch->handle);
 

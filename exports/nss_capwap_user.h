@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -84,6 +84,8 @@
 				/**< W=1, wireless info present */
 #define NSS_CAPWAP_PKT_TYPE_802_11		0x0010
 				/**< T=1, then set wbid=1 */
+#define NSS_CAPWAP_PKT_TYPE_802_3		0x0020
+				/**< Data is in 802.3 format */
 
 /**
  * CAPWAP metaheader per-packet for both encap (TX) and decap (RX).
@@ -96,9 +98,17 @@ struct nss_capwap_metaheader {
 	uint8_t vlan_pcp;	/**< VLAN priority .P marking */
 	uint16_t type;		/**< Type of CAPWAP packet & What was there in CAPWAP header */
 	uint16_t nwireless;	/**< Number of wireless info sections in CAPWAP header */
-	uint16_t sgt;		/**< SGT value in the TrustSec header */
-	uint16_t reserved;	/**< Reserved for future use */
+	uint16_t wireless_qos;	/**< 802.11e qos info */
+	uint16_t outer_sgt;	/**< Security Group Tag value in the TrustSec header */
+	uint16_t inner_sgt;	/**< Security Group Tag value in the TrustSec header */
+	uint16_t vapid;		/**< VAP ID info */
+
 	uint16_t magic;		/**< Magic for verification purpose. Use only for debugging */
+
+	/*
+	 * Put the wl_info at last so we don't have to do copy if 802.11 to 802.3 conversion did not happen.
+	 */
+	uint8_t wl_info[8];	/* Wireless info preserved from the original packet */
 } __packed __aligned(4);
 
 #endif /* __NSS_CAPWAP_USER_H */

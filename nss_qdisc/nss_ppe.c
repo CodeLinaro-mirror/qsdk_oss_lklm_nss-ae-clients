@@ -1045,7 +1045,7 @@ static int nss_ppe_port_shaper_set(struct nss_qdisc *nq)
 	cfg.meter_unit = 0;
 	cfg.c_shaper_en = 1;
 	cfg.cbs = npq->shaper.cburst;
-	cfg.cir = (npq->shaper.crate * 8) / 1000;
+	cfg.cir = (npq->shaper.crate / 1000) * 8;
 	cfg.shaper_frame_mode = 0;
 
 	/*
@@ -1053,7 +1053,7 @@ static int nss_ppe_port_shaper_set(struct nss_qdisc *nq)
 	 */
 	cfg.cir = cfg.cir * NSS_PPE_HW_FREQ_SCALING;
 
-	nss_qdisc_trace("SSDK port shaper configuration: Port:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
+	nss_qdisc_trace("SSDK port shaper configuration: Port:%u, couple_en:%u, meter_unit:%u, c_shaper_en:%u, cbs:%u, cir:%u, ebs:%u, eir:%u, shaper_frame_mode:%u\n",
 			port_num, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
 	if (fal_port_shaper_set(0, port_num, &cfg) != 0) {
 		nss_qdisc_error("SSDK port shaper configuration failed for port:%d\n", port_num);
@@ -1124,10 +1124,10 @@ static int nss_ppe_flow_shaper_set(struct nss_qdisc *nq)
 	cfg.meter_unit = 0;
 	cfg.c_shaper_en = 1;
 	cfg.cbs = npq->shaper.burst;
-	cfg.cir = (npq->shaper.rate * 8) / 1000;
+	cfg.cir = (npq->shaper.rate / 1000) * 8;
 	cfg.e_shaper_en = 1;
 	cfg.ebs = npq->shaper.cburst;
-	cfg.eir = (npq->shaper.crate * 8 / 1000) - cfg.cir;
+	cfg.eir = ((npq->shaper.crate / 1000) * 8) - cfg.cir;
 	cfg.shaper_frame_mode = 0;
 
 	/*
@@ -1136,7 +1136,7 @@ static int nss_ppe_flow_shaper_set(struct nss_qdisc *nq)
 	cfg.cir = cfg.cir * NSS_PPE_HW_FREQ_SCALING;
 	cfg.eir = cfg.eir * NSS_PPE_HW_FREQ_SCALING;
 
-	nss_qdisc_trace("SSDK flow shaper configuration: l0spid:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
+	nss_qdisc_trace("SSDK flow shaper configuration: l0spid:%u, couple_en:%u, meter_unit:%u, c_shaper_en:%u, cbs:%u, cir:%u, ebs:%u, eir:%u, shaper_frame_mode:%u\n",
 		npq->l0spid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
 	if (fal_flow_shaper_set(0, npq->l0spid, &cfg) != 0) {
 		nss_qdisc_error("SSDK flow shaper configuration failed for port:%d, l0spid:%d\n",
@@ -1208,10 +1208,10 @@ static int nss_ppe_queue_shaper_set(struct nss_qdisc *nq)
 	cfg.meter_unit = 0;
 	cfg.c_shaper_en = 1;
 	cfg.cbs = npq->shaper.burst;
-	cfg.cir = (npq->shaper.rate * 8) / 1000;
+	cfg.cir = (npq->shaper.rate / 1000) * 8;
 	cfg.e_shaper_en = 1;
 	cfg.ebs = npq->shaper.cburst;
-	cfg.eir = (npq->shaper.crate * 8 / 1000) - cfg.cir;
+	cfg.eir = ((npq->shaper.crate / 1000) * 8) - cfg.cir;
 	cfg.shaper_frame_mode = 0;
 
 	/*
@@ -1220,7 +1220,7 @@ static int nss_ppe_queue_shaper_set(struct nss_qdisc *nq)
 	cfg.cir = cfg.cir * NSS_PPE_HW_FREQ_SCALING;
 	cfg.eir = cfg.eir * NSS_PPE_HW_FREQ_SCALING;
 
-	nss_qdisc_trace("SSDK queue shaper configuration: ucast_qid:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
+	nss_qdisc_trace("SSDK queue shaper configuration: ucast_qid:%u, couple_en:%u, meter_unit:%u, c_shaper_en:%u, cbs:%u, cir:%u, ebs:%u, eir:%u, shaper_frame_mode:%u\n",
 		npq->q.ucast_qid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
 	if (fal_queue_shaper_set(0, npq->q.ucast_qid, &cfg) != 0) {
 		nss_qdisc_error("SSDK queue shaper configuration failed\n");
@@ -1235,7 +1235,7 @@ static int nss_ppe_queue_shaper_set(struct nss_qdisc *nq)
 	 * Other scenarios catering to mcast queue are handled in separate mcast APIs.
 	 */
 	if (npq->q.mcast_qid) {
-		nss_qdisc_trace("SSDK multicast queue shaper configuration: mcast_qid:%d, couple_en:%d, meter_unit:%d, c_shaper_en:%d, cbs:%d, cir:%d, ebs:%d, eir:%d, shaper_frame_mode:%d\n",
+		nss_qdisc_trace("SSDK multicast queue shaper configuration: mcast_qid:%u, couple_en:%u, meter_unit:%u, c_shaper_en:%u, cbs:%u, cir:%u, ebs:%u, eir:%u, shaper_frame_mode:%u\n",
 			npq->q.mcast_qid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
 		if (fal_queue_shaper_set(0, npq->q.mcast_qid, &cfg) != 0) {
 			nss_qdisc_error("SSDK multicast queue shaper configuration failed\n");

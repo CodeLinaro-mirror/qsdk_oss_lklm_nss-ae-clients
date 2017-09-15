@@ -114,7 +114,6 @@ struct nss_ppe_port {
 	struct nss_ppe_res *res_used[NSS_PPE_MAX_RES_TYPE];	/* Used res list */
 	struct nss_ppe_res *res_free[NSS_PPE_MAX_RES_TYPE];	/* Free res list */
 
-	bool def_conf_enable;				/* Default queue configuration enabled */
 	spinlock_t lock;				/* Lock to protect the port structure */
 };
 

@@ -239,11 +239,6 @@ int nss_ppe_port_res_alloc(void)
 	spin_lock_init(&ppe_qdisc_port[i].lock);
 
 	/*
-	 * By default, queue configuration is enabled
-	 */
-	ppe_qdisc_port[i].def_conf_enable = true;
-
-	/*
 	 * Loopback port configuration
 	 * Loopback port requires only L0 resources.
 	 */
@@ -277,11 +272,6 @@ int nss_ppe_port_res_alloc(void)
 		 * Initialize locks
 		 */
 		spin_lock_init(&ppe_qdisc_port[i].lock);
-
-		/*
-		 * By default, queue configuration is enabled
-		 */
-		ppe_qdisc_port[i].def_conf_enable = true;
 
 		/*
 		 * Resource configuration
@@ -342,48 +332,6 @@ failure:
 		i--;
 	}
 	return -EINVAL;
-}
-
-/*
- * nss_ppe_def_conf_disable()
- *	Disables the default queue if default queue configuration status is enabled.
- */
-static void nss_ppe_def_conf_disable(uint32_t port)
-{
-	bool status;
-	struct nss_ppe_port *ppe_port = &ppe_qdisc_port[port];
-	uint32_t ucast_qid = nss_ppe_base_get(port, NSS_PPE_UCAST_QUEUE);
-	uint32_t mcast_qid = nss_ppe_base_get(port, NSS_PPE_MCAST_QUEUE);
-
-	/*
-	 * Get the default queue configuration status.
-	 */
-	spin_lock_bh(&ppe_port->lock);
-	status = ppe_port->def_conf_enable;
-	spin_unlock_bh(&ppe_port->lock);
-
-	/*
-	 * If default configuration is enabled,
-	 * disable queue enqueue, dequeue and flush the queue.
-	 */
-	if (status) {
-		fal_qm_enqueue_ctrl_set(0, ucast_qid, false);
-		fal_scheduler_dequeue_ctrl_set(0, ucast_qid, false);
-		fal_queue_flush(0, port, ucast_qid);
-
-		fal_qm_enqueue_ctrl_set(0, mcast_qid, false);
-		fal_scheduler_dequeue_ctrl_set(0, mcast_qid, false);
-		fal_queue_flush(0, port, mcast_qid);
-
-		/*
-		 * Reset the default queue configuration status.
-		 */
-		spin_lock_bh(&ppe_port->lock);
-		ppe_port->def_conf_enable = false;
-		spin_unlock_bh(&ppe_port->lock);
-	}
-
-	nss_qdisc_info("SSDK default queue status disabled\n");
 }
 
 /*
@@ -968,11 +916,8 @@ static int nss_ppe_l0_queue_scheduler_set(struct nss_qdisc *nq)
 	 */
 	if (!npq->l0_valid) {
 		/*
-		 * Disable default configuration if present
-		 * and allocate Level 0 resources
+		 * Allocate Level 0 resources
 		 */
-		nss_ppe_def_conf_disable(port_num);
-
 		if (nss_ppe_l0_res_alloc(nq) != 0) {
 			nss_qdisc_warning("SSDK level0 queue scheduler configuration failed\n");
 			return -EINVAL;
@@ -1384,14 +1329,19 @@ struct nss_ppe_res *nss_ppe_res_alloc(uint32_t port, nss_ppe_res_type_t type)
  */
 static int nss_ppe_default_conf_set(uint32_t port_num)
 {
-	fal_qos_scheduler_cfg_t l1cfg;
 	fal_qos_scheduler_cfg_t l0cfg;
 	fal_ac_obj_t obj;
 	fal_ac_ctrl_t cfg;
 	uint32_t l0spid;
 	uint32_t ucast_qid;
 	uint32_t mcast_qid;
-	struct nss_ppe_port *ppe_port = &ppe_qdisc_port[port_num];
+
+	/*
+	 * Disable all queues and set SSDK configuration
+	 * We need to disable and flush the queues before
+	 * reseting to the default configuration.
+	 */
+	nss_ppe_all_queue_disable(port_num);
 
 	/*
 	 * No resources were allocated for Port 0 (bridge interface).
@@ -1403,36 +1353,24 @@ static int nss_ppe_default_conf_set(uint32_t port_num)
 	}
 
 	/*
-	 * Disable all queues and set SSDK configuration
-	 * We need to disable and flush the queues before
-	 * changing scheduler's sp_id/drr_id/priority.
+	 * Invoke SSDK API to reset the default configuration for a given port.
 	 */
-	nss_ppe_all_queue_disable(port_num);
-
-	/*
-	 * Reset Level 1 Configuration
-	 */
-	memset(&l1cfg, 0, sizeof(l1cfg));
-	l1cfg.sp_id = port_num;
-	l1cfg.c_pri = NSS_PPE_PRIORITY_MAX;
-	l1cfg.e_pri = NSS_PPE_PRIORITY_MAX;
-	l1cfg.c_drr_wt = 1;
-	l1cfg.e_drr_wt = 1;
-	l1cfg.c_drr_id = nss_ppe_base_get(port_num, NSS_PPE_L1_CDRR);
-	l1cfg.e_drr_id = nss_ppe_base_get(port_num, NSS_PPE_L1_EDRR);
-	l0spid = nss_ppe_base_get(port_num, NSS_PPE_L0_SP);
-
-	nss_qdisc_trace("SSDK level1 configuration: Port:%d, l0spid:%d, c_drrid:%d, c_pri:%d, c_drr_wt:%d, e_drrid:%d, e_pri:%d, e_drr_wt:%d, l1spid:%d\n",
-			port_num, l0spid, l1cfg.c_drr_id, l1cfg.c_pri, l1cfg.c_drr_wt, l1cfg.e_drr_id, l1cfg.e_pri, l1cfg.e_drr_wt, l1cfg.sp_id);
-	if (fal_queue_scheduler_set(0, l0spid, NSS_PPE_FLOW_LEVEL - 1, port_num, &l1cfg) != 0) {
-		nss_qdisc_error("SSDK level1 queue scheduler configuration failed\n");
+	if (fal_port_scheduler_cfg_reset(0, port_num) != 0) {
+		nss_qdisc_error("SSDK reset default queue configuration failed\n");
 		nss_ppe_all_queue_enable(port_num);
 		return -EINVAL;
 	}
 
+	nss_ppe_all_queue_enable(port_num);
+
+	nss_qdisc_info("SSDK queue configuration successful\n");
+	return 0;
+
 conf:
 	/*
 	 * Reset Level 0 Configuration
+	 * We are not using SSDK reset API for port 0 as
+	 * only 16 queues from this port are used for QoS.
 	 */
 	memset(&l0cfg, 0, sizeof(l0cfg));
 	l0cfg.sp_id = l0spid;
@@ -1483,13 +1421,6 @@ conf:
 	}
 
 	nss_ppe_all_queue_enable(port_num);
-
-	/*
-	 * Set the default queue configuration status.
-	 */
-	spin_lock_bh(&ppe_port->lock);
-	ppe_port->def_conf_enable = true;
-	spin_unlock_bh(&ppe_port->lock);
 
 	nss_qdisc_info("SSDK queue configuration successful\n");
 	return 0;

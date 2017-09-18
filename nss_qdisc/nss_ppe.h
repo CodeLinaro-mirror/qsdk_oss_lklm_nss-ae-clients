@@ -51,6 +51,15 @@ enum nss_ppe_drr_unit {
 typedef enum nss_ppe_drr_unit nss_ppe_drr_unit_t;
 
 /*
+ * Frame mode.
+ */
+enum nss_ppe_frame_mode {
+	NSS_PPE_IPG_PREAMBLE_FRAME_CRC,	/* IPG + Preamble + Frame + CRC */
+	NSS_PPE_FRAME_CRC,		/* Frame + CRC */
+	NSS_PPE_L3_EXCLUDE_CRC,		/* after Ethernet type exclude CRC*/
+};
+
+/*
  * Shaper/Scheduler levels.
  */
 enum nss_ppe_level {

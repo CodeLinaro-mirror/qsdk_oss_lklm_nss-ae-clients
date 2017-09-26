@@ -471,6 +471,7 @@ void nss_ipsecmgr_copy_sa_data(struct nss_ipsec_msg *nim, struct nss_ipsecmgr_sa
 
 	data->esp_icv_len = sa_data->esp.icv_len;
 	data->esp_seq_skip = sa_data->esp.seq_skip;
+	data->esp_tail_skip = sa_data->esp.trailer_skip;
 	data->use_pattern = sa_data->use_pattern;
 	data->dscp = sa_data->esp.dscp;
 	data->df = !!sa_data->esp.df;

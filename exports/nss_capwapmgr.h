@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -32,6 +32,14 @@
 					/**< Bit is set if tunnel has been configured */
 #define NSS_CAPWAPMGR_TUNNEL_STATE_ENABLED	0x2
 					/**< Bit is set if tunnel has been enabled */
+
+/*
+ * Tunnel feature flags
+ */
+#define NSS_CAPWAPMGR_FEATURE_DTLS_ENABLED		0x00000001	/* Tunnel enabled DTLS. */
+#define NSS_CAPWAPMGR_FEATURE_INNER_TRUSTSEC_ENABLED	0x00000002	/* Tunnel enabled inner trustsec. */
+#define NSS_CAPWAPMGR_FEATURE_OUTER_TRUSTSEC_ENABLED	0x00000004	/* Tunnel enabled outer trustsec. */
+#define NSS_CAPWAPMGR_FEATURE_WIRELESS_QOS_ENABLED	0x00000008	/* Tunnel enabled wireless QoS. */
 
 /*
  * All CAPWAP messages to NSS FW are sync in nature. It means we have
@@ -200,7 +208,7 @@ extern nss_capwapmgr_status_t nss_capwapmgr_change_version(struct net_device *de
  *
  * @return nss_capwapmgr_status_t
  */
-extern nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint8_t tunnel_id, uint8_t dtls_enable, struct nss_dtlsmgr_session_create_config *in_data);
+extern nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint8_t tunnel_id, uint8_t enable_dtls, struct nss_dtlsmgr_session_create_config *in_data);
 
 /**
  * @brief RX cipher update for a CAPWAP DTLS tunnel

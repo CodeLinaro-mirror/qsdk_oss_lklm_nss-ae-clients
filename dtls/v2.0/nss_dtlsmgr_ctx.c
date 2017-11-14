@@ -268,7 +268,7 @@ static bool nss_dtlsmgr_ctx_configure_dtls(struct nss_dtlsmgr_ctx_data *data, st
  */
 static bool nss_dtlsmgr_ctx_deconfigure(struct nss_dtlsmgr_ctx *ctx, struct nss_dtlsmgr_ctx_data *data)
 {
-	const uint32_t type = NSS_DTLS_CMN_MSG_TYPE_CONFIGURE_DTLS;
+	const uint32_t type = NSS_DTLS_CMN_MSG_TYPE_DECONFIGURE;
 	enum nss_dtls_cmn_error resp = NSS_DTLS_CMN_ERROR_NONE;
 	struct nss_dtls_cmn_msg ndcm = {0};
 	struct nss_dtlsmgr_dtls_data *cur;

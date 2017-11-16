@@ -28,27 +28,11 @@
 /*
  * Max Resources per port
  *
- * TODO: These macros need to be removed once
- * configuration is read from device tree.
+ * Currently, we are using only one multicast queue.
+ * In case of Loopback port, the resources are reserved
+ * for qdisc functionality.
  */
-#define NSS_PPE_L0_SP_MAX 		4
-#define NSS_PPE_L0_CDRR_MAX 		16
-#define NSS_PPE_L0_EDRR_MAX 		16
-#define NSS_PPE_L1_SP_MAX		1
-#define NSS_PPE_L1_CDRR_MAX		4
-#define NSS_PPE_L1_EDRR_MAX		4
-#define NSS_PPE_UCAST_QUEUE_MAX		16
 #define NSS_PPE_MCAST_QUEUE_MAX		1
-
-
-#define NSS_PPE_CPU0_L0_SP_MAX		36
-#define NSS_PPE_CPU0_L0_CDRR_MAX	48
-#define NSS_PPE_CPU0_L0_EDRR_MAX	48
-#define NSS_PPE_CPU0_L1_SP_MAX		1
-#define NSS_PPE_CPU0_L1_CDRR_MAX	8
-#define NSS_PPE_CPU0_L1_EDRR_MAX	8
-#define NSS_PPE_CPU0_QUEUE_MAX		144
-#define NSS_PPE_CPU0_MCAST_QUEUE_MAX	272
 
 #define NSS_PPE_LOOPBACK_L0_SP_MAX		1
 #define NSS_PPE_LOOPBACK_L0_CDRR_MAX		16
@@ -226,6 +210,7 @@ int nss_ppe_port_res_free(void)
 int nss_ppe_port_res_alloc(void)
 {
 	int j, type;
+	fal_portscheduler_resource_t cfg;
 	int i = 0;
 	nss_qdisc_info("nss_ppe_port_res_alloc");
 
@@ -276,26 +261,36 @@ int nss_ppe_port_res_alloc(void)
 		/*
 		 * Resource configuration
 		 */
-		ppe_qdisc_port[i].max[NSS_PPE_UCAST_QUEUE] = NSS_PPE_UCAST_QUEUE_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_UCAST_QUEUE] = NSS_PPE_CPU0_QUEUE_MAX + (i - 1) * NSS_PPE_UCAST_QUEUE_MAX;
+		memset(&cfg, 0, sizeof(cfg));
 
+		if (fal_port_scheduler_resource_get(0, i, &cfg) != 0) {
+			nss_qdisc_error("Fetching of port scheduler resource information failed\n");
+			goto failure;
+		}
+
+		ppe_qdisc_port[i].max[NSS_PPE_UCAST_QUEUE] = cfg.ucastq_num;
+		ppe_qdisc_port[i].base[NSS_PPE_UCAST_QUEUE] = cfg.ucastq_start;
+
+		/*
+		 * Even though we reserve more mcast queues in the device tree, we only use 1 in qdiscs.
+		 */
 		ppe_qdisc_port[i].max[NSS_PPE_MCAST_QUEUE] = NSS_PPE_MCAST_QUEUE_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_MCAST_QUEUE] = NSS_PPE_CPU0_MCAST_QUEUE_MAX + (i - 1) * NSS_PPE_MCAST_QUEUE_MAX;
+		ppe_qdisc_port[i].base[NSS_PPE_MCAST_QUEUE] = cfg.mcastq_start;
 
-		ppe_qdisc_port[i].max[NSS_PPE_L0_CDRR] = NSS_PPE_L0_CDRR_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_L0_CDRR] = NSS_PPE_CPU0_L0_CDRR_MAX + (i - 1) * NSS_PPE_L0_CDRR_MAX;
+		ppe_qdisc_port[i].max[NSS_PPE_L0_CDRR] = cfg.l0cdrr_num;
+		ppe_qdisc_port[i].base[NSS_PPE_L0_CDRR] = cfg.l0cdrr_start;
 
-		ppe_qdisc_port[i].max[NSS_PPE_L0_EDRR] = NSS_PPE_L0_EDRR_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_L0_EDRR] = NSS_PPE_CPU0_L0_EDRR_MAX + (i - 1) * NSS_PPE_L0_EDRR_MAX;
+		ppe_qdisc_port[i].max[NSS_PPE_L0_EDRR] = cfg.l0edrr_num;
+		ppe_qdisc_port[i].base[NSS_PPE_L0_EDRR] = cfg.l0edrr_start;
 
-		ppe_qdisc_port[i].max[NSS_PPE_L0_SP] = NSS_PPE_L0_SP_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_L0_SP] = NSS_PPE_CPU0_L0_SP_MAX + (i - 1) * NSS_PPE_L0_SP_MAX;
+		ppe_qdisc_port[i].max[NSS_PPE_L0_SP] = cfg.l0sp_num;
+		ppe_qdisc_port[i].base[NSS_PPE_L0_SP] = cfg.l0sp_start;
 
-		ppe_qdisc_port[i].max[NSS_PPE_L1_CDRR] = NSS_PPE_L1_CDRR_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_L1_CDRR] = NSS_PPE_CPU0_L1_CDRR_MAX + (i - 1) * NSS_PPE_L1_CDRR_MAX;
+		ppe_qdisc_port[i].max[NSS_PPE_L1_CDRR] = cfg.l1cdrr_num;
+		ppe_qdisc_port[i].base[NSS_PPE_L1_CDRR] = cfg.l1cdrr_start;
 
-		ppe_qdisc_port[i].max[NSS_PPE_L1_EDRR] = NSS_PPE_L1_EDRR_MAX;
-		ppe_qdisc_port[i].base[NSS_PPE_L1_EDRR] = NSS_PPE_CPU0_L1_EDRR_MAX + (i - 1) * NSS_PPE_L1_EDRR_MAX;
+		ppe_qdisc_port[i].max[NSS_PPE_L1_EDRR] = cfg.l1edrr_num;
+		ppe_qdisc_port[i].base[NSS_PPE_L1_EDRR] = cfg.l1edrr_start;
 
 		for (type = 0; type < NSS_PPE_MAX_RES_TYPE; type++) {
 			ppe_qdisc_port[i].res_free[type] = nss_ppe_res_entries_alloc(i, type);
@@ -908,7 +903,6 @@ static int nss_ppe_l0_queue_scheduler_configure(struct nss_qdisc *nq)
  */
 static int nss_ppe_l0_queue_scheduler_set(struct nss_qdisc *nq)
 {
-	uint32_t port_num = nss_ppe_port_num_get(nq);
 	struct nss_ppe_qdisc *npq = &nq->npq;
 
 	/*

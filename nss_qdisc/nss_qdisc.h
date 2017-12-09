@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -127,6 +127,9 @@
 #define NSS_QDISC_MODE_NSS 0x6243
 #define NSS_QDISC_MODE_PPE 0x6245
 
+typedef void (*nss_qdisc_stats_update_callback_t)(void *, struct nss_shaper_configure *);
+typedef void (*nss_qdisc_configure_callback_t)(struct nss_qdisc *, struct nss_shaper_configure *);
+
 struct nss_qdisc {
 	struct Qdisc *qdisc;			/* Handy pointer back to containing qdisc */
 	struct nss_qdisc *parent;		/* Pointer to parent nss qdisc */
@@ -170,9 +173,13 @@ struct nss_qdisc {
 						 * operation on skb lists triggeret by bounce
 						 * callbacks.
 						 */
-	void (*stats_update_callback)(void *, struct nss_shaper_configure *);
+	nss_qdisc_stats_update_callback_t stats_cb;
 						/* Stats update callback function for qdisc specific
 						 * stats update. Currently unused.
+						 */
+	nss_qdisc_configure_callback_t config_cb;
+						/* Shaper configure callback for reading shaper specific
+						 * responses (e.g. memory size).
 						 */
 	struct gnet_stats_basic_packed bstats;	/* Basic class statistics */
 	struct gnet_stats_queue qstats;		/* Qstats for use by classes */
@@ -303,6 +310,13 @@ extern int nss_qdisc_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_chil
  */
 extern int nss_qdisc_configure(struct nss_qdisc *nq,
 	struct nss_if_msg *nim, int32_t config_type);
+
+
+/*
+ * nss_qdisc_register_configure_callback()
+ *	Register shaper configure callback, which gets invoked on receiving a response.
+ */
+extern void nss_qdisc_register_configure_callback(struct nss_qdisc *nq, nss_qdisc_configure_callback_t cb);
 
 /*
  * nss_qdisc_destroy()

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -1668,6 +1668,14 @@ static void nss_qdisc_configure_callback(void *app_data,
 		return;
 	}
 
+	/*
+	 * Shapers that need to look at responses for a configure message register
+	 * for a configure callback. This needs to be invoked.
+	 */
+	if (nq->config_cb) {
+		nq->config_cb(nq, &nim->msg.shaper_configure.config);
+	}
+
 	nss_qdisc_info("Qdisc %p (type %d): configuration complete\n",
 			nq->qdisc, nq->type);
 	atomic_set(&nq->state, NSS_QDISC_STATE_READY);
@@ -1737,6 +1745,16 @@ int nss_qdisc_configure(struct nss_qdisc *nq,
 	nss_qdisc_info("Qdisc %p (type %d): shaper node configure complete\n",
 			nq->qdisc, nq->type);
 	return 0;
+}
+
+/*
+ * nss_qdisc_register_configure_callback()
+ *	Register shaper configure callback, which gets invoked on receiving a response.
+ */
+void nss_qdisc_register_configure_callback(struct nss_qdisc *nq, nss_qdisc_configure_callback_t cb)
+{
+	nss_qdisc_assert(!nq->config_cb, "Qdisc %p: config callback already registered", nq);
+	nq->config_cb = cb;
 }
 
 /*
@@ -2592,6 +2610,11 @@ static int __init nss_qdisc_module_init(void)
 		return ret;
 	nss_qdisc_info("nsscodel registered\n");
 
+	ret = register_qdisc(&nss_fq_codel_qdisc_ops);
+	if (ret != 0)
+		return ret;
+	nss_qdisc_info("nssfq_codel registered\n");
+
 	ret = register_qdisc(&nss_tbl_qdisc_ops);
 	if (ret != 0)
 		return ret;
@@ -2669,6 +2692,9 @@ static void __exit nss_qdisc_module_exit(void)
 
 	unregister_qdisc(&nss_codel_qdisc_ops);
 	nss_qdisc_info("nsscodel unregistered\n");
+
+	unregister_qdisc(&nss_fq_codel_qdisc_ops);
+	nss_qdisc_info("nssfq_codel unregistered\n");
 
 	unregister_qdisc(&nss_tbl_qdisc_ops);
 	nss_qdisc_info("nsstbl unregistered\n");

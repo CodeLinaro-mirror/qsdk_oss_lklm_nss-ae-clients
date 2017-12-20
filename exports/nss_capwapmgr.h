@@ -142,7 +142,8 @@ extern struct net_device *nss_capwapmgr_netdev_create(void);
  * @return nss_capwapmgr_status_t
  */
 extern nss_capwapmgr_status_t nss_capwapmgr_ipv4_tunnel_create(struct net_device *dev, uint8_t tunnel_id,
-			struct nss_ipv4_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule, struct nss_dtlsmgr_config *in_data);
+			struct nss_ipv4_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule,
+			struct nss_dtlsmgr_config *in_data);
 
 /**
  * @brief Creates a IPv6 CAPWAP tunnel
@@ -155,7 +156,8 @@ extern nss_capwapmgr_status_t nss_capwapmgr_ipv4_tunnel_create(struct net_device
  * @return nss_capwapmgr_status_t
  */
 extern nss_capwapmgr_status_t nss_capwapmgr_ipv6_tunnel_create(struct net_device *dev, uint8_t tunnel_id,
-			struct nss_ipv6_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule, struct nss_dtlsmgr_config *in_data);
+			struct nss_ipv6_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule,
+			struct nss_dtlsmgr_config *in_data);
 
 /**
  * @brief Enable a CAPWAP tunnel
@@ -189,6 +191,19 @@ extern nss_capwapmgr_status_t nss_capwapmgr_disable_tunnel(struct net_device *de
 extern nss_capwapmgr_status_t nss_capwapmgr_update_path_mtu(struct net_device *dev, uint8_t tunnel_id, uint32_t mtu);
 
 /**
+ * @brief Get the DTLS net_device associated to the CAPWAP tunnel
+ *
+ * @param netdevice
+ * @param tunnel_id
+ *
+ * @return Pointer to struct net_device
+ *
+ * @note This API hold the NET_DEVICE reference; after use the caller must perform
+ * "dev_put" to release the reference.
+ */
+struct net_device *nss_capwapmgr_get_dtls_netdev(struct net_device *dev, uint8_t tunnel_id);
+
+/**
  * @brief Changes version of a CAPWAP tunnel
  *
  * @param netdevice
@@ -209,7 +224,8 @@ extern nss_capwapmgr_status_t nss_capwapmgr_change_version(struct net_device *de
  *
  * @return nss_capwapmgr_status_t
  */
-extern nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint8_t tunnel_id, uint8_t enable_dtls, struct nss_dtlsmgr_config *in_data);
+extern nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint8_t tunnel_id,
+							uint8_t enable_dtls, struct nss_dtlsmgr_config *in_data);
 
 /**
  * @brief RX cipher update for a CAPWAP DTLS tunnel
@@ -287,8 +303,8 @@ extern nss_capwapmgr_status_t nss_capwapmgr_netdev_destroy(struct net_device *ne
  *
  * @return nss_capwapmgr_status_t
  */
-extern nss_capwapmgr_status_t nss_capwapmgr_tunnel_stats(struct net_device *dev,
-		uint8_t tunnel_id, struct nss_capwap_tunnel_stats *stats);
+extern nss_capwapmgr_status_t nss_capwapmgr_tunnel_stats(struct net_device *dev, uint8_t tunnel_id,
+							struct nss_capwap_tunnel_stats *stats);
 
 #if defined(NSS_CAPWAPMGR_ONE_NETDEV)
 /**

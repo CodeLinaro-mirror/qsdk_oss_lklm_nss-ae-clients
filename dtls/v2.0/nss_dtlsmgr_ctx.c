@@ -32,6 +32,7 @@
 #include <linux/if_arp.h>
 #include <linux/etherdevice.h>
 #include <linux/atomic.h>
+#include <asm/cmpxchg.h>
 
 #include <crypto/algapi.h>
 #include <crypto/aead.h>
@@ -390,8 +391,8 @@ static int nss_dtlsmgr_ctx_create_encap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 	 * Register NSS DTLS Encap I/F
 	 */
 	data->nss_ctx = nss_dtls_cmn_register_if(data->ifnum,
-						nss_dtlsmgr_ctx_dev_rx,
-						nss_dtlsmgr_ctx_dev_event,
+						nss_dtlsmgr_ctx_dev_rx_inner,
+						nss_dtlsmgr_ctx_dev_event_inner,
 						ctx->dev,
 						0,
 						data->di_type,
@@ -465,8 +466,8 @@ static int nss_dtlsmgr_ctx_create_decap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 	 * Register NSS DTLS Decap I/F
 	 */
 	data->nss_ctx = nss_dtls_cmn_register_if(data->ifnum,
-						nss_dtlsmgr_ctx_dev_rx,
-						nss_dtlsmgr_ctx_dev_event,
+						nss_dtlsmgr_ctx_dev_rx_outer,
+						nss_dtlsmgr_ctx_dev_event_outer,
 						ctx->dev,
 						0,
 						data->di_type,
@@ -496,6 +497,53 @@ fail:
 	nss_dtls_cmn_unregister_if(data->ifnum);
 	nss_dtlsmgr_ctx_free_dtls(dtls);
 	return -EBUSY;
+}
+
+/*
+ * nss_dtlsmgr_session_switch()
+ *	Send a switch message to firmware to use new cipher spec
+ *
+ * Note: This deletes the older cipher spec and pops the next cipher spec
+ * for use.
+ */
+static bool nss_dtlsmgr_session_switch(struct nss_dtlsmgr_ctx *ctx, struct nss_dtlsmgr_ctx_data *data)
+{
+	const uint32_t type = NSS_DTLS_CMN_MSG_TYPE_SWITCH_DTLS;
+	enum nss_dtls_cmn_error resp = NSS_DTLS_CMN_ERROR_NONE;
+	struct nss_dtls_cmn_msg ndcm = {0};
+	struct nss_dtlsmgr_dtls_data *dtls;
+	nss_tx_status_t status;
+
+	BUG_ON(in_atomic());
+
+	/*
+	 * TODO: Add retry messaging to ensure that in case of failures, due to queue
+	 * full conditions we do attempt few retries before aborting.
+	 */
+	status = nss_dtls_cmn_tx_msg_sync(data->nss_ctx, data->ifnum, type, 0, &ndcm, &resp);
+	if (status != NSS_TX_SUCCESS) {
+		nss_dtlsmgr_warn("%p: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
+				ctx, data->ifnum, type, status, resp);
+		return false;
+	}
+
+	/*
+	 * We essentially pop the head of the dtls list.
+	 * It is expected that an update should have already
+	 * added a new dtls entry at the tail of the list
+	 */
+	write_lock(&ctx->lock);
+	dtls = list_first_entry_or_null(&data->dtls_active, struct nss_dtlsmgr_dtls_data, list);
+	if (!dtls) {
+		write_unlock(&ctx->lock);
+		return false;
+	}
+
+	list_del(&dtls->list);
+	write_unlock(&ctx->lock);
+
+	nss_dtlsmgr_ctx_free_dtls(dtls);
+	return true;
 }
 
 /*
@@ -562,6 +610,19 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 	dev->needed_headroom = ctx->encap.headroom;
 	dev->needed_tailroom = ctx->encap.tailroom;
 
+	ctx->app_data = cfg->app_data;
+	ctx->notify_cb = cfg->notify;
+	ctx->data_cb = cfg->data;
+
+	/*
+	 * If, the user has not provided the callback function then
+	 * we will register the default callback handler
+	 */
+	if (!ctx->data_cb) {
+		ctx->data_cb = nss_dtlsmgr_ctx_dev_data_callback;
+		ctx->app_data = ctx;
+	}
+
 	error = rtnl_is_locked() ? register_netdevice(dev) : register_netdev(dev);
 	if (error < 0) {
 		nss_dtlsmgr_warn("%p: unable register net_device(%s)", ctx, dev->name);
@@ -605,6 +666,12 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_destroy(struct net_device *dev)
 {
 	struct nss_dtlsmgr_ctx *ctx = netdev_priv(dev);
 	NSS_DTLSMGR_VERIFY_MAGIC(ctx);
+
+	/*
+	 * Reset the callback handlers atomically
+	 */
+	xchg(&ctx->notify_cb, NULL);
+	xchg(&ctx->data_cb, NULL);
 
 	if (!nss_dtlsmgr_ctx_deconfigure(ctx, &ctx->encap)) {
 		nss_dtlsmgr_warn("%p: unable to deconfigure encap", ctx);
@@ -714,47 +781,6 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_update_decap(struct net_device *dev, st
 	return NSS_DTLSMGR_OK;
 }
 EXPORT_SYMBOL(nss_dtlsmgr_session_update_decap);
-
-/*
- * nss_dtlsmgr_session_switch()
- *	Send a switch message to the DTLS firmware packege to switch to
- *	the new cryptographic keys.
- */
-static bool nss_dtlsmgr_session_switch(struct nss_dtlsmgr_ctx *ctx, struct nss_dtlsmgr_ctx_data *data)
-{
-	const uint32_t type = NSS_DTLS_CMN_MSG_TYPE_SWITCH_DTLS;
-	enum nss_dtls_cmn_error resp = NSS_DTLS_CMN_ERROR_NONE;
-	struct nss_dtls_cmn_msg ndcm = {0};
-	struct nss_dtlsmgr_dtls_data *dtls;
-	nss_tx_status_t status;
-
-	/*
-	 * We essentially pop the head of the dtls list.
-	 * It is expected that an update should have already
-	 * added a new dtls entry at the tail of the list
-	 */
-	write_lock(&ctx->lock);
-	dtls = list_first_entry_or_null(&data->dtls_active, struct nss_dtlsmgr_dtls_data, list);
-	if (!dtls) {
-		write_unlock(&ctx->lock);
-		return false;
-	}
-
-	list_del(&dtls->list);
-	write_unlock(&ctx->lock);
-
-	BUG_ON(in_atomic());
-
-	status = nss_dtls_cmn_tx_msg_sync(data->nss_ctx, data->ifnum, type, 0, &ndcm, &resp);
-	if (status != NSS_TX_SUCCESS) {
-		nss_dtlsmgr_warn("%p: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
-				ctx, data->ifnum, type, status, resp);
-		return false;
-	}
-
-	nss_dtlsmgr_ctx_free_dtls(dtls);
-	return true;
-}
 
 /*
  * nss_dtlsmgr_session_switch_encap()

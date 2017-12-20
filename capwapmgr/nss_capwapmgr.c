@@ -1175,6 +1175,28 @@ static nss_capwapmgr_status_t nss_capwapmgr_create_capwap_rule(struct net_device
 }
 
 /*
+ * nss_capwapmgr_get_dtls_netdev()
+ *	API for getting the dtls netdev associated to the capwap tunnel
+ */
+struct net_device *nss_capwapmgr_get_dtls_netdev(struct net_device *capwap_dev, uint8_t tunnel_id)
+{
+	struct nss_capwapmgr_tunnel *t;
+	struct net_device *dtls_dev;
+
+	t = nss_capwapmgr_verify_tunnel_param(capwap_dev, tunnel_id);
+	if (!t) {
+		nss_capwapmgr_warn("%p: can't find tunnel: %d\n", capwap_dev, tunnel_id);
+		return NULL;
+	}
+
+	dtls_dev = t->dtls_dev;
+
+	dev_hold(dtls_dev);
+	return dtls_dev;
+}
+EXPORT_SYMBOL(nss_capwapmgr_get_dtls_netdev);
+
+/*
  * nss_capwapmgr_update_path_mtu()
  *	API for updating Path MTU
  */

@@ -26,9 +26,7 @@
  * @addtogroup nss_ipsec_manager_subsystem
  * @{
  */
-
-#define NSS_IPSECMGR_TUN_NAME "ipsectun%d"
-		/**< IPsec tunnel name. */
+#define NSS_IPSECMGR_TUN_NAME "ipsectun%d"	/**< IPsec tunnel name. */
 
 /**
  * Length of the header added after encapsulation.
@@ -88,10 +86,12 @@ typedef enum nss_ipsecmgr_status {
  * 	IPsec manager supported cryptographic algorithms.
  */
 enum nss_ipsecmgr_algo {
-	NSS_IPSECMGR_ALGO_AES_CBC_SHA1_HMAC,	/**< AES_CBC_SHA1_HMAC. */
-	NSS_IPSECMGR_ALGO_AES_CBC_SHA256_HMAC,	/**< AES_CBC_SHA256_HMAC. */
-	NSS_IPSECMGR_ALGO_3DES_CBC_SHA1_HMAC,	/**< 3DES_CBC_SHA1_HMAC. */
-	NSS_IPSECMGR_ALGO_3DES_CBC_SHA256_HMAC,	/**< 3DES_CBC_SHA256_HMAC. */
+	NSS_IPSECMGR_ALGO_AES_CBC_SHA1_HMAC,		/**< AES_CBC_SHA1_HMAC. */
+	NSS_IPSECMGR_ALGO_AES_CBC_SHA256_HMAC,		/**< AES_CBC_SHA256_HMAC. */
+	NSS_IPSECMGR_ALGO_3DES_CBC_SHA1_HMAC,		/**< 3DES_CBC_SHA1_HMAC. */
+	NSS_IPSECMGR_ALGO_3DES_CBC_SHA256_HMAC,		/**< 3DES_CBC_SHA256_HMAC. */
+	NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA1_HMAC,	/**< NULL_CIPHER_SHA1_HMAC. */
+	NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC,	/**< NULL_CIPHER_SHA256_HMAC. */
 	NSS_IPSECMGR_ALGO_MAX
 };
 
@@ -345,7 +345,8 @@ static inline bool nss_ipsecmgr_sa_cmn_init_keys(struct nss_ipsecmgr_sa_cmn *cmn
  */
 static inline bool nss_ipsecmgr_sa_cmn_init_idx(struct nss_ipsecmgr_sa_cmn *cmn, enum nss_ipsecmgr_algo algo,
 						uint16_t crypto_idx,  uint8_t blk_len, uint8_t iv_len,
-						uint8_t hash_len, bool secure_key, bool no_trailer, bool esn, bool natt)
+						uint8_t hash_len, bool secure_key, bool no_trailer, bool esn,
+						bool natt)
 {
 	if (algo >= NSS_IPSECMGR_ALGO_MAX)
 		return false;
@@ -446,7 +447,7 @@ void nss_ipsecmgr_tunnel_del(struct net_device *tun);
  * nss_ipsecmgr_status.
  */
 nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *tun, struct nss_ipsecmgr_flow_outer *outer,
-						struct nss_ipsecmgr_sa *sa, uint32_t *if_num);
+				struct nss_ipsecmgr_sa *sa, uint32_t *if_num);
 
 /**
  * nss_ipsecmgr_sa_del
@@ -480,7 +481,7 @@ void nss_ipsecmgr_sa_del(struct net_device *tun, struct nss_ipsecmgr_flow_outer 
  * nss_ipsecmgr_status.
  */
 nss_ipsecmgr_status_t nss_ipsecmgr_flow_add(struct net_device *tun, struct nss_ipsecmgr_flow_inner *inner,
-			struct nss_ipsecmgr_flow_outer *outer);
+					struct nss_ipsecmgr_flow_outer *outer);
 
 /**
  * nss_ipsecmgr_flow_del
@@ -498,43 +499,6 @@ nss_ipsecmgr_status_t nss_ipsecmgr_flow_add(struct net_device *tun, struct nss_i
  * @return
  */
 void nss_ipsecmgr_flow_del(struct net_device *tun, struct nss_ipsecmgr_flow_inner *inner,
-				struct nss_ipsecmgr_flow_outer *outer);
-
-/**
- * nss_ipsecmgr_subnet_add
- *	Adds an encapsulation subnet rule to the IPsec offload database.
- *
- * @datatypes
- * net_device \n
- * nss_ipsecmgr_subnet_inner \n
- * nss_ipsecmgr_flow_outer
- *
- * @param[in] tun   Pointer to the network device associated with the tunnel.
- * @param[in] inner Pointer to the inner subnet to add.
- * @param[in] outer Pointer to the outer flow of the SA to be added to.
- *
- * @return
- * nss_ipsecmgr_status
- */
-nss_ipsecmgr_status_t nss_ipsecmgr_subnet_add(struct net_device *tun, struct nss_ipsecmgr_subnet_inner *inner,
-				struct nss_ipsecmgr_flow_outer *outer);
-
-/*
- * nss_ipsecmgr_subnet_del
- *	Deletes an encapsulation subnet rule from the IPsec offload database.
- *
- * @datatypes
- * net_device \n
- * nss_ipsecmgr_subnet_inner \n
- * nss_ipsecmgr_flow_outer
- *
- * @param[in] tun   Pointer to the network device associated with the tunnel.
- * @param[in] inner Pointer to the inner subnet to delete.
- * @param[in] outer Pointer to the outer flow of the SA to be deleted from.
- *
- * @return
- */
-void nss_ipsecmgr_subnet_del(struct net_device *tun, struct nss_ipsecmgr_subnet_inner *inner,
-				struct nss_ipsecmgr_flow_outer *outer);
+			struct nss_ipsecmgr_flow_outer *outer);
 #endif /* __KERNEL__ */
 #endif /* __NSS_IPSECMGR_H */

@@ -607,8 +607,13 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 		goto destroy_encap;
 	}
 
-	dev->needed_headroom = ctx->encap.headroom;
-	dev->needed_tailroom = ctx->encap.tailroom;
+	/*
+	 * Set the needed headroom and tailroom as a multiple of 4 bytes
+	 * so that the skb data pointer remains 4 byte aligned when the
+	 * headroom/tailroom is adjusted.
+	 */
+	dev->needed_headroom = ALIGN(ctx->encap.headroom, 4);
+	dev->needed_tailroom = ALIGN(ctx->encap.tailroom, 4);
 
 	ctx->app_data = cfg->app_data;
 	ctx->notify_cb = cfg->notify;

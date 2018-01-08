@@ -49,7 +49,6 @@ struct nss_ipsecmgr_drv *ipsecmgr_drv;
 
 static const struct net_device_ops nss_ipsecmgr_dummy_ndev_ops;
 
-
 /*
  * nss_ipsecmgr_dev_dummy_setup()
  *	Setup function for dummy netdevice.
@@ -142,6 +141,19 @@ free:
 }
 
 /*
+ * nss_ipsecmgr_dev_stats64()
+ *	Get device statistics
+ */
+static struct rtnl_link_stats64 *nss_ipsecmgr_dev_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+{
+	struct nss_ipsecmgr_priv *priv = netdev_priv(dev);
+
+	memcpy(stats, &priv->stats, sizeof(struct rtnl_link_stats64));
+
+	return stats;
+}
+
+/*
  * nss_ipsecmgr_dev_mtu()
  *	Change device MTU
  */
@@ -152,11 +164,11 @@ static int nss_ipsecmgr_dev_mtu(struct net_device *dev, int mtu)
 }
 
 /* NSS IPsec tunnel operation */
-static const struct net_device_ops nss_ipsecmgr_tunnel_ops = {
+static const struct net_device_ops ipsecmgr_dev_ops = {
 	.ndo_open = nss_ipsecmgr_dev_open,
 	.ndo_stop = nss_ipsecmgr_dev_stop,
 	.ndo_start_xmit = nss_ipsecmgr_dev_tx,
-	.ndo_get_stats64 = NULL,
+	.ndo_get_stats64 = nss_ipsecmgr_dev_stats64,
 	.ndo_change_mtu = nss_ipsecmgr_dev_mtu,
 };
 
@@ -187,12 +199,12 @@ static void nss_ipsecmgr_dev_setup(struct net_device *dev)
 
 	dev->ethtool_ops = NULL;
 	dev->header_ops = NULL;
-	dev->netdev_ops = &nss_ipsecmgr_tunnel_ops;
+	dev->netdev_ops = &ipsecmgr_dev_ops;
 
 	dev->destructor = nss_ipsecmgr_dev_free;
 
 	/*
-	 * get the MAC address from the ethernet device
+	 * Get the MAC address from the ethernet device
 	 */
 	random_ether_addr(dev->dev_addr);
 
@@ -381,8 +393,8 @@ void nss_ipsecmgr_dev_rx_inner(struct net_device *dev, struct sk_buff *skb, stru
 		 * Search by swapping the addresses, since the rule would
 		 * have been pushed in the other direction
 		 */
-		nss_ipsecmgr_copy_v6addr(inner.src_ip, ip6h->daddr.s6_addr32);
-		nss_ipsecmgr_copy_v6addr(inner.dest_ip, ip6h->saddr.s6_addr32);
+		nss_ipsecmgr_ntoh_v6addr(inner.src_ip, ip6h->daddr.s6_addr32);
+		nss_ipsecmgr_ntoh_v6addr(inner.dest_ip, ip6h->saddr.s6_addr32);
 
 		inner.proto_next_hdr = ip6h->nexthdr;
 		inner.ip_version = 6;
@@ -514,8 +526,8 @@ void nss_ipsecmgr_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, stru
 		skb->protocol = ETH_P_IPV6;
 
 		if (ip6h->nexthdr == IPPROTO_ESP) {
-			nss_ipsecmgr_copy_v6addr(outer.src_ip, ip6h->saddr.s6_addr32);
-			nss_ipsecmgr_copy_v6addr(outer.dest_ip, ip6h->daddr.s6_addr32);
+			nss_ipsecmgr_ntoh_v6addr(outer.src_ip, ip6h->saddr.s6_addr32);
+			nss_ipsecmgr_ntoh_v6addr(outer.dest_ip, ip6h->daddr.s6_addr32);
 			outer.ip_version = 6;
 
 			skb_set_transport_header(skb, sizeof(struct ipv6hdr));
@@ -608,6 +620,120 @@ void nss_ipsecmgr_dev_rx(struct net_device *dev, struct sk_buff *skb, struct nap
 	}
 }
 
+
+/*
+ * nss_ipsecmgr_dev_update_stats()
+ *	Update device stats
+ */
+static void nss_ipsecmgr_dev_update_stats(struct nss_ipsecmgr_priv *priv, struct nss_ipsec_msg *nim)
+{
+	struct rtnl_link_stats64 *dev_stats;
+	struct nss_ipsec_sa_stats *sa_stats;
+
+	dev_stats = &priv->stats;
+	sa_stats = &nim->msg.stats.sa;
+
+	if (nim->type == NSS_IPSEC_TYPE_ENCAP) {
+		/*
+		 * Update tunnel specific stats
+		 */
+		dev_stats->tx_bytes += sa_stats->bytes;
+		dev_stats->tx_packets += sa_stats->count;
+
+		dev_stats->tx_dropped += sa_stats->no_headroom;
+		dev_stats->tx_dropped += sa_stats->no_tailroom;
+		dev_stats->tx_dropped += sa_stats->no_resource;
+		dev_stats->tx_dropped += sa_stats->fail_queue;
+		dev_stats->tx_dropped += sa_stats->fail_hash;
+		dev_stats->tx_dropped += sa_stats->fail_replay;
+		return;
+	}
+
+	dev_stats->rx_bytes += sa_stats->bytes;
+	dev_stats->rx_packets += sa_stats->count;
+
+	dev_stats->rx_dropped += sa_stats->no_headroom;
+	dev_stats->rx_dropped += sa_stats->no_tailroom;
+	dev_stats->rx_dropped += sa_stats->no_resource;
+	dev_stats->rx_dropped += sa_stats->fail_queue;
+	dev_stats->rx_dropped += sa_stats->fail_hash;
+	dev_stats->rx_dropped += sa_stats->fail_replay;
+}
+
+/*
+ * nss_ipsecmgr_dev_rx_notify()
+ *	Asynchronous event reception
+ */
+static void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim)
+{
+	struct nss_ipsecmgr_drv *ipsecmgr_drv = app_data;
+	struct nss_ipsecmgr_priv *priv;
+	struct net_device *dev;
+
+	BUG_ON(!nim);
+
+	/*
+	 * This holds the ref_cnt for the device
+	 */
+	dev = dev_get_by_index(&init_net, nim->tunnel_id);
+	if (!dev) {
+		nss_ipsecmgr_warn("%p: Failed to find the NETDEV(%d) associated with the message", nim, nim->tunnel_id);
+		return;
+	}
+
+	priv = netdev_priv(dev);
+
+	switch (nim->cm.type) {
+	case NSS_IPSEC_MSG_TYPE_SYNC_SA_STATS: {
+		struct nss_ipsecmgr_event ev = {.type = NSS_IPSECMGR_EVENT_SA_STATS};
+		struct nss_ipsec_sa_stats *nim_stats = &nim->msg.stats.sa;
+		struct nss_ipsec_tuple tuple = {0};
+		struct nss_ipsecmgr_sa_entry *sa;
+		bool send_event = false;
+
+		memcpy(tuple.dst_addr, nim->tuple.dst_addr, sizeof(tuple.dst_addr));
+		memcpy(tuple.src_addr, nim->tuple.src_addr, sizeof(tuple.src_addr));
+
+		tuple.esp_spi = nim->tuple.esp_spi;
+		tuple.ip_ver = nim->tuple.ip_ver;
+		tuple.proto_next_hdr = IPPROTO_ESP;
+
+		send_event = !!priv->cb.event_cb;
+
+		nss_ipsecmgr_dev_update_stats(priv, nim);
+
+		/*
+		 * Write lock needed here since SA stats update
+		 * modifies the SA entry's contents
+		 */
+		write_lock(&ipsecmgr_drv->lock);
+		sa = nss_ipsecmgr_sa_lookup(ipsecmgr_drv->sa_db, &tuple);
+		if (!sa) {
+			write_unlock(&ipsecmgr_drv->lock);
+			nss_ipsecmgr_warn("%p: Failed to find to the SA; it may have been deleted from host", dev);
+			goto done;
+		}
+
+		nss_ipsecmgr_sa_update_stats(sa, nim_stats, send_event ? &ev : NULL);
+		write_unlock(&ipsecmgr_drv->lock);
+
+		/*
+		 * If event callback is available then post the statistics using the callback function
+		 */
+		if (send_event)
+			priv->cb.event_cb(priv->cb.app_data, &ev);
+
+		break;
+	}
+
+	default:
+		nss_ipsecmgr_info("%p: unhandled ipsec message type\n", nim);
+		break;
+	}
+done:
+	dev_put(dev);
+}
+
 /*
  * nss_ipsecmgr_tunnel_del()
  *	delete an existing IPsec tunnel
@@ -650,6 +776,7 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 	priv = netdev_priv(dev);
 	priv->dev = dev;
 	memcpy(&priv->cb, cb, sizeof(priv->cb));
+	memset(&priv->stats, 0, sizeof(priv->stats));
 
 	/*
 	 * Use Hlos netdev if it is loaded in the callback context;
@@ -716,9 +843,11 @@ static int __init nss_ipsecmgr_dev_init(void)
 	nss_ipsecmgr_init_flow_db(ipsecmgr_drv->flow_db);
 
 	nss_ipsec_data_register(ipsecmgr_drv->data_ifnum, nss_ipsecmgr_dev_rx, ipsecmgr_drv->dev, 0);
+	nss_ipsec_notify_register(ipsecmgr_drv->encap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
+	nss_ipsec_notify_register(ipsecmgr_drv->decap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
 
 	/*
-	 * initialize debugfs.
+	 * Initialize debugfs.
 	 */
 	ipsecmgr_drv->dentry = debugfs_create_dir("qca-nss-ipsecmgr", NULL);
 	if (!ipsecmgr_drv->dentry) {

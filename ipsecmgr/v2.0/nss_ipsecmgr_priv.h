@@ -135,6 +135,29 @@ struct nss_ipsecmgr_flow_entry {
 };
 
 /*
+ * IPsec manager packets stats per SA
+ */
+struct nss_ipsecmgr_sa_stats_priv {
+	/* Packet counters */
+	uint64_t count;				/* Packets processed */
+	uint64_t bytes;				/* Bytes processed */
+
+	/* Drop counters */
+	uint64_t no_headroom;			/* no headroom */
+	uint64_t no_tailroom;			/* no tailroom */
+	uint64_t no_buf;			/* no resource in NSS */
+	uint64_t fail_queue;			/* Enqueue to nexthop failed */
+	uint64_t fail_hash;			/* Hash check failed */
+	uint64_t fail_replay;			/* Replay check failed */
+	uint64_t fail_hash_cont;		/* Continous fail hash count */
+
+	/* SA state */
+	uint64_t seq_num;			/* Current sequence no. */
+	uint64_t window_max;			/* Maximum window size supported */
+	uint32_t window_size;			/* Current window size */
+};
+
+/*
  * IPsec manager SA entry
  */
 struct nss_ipsecmgr_sa_entry {
@@ -155,6 +178,9 @@ struct nss_ipsecmgr_sa_entry {
 
 	struct nss_ipsecmgr_priv *priv;		/* Device private */
 
+	struct nss_ipsecmgr_sa_stats_priv stats;/* Per SA  statistics */
+	struct dentry *dentry;			/* Debugfs entry per stats dir */
+
 	enum nss_ipsec_type type;		/* ENCAP or DECAP type */
 	uint32_t replay_fail_thresh;		/* Replay failure threshold */
 	uint16_t if_num;			/* Associated interface number */
@@ -167,6 +193,7 @@ struct nss_ipsecmgr_priv {
 	struct net_device *dev;			/* back pointer to tunnel device */
 	struct nss_ipsecmgr_ref ref;		/* SA objects under the tunnel */
 	struct nss_ipsecmgr_callback cb;	/* Callback entry */
+	struct rtnl_link_stats64 stats;		/* stats of IPsec tunnel */
 };
 
 /*
@@ -279,15 +306,27 @@ static inline bool nss_ipsecmgr_tuple_match(struct nss_ipsec_tuple *tuple, struc
 }
 
 /*
- * nss_ipsecmgr_copy_v6addr()
- *	Copy and swap the words in the array.
+ * nss_ipsecmgr_ntoh_v6addr()
+ *	Network to host order and swap
  */
-static inline void nss_ipsecmgr_copy_v6addr(uint32_t *dest, uint32_t *src)
+static inline void nss_ipsecmgr_ntoh_v6addr(uint32_t *dest, uint32_t *src)
 {
-	dest[3] = src[0];
-	dest[2] = src[1];
-	dest[1] = src[2];
-	dest[0] = src[3];
+	dest[3] = ntohl(src[0]);
+	dest[2] = ntohl(src[1]);
+	dest[1] = ntohl(src[2]);
+	dest[0] = ntohl(src[3]);
+}
+
+/*
+ * nss_ipsecmgr_hton_v6addr()
+ *	Host to network order and swap
+ */
+static inline void nss_ipsecmgr_hton_v6addr(uint32_t *dest, uint32_t *src)
+{
+	dest[3] = htonl(src[0]);
+	dest[2] = htonl(src[1]);
+	dest[1] = htonl(src[2]);
+	dest[0] = htonl(src[3]);
 }
 
 /* functions to operate on reference object */
@@ -304,4 +343,6 @@ extern nss_ipsecmgr_status_t nss_ipsecmgr_flow_alloc(struct nss_ipsecmgr_priv *p
 
 /* functions to operate on SA object */
 extern struct nss_ipsecmgr_sa_entry *nss_ipsecmgr_sa_lookup(struct list_head *db, struct nss_ipsec_tuple *tp);
+void nss_ipsecmgr_sa_update_stats(struct nss_ipsecmgr_sa_entry *sa, struct nss_ipsec_sa_stats *stats,
+					struct nss_ipsecmgr_event *ev);
 #endif

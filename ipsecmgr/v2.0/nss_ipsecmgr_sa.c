@@ -38,6 +38,8 @@
 #include <nss_ipsecmgr.h>
 #include "nss_ipsecmgr_priv.h"
 
+#define NSS_IPSECMGR_DEBUGFS_NAME_SZ 128 /* bytes */
+
 extern struct nss_ipsecmgr_drv *ipsecmgr_drv;
 
 /*
@@ -50,6 +52,184 @@ static const char *g_ipsec_algo_name[NSS_IPSECMGR_ALGO_MAX] = {
 	"echainiv(authenc(hmac(sha256),cbc(des3_ede)))",
 	"hmac(sha1)",
 	"hmac(sha256)"
+};
+
+/*
+ * nss_ipsecmgr_sa_print_stats()
+ *	Print sa statistics
+ */
+static ssize_t nss_ipsecmgr_sa_print_stats(struct nss_ipsecmgr_sa_entry *sa, char *buf, ssize_t max_len)
+{
+	struct nss_ipsecmgr_sa_stats_priv *stats = &sa->stats;
+	struct nss_ipsecmgr_flow_outer *outer = &sa->outer;
+	struct nss_ipsec_rule_data *data = &sa->data;
+	uint32_t addr[4];
+	ssize_t len;
+	char *type;
+
+	switch (sa->type) {
+	case NSS_IPSEC_TYPE_ENCAP:
+		type = "encap";
+		break;
+
+	case NSS_IPSEC_TYPE_DECAP:
+		type = "decap";
+		break;
+
+	default:
+		return 0;
+	}
+
+	len = snprintf(buf, max_len, "Type:%s\n", type);
+
+	switch (outer->ip_version) {
+	case IPVERSION:
+		len += snprintf(buf + len, max_len - len, "dest_ip: %pI4h\n", outer->dest_ip);
+		len += snprintf(buf + len, max_len - len, "src_ip: %pI4h\n", outer->src_ip);
+		break;
+
+	case 6:
+		nss_ipsecmgr_hton_v6addr(addr, outer->dest_ip);
+		len += snprintf(buf + len, max_len - len, "dest_ip: %pI6c\n", addr);
+		nss_ipsecmgr_hton_v6addr(addr, outer->src_ip);
+		len += snprintf(buf + len, max_len - len, "src_ip: %pI6c\n", addr);
+
+		break;
+	}
+
+	len += snprintf(buf + len, max_len - len, "spi_idx: 0x%x\n", outer->spi_index);
+	len += snprintf(buf + len, max_len - len, "crypto session: %d\n", data->crypto_index);
+
+	len += snprintf(buf + len, max_len - len, "ESN: %d\n", data->enable_esn);
+	len += snprintf(buf + len, max_len - len, "seq_num: %llx\n\n", stats->seq_num);
+
+	/*
+	 * Display window information only for decap SA
+	 */
+	len += snprintf(buf + len, max_len - len, "win_size: %d\n", stats->window_size);
+	len += snprintf(buf + len, max_len - len, "wmax: 0x%llx\n\n", stats->window_max);
+
+	/*
+	 * Packet stats
+	 */
+	len += snprintf(buf + len, max_len - len, "processed: %llu\n", stats->count);
+	len += snprintf(buf + len, max_len - len, "no_headroom: %llu\n", stats->no_headroom);
+	len += snprintf(buf + len, max_len - len, "no_tailroom: %llu\n", stats->no_tailroom);
+	len += snprintf(buf + len, max_len - len, "no_buf: %llu\n", stats->no_buf);
+	len += snprintf(buf + len, max_len - len, "fail_queue: %llu\n", stats->fail_queue);
+	len += snprintf(buf + len, max_len - len, "fail_hash: %llu\n", stats->fail_hash);
+	len += snprintf(buf + len, max_len - len, "fail_replay: %llu\n\n\n", stats->fail_replay);
+
+	return len;
+}
+
+/*
+ * nss_ipsecmgr_sa_read_stats()
+ *	Read sa statistics
+ */
+ssize_t nss_ipsecmgr_sa_read_stats(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
+{
+	struct nss_ipsecmgr_sa_entry *sa = fp->private_data;
+	ssize_t max_buf_len;
+	ssize_t len = 0;
+	ssize_t ret;
+	char *buf;
+
+	max_buf_len = NSS_IPSECMGR_SA_STATS_SZ;
+
+	buf = vzalloc(max_buf_len);
+	if (!buf) {
+		nss_ipsecmgr_error("Unable to allocate local buffer for SA stats\n");
+		return 0;
+	}
+
+	/*
+	 * Walk the SA database for each entry and retrieve the stats
+	 */
+	len = nss_ipsecmgr_sa_print_stats(sa, buf, max_buf_len);
+
+	ret = simple_read_from_buffer(ubuf, sz, ppos, buf, len);
+	vfree(buf);
+
+	return ret;
+}
+
+/*
+ * nss_ipsecmgr_sa_update_stats()
+ *	Update sa stats locally
+ */
+void nss_ipsecmgr_sa_update_stats(struct nss_ipsecmgr_sa_entry *sa, struct nss_ipsec_sa_stats *stats,
+					struct nss_ipsecmgr_event *ev)
+{
+	struct nss_ipsecmgr_sa_stats_priv *priv_stats = &sa->stats;
+	struct nss_ipsecmgr_sa_stats *ev_stats;
+
+	/*
+	 * DEBUG check to see if the lock is taken before accessing
+	 * SA entry in the database
+	 */
+	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+
+	/*
+	 * update SA specific stats
+	 */
+	priv_stats->count += stats->count;
+	priv_stats->bytes += stats->bytes;
+
+	priv_stats->no_headroom += stats->no_headroom;
+	priv_stats->no_tailroom += stats->no_tailroom;
+	priv_stats->no_buf += stats->no_resource;
+
+	priv_stats->fail_queue += stats->fail_queue;
+	priv_stats->fail_hash += stats->fail_hash;
+	priv_stats->fail_replay += stats->fail_replay;
+
+	priv_stats->seq_num = stats->seq_num;
+	priv_stats->window_max = stats->window_max;
+	priv_stats->window_size = stats->window_size;
+
+	/*
+	 * If, there is no event to publish then skip
+	 */
+	if (!ev)
+		return;
+
+	ev_stats = &ev->data.stats;
+
+	/*
+	 * copy stats and SA information
+	 */
+	memcpy(&ev_stats->outer, &sa->outer, sizeof(ev_stats->outer));
+
+	ev_stats->crypto_index = sa->data.crypto_index;
+
+	ev_stats->seq_num = stats->seq_num;
+	ev_stats->esn_enabled = stats->esn_enabled;
+	ev_stats->window_max = stats->window_max;
+	ev_stats->window_size = stats->window_size;
+
+	ev_stats->pkt_count = stats->count;
+	ev_stats->pkt_bytes = stats->bytes;
+
+	/*
+	 * All drop counters are consolidated into
+	 * failures for the IPsec user event
+	 */
+	ev_stats->pkt_failed = stats->no_headroom;
+	ev_stats->pkt_failed += stats->no_tailroom;
+	ev_stats->pkt_failed += stats->no_resource;
+	ev_stats->pkt_failed += stats->fail_queue;
+	ev_stats->pkt_failed += stats->fail_hash;
+	ev_stats->pkt_failed += stats->fail_replay;
+}
+
+/*
+ * SA file operation structure instance
+ */
+static const struct file_operations sa_stats_op = {
+	.open = simple_open,
+	.llseek = default_llseek,
+	.read = nss_ipsecmgr_sa_read_stats,
 };
 
 /*
@@ -222,6 +402,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_encap(struct nss_ipsecmgr_pri
 							struct nss_ipsecmgr_flow_outer *outer,
 							struct nss_ipsecmgr_sa *sa_data, uint32_t *if_num)
 {
+	char sa_name[NSS_IPSECMGR_DEBUGFS_NAME_SZ] = {0};
 	struct list_head *db = ipsecmgr_drv->sa_db;
 	struct nss_ipsecmgr_sa_entry *sa;
 	struct nss_ipsec_rule_data *data;
@@ -306,6 +487,14 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_encap(struct nss_ipsecmgr_pri
 	 */
 	index = nss_ipsecmgr_tuple2index(&tuple, NSS_IPSECMGR_SA_MAX);
 
+	/*
+	 * Adding sa debugfs entry
+	 */
+	scnprintf(sa_name, sizeof(sa_name), "sa@spi:%x", oip->esp_spi);
+	sa->dentry = debugfs_create_dir(sa_name, ipsecmgr_drv->dentry);
+	if (sa->dentry)
+		debugfs_create_file("stats", S_IRUGO, sa->dentry, sa, &sa_stats_op);
+
 	write_lock_bh(&ipsecmgr_drv->lock);
 
 	/*
@@ -328,6 +517,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_pri
 							struct nss_ipsecmgr_flow_outer *outer,
 							struct nss_ipsecmgr_sa *sa_data, uint32_t *if_num)
 {
+	char sa_name[NSS_IPSECMGR_DEBUGFS_NAME_SZ] = {0};
 	struct list_head *db = ipsecmgr_drv->sa_db;
 	struct nss_ipsecmgr_sa_entry *sa;
 	struct nss_ipsec_rule_data *data;
@@ -407,7 +597,13 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_pri
 	 */
 	index = nss_ipsecmgr_tuple2index(&tuple, NSS_IPSECMGR_SA_MAX);
 
-	nss_ipsecmgr_trace("%p:decap SA added", sa);
+	/*
+	 * Adding sa debugfs entry
+	 */
+	scnprintf(sa_name, sizeof(sa_name), "sa@spi:%x", oip->esp_spi);
+	sa->dentry = debugfs_create_dir(sa_name, ipsecmgr_drv->dentry);
+	if (sa->dentry)
+		debugfs_create_file("stats", S_IRUGO, sa->dentry, sa, &sa_stats_op);
 
 	/*
 	 * Write lock needed here since SA is updated
@@ -419,6 +615,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_pri
 
 	write_unlock_bh(&ipsecmgr_drv->lock);
 
+	nss_ipsecmgr_trace("%p:decap SA added", sa);
 	return status;
 }
 
@@ -472,6 +669,12 @@ void nss_ipsecmgr_sa_del(struct net_device *tun, struct nss_ipsecmgr_flow_outer 
 		write_unlock_bh(&ipsecmgr_drv->lock);
 		return;
 	}
+
+	/*
+	 * Remove debugfs entry
+	 */
+	if (sa->dentry)
+		debugfs_remove_recursive(sa->dentry);
 
 	/*
 	 * Free the entire reference hierarchy

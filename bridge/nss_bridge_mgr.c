@@ -447,10 +447,16 @@ static int nss_bridge_mgr_del_bond_slave(struct net_device *bond_master,
 				b_pvt, port_id);
 		return -1;
 	}
+
 	spin_lock(&br_mgr_ctx.lock);
 	b_pvt->lag_ports[port_id] = 0;
 	spin_unlock(&br_mgr_ctx.lock);
 
+	/*
+	 * Set STP state to forwarding after bond physical port leaves bridge
+	 */
+	fal_stp_port_state_set(NSS_BRIDGE_MGR_SWITCH_ID, NSS_BRIDGE_MGR_SPANNING_TREE_ID,
+					port_id, FAL_STP_FORWARDING);
 	return 0;
 }
 

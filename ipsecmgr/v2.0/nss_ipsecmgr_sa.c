@@ -51,7 +51,8 @@ static const char *g_ipsec_algo_name[NSS_IPSECMGR_ALGO_MAX] = {
 	"echainiv(authenc(hmac(sha1),cbc(des3_ede)))",
 	"echainiv(authenc(hmac(sha256),cbc(des3_ede)))",
 	"hmac(sha1)",
-	"hmac(sha256)"
+	"hmac(sha256)",
+	"seqiv(rfc4106(gcm(aes)))"
 };
 
 /*
@@ -237,8 +238,8 @@ static const struct file_operations sa_stats_op = {
  *	Allocate Crypto resources
  */
 static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_priv *priv,
-							struct nss_ipsecmgr_sa_entry *sa,
-							struct nss_ipsecmgr_sa_cmn *cmn)
+							  struct nss_ipsecmgr_sa_entry *sa,
+							  struct nss_ipsecmgr_sa_cmn *cmn)
 {
 	struct nss_ipsecmgr_crypto_keys *keys = &cmn->keys;
 	struct crypto_authenc_key_param *key_param;
@@ -246,11 +247,6 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 	char *rt_keys, *p;
 	uint32_t index;
 	uint16_t keylen;
-
-	if (cmn->algo >= ARRAY_SIZE(g_ipsec_algo_name)) {
-		nss_ipsecmgr_warn("%p: invalid crypto algorithm", sa);
-		return NSS_IPSECMGR_INVALID_ALGO;
-	}
 
 	/*
 	 * If, crypto is programmed using index(s) skip key-based programming
@@ -263,11 +259,81 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 		return NSS_IPSECMGR_OK;
 	}
 
-	if (!keys->cipher_keylen) {
+	switch (cmn->algo) {
+	/*
+	 * AEAD Algorithms
+	 */
+	case NSS_IPSECMGR_ALGO_AES_CBC_SHA1_HMAC:
+	case NSS_IPSECMGR_ALGO_AES_CBC_SHA256_HMAC:
+	case NSS_IPSECMGR_ALGO_3DES_CBC_SHA1_HMAC:
+	case NSS_IPSECMGR_ALGO_3DES_CBC_SHA256_HMAC:
+		sa->aead = crypto_alloc_aead(g_ipsec_algo_name[cmn->algo], 0, 0);
+		if (IS_ERR(sa->aead)) {
+			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context", sa);
+			return NSS_IPSECMGR_FAIL_NOCRYPTO;
+		}
+
+		nss_ipsecmgr_trace("cipher_keylen:%d auth_keylen:%d\n", keys->cipher_keylen, keys->auth_keylen);
 
 		/*
-		 * AHASH Algorithms
+		 * Construct keys
 		 */
+		keylen = RTA_SPACE(sizeof(*key_param));
+		keylen += keys->cipher_keylen;
+		keylen += keys->auth_keylen;
+		keylen += keys->nonce_size;
+
+		rt_keys = vzalloc(keylen);
+		if (!rt_keys) {
+			nss_ipsecmgr_warn("%p: failed to allocate key memory", sa);
+			crypto_free_aead(sa->aead);
+			return NSS_IPSECMGR_FAIL_NOMEM;
+		}
+
+		p = rt_keys;
+		rta = (void *)p;
+		rta->rta_type = CRYPTO_AUTHENC_KEYA_PARAM;
+		rta->rta_len = RTA_LENGTH(sizeof(*key_param));
+		key_param = RTA_DATA(rta);
+		p += RTA_SPACE(sizeof(*key_param));
+
+		/*
+		 * Copy authentication key
+		 */
+		memcpy(p, keys->auth_key, keys->auth_keylen);
+		p += keys->auth_keylen;
+
+		/*
+		 * Copy cipher Key
+		 */
+		key_param->enckeylen = cpu_to_be32(keys->cipher_keylen);
+		memcpy(p, keys->cipher_key, keys->cipher_keylen);
+
+		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
+			nss_ipsecmgr_warn("%p: failed to configure keys", sa);
+			vfree(rt_keys);
+			crypto_free_aead(sa->aead);
+			return NSS_IPSECMGR_INVALID_KEYLEN;
+		}
+
+		/*
+		 * FIXME: ctx2session requires 32bit whereas
+		 * data has 16bit crypto index. Ideally, the message
+		 * structure should be updated to take this into account
+		 */
+		nss_cryptoapi_aead_ctx2session(sa->aead, &index);
+		sa->data.crypto_index = (uint16_t)index;
+		sa->data.cipher_blk_len = (uint8_t)crypto_aead_blocksize(sa->aead);
+		sa->data.iv_len = (uint8_t)crypto_aead_ivsize(sa->aead);
+
+		vfree(rt_keys);
+		break;
+
+	/*
+	 * AHASH Algorithms
+	 */
+	case NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA1_HMAC:
+	case NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC:
 		sa->ahash = crypto_alloc_ahash(g_ipsec_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->ahash)) {
 			nss_ipsecmgr_warn("%p: failed to allocate crypto ahash context", sa);
@@ -284,74 +350,59 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 		sa->data.crypto_index = (uint16_t)index;
 		sa->data.cipher_blk_len = 0;
 		sa->data.iv_len = 0;
-		return NSS_IPSECMGR_OK;
-	} else {
+		break;
 
-		/*
-		 * AEAD Algorithms
-		 */
+	/*
+	 * GCM Mode
+	 */
+	case NSS_IPSECMGR_ALGO_AES_GCM_GMAC_RFC4106:
 		sa->aead = crypto_alloc_aead(g_ipsec_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->aead)) {
 			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context", sa);
 			return NSS_IPSECMGR_FAIL_NOCRYPTO;
 		}
-	}
 
-	nss_ipsecmgr_trace("cipher_keylen:%d auth_keylen:%d\n", keys->cipher_keylen, keys->auth_keylen);
+		keylen = keys->cipher_keylen + keys->nonce_size;
 
-	/*
-	 * Construct keys
-	 */
-	keylen = RTA_SPACE(sizeof(*key_param));
-	keylen += keys->cipher_keylen;
-	keylen += keys->auth_keylen;
-	keylen += keys->nonce_size;
+		/*
+		 * Construct key with nonce
+		 */
+		rt_keys = vzalloc(keylen);
+		if (!rt_keys) {
+			nss_ipsecmgr_warn("%p: failed to allocate key memory", sa);
+			crypto_free_aead(sa->aead);
+			return NSS_IPSECMGR_FAIL_NOMEM;
+		}
 
-	rt_keys = vzalloc(keylen);
-	if (!rt_keys) {
-		nss_ipsecmgr_warn("%p: failed to allocate key memory", sa);
-		crypto_free_aead(sa->aead);
-		return NSS_IPSECMGR_FAIL_NOMEM;
-	}
+		memcpy(rt_keys, keys->cipher_key, keys->cipher_keylen);
+		memcpy(rt_keys + keys->cipher_keylen, (uint8_t *)keys->nonce, keys->nonce_size);
 
-	p = rt_keys;
-	rta = (void *)p;
-	rta->rta_type = CRYPTO_AUTHENC_KEYA_PARAM;
-	rta->rta_len = RTA_LENGTH(sizeof(*key_param));
-	key_param = RTA_DATA(rta);
-	p += RTA_SPACE(sizeof(*key_param));
+		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
+			nss_ipsecmgr_warn("%p: failed to configure keys", sa);
+			vfree(rt_keys);
+			crypto_free_aead(sa->aead);
+			return NSS_IPSECMGR_INVALID_KEYLEN;
+		}
 
-	/*
-	 * Copy authentication key
-	 */
-	memcpy(p, keys->auth_key, keys->auth_keylen);
-	p += keys->auth_keylen;
+		/*
+		 * FIXME: ctx2session requires 32bit whereas
+		 * data has 16bit crypto index. Ideally, the message
+		 * structure should be updated to take this into account
+		 */
+		nss_cryptoapi_aead_ctx2session(sa->aead, &index);
+		sa->data.crypto_index = (uint16_t)index;
+		sa->data.cipher_blk_len = (uint8_t)crypto_aead_blocksize(sa->aead);
+		sa->data.iv_len = (uint8_t)crypto_aead_ivsize(sa->aead);
 
-	/*
-	 * Copy cipher Key
-	 */
-	key_param->enckeylen = cpu_to_be32(keys->cipher_keylen);
-	memcpy(p, keys->cipher_key, keys->cipher_keylen);
-
-	if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
-		nss_ipsecmgr_warn("%p: failed to configure keys", sa);
 		vfree(rt_keys);
-		crypto_free_aead(sa->aead);
-		return NSS_IPSECMGR_INVALID_KEYLEN;
+		break;
+
+	default:
+		nss_ipsecmgr_warn("%p: invalid crypto algorithm", sa);
+		return NSS_IPSECMGR_INVALID_ALGO;
 	}
 
-	/*
-	 * FIXME: ctx2session requires 32bit whereas
-	 * data has 16bit crypto index. Ideally, the message
-	 * structure should be updated to take this into account
-	 */
-	nss_cryptoapi_aead_ctx2session(sa->aead, &index);
-	sa->data.crypto_index = (uint16_t)index;
-	sa->data.cipher_blk_len = (uint8_t)crypto_aead_blocksize(sa->aead);
-	sa->data.iv_len = (uint8_t)crypto_aead_ivsize(sa->aead);
-
-	vfree(rt_keys);
-	return 0;
+	return NSS_IPSECMGR_OK;
 }
 
 /*

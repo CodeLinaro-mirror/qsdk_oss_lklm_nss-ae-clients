@@ -24,12 +24,17 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/module.h>
+#include <linux/debugfs.h>
 #include <linux/skbuff.h>
-#include <net/ipv6.h>
 #include <linux/if_arp.h>
 #include <linux/etherdevice.h>
 #include <linux/udp.h>
 #include <linux/ipv6.h>
+#include <net/ip.h>
+#include <net/ip6_route.h>
+#include <net/ipv6.h>
+#include <net/protocol.h>
+#include <net/route.h>
 #include <crypto/aes.h>
 #include <crypto/sha.h>
 
@@ -156,19 +161,28 @@ void nss_dtlsmgr_ctx_dev_event_outer(void *app_data, struct nss_cmn_msg *ncm)
  */
 void nss_dtlsmgr_ctx_dev_data_callback(void *app_data, struct sk_buff *skb)
 {
-	struct nss_dtlsmgr_ctx *ctx;
+	struct nss_dtlsmgr_metadata *ndm;
 	struct nss_dtlsmgr_stats *stats;
+	struct nss_dtlsmgr_ctx *ctx;
 
 	ctx = (struct nss_dtlsmgr_ctx *)app_data;
 	NSS_DTLSMGR_VERIFY_MAGIC(ctx);
 
+	stats = &ctx->decap.stats;
+	ndm = (struct nss_dtlsmgr_metadata *)skb->data;
+	if (ndm->result != NSS_DTLSMGR_METADATA_RESULT_OK) {
+		nss_dtlsmgr_warn("%p: DTLS packets has error(s): %d", skb->dev, ndm->result);
+		dev_kfree_skb(skb);
+		stats->rx_dropped++;
+		return;
+	}
+
 	/*
-	 * This path will be triggered when the user of DTLS does not intend to
-	 * recieve any exception or decapsulated packets.
+	 * Remove the DTLS metadata and indicate it up the stack
 	 */
+	skb_pull(skb, sizeof(*ndm));
 	skb_reset_mac_header(skb);
 	skb_reset_network_header(skb);
-	stats = &ctx->decap.stats;
 
 	/*
 	 * Check IP version to identify if it is an IP packet
@@ -185,10 +199,7 @@ void nss_dtlsmgr_ctx_dev_data_callback(void *app_data, struct sk_buff *skb)
 		break;
 
 	default:
-		dev_kfree_skb_any(skb);
-		stats->rx_dropped++;
-		nss_dtlsmgr_trace("%p: received non-IP packet", ctx);
-		return;
+		nss_dtlsmgr_trace("%p: non-IP packet received (ifnum:%d)", ctx, ctx->decap.ifnum);
 	}
 
 	netif_receive_skb(skb);
@@ -202,8 +213,6 @@ void nss_dtlsmgr_ctx_dev_rx_inner(struct net_device *dev, struct sk_buff *skb, s
 {
 	struct nss_dtlsmgr_ctx *ctx;
 	struct nss_dtlsmgr_stats *stats;
-	uint16_t error;
-	uint32_t meta;
 
 	BUG_ON(!dev);
 	BUG_ON(!skb);
@@ -214,6 +223,8 @@ void nss_dtlsmgr_ctx_dev_rx_inner(struct net_device *dev, struct sk_buff *skb, s
 	NSS_DTLSMGR_VERIFY_MAGIC(ctx);
 
 	stats = &ctx->decap.stats;
+
+	nss_dtlsmgr_trace("%p: RX DTLS decapsulated packet, ifnum(%d)", dev, ctx->decap.ifnum);
 
 	skb->pkt_type = PACKET_HOST;
 	skb->skb_iif = dev->ifindex;
@@ -242,7 +253,9 @@ void nss_dtlsmgr_ctx_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, s
 
 	stats = &ctx->encap.stats;
 
-	skb->pkt_type = PACKET_OTHERHOST;
+	nss_dtlsmgr_trace("%p: RX DTLS encapsulated packet, ifnum(%d)", dev, ctx->encap.ifnum);
+
+	skb->pkt_type = PACKET_HOST;
 	skb->skb_iif = dev->ifindex;
 	skb->dev = dev;
 
@@ -253,15 +266,52 @@ void nss_dtlsmgr_ctx_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, s
 	 * Check IP version to identify if it is an IP packet
 	 */
 	switch (ip_hdr(skb)->version) {
-	case IPVERSION:
+	case IPVERSION: {
+		struct rtable *rt;
+		struct iphdr *iph;
+
 		skb->protocol = htons(ETH_P_IP);
 		skb_set_transport_header(skb, sizeof(struct iphdr));
-		break;
 
-	case 6:
+		iph = ip_hdr(skb);
+		rt = ip_route_output(&init_net, iph->daddr, iph->saddr, 0, 0);
+		if (IS_ERR(rt)) {
+			nss_dtlsmgr_warn("%p: No IPv4 route or out dev", dev);
+			dev_kfree_skb_any(skb);
+			break;
+		}
+
+		skb_dst_set(skb, &rt->dst);
+		skb->ip_summed = CHECKSUM_COMPLETE;
+		ip_local_out(&init_net, NULL, skb);
+		break;
+	}
+
+	case 6: {
+		struct ipv6hdr *ip6h;
+		struct dst_entry *dst;
+		struct flowi6 fl6;
+
 		skb->protocol = htons(ETH_P_IPV6);
 		skb_set_transport_header(skb, sizeof(struct ipv6hdr));
+
+		ip6h = ipv6_hdr(skb);
+		memset(&fl6, 0, sizeof(fl6));
+		memcpy(&fl6.daddr, &ip6h->daddr, sizeof(fl6.daddr));
+		memcpy(&fl6.saddr, &ip6h->saddr, sizeof(fl6.saddr));
+
+		dst = ip6_route_output(&init_net, NULL, &fl6);
+		if (IS_ERR(dst)) {
+			nss_dtlsmgr_warn("%p: No IPv6 route or out dev", dev);
+			dev_kfree_skb_any(skb);
+			break;
+		}
+
+		skb_dst_set(skb, dst);
+		skb->ip_summed = CHECKSUM_COMPLETE;
+		ip6_local_out(&init_net, NULL, skb);
 		break;
+	}
 
 	default:
 		/*
@@ -269,16 +319,10 @@ void nss_dtlsmgr_ctx_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, s
 		 * callback then it has to be dropped.
 		 */
 		nss_dtlsmgr_trace("%p: received non-IP packet", ctx);
-		goto free;
+		dev_kfree_skb_any(skb);
+		stats->rx_dropped++;
 	}
 
-	netif_receive_skb(skb);
-	dev_put(dev);
-	return;
-
-free:
-	dev_kfree_skb_any(skb);
-	stats->rx_dropped++;
 	dev_put(dev);
 	return;
 }
@@ -307,6 +351,8 @@ static netdev_tx_t nss_dtlsmgr_ctx_dev_tx(struct sk_buff *skb, struct net_device
 	 */
 	if (skb_shared(skb))
 		skb = skb_unshare(skb, in_atomic() ? GFP_ATOMIC : GFP_KERNEL);
+
+	nss_dtlsmgr_trace("%p: TX packet for DTLS encapsulation, ifnum(%d)", dev, encap->ifnum);
 
 	/*
 	 * For all these cases
@@ -363,7 +409,13 @@ static int nss_dtlsmgr_ctx_dev_open(struct net_device *dev)
  */
 static void nss_dtlsmgr_ctx_dev_free(struct net_device *dev)
 {
+	struct nss_dtlsmgr_ctx *ctx = netdev_priv(dev);
+
 	nss_dtlsmgr_trace("%p: free dtls context device(%s)", dev, dev->name);
+
+	if (ctx->dentry)
+		debugfs_remove_recursive(ctx->dentry);
+
 	free_netdev(dev);
 }
 

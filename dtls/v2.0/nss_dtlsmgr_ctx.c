@@ -678,6 +678,9 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_destroy(struct net_device *dev)
 	xchg(&ctx->notify_cb, NULL);
 	xchg(&ctx->data_cb, NULL);
 
+	nss_dtlsmgr_trace("%p: destroying encap(%u) and decap(%u) sessions",
+			  ctx, ctx->encap.ifnum, ctx->decap.ifnum);
+
 	if (!nss_dtlsmgr_ctx_deconfigure(ctx, &ctx->encap)) {
 		nss_dtlsmgr_warn("%p: unable to deconfigure encap", ctx);
 		return NSS_DTLSMGR_FAIL;
@@ -803,6 +806,7 @@ bool nss_dtlsmgr_session_switch_encap(struct net_device *dev)
 		return false;
 	}
 
+	nss_dtlsmgr_trace("%p: encap(%u) cipher switch done", ctx, data->ifnum);
 	return true;
 }
 EXPORT_SYMBOL(nss_dtlsmgr_session_switch_encap);
@@ -823,6 +827,7 @@ bool nss_dtlsmgr_session_switch_decap(struct net_device *dev)
 		return false;
 	}
 
+	nss_dtlsmgr_trace("%p: decap(%u) cipher switch done", ctx, data->ifnum);
 	return true;
 }
 EXPORT_SYMBOL(nss_dtlsmgr_session_switch_decap);

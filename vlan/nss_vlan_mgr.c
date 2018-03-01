@@ -83,11 +83,6 @@
 #define NSS_VLAN_MGR_SWITCH_ID 0
 #define NSS_VLAN_MGR_STP_ID 0
 
-typedef enum {
-	NSS_VLAN_MGR_REGISTER = 0,
-	NSS_VLAN_MGR_UNREGISTER
-} vlan_mgr_event_type;
-
 /*
  * vlan client context
  */
@@ -223,38 +218,28 @@ static bool nss_vlan_mgr_calculate_new_port_role(int32_t port,
 static void nss_vlan_mgr_port_role_update(struct nss_vlan_pvt *vif,
 					uint32_t new_ppe_cvid,
 					uint32_t new_ppe_svid,
-					vlan_mgr_event_type type,
 					uint32_t port_id)
 {
 	int rc;
 
 	/*
-	 * During vlan device unregister, ingress and egress translation rules
-	 * will be deleted already. But during register of single and double vlan,
-	 * the deletion needs to be done during port update.
+	 * Delete old ingress vlan translation rule
 	 */
-	if (type == NSS_VLAN_MGR_REGISTER) {
-		/*
-		 * Delete old ingress vlan translation rule
-		 */
-		if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, port_id,
-					vif->ppe_svid, vif->ppe_cvid, PPE_VSI_INVALID)) {
-			nss_vlan_mgr_warn("Failed to delete old ingress vlan translation rule of port %d\n", port_id);
-			return;
-		}
+	rc = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, port_id, vif->ppe_svid, vif->ppe_cvid, PPE_VSI_INVALID);
+	if (rc != SW_OK) {
+		nss_vlan_mgr_warn("Failed to delete old ingress vlan translation rule of port %d, error: %d\n", port_id, rc);
+		return;
+	}
 
-		/*
-		 * Delete old egress vlan translation rule
-		 */
-		rc = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, port_id,
-				FAL_PORT_VLAN_EGRESS,
-				&vif->eg_xlt_rule, &vif->eg_xlt_action);
-		if (rc) {
-			nss_vlan_mgr_warn("Failed to delete old egress vlan \
-					translation of port %d\n",
-					port_id);
-			return;
-		}
+	/*
+	 * Delete old egress vlan translation rule
+	 */
+	rc = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, port_id,
+			FAL_PORT_VLAN_EGRESS,
+			&vif->eg_xlt_rule, &vif->eg_xlt_action);
+	if (rc != SW_OK) {
+		nss_vlan_mgr_warn("Failed to delete old egress vlan translation of port %d, error: %d\n", port_id, rc);
+		return;
 	}
 
 	/*
@@ -266,10 +251,11 @@ static void nss_vlan_mgr_port_role_update(struct nss_vlan_pvt *vif,
 	/*
 	 * Add new ingress vlan translation rule
 	 */
-	if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, port_id, vif->ppe_svid,
+	rc = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, port_id, vif->ppe_svid,
 				vif->ppe_cvid,
-				(vif->bridge_vsi ? vif->bridge_vsi : vif->ppe_vsi))) {
-		nss_vlan_mgr_warn("Failed to update ingress vlan translation of port %d\n", port_id);
+				(vif->bridge_vsi ? vif->bridge_vsi : vif->ppe_vsi));
+	if (rc != SW_OK) {
+		nss_vlan_mgr_warn("Failed to update ingress vlan translation of port %d, error: %d\n", port_id, rc);
 		return;
 	}
 
@@ -281,10 +267,10 @@ static void nss_vlan_mgr_port_role_update(struct nss_vlan_pvt *vif,
 	vif->eg_xlt_action.svid_xlt_cmd = (vif->ppe_svid == FAL_VLAN_INVALID) ? 0 : FAL_VID_XLT_CMD_ADDORREPLACE;
 	vif->eg_xlt_action.svid_xlt = (vif->ppe_svid == FAL_VLAN_INVALID) ? 0 : vif->ppe_svid;
 
-	if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, port_id,
-				FAL_PORT_VLAN_EGRESS,
-				&vif->eg_xlt_rule, &vif->eg_xlt_action))
-		nss_vlan_mgr_warn("Failed to update egress vlan translation of port %d\n", port_id);
+	rc = fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, port_id,
+			FAL_PORT_VLAN_EGRESS, &vif->eg_xlt_rule, &vif->eg_xlt_action);
+	if (rc != SW_OK)
+		nss_vlan_mgr_warn("Failed to update egress vlan translation of port: %d. error: %d\n", port_id, rc);
 }
 
 /*
@@ -293,21 +279,56 @@ static void nss_vlan_mgr_port_role_update(struct nss_vlan_pvt *vif,
  */
 static void nss_vlan_mgr_port_role_over_bond_update(struct nss_vlan_pvt *vif,
 					uint32_t new_ppe_cvid,
-					uint32_t new_ppe_svid,
-					vlan_mgr_event_type type)
+					uint32_t new_ppe_svid)
 {
 	int i;
+	fal_vid_xlt_cmd_t old_cvid_xlt_cmd, old_svid_xlt_cmd;
+	uint32_t old_cvid_xlt, old_svid_xlt;
 
-	for (i = 0; i < NSS_VLAN_PHY_PORT_MAX; i++)
-		if (vif->port[i])
-			nss_vlan_mgr_port_role_update(vif, new_ppe_cvid, new_ppe_svid, type, vif->port[i]);
+	vif->eg_xlt_rule.port_bitmap = 0;
+
+	/*
+	 * For vlan over bond, the vif->eg_xlt_action will be modified while
+	 * updating the first slave. Hence we need to store the old vif->eg_xlt_action
+	 * and pass the same to modify the existing entry for the other ports/slaves. After
+	 * modification of all ports we should update vif->eg_xlt_action with the
+	 * new value which is passed to ssdk.
+	 */
+	old_cvid_xlt_cmd = vif->eg_xlt_action.cvid_xlt_cmd;
+	old_cvid_xlt = vif->eg_xlt_action.cvid_xlt;
+	old_svid_xlt_cmd = vif->eg_xlt_action.svid_xlt_cmd;
+	old_svid_xlt = vif->eg_xlt_action.svid_xlt;
+	for (i = 0; i < NSS_VLAN_PHY_PORT_MAX; i++) {
+		if (!vif->port[i])
+			continue;
+		vif->eg_xlt_rule.port_bitmap |= (1 << vif->port[i]);
+		nss_vlan_mgr_port_role_update(vif, new_ppe_cvid, new_ppe_svid, vif->port[i]);
+
+		/*
+		 * Update vif->eg_xlt_action with old value to modify the entry
+		 * for next port/slave
+		 */
+		vif->eg_xlt_action.cvid_xlt_cmd = old_cvid_xlt_cmd;
+		vif->eg_xlt_action.cvid_xlt = old_cvid_xlt;
+		vif->eg_xlt_action.svid_xlt_cmd = old_svid_xlt_cmd;
+		vif->eg_xlt_action.svid_xlt = old_svid_xlt;
+	}
+
+	/*
+	 * All ports/slaves are updated now, reset the vif->eg_xlt_action
+	 * with the value that is passed to ssdk.
+	 */
+	vif->eg_xlt_action.cvid_xlt_cmd = (vif->ppe_cvid == FAL_VLAN_INVALID) ? 0 : FAL_VID_XLT_CMD_ADDORREPLACE;
+	vif->eg_xlt_action.cvid_xlt = (vif->ppe_cvid == FAL_VLAN_INVALID) ? 0 : vif->ppe_cvid;
+	vif->eg_xlt_action.svid_xlt_cmd = (vif->ppe_svid == FAL_VLAN_INVALID) ? 0 : FAL_VID_XLT_CMD_ADDORREPLACE;
+	vif->eg_xlt_action.svid_xlt = (vif->ppe_svid == FAL_VLAN_INVALID) ? 0 : vif->ppe_svid;
 }
 
 /*
  * nss_vlan_mgr_port_role_event()
  *	Decide port role updation for bond or physical device
  */
-static void nss_vlan_mgr_port_role_event(int32_t port, int portindex, vlan_mgr_event_type type)
+static void nss_vlan_mgr_port_role_event(int32_t port, int portindex)
 {
 	struct nss_vlan_pvt *vif;
 	bool vlan_over_bond = false;
@@ -322,17 +343,17 @@ static void nss_vlan_mgr_port_role_event(int32_t port, int portindex, vlan_mgr_e
 			if ((vlan_mgr_ctx.port_role[port] == FAL_QINQ_EDGE_PORT) &&
 			    (vif->vid != vif->ppe_cvid)) {
 				if (!vlan_over_bond)
-					nss_vlan_mgr_port_role_update(vif, vif->vid, PPE_VSI_INVALID, type, vif->port[0]);
+					nss_vlan_mgr_port_role_update(vif, vif->vid, PPE_VSI_INVALID, vif->port[0]);
 				else
-					nss_vlan_mgr_port_role_over_bond_update(vif, vif->vid, PPE_VSI_INVALID, type);
+					nss_vlan_mgr_port_role_over_bond_update(vif, vif->vid, PPE_VSI_INVALID);
 			}
 
 			if ((vlan_mgr_ctx.port_role[port] == FAL_QINQ_CORE_PORT) &&
 			    (vif->vid != vif->ppe_svid)) {
 				if (!vlan_over_bond)
-					nss_vlan_mgr_port_role_update(vif, PPE_VSI_INVALID, vif->vid, type, vif->port[0]);
+					nss_vlan_mgr_port_role_update(vif, PPE_VSI_INVALID, vif->vid, vif->port[0]);
 				else
-					nss_vlan_mgr_port_role_over_bond_update(vif, PPE_VSI_INVALID, vif->vid, type);
+					nss_vlan_mgr_port_role_over_bond_update(vif, PPE_VSI_INVALID, vif->vid);
 			}
 		}
 	}
@@ -367,6 +388,11 @@ static int nss_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct net_de
 	rcu_read_lock();
 	for_each_netdev_in_bond_rcu(bond_dev, slave) {
 		port = nss_cmn_get_interface_number_by_dev(slave);
+		if (!NSS_VLAN_PHY_PORT_CHK(port)) {
+			rcu_read_unlock();
+			nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave->name, port);
+			goto free_vsi;
+		}
 
 		/*
 		 * vlan_mgr_bond_port_role is same for all the slaves in the bond group
@@ -400,9 +426,10 @@ static int nss_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct net_de
 	rcu_read_lock();
 	for_each_netdev_in_bond_rcu(bond_dev, slave) {
 		port = nss_cmn_get_interface_number_by_dev(slave);
-		if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, vsi)) {
+		ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, vsi);
+		if (ret != SW_OK) {
 			rcu_read_unlock();
-			nss_vlan_mgr_warn("bond:%s -> slave:%s: failed to set ingress vlan translation\n", bond_dev->name, slave->name);
+			nss_vlan_mgr_warn("bond:%s -> slave:%s: failed to set ingress vlan translation, error: %d\n", bond_dev->name, slave->name, ret);
 			goto detach_vsi;
 		}
 	}
@@ -435,11 +462,11 @@ static int nss_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct net_de
 	for_each_netdev_in_bond_rcu(bond_dev, slave) {
 		port = nss_cmn_get_interface_number_by_dev(slave);
 		v->eg_xlt_rule.port_bitmap |= (1 << v->port[port - 1]);
-		if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
-					FAL_PORT_VLAN_EGRESS, &v->eg_xlt_rule,
-					&v->eg_xlt_action)) {
+		ret = fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
+				FAL_PORT_VLAN_EGRESS, &v->eg_xlt_rule, &v->eg_xlt_action);
+		if (ret != SW_OK) {
 			rcu_read_unlock();
-			nss_vlan_mgr_warn("bond:%s -> slave:%s: failed to set egress vlan translation\n", bond_dev->name, slave->name);
+			nss_vlan_mgr_warn("bond:%s -> slave:%s: failed to set egress vlan translation. error:%d\n", bond_dev->name, slave->name, ret);
 			goto delete_ingress_rule;
 		}
 	}
@@ -483,10 +510,11 @@ delete_egress_rule:
 	rcu_read_lock();
 	for_each_netdev_in_bond_rcu(bond_dev, slave) {
 		port = nss_cmn_get_interface_number_by_dev(slave);
-		if (fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
+		ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
 				FAL_PORT_VLAN_EGRESS,
-				&v->eg_xlt_rule, &v->eg_xlt_action)) {
-			nss_vlan_mgr_warn("%p: Failed to delete egress translation rule for port:%d\n", v, v->port[port - 1]);
+				&v->eg_xlt_rule, &v->eg_xlt_action);
+		if (ret != SW_OK) {
+			nss_vlan_mgr_warn("%p: Failed to delete egress translation rule for port:%d, error: %d\n", v, v->port[port - 1], ret);
 		}
 	}
 	rcu_read_unlock();
@@ -495,8 +523,9 @@ delete_ingress_rule:
 	rcu_read_lock();
 	for_each_netdev_in_bond_rcu(bond_dev, slave) {
 		port = nss_cmn_get_interface_number_by_dev(slave);
-		if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID)) {
-			nss_vlan_mgr_warn("%p: Failed to delete ingress translation rule for port:%d\n", v, v->port[port - 1]);
+		ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+		if (ret != SW_OK) {
+			nss_vlan_mgr_warn("%p: Failed to delete ingress translation rule for port:%d, error: %d\n", v, v->port[port - 1], ret);
 		}
 	}
 	rcu_read_unlock();
@@ -553,8 +582,9 @@ static int nss_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_device 
 	/*
 	 * Add ingress vlan translation rule
 	 */
-	if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, vsi)) {
-		nss_vlan_mgr_warn("%s: failed to set ingress vlan translation\n", dev->name);
+	ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, vsi);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%s: failed to set ingress vlan translation, error: %d\n", dev->name, ret);
 		goto detach_vsi;
 	}
 
@@ -582,9 +612,10 @@ static int nss_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_device 
 	v->eg_xlt_action.svid_xlt_cmd = (v->ppe_svid == FAL_VLAN_INVALID) ? 0 : FAL_VID_XLT_CMD_ADDORREPLACE;
 	v->eg_xlt_action.svid_xlt = (v->ppe_svid == FAL_VLAN_INVALID) ? 0 : v->ppe_svid;
 
-	if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
+	ret = fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
 				FAL_PORT_VLAN_EGRESS, &v->eg_xlt_rule,
-				&v->eg_xlt_action)) {
+				&v->eg_xlt_action);
+	if (ret != SW_OK) {
 		nss_vlan_mgr_warn("%s: failed to set egress vlan translation\n", dev->name);
 		goto delete_ingress_rule;
 	}
@@ -615,15 +646,17 @@ static int nss_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_device 
 	return ret;
 
 delete_egress_rule:
-	if (fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
+	ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
 				FAL_PORT_VLAN_EGRESS,
-				&v->eg_xlt_rule, &v->eg_xlt_action)) {
-		nss_vlan_mgr_warn("%p: Failed to delete egress translation rule\n", v);
+				&v->eg_xlt_rule, &v->eg_xlt_action);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: Failed to delete egress translation rule, error: %d\n", v, ret);
 	}
 
 delete_ingress_rule:
-	if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID)) {
-		nss_vlan_mgr_warn("%p: Failed to delete ingress translation rule\n", v);
+	ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: Failed to delete ingress translation rule, error: %d\n", v, ret);
 	}
 
 detach_vsi:
@@ -668,12 +701,28 @@ static struct nss_vlan_pvt *nss_vlan_mgr_create_instance(
 	real_dev = vlan->real_dev;
 	v->vid = vlan->vlan_id;
 	v->tpid = ntohs(vlan->vlan_proto);
+
+	/*
+	 * Check if the vlan has any parent.
+	 *
+	 * 1. While adding eth0.10/bond0.10, the real_dev will become
+	 * eth0/bond0. In this case, v->parent should be NULL and respective
+	 * port numbers will be assigned to v->port.
+	 *
+	 * 2. While adding eth0.10.20/bond0.10.20, the real_dev will
+	 * become eth0.10/bond0.10, so v->parent should be valid. But v->parent->parent
+	 * should be NULL, as explained above. In this case, we need to copy the
+	 * v->parent->port numbers to v->ports as the double vlan is created
+	 * on the same physical port(s).
+	 *
+	 * 3. We ignore the remaining case as we support only 2 valn tags.
+	 */
 	v->parent = nss_vlan_mgr_instance_find_and_ref(real_dev);
 	if (!v->parent) {
 		if (!netif_is_bond_master(real_dev)) {
 			v->port[0] = nss_cmn_get_interface_number_by_dev(real_dev);
 			if (!NSS_VLAN_PHY_PORT_CHK(v->port[0])) {
-				nss_vlan_mgr_warn("%s: %d is not valid physical port\n", dev->name, v->port[0]);
+				nss_vlan_mgr_warn("%s: %d is not valid physical port\n", real_dev->name, v->port[0]);
 				kfree(v);
 				return NULL;
 			}
@@ -686,19 +735,19 @@ static struct nss_vlan_pvt *nss_vlan_mgr_create_instance(
 				kfree(v);
 				return NULL;
 			}
-			v->bond_ifnum = bondid + NSS_LAG0_INTERFACE_NUM;
 			rcu_read_lock();
 			for_each_netdev_in_bond_rcu(real_dev, slave) {
 				port = nss_cmn_get_interface_number_by_dev(slave);
-				v->port[port - 1] = port;
-				if (!NSS_VLAN_PHY_PORT_CHK(v->port[port - 1])) {
+				if (!NSS_VLAN_PHY_PORT_CHK(port)) {
 					rcu_read_unlock();
-					nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave->name, v->port[port]);
+					nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave->name, port);
 					kfree(v);
 					return NULL;
 				}
+				v->port[port - 1] = port;
 			}
 			rcu_read_unlock();
+			v->bond_ifnum = bondid + NSS_LAG0_INTERFACE_NUM;
 		}
 	} else if (!v->parent->parent) {
 		if (is_vlan_dev(real_dev)) {
@@ -711,6 +760,12 @@ static struct nss_vlan_pvt *nss_vlan_mgr_create_instance(
 			rcu_read_lock();
 			for_each_netdev_in_bond_rcu(real_dev, slave) {
 				port = nss_cmn_get_interface_number_by_dev(slave);
+				if (!NSS_VLAN_PHY_PORT_CHK(port)) {
+					rcu_read_unlock();
+					nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave->name, port);
+					kfree(v);
+					return NULL;
+				}
 				v->port[port - 1] = v->parent->port[port - 1];
 			}
 			rcu_read_unlock();
@@ -757,6 +812,7 @@ static struct nss_vlan_pvt *nss_vlan_mgr_create_instance(
 static void nss_vlan_mgr_instance_free(struct nss_vlan_pvt *v)
 {
 	int32_t i;
+	int ret = 0;
 
 	spin_lock(&vlan_mgr_ctx.lock);
 	BUG_ON(--v->refs);
@@ -777,19 +833,27 @@ static void nss_vlan_mgr_instance_free(struct nss_vlan_pvt *v)
 		/*
 		 * Delete ingress vlan translation rule
 		 */
-		for (i = 0; i < NSS_VLAN_PHY_PORT_MAX && v->port[i]; i++) {
-			if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[i], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID))
-				nss_vlan_mgr_warn("%p: Failed to delete old ingress translation rule\n", v);
+		for (i = 0; i < NSS_VLAN_PHY_PORT_MAX; i++) {
+			if (!v->port[i])
+				continue;
+			ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[i], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+			if (ret != SW_OK)
+				nss_vlan_mgr_warn("%p: Failed to delete old ingress translation rule, error: %d\n", v, ret);
 		}
 
 		/*
 		 * Delete egress vlan translation rule
 		 */
-		for (i = 0; i < NSS_VLAN_PHY_PORT_MAX && v->port[i]; i++) {
-			if (fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[i],
+		v->eg_xlt_rule.port_bitmap = 0;
+		for (i = 0; i < NSS_VLAN_PHY_PORT_MAX; i++) {
+			if (!v->port[i])
+				continue;
+			v->eg_xlt_rule.port_bitmap |= (1 << v->port[i]);
+			ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[i],
 						FAL_PORT_VLAN_EGRESS,
-						&v->eg_xlt_rule, &v->eg_xlt_action)) {
-				nss_vlan_mgr_warn("%p: Failed to delete vlan translation rule\n", v);
+						&v->eg_xlt_rule, &v->eg_xlt_action);
+			if (ret != SW_OK) {
+				nss_vlan_mgr_warn("%p: Failed to delete vlan translation rule, error:%d\n", v, ret);
 			}
 		}
 
@@ -801,9 +865,17 @@ static void nss_vlan_mgr_instance_free(struct nss_vlan_pvt *v)
 		}
 	}
 
-	for (i = 0; i < NSS_VLAN_PHY_PORT_MAX && v->port[i]; i++) {
-		if (nss_vlan_mgr_calculate_new_port_role(v->port[i], i)) {
-			nss_vlan_mgr_port_role_event(v->port[i], i, NSS_VLAN_MGR_UNREGISTER);
+	/*
+	 * Need to change the physical port role. While adding
+	 * eth0.10.20/bond0.10.20, the role of the physical port(s) changed
+	 * from EDGE to CORE. So, while removing eth0.10.20/bond0.10.20, the
+	 * role of the physical port(s) should be changed from CORE to EDGE.
+	 */
+	for (i = 0; i < NSS_VLAN_PHY_PORT_MAX; i++) {
+		if (v->port[i]) {
+			if (nss_vlan_mgr_calculate_new_port_role(v->port[i], i)) {
+				nss_vlan_mgr_port_role_event(v->port[i], i);
+			}
 		}
 	}
 #endif
@@ -973,12 +1045,17 @@ static int nss_vlan_mgr_register_event(struct netdev_notifier_info *info)
 #ifdef NSS_VLAN_MGR_PPE_SUPPORT
 	if (ret == NSS_VLAN_PORT_ROLE_CHANGED) {
 		if (!is_bond_master) {
-			nss_vlan_mgr_port_role_event(v->port[0], 0, NSS_VLAN_MGR_REGISTER);
+			nss_vlan_mgr_port_role_event(v->port[0], 0);
 		} else {
 			rcu_read_lock();
 			for_each_netdev_in_bond_rcu(real_dev, slave) {
 				port = nss_cmn_get_interface_number_by_dev(slave);
-				nss_vlan_mgr_port_role_event(v->port[port - 1], port-1, NSS_VLAN_MGR_REGISTER);
+				if (!NSS_VLAN_PHY_PORT_CHK(port)) {
+					rcu_read_unlock();
+					nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave->name, port);
+					return NOTIFY_DONE;
+				}
+				nss_vlan_mgr_port_role_event(v->port[port - 1], port-1);
 				break;
 			}
 			rcu_read_unlock();
@@ -1064,59 +1141,155 @@ EXPORT_SYMBOL(nss_vlan_mgr_get_real_dev);
 
 #ifdef NSS_VLAN_MGR_PPE_SUPPORT
 /*
- * nss_vlan_mgr_over_bond_join_bridge()
- *	Join bond interface to bridge
+ * nss_vlan_mgr_port_vsi_update()
+ * 	Update vlan port with the new vsi value
  */
-static int nss_vlan_mgr_over_bond_join_bridge(struct net_device *real_dev, struct nss_vlan_pvt *v, uint32_t bridge_vsi)
+static int nss_vlan_mgr_port_vsi_update(struct nss_vlan_pvt *v, uint32_t new_vsi)
 {
-	int port;
+	int ret;
+	uint32_t old_vsi;
+
+	/*
+	 * Delete old ingress vlan translation rule
+	 */
+	ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: Failed to delete old ingress translation rule for port: %d, error: %d\n", v, v->port[0], ret);
+		return -1;
+	}
+
+	/*
+	 * Delete old egress vlan translation rule
+	 */
+	ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
+			FAL_PORT_VLAN_EGRESS, &v->eg_xlt_rule, &v->eg_xlt_action);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: failed to delete egress vlan translation while joining bridge for port: %d, error: %d\n", v, v->port[0], ret);
+		return -1;
+	}
+
+	/*
+	 * Add new ingress vlan translation rule to use bridge VSI
+	 */
+	ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, new_vsi);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: failed to change ingress vlan translation while joining bridge for port: %d, error: %d\n", v, v->port[0], ret);
+		return -1;
+	}
+
+	/*
+	 * Add new egress vlan translation rule to use bridge VSI
+	 */
+	old_vsi = v->eg_xlt_rule.vsi;
+	v->eg_xlt_rule.vsi = new_vsi;
+	ret = fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
+			FAL_PORT_VLAN_EGRESS, &v->eg_xlt_rule, &v->eg_xlt_action);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: failed to change egress vlan translation while joining bridge for port: %d. error:%d\n", v, v->port[0], ret);
+		v->eg_xlt_rule.vsi = old_vsi;
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * nss_vlan_mgr_over_bond_port_vsi_update()
+ * 	Update bond slaves with the new vsi value
+ */
+static int nss_vlan_mgr_over_bond_port_vsi_update(struct net_device *real_dev, struct nss_vlan_pvt *v, uint32_t new_vsi)
+{
+	int port, ret;
+	uint32_t old_vsi;
 	struct net_device *slave;
+
+	v->eg_xlt_rule.port_bitmap = 0;
+	old_vsi = v->eg_xlt_rule.vsi;
 
 	rcu_read_lock();
 	for_each_netdev_in_bond_rcu(real_dev, slave) {
 		port = nss_cmn_get_interface_number_by_dev(slave);
+		if (!NSS_VLAN_PHY_PORT_CHK(port)) {
+			rcu_read_unlock();
+			nss_vlan_mgr_warn("%p: bond: %s, slave is not a physical interface\n", v, real_dev->name);
+			return -1;
+		}
+		v->eg_xlt_rule.port_bitmap |= (1 << v->port[port - 1]);
 
 		/*
 		 * Delete old ingress vlan translation rule
 		 */
-		ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+		ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+		if (ret != SW_OK) {
+			rcu_read_unlock();
+			nss_vlan_mgr_warn("%p: Failed to delete old ingress translation rule for port: %d\n, error: %d", v, v->port[port - 1], ret);
+			return -1;
+		}
 
 		/*
 		 * Delete old egress vlan translation rule
 		 */
-		fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
-				FAL_PORT_VLAN_EGRESS,
-				&v->eg_xlt_rule, &v->eg_xlt_action);
+		ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
+				FAL_PORT_VLAN_EGRESS, &v->eg_xlt_rule, &v->eg_xlt_action);
+		if (ret != SW_OK) {
+			rcu_read_unlock();
+			nss_vlan_mgr_warn("%p: failed to delete egress vlan translation while joining bridge for port: %d, error:%d\n", v, v->port[port - 1], ret);
+			return -1;
+		}
 
 		/*
 		 * Add new ingress vlan translation rule to use bridge VSI
 		 */
-		if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, bridge_vsi)) {
+		ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, new_vsi);
+		if (ret != SW_OK) {
 			rcu_read_unlock();
-			nss_vlan_mgr_instance_deref(v);
-			nss_vlan_mgr_warn("%s: failed to change ingress vlan translation\n", real_dev->name);
+			nss_vlan_mgr_warn("%p: failed to change ingress vlan translation while joining bridge for port: %d, error: %d\n", v, v->port[port - 1], ret);
 			return -1;
 		}
 
 		/*
 		 * Add new egress vlan translation rule to use bridge VSI
 		 */
-		v->eg_xlt_rule.vsi = bridge_vsi;
-		if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
-					FAL_PORT_VLAN_EGRESS,
-					&v->eg_xlt_rule,
-					&v->eg_xlt_action)) {
+		v->eg_xlt_rule.vsi = new_vsi;
+		ret = fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
+				FAL_PORT_VLAN_EGRESS, &v->eg_xlt_rule, &v->eg_xlt_action);
+		if (ret != SW_OK) {
 			rcu_read_unlock();
-			nss_vlan_mgr_instance_deref(v);
-			nss_vlan_mgr_warn("%s: failed to change egress vlan translation\n", real_dev->name);
+			nss_vlan_mgr_warn("%p: failed to change egress vlan translation while joining bridge for port: %d. error:%d\n", v, v->port[port - 1], ret);
 			return -1;
 		}
+		v->eg_xlt_rule.vsi = old_vsi;
 	}
 	rcu_read_unlock();
 
-	v->bridge_vsi = bridge_vsi;
-	nss_vlan_mgr_instance_deref(v);
+	v->eg_xlt_rule.vsi = new_vsi;
 	return 0;
+}
+
+/*
+ * nss_vlan_mgr_over_bond_join_bridge()
+ *	Join bond interface to bridge
+ */
+static int nss_vlan_mgr_over_bond_join_bridge(struct net_device *real_dev, struct nss_vlan_pvt *v, uint32_t bridge_vsi)
+{
+	int ret;
+	uint32_t vlan_vsi;
+
+	vlan_vsi = v->eg_xlt_rule.vsi;
+	ret = nss_vlan_mgr_over_bond_port_vsi_update(real_dev, v, bridge_vsi);
+	if (ret) {
+		nss_vlan_mgr_warn("%p: failed to update bond slaves with the bridge vsi: %d\n", v, bridge_vsi);
+		goto return_with_error;
+	}
+
+	v->bridge_vsi = bridge_vsi;
+	return 0;
+
+return_with_error:
+	ret = nss_vlan_mgr_over_bond_port_vsi_update(real_dev, v, vlan_vsi);
+	if (ret) {
+		nss_vlan_mgr_warn("%p: failed to update bond slaves with the vlan vsi: %d\n", v, vlan_vsi);
+	}
+	return -1;
 }
 
 /*
@@ -1127,59 +1300,41 @@ static int nss_vlan_mgr_over_bond_leave_bridge(struct net_device *real_dev, stru
 {
 	int port, ret;
 	struct net_device *slave;
+	uint32_t bridge_vsi;
+
+	bridge_vsi = v->eg_xlt_rule.vsi;
+	ret = nss_vlan_mgr_over_bond_port_vsi_update(real_dev, v, v->ppe_vsi);
+	if (ret) {
+		nss_vlan_mgr_warn("%p: failed to update bond slaves with the vlan vsi: %d\n", v, v->ppe_vsi);
+		goto return_with_error;
+	}
+	v->bridge_vsi = 0;
 
 	rcu_read_lock();
 	for_each_netdev_in_bond_rcu(real_dev, slave) {
 		port = nss_cmn_get_interface_number_by_dev(slave);
-
-		/*
-		 * Delete old ingress vlan translation rule
-		 */
-		ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
-
-		/*
-		 * Delete old egress vlan translation rule
-		 */
-		ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
-				FAL_PORT_VLAN_EGRESS,
-				&v->eg_xlt_rule, &v->eg_xlt_action);
-
-		/*
-		 * Add new ingress vlan translation rule to use vlan VSI
-		 */
-		if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, v->ppe_vsi)) {
+		if (!NSS_VLAN_PHY_PORT_CHK(port)) {
 			rcu_read_unlock();
-			nss_vlan_mgr_instance_deref(v);
-			nss_vlan_mgr_warn("%s: failed to change ingress vlan translation\n", real_dev->name);
-			return -1;
+			nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave->name, port);
+			goto return_with_error;
 		}
-
-		/*
-		 * Add new egress vlan translation rule to use vlan VSI
-		 */
-		v->eg_xlt_rule.vsi = v->ppe_vsi;
-		if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
-					FAL_PORT_VLAN_EGRESS,
-					&v->eg_xlt_rule, &v->eg_xlt_action)) {
-			rcu_read_unlock();
-			nss_vlan_mgr_instance_deref(v);
-			nss_vlan_mgr_warn("%s: failed to change egress vlan translation\n", real_dev->name);
-			return -1;
-		}
-	}
-	rcu_read_unlock();
-	v->bridge_vsi = 0;
-	for_each_netdev_in_bond_rcu(real_dev, slave) {
-		port = nss_cmn_get_interface_number_by_dev(slave);
 
 		/*
 		 * Set port STP state to forwarding after bond interfaces leave bridge
 		 */
 		fal_stp_port_state_set(NSS_VLAN_MGR_SWITCH_ID, NSS_VLAN_MGR_STP_ID,
-						v->port[port - 1], FAL_STP_FORWARDING);
+				v->port[port - 1], FAL_STP_FORWARDING);
 	}
-	nss_vlan_mgr_instance_deref(v);
+	rcu_read_unlock();
 	return 0;
+
+return_with_error:
+	ret = nss_vlan_mgr_over_bond_port_vsi_update(real_dev, v, bridge_vsi);
+	if (ret) {
+		nss_vlan_mgr_warn("%p: failed to update bond slaves with the bridge vsi: %d\n", v, bridge_vsi);
+	}
+	return -1;
+
 }
 #endif
 
@@ -1191,6 +1346,7 @@ int nss_vlan_mgr_join_bridge(struct net_device *dev, uint32_t bridge_vsi)
 {
 	struct nss_vlan_pvt *v = nss_vlan_mgr_instance_find_and_ref(dev);
 	struct net_device *real_dev;
+	int ret;
 
 	if (!v)
 		return 0;
@@ -1209,42 +1365,34 @@ int nss_vlan_mgr_join_bridge(struct net_device *dev, uint32_t bridge_vsi)
 	if (real_dev && is_vlan_dev(real_dev)) {
 		real_dev = nss_vlan_mgr_get_real_dev(real_dev);
 	}
-	if (real_dev && netif_is_bond_master(real_dev))
-		return nss_vlan_mgr_over_bond_join_bridge(real_dev, v, bridge_vsi);
-
-	/*
-	 * Delete old ingress vlan translation rule
-	 */
-	ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
-
-	/*
-	 * Delete old egress vlan translation rule
-	 */
-	fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
-			FAL_PORT_VLAN_EGRESS,
-			&v->eg_xlt_rule, &v->eg_xlt_action);
-
-	/*
-	 * Add new ingress vlan translation rule to use bridge VSI
-	 */
-	if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, bridge_vsi)) {
-		nss_vlan_mgr_warn("%s: failed to change ingress vlan translation\n", dev->name);
+	if (real_dev == NULL) {
+		nss_vlan_mgr_warn("%p: real dev for the vlan: %s is NULL\n", v, dev->name);
 		nss_vlan_mgr_instance_deref(v);
 		return -1;
 	}
 
 	/*
-	 * Add new egress vlan translation rule to use bridge VSI
+	 * Check if real_dev is bond master
 	 */
-	v->eg_xlt_rule.vsi = bridge_vsi;
-	if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
-				FAL_PORT_VLAN_EGRESS,
-				&v->eg_xlt_rule, &v->eg_xlt_action)) {
-		nss_vlan_mgr_warn("%s: failed to change egress vlan translation\n", dev->name);
+	if (netif_is_bond_master(real_dev)) {
+		ret = nss_vlan_mgr_over_bond_join_bridge(real_dev, v, bridge_vsi);
 		nss_vlan_mgr_instance_deref(v);
-		return -1;
+		if (ret) {
+			nss_vlan_mgr_warn("%p: Bond master: %s failed to join bridge\n", v, real_dev->name);
+			return -1;
+		}
+		return 0;
 	}
-	v->bridge_vsi = bridge_vsi;
+
+	/*
+	 * real_dev is not bond but a physical device
+	 */
+	ret = nss_vlan_mgr_port_vsi_update(v, bridge_vsi);
+	if (ret) {
+		nss_vlan_mgr_warn("%p: failed to join bridge\n", v, real_dev->name);
+	} else {
+		v->bridge_vsi = bridge_vsi;
+	}
 #endif
 	nss_vlan_mgr_instance_deref(v);
 	return 0;
@@ -1259,6 +1407,7 @@ int nss_vlan_mgr_leave_bridge(struct net_device *dev, uint32_t bridge_vsi)
 {
 	struct nss_vlan_pvt *v = nss_vlan_mgr_instance_find_and_ref(dev);
 	struct net_device *real_dev;
+	int ret;
 
 	if (!v)
 		return 0;
@@ -1277,38 +1426,31 @@ int nss_vlan_mgr_leave_bridge(struct net_device *dev, uint32_t bridge_vsi)
 	if (real_dev && is_vlan_dev(real_dev)) {
 		real_dev = nss_vlan_mgr_get_real_dev(real_dev);
 	}
-	if (real_dev && netif_is_bond_master(real_dev))
-		return nss_vlan_mgr_over_bond_leave_bridge(real_dev, v);
-
-	/*
-	 * Delete old ingress vlan translation rule
-	 */
-	ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
-
-	/*
-	 * Delete old egress vlan translation rule
-	 */
-	fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
-			FAL_PORT_VLAN_EGRESS,
-			&v->eg_xlt_rule, &v->eg_xlt_action);
-
-	/*
-	 * Add new ingress vlan translation rule to use vlan VSI
-	 */
-	if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[0], v->ppe_svid, v->ppe_cvid, v->ppe_vsi)) {
-		nss_vlan_mgr_warn("%s: failed to change ingress vlan translation\n", dev->name);
+	if (real_dev == NULL) {
+		nss_vlan_mgr_warn("%p: real dev for the vlan: %s is NULL\n", v, dev->name);
 		nss_vlan_mgr_instance_deref(v);
 		return -1;
 	}
 
 	/*
-	 * Add new egress vlan translation rule to use vlan VSI
+	 * Check if real_dev is bond master
 	 */
-	v->eg_xlt_rule.vsi = v->ppe_vsi;
-	if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[0],
-				FAL_PORT_VLAN_EGRESS,
-				&v->eg_xlt_rule, &v->eg_xlt_action)) {
-		nss_vlan_mgr_warn("%s: failed to change egress vlan translation\n", dev->name);
+	if (netif_is_bond_master(real_dev)) {
+		ret = nss_vlan_mgr_over_bond_leave_bridge(real_dev, v);
+		nss_vlan_mgr_instance_deref(v);
+		if (ret) {
+			nss_vlan_mgr_warn("%p: Bond master: %s failed to leave bridge\n", v, real_dev->name);
+			return -1;
+		}
+		return 0;
+	}
+
+	/*
+	 * real_dev is not bond but a physical device
+	 */
+	ret = nss_vlan_mgr_port_vsi_update(v, bridge_vsi);
+	if (ret) {
+		nss_vlan_mgr_warn("%p: failed to leave bridge\n", v, real_dev->name);
 		nss_vlan_mgr_instance_deref(v);
 		return -1;
 	}
@@ -1414,6 +1556,7 @@ int nss_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 {
 	struct nss_vlan_pvt *v;
 	int32_t bond_ifnum, vsi = 0, port, bondid = -1;
+	int ret;
 
 #if IS_ENABLED(CONFIG_BONDING)
 	bondid = bond_get_id(bond_dev);
@@ -1436,6 +1579,11 @@ int nss_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 		 * Add Ingress and Egress vlan_vsi
 		 */
 		port = nss_cmn_get_interface_number_by_dev(slave_dev);
+		if (!NSS_VLAN_PHY_PORT_CHK(port)) {
+			spin_unlock(&vlan_mgr_ctx.lock);
+			nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave_dev->name, port);
+			return -1;
+		}
 		v->port[port - 1] = port;
 
 		/*
@@ -1446,9 +1594,10 @@ int nss_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 		/*
 		 * Add ingress vlan tranlation table
 		 */
-		if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, vsi)) {
+		ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, vsi);
+		if (ret != SW_OK) {
 			spin_unlock(&vlan_mgr_ctx.lock);
-			nss_vlan_mgr_warn("bond: %s -> slave: %s: failed to set ingress vlan translation\n", bond_dev->name, slave_dev->name);
+			nss_vlan_mgr_warn("bond: %s -> slave: %s: failed to set ingress vlan translation, error: %d\n", bond_dev->name, slave_dev->name, ret);
 			return -1;
 		}
 
@@ -1456,12 +1605,13 @@ int nss_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 		 * Add egress vlan tranlation table
 		 */
 		v->eg_xlt_rule.port_bitmap |= (1 << v->port[port - 1]);
-		if (fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
+		ret = fal_port_vlan_trans_adv_add(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
 					FAL_PORT_VLAN_EGRESS,
 					&v->eg_xlt_rule,
-					&v->eg_xlt_action)) {
+					&v->eg_xlt_action);
+		if (ret != SW_OK) {
 			spin_unlock(&vlan_mgr_ctx.lock);
-			nss_vlan_mgr_warn("bond:%s -> slave:%s failed to set egress vlan translation\n", bond_dev->name, slave_dev->name);
+			nss_vlan_mgr_warn("bond:%s -> slave:%s failed to set egress vlan translation. error: %d\n", bond_dev->name, slave_dev->name, ret);
 			goto delete_ingress_rule;
 		}
 
@@ -1496,14 +1646,16 @@ int nss_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 	return 0;
 
 delete_egress_rule:
-	if (fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
+	ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
 				FAL_PORT_VLAN_EGRESS,
-				&v->eg_xlt_rule, &v->eg_xlt_action)) {
-		nss_vlan_mgr_warn("%p: Failed to delete egress translation rule\n", v);
+				&v->eg_xlt_rule, &v->eg_xlt_action);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: Failed to delete egress translation rule, error: %d\n", v, ret);
 	}
 delete_ingress_rule:
-	if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID)) {
-		nss_vlan_mgr_warn("%p: Failed to delete ingress translation rule\n", v);
+	ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+	if (ret != SW_OK) {
+		nss_vlan_mgr_warn("%p: Failed to delete ingress translation rule, error: %d\n", v, ret);
 	}
 
 	return -1;
@@ -1519,11 +1671,17 @@ int nss_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
 	struct nss_vlan_pvt *v;
 	uint32_t port;
 	fal_port_qinq_role_t mode;
+	int ret;
 
 	/*
 	 * Find port id for the slave
 	 */
 	port = nss_cmn_get_interface_number_by_dev(slave_dev);
+	if (!NSS_VLAN_PHY_PORT_CHK(port)) {
+		spin_unlock(&vlan_mgr_ctx.lock);
+		nss_vlan_mgr_warn("%s: %d is not valid physical port\n", slave_dev->name, port);
+		return -1;
+	}
 
 	spin_lock(&vlan_mgr_ctx.lock);
 	list_for_each_entry(v, &vlan_mgr_ctx.list, list) {
@@ -1533,20 +1691,22 @@ int nss_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
 		/*
 		 * Delete ingress vlan tranlation table
 		 */
-		if (ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID)) {
+		ret = ppe_port_vlan_vsi_set(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1], v->ppe_svid, v->ppe_cvid, PPE_VSI_INVALID);
+		if (ret != SW_OK) {
 			spin_unlock(&vlan_mgr_ctx.lock);
-			nss_vlan_mgr_warn("%p: Failed to delete old ingress translation rule\n", v);
+			nss_vlan_mgr_warn("%p: Failed to delete old ingress translation rule, error: %d\n", v, ret);
 			return -1;
 		}
 
 		/*
 		 * Delete egress vlan tranlation table
 		 */
-		if (fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
-					FAL_PORT_VLAN_EGRESS,
-					&v->eg_xlt_rule, &v->eg_xlt_action)) {
+		ret = fal_port_vlan_trans_adv_del(NSS_VLAN_MGR_SWITCH_ID, v->port[port - 1],
+				FAL_PORT_VLAN_EGRESS,
+				&v->eg_xlt_rule, &v->eg_xlt_action);
+		if (ret != SW_OK) {
 			spin_unlock(&vlan_mgr_ctx.lock);
-			nss_vlan_mgr_warn("%p: Failed to delete vlan translation rule\n", v);
+			nss_vlan_mgr_warn("%p: Failed to delete vlan translation rule, error: %d\n", v, ret);
 			return -1;
 		}
 		v->eg_xlt_rule.port_bitmap = v->eg_xlt_rule.port_bitmap ^ (1 << port);

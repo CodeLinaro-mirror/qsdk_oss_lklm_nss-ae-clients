@@ -263,11 +263,10 @@ static int nss_bridge_mgr_disable_fdb_learning(struct nss_bridge_pvt *br)
 	}
 
 	/*
-	 * Flush FDB entries
-	 * TODO: SSDK to support API to flush fdb entry per VSI
+	 * Flush FDB table for the bridge vsi
 	 */
-	if (fal_fdb_entry_flush(NSS_BRIDGE_MGR_SWITCH_ID, FAL_FDB_DEL_STATIC)) {
-		nss_bridge_mgr_warn("%p: Failed to flush FDB table in PPE\n", br);
+	if (fal_fdb_entry_del_byfid(NSS_BRIDGE_MGR_SWITCH_ID, br->vsi, FAL_FDB_DEL_STATIC)) {
+		nss_bridge_mgr_warn("%p: Failed to flush FDB table for vsi:%d in PPE\n", br, br->vsi);
 		goto enable_fdb_learning;
 	}
 
@@ -602,17 +601,24 @@ static int nss_bridge_mgr_join_bridge(struct net_device *dev, struct nss_bridge_
 			return -1;
 		}
 	} else if (is_vlan_dev(dev)) {
-		if (nss_vlan_mgr_join_bridge(dev, br->vsi)) {
-			nss_bridge_mgr_warn("%p: vlan device failed to join bridge\n", br);
-			return -1;
-		}
-
 		/*
 		 * Find real_dev associated with the VLAN
 		 */
 		real_dev = nss_vlan_mgr_get_real_dev(dev);
-		if (is_vlan_dev(real_dev))
+		if (real_dev && is_vlan_dev(real_dev))
 			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
+		if (real_dev == NULL) {
+			nss_bridge_mgr_warn("%p: real dev for the vlan: %s in NULL\n", dev->name);
+			return -1;
+		}
+
+		/*
+		 * This is a valid vlan dev, add the vlan dev to bridge
+		 */
+		if (nss_vlan_mgr_join_bridge(dev, br->vsi)) {
+			nss_bridge_mgr_warn("%p: vlan device failed to join bridge\n", br);
+			return -1;
+		}
 
 		/*
 		 * dev is a bond with VLAN and VLAN is added to bridge
@@ -672,23 +678,22 @@ static int nss_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_bridge
 			return -1;
 		}
 	} else if (is_vlan_dev(dev)) {
-		if (nss_vlan_mgr_leave_bridge(dev, br->vsi)) {
-			nss_bridge_mgr_warn("%p: vlan device failed to leave bridge\n", br);
+		/*
+		 * Find real_dev associated with the VLAN.
+		 */
+		real_dev = nss_vlan_mgr_get_real_dev(dev);
+		if (real_dev && is_vlan_dev(real_dev))
+			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
+		if (real_dev == NULL) {
+			nss_bridge_mgr_warn("%p: real dev for the vlan: %s in NULL\n", dev->name);
 			return -1;
 		}
 
 		/*
-		 * Find real_dev associated with the VLAN
+		 * This is a valid vlan dev, remove the vlan dev from bridge.
 		 */
-		real_dev = nss_vlan_mgr_get_real_dev(dev);
-		if (is_vlan_dev(real_dev))
-			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
-
-		/*
-		 * Only 2 VLAN tags are supported, return error for more than 2 VLAN tags.
-		 */
-		if (is_vlan_dev(real_dev)) {
-			nss_bridge_mgr_warn("%p: Interface %s has more than 2 VLAN tags, only 2 VLAN tags are supported\n", br, dev->name);
+		if (nss_vlan_mgr_leave_bridge(dev, br->vsi)) {
+			nss_bridge_mgr_warn("%p: vlan device failed to leave bridge\n", br);
 			return -1;
 		}
 
@@ -939,7 +944,7 @@ static int nss_bridge_mgr_register_event(struct netdev_notifier_info *info)
 	}
 
 	if (!nss_bridge_register(ifnum, dev, NULL, NULL, 0, b_pvt)) {
-		nss_bridge_mgr_warn("%p: failed to register bridge di to NSS", b_pvt);
+		nss_bridge_mgr_warn("%p: failed to register bridge di to NSS\n", b_pvt);
 		goto fail;
 	}
 

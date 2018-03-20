@@ -497,7 +497,7 @@ static void counter_rate_by_uint32(struct profile_common *pnc)
 {
 	static uint32_t prev_cnts[32];
 	static uint32_t last_uclk;
-	uint32_t uclk, ubi32_freq;
+	uint32_t mclk, uclk, ubi32_freq;
 	int n = pnc->un.num_counters;
 
 	ubi32_freq = htonl(pnc->un.cpu_freq) / 1000000;
@@ -537,11 +537,11 @@ static void counter_rate_by_uint32(struct profile_common *pnc)
 			 * and 3 sec for 1.7GHz.
 			 */
 			if (uclk > 1000000) {
-				uclk /= 1000000;
-				v_dif = (v_dif / uclk) * ubi32_freq;
+				mclk = uclk / 1000000;
+				v_dif = (v_dif / mclk) * ubi32_freq;
 			} else {
-				uclk /= 1000;
-				v_dif = (v_dif / uclk) * ubi32_freq * 1000;
+				mclk = uclk / 1000;
+				v_dif = (v_dif / mclk) * ubi32_freq * 1000;
 			}
 		}
 		printk("%-32s 0x%08X	%10u :	%u/s\n",

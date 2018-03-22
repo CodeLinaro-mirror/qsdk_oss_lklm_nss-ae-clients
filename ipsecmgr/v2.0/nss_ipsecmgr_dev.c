@@ -106,8 +106,12 @@ static netdev_tx_t nss_ipsecmgr_dev_tx(struct sk_buff *skb, struct net_device *d
 	/*
 	 * Check if skb is shared
 	 */
-	if (unlikely(skb_shared(skb)))
+	if (unlikely(skb_shared(skb))) {
 		skb = skb_unshare(skb, in_atomic() ? GFP_ATOMIC : GFP_KERNEL);
+		if (!skb)
+			return NETDEV_TX_OK;
+	}
+
 
 	/*
 	 * For all these cases

@@ -519,11 +519,10 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_pri
 {
 	char sa_name[NSS_IPSECMGR_DEBUGFS_NAME_SZ] = {0};
 	struct list_head *db = ipsecmgr_drv->sa_db;
+	struct nss_ipsec_tuple tuple = {0};
 	struct nss_ipsecmgr_sa_entry *sa;
 	struct nss_ipsec_rule_data *data;
 	struct nss_ipsec_rule_oip *oip;
-	struct nss_ipsec_tuple tuple = {0};
-	nss_ipsecmgr_status_t status;
 	uint32_t index;
 
 	nss_ipsecmgr_flow_outer2tuple(outer, &tuple);
@@ -616,7 +615,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_pri
 	write_unlock_bh(&ipsecmgr_drv->lock);
 
 	nss_ipsecmgr_trace("%p:decap SA added", sa);
-	return status;
+	return NSS_IPSECMGR_OK;
 }
 
 /*

@@ -85,6 +85,7 @@
 #endif
 
 #define NSS_IPSECMGR_FLOW_RETRY_TIMEOUT msecs_to_jiffies(500) /* msecs */
+#define NSS_IPSECMGR_CONFIGURE_NODE_RETRY_TIMEOUT msecs_to_jiffies(500) /* msecs */
 
 #define NSS_IPSECMGR_DEFAULT_TUN_NAME "ipsecdummy"
 #define NSS_IPSECMGR_ESP_TRAIL_SZ 2 /* esp trailer size */
@@ -212,6 +213,8 @@ struct nss_ipsecmgr_drv {
 	int data_ifnum;				/* NSS data interface. */
 
 	struct nss_ctx_instance *nss_ctx;	/* NSS context. */
+	struct delayed_work cfg_work;		/* Configure node work */
+	bool ipsec_inline;			/* IPsec inline mode */
 };
 
 /*

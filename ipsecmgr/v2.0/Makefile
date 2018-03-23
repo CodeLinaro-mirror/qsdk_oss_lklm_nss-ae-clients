@@ -9,3 +9,7 @@ qca-nss-ipsecmgr-objs := nss_ipsecmgr_dev.o
 qca-nss-ipsecmgr-objs += nss_ipsecmgr_flow.o
 qca-nss-ipsecmgr-objs += nss_ipsecmgr_sa.o
 ccflags-y += -DNSS_IPSECMGR_DEBUG_LEVEL=3
+
+ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64))
+ccflags-y += -DNSS_IPSECMGR_PPE_SUPPORT
+endif

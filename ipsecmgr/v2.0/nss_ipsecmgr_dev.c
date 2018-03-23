@@ -38,12 +38,24 @@
 #include <net/xfrm.h>
 #include <net/icmp.h>
 
+#include <crypto/aead.h>
+#include <crypto/internal/hash.h>
+
 #include <nss_api_if.h>
 #include <nss_ipsec.h>
+#include <nss_cryptoapi.h>
 #include <nss_ipsecmgr.h>
+
+#ifdef NSS_IPSECMGR_PPE_SUPPORT
+#include <ref/ref_vsi.h>
+#endif
 
 #include "nss_ipsecmgr_priv.h"
 #include <nss_tstamp.h>
+
+bool enable_ipsec_inline = false;
+module_param(enable_ipsec_inline, bool, S_IRUGO);
+MODULE_PARM_DESC(enable_ipsec_inline, "Enable IPsec Inline mode");
 
 struct nss_ipsecmgr_drv *ipsecmgr_drv;
 
@@ -55,6 +67,11 @@ static const struct net_device_ops nss_ipsecmgr_dummy_ndev_ops;
  */
 static void nss_ipsecmgr_dev_dummy_setup(struct net_device *dev)
 {
+	/*
+	 * Since, we want to start with fragmentation post IPsec
+	 * transform.
+	 */
+	dev->mtu = ETH_DATA_LEN;
 }
 
 /*
@@ -798,6 +815,80 @@ done:
 }
 
 /*
+ * nss_ipsecmgr_dev_configure()
+ *	Send the configure node message
+ */
+static void nss_ipsecmgr_dev_configure(struct work_struct *work)
+{
+	enum nss_ipsec_error_type resp = NSS_IPSEC_ERROR_TYPE_NONE;
+	uint32_t data_ifnum = ipsecmgr_drv->data_ifnum;
+	struct nss_ipsec_configure_node *cfg_node;
+	struct nss_ipsec_msg nim = {0};
+	nss_tx_status_t status;
+	uint32_t vsi_num = 0;
+
+	/*
+	 * By making sure that cryptoapi is registered,
+	 * we are confirming that IPsec FW is initialized
+	 * and ready to be configured.
+	 */
+	if (!nss_cryptoapi_is_registered()) {
+		schedule_delayed_work(&ipsecmgr_drv->cfg_work, NSS_IPSECMGR_CONFIGURE_NODE_RETRY_TIMEOUT);
+		return;
+	}
+
+	cfg_node = &nim.msg.node;
+	cfg_node->dma_lookaside = true;
+	cfg_node->dma_redirect = ipsecmgr_drv->ipsec_inline;
+
+	/*
+	 * Send DMA IPsec message to initialize the DMA rings.
+	 */
+	status = nss_ipsec_tx_msg_sync(ipsecmgr_drv->nss_ctx,
+					data_ifnum,
+					NSS_IPSEC_MSG_TYPE_CONFIGURE_NODE,
+					sizeof(*cfg_node),
+					&nim,
+					&resp);
+
+	if (status != NSS_TX_SUCCESS) {
+		nss_ipsecmgr_trace("%p: Failed to send message to NSS(%u)", ipsecmgr_drv, status);
+		schedule_delayed_work(&ipsecmgr_drv->cfg_work, NSS_IPSECMGR_CONFIGURE_NODE_RETRY_TIMEOUT);
+		return;
+	}
+
+	/*
+	 * Program PPE for inline mode; if inline is enabled.
+	 * TODO: Need to update with ipsec device's MTU and
+	 * keep the max MTU across tunnels as the MTU.
+	 */
+	if (ipsecmgr_drv->ipsec_inline) {
+#ifdef NSS_IPSECMGR_PPE_SUPPORT
+		/*
+		 * Get port's default VSI.
+		 */
+		if (ppe_port_vsi_get(0, NSS_PPE_PORT_IPSEC, &vsi_num)) {
+			nss_ipsecmgr_warn("%p: Failed to get port VSI", ipsecmgr_drv);
+			ipsecmgr_drv->ipsec_inline = false;
+			return;
+		}
+
+		/*
+		 * Configure PPE's inline port
+		 */
+		if (!nss_ipsec_ppe_port_config(ipsecmgr_drv->nss_ctx, ipsecmgr_drv->dev, data_ifnum, vsi_num)) {
+			nss_ipsecmgr_warn("%p: Failed to configure PPE inline mode", ipsecmgr_drv);
+			ipsecmgr_drv->ipsec_inline = false;
+			return;
+		}
+#endif
+	}
+
+	nss_ipsecmgr_trace("%p: Configure node msg successful", ipsecmgr_drv);
+	return;
+}
+
+/*
  * nss_ipsecmgr_tunnel_del()
  *	delete an existing IPsec tunnel
  */
@@ -868,6 +959,7 @@ EXPORT_SYMBOL(nss_ipsecmgr_tunnel_add);
 static int __init nss_ipsecmgr_dev_init(void)
 {
 	struct net_device *dev;
+	uint32_t features = 0;
 	int status;
 
 	ipsecmgr_drv = vzalloc(sizeof(*ipsecmgr_drv));
@@ -881,6 +973,10 @@ static int __init nss_ipsecmgr_dev_init(void)
 		nss_ipsecmgr_warn("%p: Failed to retrieve NSS context", ipsecmgr_drv);
 		goto free;
 	}
+
+#ifdef NSS_IPSECMGR_PPE_SUPPORT
+	ipsecmgr_drv->ipsec_inline = enable_ipsec_inline;
+#endif
 
 	dev = alloc_netdev(0, NSS_IPSECMGR_DEFAULT_TUN_NAME, NET_NAME_UNKNOWN, nss_ipsecmgr_dev_dummy_setup);
 	if (!dev) {
@@ -905,9 +1001,11 @@ static int __init nss_ipsecmgr_dev_init(void)
 	nss_ipsecmgr_init_sa_db(ipsecmgr_drv->sa_db);
 	nss_ipsecmgr_init_flow_db(ipsecmgr_drv->flow_db);
 
-	nss_ipsec_data_register(ipsecmgr_drv->data_ifnum, nss_ipsecmgr_dev_rx, ipsecmgr_drv->dev, 0);
+	nss_ipsec_data_register(ipsecmgr_drv->data_ifnum, nss_ipsecmgr_dev_rx, ipsecmgr_drv->dev, features);
 	nss_ipsec_notify_register(ipsecmgr_drv->encap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
 	nss_ipsec_notify_register(ipsecmgr_drv->decap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
+
+	INIT_DELAYED_WORK(&ipsecmgr_drv->cfg_work, nss_ipsecmgr_dev_configure);
 
 	/*
 	 * Initialize debugfs.
@@ -918,6 +1016,11 @@ static int __init nss_ipsecmgr_dev_init(void)
 		goto unregister_dev;
 
 	}
+
+	/*
+	 * Configure inline mode and the DMA rings.
+	 */
+	nss_ipsecmgr_dev_configure(&ipsecmgr_drv->cfg_work.work);
 
 	nss_ipsecmgr_info("NSS IPsec manager loaded: %s\n", NSS_CLIENT_BUILD_ID);
 	return 0;

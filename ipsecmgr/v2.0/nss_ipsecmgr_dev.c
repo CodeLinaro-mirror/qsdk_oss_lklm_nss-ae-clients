@@ -806,6 +806,21 @@ static void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim
 		break;
 	}
 
+	case NSS_IPSEC_MSG_TYPE_SYNC_NODE_STATS: {
+		struct nss_ipsecmgr_node_stats *drv_stats = &ipsecmgr_drv->node_stats;
+		struct nss_ipsec_node_stats *node_stats = &nim->msg.stats.node;
+
+		drv_stats->enqueued += node_stats->enqueued;
+		drv_stats->completed += node_stats->completed;
+		drv_stats->linearized += node_stats->linearized;
+		drv_stats->exceptioned += node_stats->exceptioned;
+		drv_stats->fail_enqueue += node_stats->fail_enqueue;
+		drv_stats->redir_rx += node_stats->redir_rx;
+		drv_stats->fail_redir += node_stats->fail_redir;
+
+		break;
+	}
+
 	default:
 		nss_ipsecmgr_info("%p: unhandled ipsec message type\n", nim);
 		break;
@@ -813,6 +828,44 @@ static void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim
 done:
 	dev_put(dev);
 }
+
+/*
+ * nss_ipsecmgr_dev_stats_read()
+ * 	Read node statistics
+ */
+static ssize_t nss_ipsecmgr_dev_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
+{
+	struct nss_ipsecmgr_node_stats *stats = &ipsecmgr_drv->node_stats;
+	int len, max_len;
+	ssize_t ret = 0;
+	char *buf;
+
+	max_len = NSS_IPSECMGR_NODE_STATS_SZ;
+	buf = vzalloc(max_len);
+
+	len = 0;
+	len += snprintf(buf + len, max_len - len, "\tenqueued: %lld\n", stats->enqueued);
+	len += snprintf(buf + len, max_len - len, "\tcompleted: %lld\n", stats->completed);
+	len += snprintf(buf + len, max_len - len, "\tlinearized: %lld\n", stats->linearized);
+	len += snprintf(buf + len, max_len - len, "\texceptioned: %lld\n", stats->exceptioned);
+	len += snprintf(buf + len, max_len - len, "\tenqueue_failed: %lld\n", stats->fail_enqueue);
+	len += snprintf(buf + len, max_len - len, "\tredirect_rx: %lld\n", stats->redir_rx);
+	len += snprintf(buf + len, max_len - len, "\tredirect_failed: %lld\n", stats->fail_redir);
+
+	ret = simple_read_from_buffer(ubuf, sz, ppos, buf, len);
+	vfree(buf);
+
+	return ret;
+}
+
+/*
+ * file operation structure instance
+ */
+static const struct file_operations node_stats_op = {
+	.open = simple_open,
+	.llseek = default_llseek,
+	.read = nss_ipsecmgr_dev_stats_read,
+};
 
 /*
  * nss_ipsecmgr_dev_configure()
@@ -1015,6 +1068,14 @@ static int __init nss_ipsecmgr_dev_init(void)
 		nss_ipsecmgr_warn("%p: Failed to create root debugfs entry", ipsecmgr_drv);
 		goto unregister_dev;
 
+	}
+
+	/*
+	 * Adding node stats debugfs entry.
+	 */
+	if (!debugfs_create_file("node", S_IRUGO, ipsecmgr_drv->dentry, NULL, &node_stats_op)) {
+		nss_ipsecmgr_warn("%p: Failed to create node stats debugfs entry", ipsecmgr_drv);
+		goto unregister_dev;
 	}
 
 	/*

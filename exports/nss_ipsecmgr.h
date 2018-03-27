@@ -245,6 +245,20 @@ struct nss_ipsecmgr_sa_stats {
 };
 
 /**
+ * nss_ipsecmgr_node_stats
+ * 	IPsec manager node stats
+ */
+struct nss_ipsecmgr_node_stats {
+	uint64_t enqueued;		/**< Packets enqueued to the node */
+	uint64_t completed;		/**< Packets processed by the node */
+	uint64_t linearized;		/**< Linearized the packet */
+	uint64_t exceptioned;		/**< Packets exception from NSS */
+	uint64_t fail_enqueue;		/**< Packets failed to enqueue */
+	uint64_t redir_rx;		/**< Packets received in redirect ring */
+	uint64_t fail_redir;		/**< Packets dropped in redirect ring */
+};
+
+/**
  * nss_ipsecmgr_event
  *	Event information for the IPsec manager.
  */

@@ -75,6 +75,8 @@
 #error "NSS_IPSECMGR_SA_MAX is not a power of 2"
 #endif
 
+#define NSS_IPSECMGR_NODE_STATS_SZ 512
+
 #define NSS_IPSECMGR_SA_STATS_SZ 512
 #define NSS_IPSECMGR_SA_STATS_BUF_SZ 2048
 #define NSS_IPSECMGR_SA_FREE_TIMEOUT msecs_to_jiffies(100) /* msecs */
@@ -215,6 +217,8 @@ struct nss_ipsecmgr_drv {
 	struct nss_ctx_instance *nss_ctx;	/* NSS context. */
 	struct delayed_work cfg_work;		/* Configure node work */
 	bool ipsec_inline;			/* IPsec inline mode */
+
+	struct nss_ipsecmgr_node_stats node_stats;	/* Node stats */
 };
 
 /*

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -85,7 +85,10 @@ int nss_connmgr_gre_v6_set_config(struct net_device *dev, struct nss_connmgr_gre
 int nss_connmgr_gre_v4_get_config(struct net_device *dev, struct nss_gre_msg *req, struct net_device **next_dev, bool hold);
 int nss_connmgr_gre_v6_get_config(struct net_device *dev, struct nss_gre_msg *req, struct net_device **next_dev, bool hold);
 
-void nss_connmgr_gre_v4_exception(struct net_device *dev, struct sk_buff *skb);
-void nss_connmgr_gre_v6_exception(struct net_device *dev, struct sk_buff *skb);
+void nss_connmgr_gre_tap_v4_exception(struct net_device *dev, struct sk_buff *skb);
+void nss_connmgr_gre_tap_v6_exception(struct net_device *dev, struct sk_buff *skb);
+
+void nss_connmgr_gre_tun_v4_exception(struct net_device *dev, struct sk_buff *skb);
+void nss_connmgr_gre_tun_v6_exception(struct net_device *dev, struct sk_buff *skb);
 
 #endif

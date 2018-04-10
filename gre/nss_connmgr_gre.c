@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -353,25 +353,21 @@ static int32_t nss_connmgr_gre_prepare_config_cmd(struct net_device *dev,
 }
 
 /*
- * nss_connmgr_gre_exception()
+ * nss_connmgr_gre_tap_exception()
+ * 	Exception handler for GRETAP device
  */
-static void nss_connmgr_gre_exception(struct net_device *dev, struct sk_buff *skb,
+static void nss_connmgr_gre_tap_exception(struct net_device *dev, struct sk_buff *skb,
 					  __attribute__((unused)) struct napi_struct *napi)
 {
 
 	struct ethhdr *eth_hdr;
-	if (unlikely(!enable_notifier)) {
-		nss_connmgr_gre_error("%p: NSS GRE exception handler called\n", dev);
-		dev_kfree_skb_any(skb);
-		return;
-	}
-
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct ethhdr)))) {
 		nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
 	eth_hdr = (struct ethhdr *)skb->data;
+	nss_connmgr_gre_warning("%p: eth_hdr->h_proto: %d\n", dev, eth_hdr->h_proto);
 	if (likely(ntohs(eth_hdr->h_proto) >= ETH_P_802_3_MIN)) {
 		switch (ntohs(eth_hdr->h_proto)) {
 		case ETH_P_IP:
@@ -380,14 +376,14 @@ static void nss_connmgr_gre_exception(struct net_device *dev, struct sk_buff *sk
 				dev_kfree_skb_any(skb);
 				return;
 			}
-			return nss_connmgr_gre_v4_exception(dev, skb);
+			return nss_connmgr_gre_tap_v4_exception(dev, skb);
 		case ETH_P_IPV6:
 			if (unlikely(!pskb_may_pull(skb, sizeof(struct ipv6hdr)))) {
 				nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
 				dev_kfree_skb_any(skb);
 				return;
 			}
-			return nss_connmgr_gre_v6_exception(dev, skb);
+			return nss_connmgr_gre_tap_v6_exception(dev, skb);
 		default:
 			break;
 		}
@@ -399,6 +395,38 @@ static void nss_connmgr_gre_exception(struct net_device *dev, struct sk_buff *sk
 	skb->protocol = eth_type_trans(skb, dev);
 	netif_receive_skb(skb);
 	return;
+}
+
+/*
+ * nss_connmgr_gre_tun_exception()
+ * 	Exception handler for GRETUN device
+ */
+static void nss_connmgr_gre_tun_exception(struct net_device *dev, struct sk_buff *skb,
+					  __attribute__((unused)) struct napi_struct *napi)
+{
+	struct iphdr *iph;
+
+	if (unlikely(!pskb_may_pull(skb, sizeof(struct iphdr)))) {
+		nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+		dev_kfree_skb_any(skb);
+		return;
+	}
+	iph = (struct iphdr *)skb->data;
+	switch (iph->version) {
+		case 4:
+			return nss_connmgr_gre_tun_v4_exception(dev, skb);
+		case 6:
+			if (unlikely(!pskb_may_pull(skb, sizeof(struct ipv6hdr)))) {
+				nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+				dev_kfree_skb_any(skb);
+				return;
+			}
+			return nss_connmgr_gre_tun_v6_exception(dev, skb);
+		default:
+			nss_connmgr_gre_warning("%p: wrong IP version set to skb:%p\n", dev, skb);
+			dev_kfree_skb_any(skb);
+			break;
+	}
 }
 
 /*
@@ -817,7 +845,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	struct nss_gre_config_msg *cmsg = &req.msg.cmsg;
 	int if_number;
 	uint32_t features = 0;
-	struct nss_ctx_instance *nss_ctx;
+	struct nss_ctx_instance *nss_ctx = NULL;
 	nss_tx_status_t status;
 	struct net_device *next_dev = NULL;
 
@@ -851,11 +879,25 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	/*
 	 * Register gre tunnel with NSS
 	 */
-	nss_ctx = nss_gre_register_if(if_number,
-				       nss_connmgr_gre_exception,
-				       nss_connmgr_gre_event_receive,
-				       dev,
-				       features);
+	if ((dev->type == ARPHRD_IPGRE) || (dev->type == ARPHRD_IP6GRE)) {
+		/*
+		 * GRE Tunnel mode
+		 */
+		nss_ctx = nss_gre_register_if(if_number,
+				nss_connmgr_gre_tun_exception,
+				nss_connmgr_gre_event_receive,
+				dev,
+				features);
+	} else {
+		/*
+		 * GRE Tap mode
+		 */
+		nss_ctx = nss_gre_register_if(if_number,
+				nss_connmgr_gre_tap_exception,
+				nss_connmgr_gre_event_receive,
+				dev,
+				features);
+	}
 
 	if (!nss_ctx) {
 		status = nss_dynamic_interface_dealloc_node(if_number, NSS_DYNAMIC_INTERFACE_TYPE_GRE);

@@ -2312,7 +2312,7 @@ static void nss_qdisc_basic_stats_callback(void *app_data,
 	/*
 	 * Record latest basic stats
 	 */
-	nq->basic_stats_latest = nim->msg.shaper_configure.config.msg.shaper_node_basic_stats_get;
+	nq->sn_stats_latest = nim->msg.shaper_configure.config.msg.shaper_node_stats_get;
 
 	/*
 	 * Get the right stats pointers based on whether it is a class
@@ -2326,30 +2326,30 @@ static void nss_qdisc_basic_stats_callback(void *app_data,
 		bstats = &qdisc->bstats;
 		qstats = &qdisc->qstats;
 		refcnt = &qdisc->refcnt;
-		qdisc->q.qlen = nq->basic_stats_latest.qlen_packets;
+		qdisc->q.qlen = nq->sn_stats_latest.response.sn_stats.qlen_packets;
 	}
 
 	/*
 	 * Update qdisc->bstats
 	 */
 	spin_lock_bh(&nq->lock);
-	bstats->bytes += (__u64)nq->basic_stats_latest.delta.dequeued_bytes;
-	bstats->packets += nq->basic_stats_latest.delta.dequeued_packets;
+	bstats->bytes += (__u64)nq->sn_stats_latest.response.sn_stats.delta.dequeued_bytes;
+	bstats->packets += nq->sn_stats_latest.response.sn_stats.delta.dequeued_packets;
 
 	/*
 	 * Update qdisc->qstats
 	 */
-	qstats->backlog = nq->basic_stats_latest.qlen_bytes;
+	qstats->backlog = nq->sn_stats_latest.response.sn_stats.qlen_bytes;
 
-	qstats->drops += (nq->basic_stats_latest.delta.enqueued_packets_dropped +
-				nq->basic_stats_latest.delta.dequeued_packets_dropped);
+	qstats->drops += (nq->sn_stats_latest.response.sn_stats.delta.enqueued_packets_dropped +
+				nq->sn_stats_latest.response.sn_stats.delta.dequeued_packets_dropped);
 
 	/*
 	 * Update qdisc->qstats
 	 */
-	qstats->qlen = nq->basic_stats_latest.qlen_packets;
+	qstats->qlen = nq->sn_stats_latest.response.sn_stats.qlen_packets;
 	qstats->requeues = 0;
-	qstats->overlimits += nq->basic_stats_latest.delta.queue_overrun;
+	qstats->overlimits += nq->sn_stats_latest.response.sn_stats.delta.queue_overrun;
 	spin_unlock_bh(&nq->lock);
 
 	/*
@@ -2393,7 +2393,7 @@ static void nss_qdisc_get_stats_timer_callback(unsigned long int data)
 				nss_qdisc_basic_stats_callback,
 				nq);
 	nim.msg.shaper_configure.config.request_type = NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_BASIC_STATS_GET;
-	nim.msg.shaper_configure.config.msg.shaper_node_basic_stats_get.qos_tag = nq->qos_tag;
+	nim.msg.shaper_configure.config.msg.shaper_node_stats_get.qos_tag = nq->qos_tag;
 	rc = nss_if_tx_msg(nq->nss_shaping_ctx, &nim);
 
 	/*

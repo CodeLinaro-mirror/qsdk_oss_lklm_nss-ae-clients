@@ -444,8 +444,8 @@ static int nss_codel_dump_stats(struct Qdisc *sch, struct gnet_dump *d)
 	bool is_codel = (sch->ops == &nss_codel_qdisc_ops);
 
 	if (is_codel) {
-		cst.peak_queue_delay = q->nq.basic_stats_latest.packet_latency_peak_msec_dequeued;
-		cst.peak_drop_delay = q->nq.basic_stats_latest.packet_latency_peak_msec_dropped;
+		cst.peak_queue_delay = q->nq.sn_stats_latest.response.sn_stats.packet_latency_peak_msec_dequeued;
+		cst.peak_drop_delay = q->nq.sn_stats_latest.response.sn_stats.packet_latency_peak_msec_dropped;
 		return gnet_stats_copy_app(d, &cst, sizeof(cst));
 	}
 

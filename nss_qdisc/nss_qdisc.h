@@ -186,7 +186,7 @@ struct nss_qdisc {
 	atomic_t refcnt;			/* Reference count for class use */
 	struct timer_list stats_get_timer;	/* Timer used to poll for stats */
 	atomic_t pending_stat_requests;		/* Number of pending stats responses */
-	struct nss_shaper_shaper_node_basic_stats_get basic_stats_latest;
+	struct nss_shaper_node_stats_get sn_stats_latest;
 						/* Latest stats obtained */
 	wait_queue_head_t wait_queue;		/* Wait queue used to wait on responses from the NSS */
 	spinlock_t lock;			/* Lock to protect the nss qdisc structure */

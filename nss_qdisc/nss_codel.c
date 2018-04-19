@@ -25,9 +25,21 @@
 /*
  * Codel stats structure.
  */
-struct nss_codel_stats {
-	u32 peak_queue_delay;		/* Peak delay experienced by a dequeued packet */
-	u32 peak_drop_delay;		/* Peak delay experienced by a packet that is dropped */
+struct nss_codel_stats_sq {
+	u32 peak_queue_delay;	/* Peak delay experienced by a dequeued packet */
+	u32 peak_drop_delay;	/* Peak delay experienced by a packet that is dropped */
+};
+
+/*
+ * Codel floq queue stats structure.
+ */
+struct nss_codel_stats_fq {
+        u64 ecn_mark_cnt;	/* Number of packets marked with ECN */
+        u64 new_flow_cnt;	/* Total number of new flows seen. */
+	u64 drop_overlimit;	/* Number of overlimit drops */
+	u32 new_flows_len;	/* Current number of new flows */
+	u32 old_flows_len;	/* Current number of old flows */
+	u32 maxpacket;		/* Largest packet seen so far */
 };
 
 /*
@@ -47,8 +59,10 @@ struct nss_codel_sched_data {
 	u32 flow_queue_sz;	/* Size of a flow queue in firmware (bytes) */
 	u8 ecn;			/* 0 - disable ECN, 1 - enable ECN */
 	u8 set_default;		/* Flag to set qdisc as default qdisc for enqueue */
-	struct nss_codel_stats stats;
-				/* Contains nss_codel related stats */
+	struct nss_codel_stats_sq sq_stats;
+				/* Contains single queue codel stats */
+	struct nss_codel_stats_fq fq_stats;
+				/* Contains flow queue codel stats */
 };
 
 /*
@@ -139,6 +153,28 @@ static void nss_codel_destroy(struct Qdisc *sch)
 	nss_qdisc_destroy(&q->nq);
 	nss_codel_flow_queues_free(q);
 	nss_qdisc_info("nss_codel destroyed");
+}
+
+/*
+ * nss_codel_stats_callback()
+ *	Invoked by the nss_qdisc infrastructure on receiving stats update from firmware.
+ */
+static void nss_codel_stats_callback(struct nss_qdisc *nq, struct nss_shaper_node_stats_response *response)
+{
+	struct nss_codel_sched_data *q = (struct nss_codel_sched_data *)nq;
+
+	if (!q->flows) {
+		q->sq_stats.peak_queue_delay = response->per_sn_stats.codel.sq.packet_latency_peak_msec_dequeued;
+		q->sq_stats.peak_drop_delay = response->per_sn_stats.codel.sq.packet_latency_peak_msec_dropped;
+		return;
+	}
+
+	q->fq_stats.new_flows_len = response->per_sn_stats.codel.fq.new_flows_len;
+	q->fq_stats.old_flows_len = response->per_sn_stats.codel.fq.old_flows_len;
+	q->fq_stats.maxpacket = response->per_sn_stats.codel.fq.maxpacket;
+	q->fq_stats.drop_overlimit += response->sn_stats.delta.enqueued_packets_dropped;
+	q->fq_stats.ecn_mark_cnt += response->per_sn_stats.codel.fq.delta.ecn_mark_cnt;
+	q->fq_stats.new_flow_cnt += response->per_sn_stats.codel.fq.delta.new_flow_cnt;
 }
 
 /*
@@ -368,6 +404,7 @@ static int nss_codel_init(struct Qdisc *sch, struct nlattr *opt)
 
 	nss_codel_reset(sch);
 	nss_qdisc_register_configure_callback(nq, nss_codel_configure_callback);
+	nss_qdisc_register_stats_callback(nq, nss_codel_stats_callback);
 
 	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_CODEL, 0, qopt->accel_mode) < 0) {
 		return -EINVAL;
@@ -441,21 +478,19 @@ static int nss_codel_dump_stats(struct Qdisc *sch, struct gnet_dump *d)
 	struct nss_codel_sched_data *q = qdisc_priv(sch);
 	struct tc_nssfq_codel_xstats fqcst;
 	struct tc_nsscodel_xstats cst;
-	bool is_codel = (sch->ops == &nss_codel_qdisc_ops);
 
-	if (is_codel) {
-		cst.peak_queue_delay = q->nq.sn_stats_latest.response.per_sn_stats.codel.sq.packet_latency_peak_msec_dequeued;
-		cst.peak_drop_delay = q->nq.sn_stats_latest.response.per_sn_stats.codel.sq.packet_latency_peak_msec_dropped;
+	if (!q->flows) {
+		cst.peak_queue_delay = q->sq_stats.peak_queue_delay;
+		cst.peak_drop_delay = q->sq_stats.peak_drop_delay;
 		return gnet_stats_copy_app(d, &cst, sizeof(cst));
 	}
 
-	/*
-	 * TODO: Add nssfq_codel specific stats.
-	 *
-	 * The qdisc stats infrastructure needs a clean up to properly support
-	 * unique qdisc stats that are not common across all qdiscs.
-	 */
-	memset(&fqcst, 0, sizeof(fqcst));
+	fqcst.new_flow_count = q->fq_stats.new_flow_cnt;
+	fqcst.new_flows_len = q->fq_stats.new_flows_len;
+	fqcst.old_flows_len = q->fq_stats.old_flows_len;
+	fqcst.ecn_mark = q->fq_stats.ecn_mark_cnt;
+	fqcst.drop_overlimit = q->fq_stats.drop_overlimit;
+	fqcst.maxpacket = q->fq_stats.maxpacket;
 	return gnet_stats_copy_app(d, &fqcst, sizeof(fqcst));
 }
 

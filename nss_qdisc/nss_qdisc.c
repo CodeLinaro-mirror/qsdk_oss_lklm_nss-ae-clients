@@ -1758,6 +1758,16 @@ void nss_qdisc_register_configure_callback(struct nss_qdisc *nq, nss_qdisc_confi
 }
 
 /*
+ * nss_qdisc_register_stats_callback()
+ *	Register shaper stats callback, which gets invoked on receiving a stats response.
+ */
+void nss_qdisc_register_stats_callback(struct nss_qdisc *nq, nss_qdisc_stats_callback_t cb)
+{
+	nss_qdisc_assert(!nq->stats_cb, "Qdisc %p: config callback already registered", nq);
+	nq->stats_cb = cb;
+}
+
+/*
  * nss_qdisc_destroy()
  *	Destroys a shaper in NSS, and the sequence is based on the position of
  *	this qdisc (child or root) and the interface to which it is attached to.
@@ -2296,8 +2306,9 @@ static void nss_qdisc_basic_stats_callback(void *app_data,
 {
 	struct nss_qdisc *nq = (struct nss_qdisc *)app_data;
 	struct Qdisc *qdisc = nq->qdisc;
-	struct gnet_stats_basic_packed *bstats;	/* Basic class statistics */
-	struct gnet_stats_queue *qstats;	/* Qstats for use by classes */
+	struct gnet_stats_basic_packed *bstats;
+	struct gnet_stats_queue *qstats;
+	struct nss_shaper_node_stats_response *response;
 	atomic_t *refcnt;
 
 	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
@@ -2309,10 +2320,7 @@ static void nss_qdisc_basic_stats_callback(void *app_data,
 		return;
 	}
 
-	/*
-	 * Record latest basic stats
-	 */
-	nq->sn_stats_latest = nim->msg.shaper_configure.config.msg.shaper_node_stats_get;
+	response = &nim->msg.shaper_configure.config.msg.shaper_node_stats_get.response;
 
 	/*
 	 * Get the right stats pointers based on whether it is a class
@@ -2326,31 +2334,39 @@ static void nss_qdisc_basic_stats_callback(void *app_data,
 		bstats = &qdisc->bstats;
 		qstats = &qdisc->qstats;
 		refcnt = &qdisc->refcnt;
-		qdisc->q.qlen = nq->sn_stats_latest.response.sn_stats.qlen_packets;
+		qdisc->q.qlen = response->sn_stats.qlen_packets;
 	}
 
 	/*
 	 * Update qdisc->bstats
 	 */
 	spin_lock_bh(&nq->lock);
-	bstats->bytes += (__u64)nq->sn_stats_latest.response.sn_stats.delta.dequeued_bytes;
-	bstats->packets += nq->sn_stats_latest.response.sn_stats.delta.dequeued_packets;
+	bstats->bytes += (__u64)response->sn_stats.delta.dequeued_bytes;
+	bstats->packets += response->sn_stats.delta.dequeued_packets;
 
 	/*
 	 * Update qdisc->qstats
 	 */
-	qstats->backlog = nq->sn_stats_latest.response.sn_stats.qlen_bytes;
+	qstats->backlog = response->sn_stats.qlen_bytes;
 
-	qstats->drops += (nq->sn_stats_latest.response.sn_stats.delta.enqueued_packets_dropped +
-				nq->sn_stats_latest.response.sn_stats.delta.dequeued_packets_dropped);
+	qstats->drops += (response->sn_stats.delta.enqueued_packets_dropped +
+				response->sn_stats.delta.dequeued_packets_dropped);
 
 	/*
 	 * Update qdisc->qstats
 	 */
-	qstats->qlen = nq->sn_stats_latest.response.sn_stats.qlen_packets;
+	qstats->qlen = response->sn_stats.qlen_packets;
 	qstats->requeues = 0;
-	qstats->overlimits += nq->sn_stats_latest.response.sn_stats.delta.queue_overrun;
+	qstats->overlimits += response->sn_stats.delta.queue_overrun;
 	spin_unlock_bh(&nq->lock);
+
+	/*
+	 * Shapers that maintain additional unique statistics will process them
+	 * via a registered callback. So invoke if its been registered.
+	 */
+	if (nq->stats_cb) {
+		nq->stats_cb(nq, response);
+	}
 
 	/*
 	 * All access to nq fields below do not need lock protection. They

@@ -127,7 +127,7 @@
 #define NSS_QDISC_MODE_NSS 0x6243
 #define NSS_QDISC_MODE_PPE 0x6245
 
-typedef void (*nss_qdisc_stats_update_callback_t)(void *, struct nss_shaper_configure *);
+typedef void (*nss_qdisc_stats_callback_t)(void *, struct nss_shaper_node_stats_response *);
 typedef void (*nss_qdisc_configure_callback_t)(struct nss_qdisc *, struct nss_shaper_configure *);
 
 struct nss_qdisc {
@@ -173,9 +173,9 @@ struct nss_qdisc {
 						 * operation on skb lists triggeret by bounce
 						 * callbacks.
 						 */
-	nss_qdisc_stats_update_callback_t stats_cb;
+	nss_qdisc_stats_callback_t stats_cb;
 						/* Stats update callback function for qdisc specific
-						 * stats update. Currently unused.
+						 * stats update.
 						 */
 	nss_qdisc_configure_callback_t config_cb;
 						/* Shaper configure callback for reading shaper specific
@@ -186,8 +186,6 @@ struct nss_qdisc {
 	atomic_t refcnt;			/* Reference count for class use */
 	struct timer_list stats_get_timer;	/* Timer used to poll for stats */
 	atomic_t pending_stat_requests;		/* Number of pending stats responses */
-	struct nss_shaper_node_stats_get sn_stats_latest;
-						/* Latest stats obtained */
 	wait_queue_head_t wait_queue;		/* Wait queue used to wait on responses from the NSS */
 	spinlock_t lock;			/* Lock to protect the nss qdisc structure */
 	uint16_t mode;				/* Mode of Qdisc/class */
@@ -317,6 +315,12 @@ extern int nss_qdisc_configure(struct nss_qdisc *nq,
  *	Register shaper configure callback, which gets invoked on receiving a response.
  */
 extern void nss_qdisc_register_configure_callback(struct nss_qdisc *nq, nss_qdisc_configure_callback_t cb);
+
+/*
+ * nss_qdisc_register_stats_callback()
+ *	Register shaper stats callback, which gets invoked on receiving a stats response.
+ */
+extern void nss_qdisc_register_stats_callback(struct nss_qdisc *nq, nss_qdisc_stats_callback_t cb);
 
 /*
  * nss_qdisc_destroy()

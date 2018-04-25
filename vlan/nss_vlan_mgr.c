@@ -1389,7 +1389,7 @@ int nss_vlan_mgr_join_bridge(struct net_device *dev, uint32_t bridge_vsi)
 	 */
 	ret = nss_vlan_mgr_port_vsi_update(v, bridge_vsi);
 	if (ret) {
-		nss_vlan_mgr_warn("%p: failed to join bridge\n", v, real_dev->name);
+		nss_vlan_mgr_warn("%p: failed to join bridge %s\n", v, real_dev->name);
 	} else {
 		v->bridge_vsi = bridge_vsi;
 	}
@@ -1450,7 +1450,7 @@ int nss_vlan_mgr_leave_bridge(struct net_device *dev, uint32_t bridge_vsi)
 	 */
 	ret = nss_vlan_mgr_port_vsi_update(v, bridge_vsi);
 	if (ret) {
-		nss_vlan_mgr_warn("%p: failed to leave bridge\n", v, real_dev->name);
+		nss_vlan_mgr_warn("%p: failed to leave bridge %s\n", v, real_dev->name);
 		nss_vlan_mgr_instance_deref(v);
 		return -1;
 	}

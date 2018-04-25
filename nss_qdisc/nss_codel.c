@@ -119,7 +119,7 @@ static void nss_codel_flow_queues_free(struct nss_codel_sched_data *q)
 
 	free_pages(q->flow_queue_mem, get_order(q->flow_queue_sz * q->flows));
 	q->flow_queue_mem = 0;
-	q->dma_mapped_mem = NULL;
+	q->dma_mapped_mem = (dma_addr_t)0;
 
 	nss_qdisc_trace("Flow queues freed\n");
 }

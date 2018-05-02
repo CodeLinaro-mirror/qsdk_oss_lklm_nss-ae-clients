@@ -318,8 +318,8 @@ static int nss_tun6rd_dev_up(struct net_device *netdev)
 	nss_tun6rd_trace("%p: Relay Prefix %x Len %d\n", netdev,
 			ip6rd->relay_prefix, ip6rd->relay_prefixlen);
 
-	nss_tun6rd_trace("%p: Sending 6rd tunnel i/f up command to NSS %x\n",
-			netdev, (int)nss_ctx);
+	nss_tun6rd_trace("%p: Sending 6rd tunnel i/f up command to NSS %p\n",
+			netdev, nss_ctx);
 
 	/*
 	 * Send 6rd Tunnel UP command to NSS

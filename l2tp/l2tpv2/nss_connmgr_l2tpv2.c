@@ -548,7 +548,7 @@ static int nss_connmgr_l2tpv2_dev_up(struct net_device *dev)
 											l2tpv2cfg->peer_session_id);
 	nss_connmgr_l2tpv2_info("%p: saddr 0x%x daddr 0x%x sport 0x%x  dport 0x%x\n", nss_ctx,
 									l2tpv2cfg->sip, l2tpv2cfg->dip, l2tpv2cfg->sport, l2tpv2cfg->dport);
-	nss_connmgr_l2tpv2_info("Sending l2tpv2 i/f up command to NSS %x\n", (int)nss_ctx);
+	nss_connmgr_l2tpv2_info("Sending l2tpv2 i/f up command to NSS %p\n", nss_ctx);
 
 	nss_l2tpv2_msg_init(&l2tpv2msg, if_number, NSS_L2TPV2_MSG_SESSION_CREATE, sizeof(struct nss_l2tpv2_session_create_msg), NULL, NULL);
 

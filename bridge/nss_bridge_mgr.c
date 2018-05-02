@@ -607,7 +607,7 @@ static int nss_bridge_mgr_join_bridge(struct net_device *dev, struct nss_bridge_
 		if (real_dev && is_vlan_dev(real_dev))
 			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
 		if (real_dev == NULL) {
-			nss_bridge_mgr_warn("%p: real dev for the vlan: %s in NULL\n", dev->name);
+			nss_bridge_mgr_warn("%p: real dev for the vlan: %s in NULL\n", br, dev->name);
 			return -1;
 		}
 
@@ -684,7 +684,7 @@ static int nss_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_bridge
 		if (real_dev && is_vlan_dev(real_dev))
 			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
 		if (real_dev == NULL) {
-			nss_bridge_mgr_warn("%p: real dev for the vlan: %s in NULL\n", dev->name);
+			nss_bridge_mgr_warn("%p: real dev for the vlan: %s in NULL\n", br, dev->name);
 			return -1;
 		}
 
@@ -1187,7 +1187,7 @@ static int nss_bridge_mgr_fdb_update_callback(struct notifier_block *notifier,
 	entry.fid = b_pvt->vsi;
 	if (SW_OK != fal_fdb_entry_del_bymac(NSS_BRIDGE_MGR_SWITCH_ID, &entry)) {
 		nss_bridge_mgr_warn("%p: FDB entry delete failed with MAC %pM and fid %d\n",
-				    b_pvt, entry.addr, entry.fid);
+				    b_pvt, &entry.addr, entry.fid);
 		return NOTIFY_DONE;
 	}
 	return NOTIFY_OK;

@@ -248,8 +248,8 @@ static void nss_connmgr_pptp_event_receive(void *if_ctx, struct nss_pptp_msg *tn
 		 * Update ppp stats
 		 */
 		ppp_update_stats(netdev,
-				 (unsigned long)sync_stats->encap_stats.rx_packets,
-				 (unsigned long)sync_stats->encap_stats.rx_bytes,
+				 (unsigned long)sync_stats->decap_stats.rx_packets,
+				 (unsigned long)sync_stats->decap_stats.rx_bytes,
 				 (unsigned long)sync_stats->encap_stats.tx_packets,
 				 (unsigned long)sync_stats->encap_stats.tx_bytes,
 				  0, 0, 0, 0);

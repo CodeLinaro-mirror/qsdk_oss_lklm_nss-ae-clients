@@ -66,11 +66,11 @@ static const struct net_device_ops nss_ipsecmgr_dummy_ndev_ops;
 static const struct file_operations node_stats_op = {
 	.open = simple_open,
 	.llseek = default_llseek,
-	.read = nss_ipsecmgr_dev_stats_read,
+	.read = nss_ipsecmgr_tunnel_stats_read,
 };
 
 /*
- * nss_ipsecmgr_dev_dummy_setup()
+ * nss_ipsecmgr_dummy_setup()
  *	Setup function for dummy netdevice.
  */
 static void nss_ipsecmgr_dummy_setup(struct net_device *dev)
@@ -211,9 +211,9 @@ static int __init nss_ipsecmgr_init(void)
 	nss_ipsecmgr_init_flow_db(ipsecmgr_drv->flow_db);
 	nss_ipsecmgr_init_tun_db(&ipsecmgr_drv->tun_db);
 
-	nss_ipsec_data_register(ipsecmgr_drv->data_ifnum, nss_ipsecmgr_dev_rx, ipsecmgr_drv->dev, features);
-	nss_ipsec_notify_register(ipsecmgr_drv->encap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
-	nss_ipsec_notify_register(ipsecmgr_drv->decap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
+	nss_ipsec_data_register(ipsecmgr_drv->data_ifnum, nss_ipsecmgr_tunnel_rx, ipsecmgr_drv->dev, features);
+	nss_ipsec_notify_register(ipsecmgr_drv->encap_ifnum, nss_ipsecmgr_tunnel_rx_notify, ipsecmgr_drv);
+	nss_ipsec_notify_register(ipsecmgr_drv->decap_ifnum, nss_ipsecmgr_tunnel_rx_notify, ipsecmgr_drv);
 
 	INIT_DELAYED_WORK(&ipsecmgr_drv->cfg_work, nss_ipsecmgr_configure);
 
@@ -263,7 +263,7 @@ free:
 }
 
 /*
- * nss_ipsecmgr_dev_exit()
+ * nss_ipsecmgr_exit()
  *	module exit
  */
 static void __exit nss_ipsecmgr_exit(void)

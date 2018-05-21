@@ -371,8 +371,7 @@ void nss_ipsecmgr_sa_update_stats(struct nss_ipsecmgr_sa_entry *sa, struct nss_i
 					struct nss_ipsecmgr_event *ev);
 
 /* function to operate on exception data */
-extern void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim);
-extern void nss_ipsecmgr_dev_rx(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi);
-extern ssize_t nss_ipsecmgr_dev_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos);
-
+extern void nss_ipsecmgr_tunnel_rx_notify(void *app_data, struct nss_ipsec_msg *nim);
+extern void nss_ipsecmgr_tunnel_rx(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi);
+extern ssize_t nss_ipsecmgr_tunnel_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos);
 #endif

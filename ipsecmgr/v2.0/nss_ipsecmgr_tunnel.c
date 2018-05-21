@@ -56,10 +56,10 @@
 extern struct nss_ipsecmgr_drv *ipsecmgr_drv;
 
 /*
- * nss_ipsecmgr_dev_open()
+ * nss_ipsecmgr_tunnel_open()
  *	open the tunnel for usage
  */
-static int nss_ipsecmgr_dev_open(struct net_device *dev)
+static int nss_ipsecmgr_tunnel_open(struct net_device *dev)
 {
 	struct nss_ipsecmgr_priv *priv __attribute__((unused)) = netdev_priv(dev);
 
@@ -68,10 +68,10 @@ static int nss_ipsecmgr_dev_open(struct net_device *dev)
 }
 
 /*
- * nss_ipsecmgr_dev_stop()
+ * nss_ipsecmgr_tunnel_stop()
  *	stop the IPsec tunnel
  */
-static int nss_ipsecmgr_dev_stop(struct net_device *dev)
+static int nss_ipsecmgr_tunnel_stop(struct net_device *dev)
 {
 	struct nss_ipsecmgr_priv *priv __attribute__((unused)) = netdev_priv(dev);
 
@@ -80,10 +80,10 @@ static int nss_ipsecmgr_dev_stop(struct net_device *dev)
 }
 
 /*
- * nss_ipsecmgr_dev_tx()
+ * nss_ipsecmgr_tunnel_tx()
  *	tunnel transmit function
  */
-static netdev_tx_t nss_ipsecmgr_dev_tx(struct sk_buff *skb, struct net_device *dev)
+static netdev_tx_t nss_ipsecmgr_tunnel_tx(struct sk_buff *skb, struct net_device *dev)
 {
 	struct nss_ipsecmgr_priv *priv __attribute__((unused)) = netdev_priv(dev);
 	struct iphdr *iph;
@@ -143,10 +143,10 @@ free:
 }
 
 /*
- * nss_ipsecmgr_dev_stats64()
+ * nss_ipsecmgr_tunnel_stats64()
  *	Get device statistics
  */
-static struct rtnl_link_stats64 *nss_ipsecmgr_dev_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+static struct rtnl_link_stats64 *nss_ipsecmgr_tunnel_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 {
 	struct nss_ipsecmgr_priv *priv = netdev_priv(dev);
 
@@ -156,10 +156,10 @@ static struct rtnl_link_stats64 *nss_ipsecmgr_dev_stats64(struct net_device *dev
 }
 
 /*
- * nss_ipsecmgr_dev_mtu_update()
+ * nss_ipsecmgr_tunnel_mtu_update()
  *	Update tunnel max MTU
  */
-static void nss_ipsecmgr_dev_mtu_update(struct list_head *head)
+static void nss_ipsecmgr_tunnel_mtu_update(struct list_head *head)
 {
 	struct nss_ipsecmgr_priv *priv;
 	uint16_t max_mtu = 0;
@@ -188,30 +188,30 @@ static void nss_ipsecmgr_dev_mtu_update(struct list_head *head)
 }
 
 /*
- * nss_ipsecmgr_dev_mtu()
+ * nss_ipsecmgr_tunnel_mtu()
  *	Change device MTU
  */
-static int nss_ipsecmgr_dev_mtu(struct net_device *dev, int mtu)
+static int nss_ipsecmgr_tunnel_mtu(struct net_device *dev, int mtu)
 {
 	dev->mtu = mtu;
-	nss_ipsecmgr_dev_mtu_update(&ipsecmgr_drv->tun_db);
+	nss_ipsecmgr_tunnel_mtu_update(&ipsecmgr_drv->tun_db);
 	return 0;
 }
 
 /* NSS IPsec tunnel operation */
 static const struct net_device_ops ipsecmgr_dev_ops = {
-	.ndo_open = nss_ipsecmgr_dev_open,
-	.ndo_stop = nss_ipsecmgr_dev_stop,
-	.ndo_start_xmit = nss_ipsecmgr_dev_tx,
-	.ndo_get_stats64 = nss_ipsecmgr_dev_stats64,
-	.ndo_change_mtu = nss_ipsecmgr_dev_mtu,
+	.ndo_open = nss_ipsecmgr_tunnel_open,
+	.ndo_stop = nss_ipsecmgr_tunnel_stop,
+	.ndo_start_xmit = nss_ipsecmgr_tunnel_tx,
+	.ndo_get_stats64 = nss_ipsecmgr_tunnel_stats64,
+	.ndo_change_mtu = nss_ipsecmgr_tunnel_mtu,
 };
 
 /*
- * nss_ipsecmgr_dev_free()
+ * nss_ipsecmgr_tunnel_free()
  *	free an existing IPsec tunnel interface
  */
-static void nss_ipsecmgr_dev_free(struct net_device *dev)
+static void nss_ipsecmgr_tunnel_free(struct net_device *dev)
 {
 	nss_ipsecmgr_info("IPsec tunnel device(%s) freed\n", dev->name);
 	free_netdev(dev);
@@ -221,7 +221,7 @@ static void nss_ipsecmgr_dev_free(struct net_device *dev)
  * nss_ipsecmr_dev_setup()
  *	setup the IPsec tunnel
  */
-static void nss_ipsecmgr_dev_setup(struct net_device *dev)
+static void nss_ipsecmgr_tunnel_setup(struct net_device *dev)
 {
 	dev->addr_len = ETH_ALEN;
 	dev->mtu = NSS_IPSECMGR_TUN_MTU(ETH_DATA_LEN);
@@ -236,7 +236,7 @@ static void nss_ipsecmgr_dev_setup(struct net_device *dev)
 	dev->header_ops = NULL;
 	dev->netdev_ops = &ipsecmgr_dev_ops;
 
-	dev->destructor = nss_ipsecmgr_dev_free;
+	dev->destructor = nss_ipsecmgr_tunnel_free;
 
 	/*
 	 * Get the MAC address from the ethernet device
@@ -248,10 +248,10 @@ static void nss_ipsecmgr_dev_setup(struct net_device *dev)
 }
 
 /*
- * nss_ipsecmgr_dev_rx_route_v4()
+ * nss_ipsecmgr_tunnel_rx_route_v4()
  *	NSS IPsec manager device send IPv4 packet for routing
  */
-static void nss_ipsecmgr_dev_rx_route_v4(struct sk_buff *skb)
+static void nss_ipsecmgr_tunnel_rx_route_v4(struct sk_buff *skb)
 {
 	struct iphdr *iph = ip_hdr(skb);
 	struct rtable *rt;
@@ -273,10 +273,10 @@ static void nss_ipsecmgr_dev_rx_route_v4(struct sk_buff *skb)
 }
 
 /*
- * nss_ipsecmgr_dev_rx_route_v6()
+ * nss_ipsecmgr_tunnel_rx_route_v6()
  *	NSS IPsec manager device send IPv6 packet for routing
  */
-static void nss_ipsecmgr_dev_rx_route_v6(struct sk_buff *skb)
+static void nss_ipsecmgr_tunnel_rx_route_v6(struct sk_buff *skb)
 {
 	struct ipv6hdr *ip6h = ipv6_hdr(skb);
 	struct dst_entry *dst;
@@ -303,10 +303,10 @@ static void nss_ipsecmgr_dev_rx_route_v6(struct sk_buff *skb)
 }
 
 /*
- * nss_ipsecmgr_dev_rx_inner()
+ * nss_ipsecmgr_tunnel_rx_inner()
  *	NSS IPsec manager device receive, process inner exception
  */
-void nss_ipsecmgr_dev_rx_inner(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi)
+void nss_ipsecmgr_tunnel_rx_inner(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi)
 {
 	struct nss_ipsecmgr_flow_entry *flow;
 	struct nss_ipsec_tuple tuple = {0};
@@ -480,10 +480,10 @@ free:
 }
 
 /*
- * nss_ipsecmgr_dev_rx_outer()
+ * nss_ipsecmgr_tunnel_rx_outer()
  *	NSS IPsec manager device receive, process outer exception
  */
-void nss_ipsecmgr_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi)
+void nss_ipsecmgr_tunnel_rx_outer(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi)
 {
 	struct list_head *sa_db = ipsecmgr_drv->sa_db;
 	struct nss_ipsecmgr_flow_outer outer = {0};
@@ -506,7 +506,7 @@ void nss_ipsecmgr_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, stru
 		outer.src_ip[0] = ntohl(iph->saddr);
 		outer.dest_ip[0] = ntohl(iph->daddr);
 		outer.ip_version = IPVERSION;
-		rx_route = nss_ipsecmgr_dev_rx_route_v4;
+		rx_route = nss_ipsecmgr_tunnel_rx_route_v4;
 
 		/*
 		 * Process only ESP or UDP/NAT-T packets
@@ -527,7 +527,7 @@ void nss_ipsecmgr_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, stru
 	case 6:	{
 		struct ipv6hdr *ip6h = ipv6_hdr(skb);
 		skb->protocol = ETH_P_IPV6;
-		rx_route = nss_ipsecmgr_dev_rx_route_v6;
+		rx_route = nss_ipsecmgr_tunnel_rx_route_v6;
 
 		if (ip6h->nexthdr == IPPROTO_ESP) {
 			nss_ipsecmgr_ntoh_v6addr(outer.src_ip, ip6h->saddr.s6_addr32);
@@ -576,10 +576,10 @@ void nss_ipsecmgr_dev_rx_outer(struct net_device *dev, struct sk_buff *skb, stru
 }
 
 /*
- * nss_ipsecmgr_dev_rx()
+ * nss_ipsecmgr_tunnel_rx()
  *	NSS IPsec manager device receive function
  */
-void nss_ipsecmgr_dev_rx(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi)
+void nss_ipsecmgr_tunnel_rx(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi)
 {
 	skb_reset_network_header(skb);
 
@@ -588,7 +588,7 @@ void nss_ipsecmgr_dev_rx(struct net_device *dev, struct sk_buff *skb, struct nap
 		struct iphdr *iph = ip_hdr(skb);
 
 		if (iph->protocol == IPPROTO_ESP) {
-			nss_ipsecmgr_dev_rx_outer(dev, skb, napi);
+			nss_ipsecmgr_tunnel_rx_outer(dev, skb, napi);
 			return;
 		}
 
@@ -598,11 +598,11 @@ void nss_ipsecmgr_dev_rx(struct net_device *dev, struct sk_buff *skb, struct nap
 		 * NAT-T is also an outer
 		 */
 		if ((iph->protocol == IPPROTO_UDP) && (udp_hdr(skb)->dest == ntohs(NSS_IPSECMGR_NATT_PORT_DATA))) {
-			nss_ipsecmgr_dev_rx_outer(dev, skb, napi);
+			nss_ipsecmgr_tunnel_rx_outer(dev, skb, napi);
 			return;
 		}
 
-		nss_ipsecmgr_dev_rx_inner(dev, skb, napi);
+		nss_ipsecmgr_tunnel_rx_inner(dev, skb, napi);
 		return;
 	}
 
@@ -610,11 +610,11 @@ void nss_ipsecmgr_dev_rx(struct net_device *dev, struct sk_buff *skb, struct nap
 		struct ipv6hdr *ip6h = ipv6_hdr(skb);
 
 		if (ip6h->nexthdr == IPPROTO_ESP) {
-			nss_ipsecmgr_dev_rx_outer(dev, skb, napi);
+			nss_ipsecmgr_tunnel_rx_outer(dev, skb, napi);
 			return;
 		}
 
-		nss_ipsecmgr_dev_rx_inner(dev, skb, napi);
+		nss_ipsecmgr_tunnel_rx_inner(dev, skb, napi);
 		return;
 	}
 
@@ -627,10 +627,10 @@ void nss_ipsecmgr_dev_rx(struct net_device *dev, struct sk_buff *skb, struct nap
 
 
 /*
- * nss_ipsecmgr_dev_update_stats()
+ * nss_ipsecmgr_tunnel_update_stats()
  *	Update device stats
  */
-static void nss_ipsecmgr_dev_update_stats(struct nss_ipsecmgr_priv *priv, struct nss_ipsec_msg *nim)
+static void nss_ipsecmgr_tunnel_update_stats(struct nss_ipsecmgr_priv *priv, struct nss_ipsec_msg *nim)
 {
 	struct rtnl_link_stats64 *dev_stats;
 	struct nss_ipsec_sa_stats *sa_stats;
@@ -666,10 +666,10 @@ static void nss_ipsecmgr_dev_update_stats(struct nss_ipsecmgr_priv *priv, struct
 }
 
 /*
- * nss_ipsecmgr_dev_rx_notify()
+ * nss_ipsecmgr_tunnel_rx_notify()
  *	Asynchronous event reception
  */
-void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim)
+void nss_ipsecmgr_tunnel_rx_notify(void *app_data, struct nss_ipsec_msg *nim)
 {
 	struct nss_ipsecmgr_drv *ipsecmgr_drv = app_data;
 	struct nss_ipsecmgr_priv *priv;
@@ -705,7 +705,7 @@ void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim)
 
 		send_event = !!priv->cb.event_cb;
 
-		nss_ipsecmgr_dev_update_stats(priv, nim);
+		nss_ipsecmgr_tunnel_update_stats(priv, nim);
 
 		/*
 		 * Write lock needed here since SA stats update
@@ -755,10 +755,10 @@ done:
 }
 
 /*
- * nss_ipsecmgr_dev_stats_read()
+ * nss_ipsecmgr_tunnel_stats_read()
  * 	Read node statistics
  */
-ssize_t nss_ipsecmgr_dev_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
+ssize_t nss_ipsecmgr_tunnel_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
 {
 	struct nss_ipsecmgr_node_stats *stats = &ipsecmgr_drv->node_stats;
 	int len, max_len;
@@ -800,7 +800,7 @@ void nss_ipsecmgr_tunnel_del(struct net_device *dev)
 	list_del(&priv->list);
 	write_unlock_bh(&ipsecmgr_drv->lock);
 
-	nss_ipsecmgr_dev_mtu_update(&ipsecmgr_drv->tun_db);
+	nss_ipsecmgr_tunnel_mtu_update(&ipsecmgr_drv->tun_db);
 
 	/*
 	 * The unregister should start here but the expectation is that the free would
@@ -820,7 +820,7 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 	struct net_device *dev;
 	int status;
 
-	dev = alloc_netdev(sizeof(*priv), NSS_IPSECMGR_TUN_NAME, NET_NAME_ENUM, nss_ipsecmgr_dev_setup);
+	dev = alloc_netdev(sizeof(*priv), NSS_IPSECMGR_TUN_NAME, NET_NAME_ENUM, nss_ipsecmgr_tunnel_setup);
 	if (!dev) {
 		nss_ipsecmgr_error("unable to allocate a tunnel device\n");
 		return NULL;
@@ -852,7 +852,7 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 	list_add(&priv->list, &ipsecmgr_drv->tun_db);
 	write_unlock(&ipsecmgr_drv->lock);
 
-	nss_ipsecmgr_dev_mtu(dev, priv->cb.skb_dev->mtu);
+	nss_ipsecmgr_tunnel_mtu(dev, priv->cb.skb_dev->mtu);
 	return dev;
 }
 EXPORT_SYMBOL(nss_ipsecmgr_tunnel_add);

@@ -7,7 +7,7 @@ ccflags-y += -Werror
 obj-m += qca-nss-ipsecmgr.o
 qca-nss-ipsecmgr-objs := nss_ipsecmgr.o
 qca-nss-ipsecmgr-objs += nss_ipsecmgr_ref.o
-qca-nss-ipsecmgr-objs += nss_ipsecmgr_dev.o
+qca-nss-ipsecmgr-objs += nss_ipsecmgr_tunnel.o
 qca-nss-ipsecmgr-objs += nss_ipsecmgr_flow.o
 qca-nss-ipsecmgr-objs += nss_ipsecmgr_sa.o
 ccflags-y += -DNSS_IPSECMGR_DEBUG_LEVEL=3

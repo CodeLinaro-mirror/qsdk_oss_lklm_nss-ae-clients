@@ -53,26 +53,7 @@
 #include "nss_ipsecmgr_priv.h"
 #include <nss_tstamp.h>
 
-bool enable_ipsec_inline = false;
-module_param(enable_ipsec_inline, bool, S_IRUGO);
-MODULE_PARM_DESC(enable_ipsec_inline, "Enable IPsec Inline mode");
-
-struct nss_ipsecmgr_drv *ipsecmgr_drv;
-
-static const struct net_device_ops nss_ipsecmgr_dummy_ndev_ops;
-
-/*
- * nss_ipsecmgr_dev_dummy_setup()
- *	Setup function for dummy netdevice.
- */
-static void nss_ipsecmgr_dev_dummy_setup(struct net_device *dev)
-{
-	/*
-	 * Since, we want to start with fragmentation post IPsec
-	 * transform.
-	 */
-	dev->mtu = ETH_DATA_LEN;
-}
+extern struct nss_ipsecmgr_drv *ipsecmgr_drv;
 
 /*
  * nss_ipsecmgr_dev_open()
@@ -267,16 +248,6 @@ static void nss_ipsecmgr_dev_setup(struct net_device *dev)
 }
 
 /*
- * nss_ipsecmgr_ref_no_free()
- *	dummy functions for object owner when there is no free
- */
-static void nss_ipsecmgr_ref_no_free(struct nss_ipsecmgr_ref *ref)
-{
-	nss_ipsecmgr_trace("%p: ref_no_free triggered\n", ref);
-	return;
-}
-
-/*
  * nss_ipsecmgr_dev_rx_route_v4()
  *	NSS IPsec manager device send IPv4 packet for routing
  */
@@ -329,85 +300,6 @@ static void nss_ipsecmgr_dev_rx_route_v6(struct sk_buff *skb)
 	skb_dst_set(skb, dst);
 	skb->ip_summed = CHECKSUM_COMPLETE;
 	ip6_local_out(&init_net, NULL, skb);
-}
-
-/*
- * nss_ipsecmgr_ref_init()
- *	initiaize the reference object
- */
-void nss_ipsecmgr_ref_init(struct nss_ipsecmgr_ref *ref, nss_ipsecmgr_ref_method_t free)
-{
-	INIT_LIST_HEAD(&ref->head);
-	INIT_LIST_HEAD(&ref->node);
-
-	ref->id = 0;
-	ref->parent = NULL;
-	ref->free = free ? free : nss_ipsecmgr_ref_no_free;
-}
-
-/*
- * nss_ipsecmgr_ref_add()
- *	add child reference to parent chain
- */
-void nss_ipsecmgr_ref_add(struct nss_ipsecmgr_ref *child, struct nss_ipsecmgr_ref *parent)
-{
-	/*
-	 * DEBUG check to see if the lock is taken before touching the list
-	 */
-	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
-
-	/*
-	 * if child is already part of an existing chain then remove it before
-	 * adding it to the new one. In case this is a new entry then the list
-	 * init during alloc would ensure that the "del_init" operation results
-	 * in a no-op
-	 */
-	list_del_init(&child->node);
-	list_add(&child->node, &parent->head);
-
-	child->parent = parent;
-}
-
-/*
- * nss_ipsecmgr_ref_free()
- *	Free all references from the "ref" object
- *
- * Note: If, the "ref" has child references then it
- * will walk the child reference chain first and issue
- * free for each of the associated "child ref" objects.
- * At the end it will invoke free for the "parent" ref
- * object.
- *
- * +-------+
- * |  tun0 |
- * +-------+
- *     |
- *     V
- * +-------+    +-------+    +-------+
- * |  SA1  |--->|  SA2  |--->|  SA3  |
- * +-------+    +-------+    +-------+
- *     |
- *     V
- * +-------+    +-------+    +-------+
- * | Flow1 |--->| Flow2 |--->| Flow4 |
- * +-------+    +-------+    +-------+
- */
-void nss_ipsecmgr_ref_free(struct nss_ipsecmgr_ref *ref)
-{
-	struct nss_ipsecmgr_ref *entry;
-
-	/*
-	 * DEBUG check to see if the lock is taken before touching the list
-	 */
-	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
-
-	while (!list_empty(&ref->head)) {
-		entry = list_first_entry(&ref->head, struct nss_ipsecmgr_ref, node);
-		nss_ipsecmgr_ref_free(entry);
-	}
-
-	list_del_init(&ref->node);
-	ref->free(ref);
 }
 
 /*
@@ -777,7 +669,7 @@ static void nss_ipsecmgr_dev_update_stats(struct nss_ipsecmgr_priv *priv, struct
  * nss_ipsecmgr_dev_rx_notify()
  *	Asynchronous event reception
  */
-static void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim)
+void nss_ipsecmgr_dev_rx_notify(void *app_data, struct nss_ipsec_msg *nim)
 {
 	struct nss_ipsecmgr_drv *ipsecmgr_drv = app_data;
 	struct nss_ipsecmgr_priv *priv;
@@ -866,7 +758,7 @@ done:
  * nss_ipsecmgr_dev_stats_read()
  * 	Read node statistics
  */
-static ssize_t nss_ipsecmgr_dev_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
+ssize_t nss_ipsecmgr_dev_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
 {
 	struct nss_ipsecmgr_node_stats *stats = &ipsecmgr_drv->node_stats;
 	int len, max_len;
@@ -889,89 +781,6 @@ static ssize_t nss_ipsecmgr_dev_stats_read(struct file *fp, char __user *ubuf, s
 	vfree(buf);
 
 	return ret;
-}
-
-/*
- * file operation structure instance
- */
-static const struct file_operations node_stats_op = {
-	.open = simple_open,
-	.llseek = default_llseek,
-	.read = nss_ipsecmgr_dev_stats_read,
-};
-
-/*
- * nss_ipsecmgr_dev_configure()
- *	Send the configure node message
- */
-static void nss_ipsecmgr_dev_configure(struct work_struct *work)
-{
-	enum nss_ipsec_error_type resp = NSS_IPSEC_ERROR_TYPE_NONE;
-	uint32_t data_ifnum = ipsecmgr_drv->data_ifnum;
-	struct nss_ipsec_configure_node *cfg_node;
-	struct nss_ipsec_msg nim = {0};
-	nss_tx_status_t status;
-	uint32_t vsi_num = 0;
-
-	/*
-	 * By making sure that cryptoapi is registered,
-	 * we are confirming that IPsec FW is initialized
-	 * and ready to be configured.
-	 */
-	if (!nss_cryptoapi_is_registered()) {
-		schedule_delayed_work(&ipsecmgr_drv->cfg_work, NSS_IPSECMGR_CONFIGURE_NODE_RETRY_TIMEOUT);
-		return;
-	}
-
-	cfg_node = &nim.msg.node;
-	cfg_node->dma_lookaside = true;
-	cfg_node->dma_redirect = ipsecmgr_drv->ipsec_inline;
-
-	/*
-	 * Send DMA IPsec message to initialize the DMA rings.
-	 */
-	status = nss_ipsec_tx_msg_sync(ipsecmgr_drv->nss_ctx,
-					data_ifnum,
-					NSS_IPSEC_MSG_TYPE_CONFIGURE_NODE,
-					sizeof(*cfg_node),
-					&nim,
-					&resp);
-
-	if (status != NSS_TX_SUCCESS) {
-		nss_ipsecmgr_trace("%p: Failed to send message to NSS(%u)", ipsecmgr_drv, status);
-		schedule_delayed_work(&ipsecmgr_drv->cfg_work, NSS_IPSECMGR_CONFIGURE_NODE_RETRY_TIMEOUT);
-		return;
-	}
-
-	/*
-	 * Program PPE for inline mode; if inline is enabled.
-	 * TODO: Need to update with ipsec device's MTU and
-	 * keep the max MTU across tunnels as the MTU.
-	 */
-	if (ipsecmgr_drv->ipsec_inline) {
-#ifdef NSS_IPSECMGR_PPE_SUPPORT
-		/*
-		 * Get port's default VSI.
-		 */
-		if (ppe_port_vsi_get(0, NSS_PPE_PORT_IPSEC, &vsi_num)) {
-			nss_ipsecmgr_warn("%p: Failed to get port VSI", ipsecmgr_drv);
-			ipsecmgr_drv->ipsec_inline = false;
-			return;
-		}
-
-		/*
-		 * Configure PPE's inline port
-		 */
-		if (!nss_ipsec_ppe_port_config(ipsecmgr_drv->nss_ctx, ipsecmgr_drv->dev, data_ifnum, vsi_num)) {
-			nss_ipsecmgr_warn("%p: Failed to configure PPE inline mode", ipsecmgr_drv);
-			ipsecmgr_drv->ipsec_inline = false;
-			return;
-		}
-#endif
-	}
-
-	nss_ipsecmgr_trace("%p: Configure node msg successful", ipsecmgr_drv);
-	return;
 }
 
 /*
@@ -1047,169 +856,3 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 	return dev;
 }
 EXPORT_SYMBOL(nss_ipsecmgr_tunnel_add);
-
-/*
- * nss_ipsecmgr_dev_init()
- *	module init
- */
-static int __init nss_ipsecmgr_dev_init(void)
-{
-	struct nss_ipsecmgr_priv *priv;
-	struct net_device *dev;
-	uint32_t features = 0;
-	int status;
-
-	ipsecmgr_drv = vzalloc(sizeof(*ipsecmgr_drv));
-	if (!ipsecmgr_drv) {
-		nss_ipsecmgr_warn("Failed to allocate IPsec manager context");
-		return -1;
-	}
-
-	ipsecmgr_drv->nss_ctx = nss_ipsec_get_context();
-	if (!ipsecmgr_drv->nss_ctx) {
-		nss_ipsecmgr_warn("%p: Failed to retrieve NSS context", ipsecmgr_drv);
-		goto free;
-	}
-
-#ifdef NSS_IPSECMGR_PPE_SUPPORT
-	ipsecmgr_drv->ipsec_inline = enable_ipsec_inline;
-#endif
-
-	dev = alloc_netdev(sizeof(*priv), NSS_IPSECMGR_DEFAULT_TUN_NAME, NET_NAME_UNKNOWN, nss_ipsecmgr_dev_dummy_setup);
-	if (!dev) {
-		nss_ipsecmgr_warn("%p: Failed to allocate dummy netdevice", ipsecmgr_drv);
-		goto free;
-	}
-
-	priv = netdev_priv(dev);
-	priv->dev = dev;
-	INIT_LIST_HEAD(&priv->list);
-
-	dev->netdev_ops = &nss_ipsecmgr_dummy_ndev_ops;
-
-	status = register_netdev(dev);
-	if (status) {
-		nss_ipsecmgr_info("%p: Failed to register dummy netdevice(%p)", ipsecmgr_drv, dev);
-		goto netdev_free;
-	}
-
-	ipsecmgr_drv->dev = dev;
-	ipsecmgr_drv->data_ifnum = nss_ipsec_get_data_interface();
-	ipsecmgr_drv->encap_ifnum = nss_ipsec_get_encap_interface();
-	ipsecmgr_drv->decap_ifnum = nss_ipsec_get_decap_interface();
-
-	rwlock_init(&ipsecmgr_drv->lock);
-	nss_ipsecmgr_init_sa_db(ipsecmgr_drv->sa_db);
-	nss_ipsecmgr_init_flow_db(ipsecmgr_drv->flow_db);
-	nss_ipsecmgr_init_tun_db(&ipsecmgr_drv->tun_db);
-
-	nss_ipsec_data_register(ipsecmgr_drv->data_ifnum, nss_ipsecmgr_dev_rx, ipsecmgr_drv->dev, features);
-	nss_ipsec_notify_register(ipsecmgr_drv->encap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
-	nss_ipsec_notify_register(ipsecmgr_drv->decap_ifnum, nss_ipsecmgr_dev_rx_notify, ipsecmgr_drv);
-
-	INIT_DELAYED_WORK(&ipsecmgr_drv->cfg_work, nss_ipsecmgr_dev_configure);
-
-	/*
-	 * Initialize debugfs.
-	 */
-	ipsecmgr_drv->dentry = debugfs_create_dir("qca-nss-ipsecmgr", NULL);
-	if (!ipsecmgr_drv->dentry) {
-		nss_ipsecmgr_warn("%p: Failed to create root debugfs entry", ipsecmgr_drv);
-		goto unregister_dev;
-
-	}
-
-	/*
-	 * Adding node stats debugfs entry.
-	 */
-	if (!debugfs_create_file("node", S_IRUGO, ipsecmgr_drv->dentry, NULL, &node_stats_op)) {
-		nss_ipsecmgr_warn("%p: Failed to create node stats debugfs entry", ipsecmgr_drv);
-		goto unregister_dev;
-	}
-
-	/*
-	 * Configure inline mode and the DMA rings.
-	 */
-	nss_ipsecmgr_dev_configure(&ipsecmgr_drv->cfg_work.work);
-
-	write_lock(&ipsecmgr_drv->lock);
-	list_add(&priv->list, &ipsecmgr_drv->tun_db);
-
-	ipsecmgr_drv->max_mtu = dev->mtu;
-	write_unlock(&ipsecmgr_drv->lock);
-
-	nss_ipsecmgr_info("NSS IPsec manager loaded: %s\n", NSS_CLIENT_BUILD_ID);
-	return 0;
-
-unregister_dev:
-	unregister_netdev(ipsecmgr_drv->dev);
-
-netdev_free:
-	free_netdev(ipsecmgr_drv->dev);
-
-free:
-	vfree(ipsecmgr_drv);
-	ipsecmgr_drv = NULL;
-
-	return -1;
-}
-
-/*
- * nss_ipsecmgr_dev_exit()
- *	module exit
- */
-static void __exit nss_ipsecmgr_dev_exit(void)
-{
-	struct nss_ipsecmgr_priv *priv;
-
-	if (!ipsecmgr_drv) {
-		nss_ipsecmgr_warn("IPsec manager driver context empty");
-		return;
-	}
-
-	if (!ipsecmgr_drv->nss_ctx) {
-		nss_ipsecmgr_warn("%p: NSS Context empty", ipsecmgr_drv);
-		goto free;
-	}
-
-	priv = netdev_priv(ipsecmgr_drv->dev);
-
-	write_lock(&ipsecmgr_drv->lock);
-	list_del(&priv->list);
-
-	ipsecmgr_drv->max_mtu = U16_MAX;
-	write_unlock(&ipsecmgr_drv->lock);
-
-	BUG_ON(!list_empty(&ipsecmgr_drv->tun_db));
-
-	/*
-	 * Unregister the callbacks from the HLOS as we are no longer
-	 * interested in exception data & async messages
-	 */
-	nss_ipsec_data_unregister(ipsecmgr_drv->nss_ctx, ipsecmgr_drv->data_ifnum);
-
-	nss_ipsec_notify_unregister(ipsecmgr_drv->nss_ctx, ipsecmgr_drv->encap_ifnum);
-	nss_ipsec_notify_unregister(ipsecmgr_drv->nss_ctx, ipsecmgr_drv->decap_ifnum);
-
-	unregister_netdev(ipsecmgr_drv->dev);
-
-	/*
-	 * Remove debugfs directory and entries below that.
-	 */
-	debugfs_remove_recursive(ipsecmgr_drv->dentry);
-
-free:
-	/*
-	 * Free the ipsecmgr ctx
-	 */
-	vfree(ipsecmgr_drv);
-	ipsecmgr_drv = NULL;
-
-	nss_ipsecmgr_info("NSS IPsec manager unloaded\n");
-
-}
-
-MODULE_LICENSE("Dual BSD/GPL");
-
-module_init(nss_ipsecmgr_dev_init);
-module_exit(nss_ipsecmgr_dev_exit);

@@ -21,8 +21,7 @@
 
 #include <net/ipv6.h>
 #include <nss_api_if.h>
-#include <nss_ipsec.h>
-#include <nss_ipsecmgr.h>
+#include "nss_ipsecmgr_tunnel.h"
 
 #define NSS_IPSECMGR_DEBUG_LVL_ERROR 1		/**< Turn on debug for an error. */
 #define NSS_IPSECMGR_DEBUG_LVL_WARN 2		/**< Turn on debug for a warning. */
@@ -77,128 +76,9 @@
 
 #define NSS_IPSECMGR_NODE_STATS_SZ 512
 
-#define NSS_IPSECMGR_SA_STATS_SZ 512
-#define NSS_IPSECMGR_SA_STATS_BUF_SZ 2048
-#define NSS_IPSECMGR_SA_FREE_TIMEOUT msecs_to_jiffies(100) /* msecs */
-
-#define NSS_IPSECMGR_FLOW_MAX 256 /* Max flows */
-#if (~(NSS_IPSECMGR_FLOW_MAX - 1) & (NSS_IPSECMGR_FLOW_MAX >> 1))
-#error "NSS_IPSECMGR_FLOW_MAX is not a power of 2"
-#endif
-
-#define NSS_IPSECMGR_FLOW_RETRY_TIMEOUT msecs_to_jiffies(500) /* msecs */
-#define NSS_IPSECMGR_CONFIGURE_NODE_RETRY_TIMEOUT msecs_to_jiffies(500) /* msecs */
-
 #define NSS_IPSECMGR_DEFAULT_TUN_NAME "ipsecdummy"
 #define NSS_IPSECMGR_ESP_TRAIL_SZ 2 /* esp trailer size */
 #define NSS_IPSECMGR_ESP_PAD_SZ 14 /* maximum amount of padding */
-
-struct nss_ipsecmgr_ref;
-struct nss_ipsecmgr_priv;
-
-typedef void (*nss_ipsecmgr_ref_method_t)(struct nss_ipsecmgr_ref *ref);
-
-/*
- * nss_ipsecmgr_flow_state
- */
-enum nss_ipsecmgr_flow_state {
-	NSS_IPSECMGR_FLOW_STATE_INIT = 0,	/* Flow is initialized */
-	NSS_IPSECMGR_FLOW_STATE_PENDING,	/* Flow is pending registration */
-	NSS_IPSECMGR_FLOW_STATE_ACTIVE,		/* Flow is registered in NSS */
-	NSS_IPSECMGR_FLOW_STATE_MAX
-};
-
-/*
- * IPsec manager reference object
- */
-struct nss_ipsecmgr_ref {
-	struct list_head head;			/* parent "ref" */
-	struct list_head node;			/* child "ref" */
-
-	uint32_t id;				/* identifier */
-	struct nss_ipsecmgr_ref *parent;	/* reference to parent */
-
-	nss_ipsecmgr_ref_method_t free;		/* free function */
-};
-
-/*
- * IPsec manager flow entry
- */
-struct nss_ipsecmgr_flow_entry {
-	struct list_head list;			/* List object. */
-	struct nss_ipsecmgr_ref ref;		/* Reference object. */
-	struct nss_ipsec_tuple tuple;		/* Associated inner flow tuple. */
-	struct delayed_work retry_work;		/* Retry work */
-
-	struct nss_ipsecmgr_flow_outer outer;	/* Associate outer flow. */
-
-	int tunnel_id;				/* Associate IPsec tunnel */
-	struct nss_ipsec_msg nim;		/* IPsec message. */
-	atomic_t state;				/* Flow state */
-};
-
-/*
- * IPsec manager packets stats per SA
- */
-struct nss_ipsecmgr_sa_stats_priv {
-	/* Packet counters */
-	uint64_t count;				/* Packets processed */
-	uint64_t bytes;				/* Bytes processed */
-
-	/* Drop counters */
-	uint64_t no_headroom;			/* no headroom */
-	uint64_t no_tailroom;			/* no tailroom */
-	uint64_t no_buf;			/* no resource in NSS */
-	uint64_t fail_queue;			/* Enqueue to nexthop failed */
-	uint64_t fail_hash;			/* Hash check failed */
-	uint64_t fail_replay;			/* Replay check failed */
-	uint64_t fail_hash_cont;		/* Continous fail hash count */
-
-	/* SA state */
-	uint64_t seq_num;			/* Current sequence no. */
-	uint64_t window_max;			/* Maximum window size supported */
-	uint32_t window_size;			/* Current window size */
-};
-
-/*
- * IPsec manager SA entry
- */
-struct nss_ipsecmgr_sa_entry {
-	struct list_head list;			/* List node */
-	struct nss_ipsecmgr_ref ref;		/* Reference node */
-	struct nss_ipsec_tuple tuple;		/* SA tuple */
-
-	struct delayed_work free_work;		/* Delayed free work */
-	unsigned long free_timeout;		/* Delayed free timeout */
-
-	struct crypto_aead *aead;		/* Linux crypto AEAD context */
-	struct crypto_ahash *ahash;		/* Linux crypto AHASH context */
-
-	struct nss_ipsecmgr_flow_outer outer;	/* Flow outer representing SA */
-
-	struct nss_ipsec_rule_oip oip;		/* Outer IP information */
-	struct nss_ipsec_rule_data data;	/* SA data */
-
-	struct nss_ipsecmgr_priv *priv;		/* Device private */
-
-	struct nss_ipsecmgr_sa_stats_priv stats;/* Per SA  statistics */
-	struct dentry *dentry;			/* Debugfs entry per stats dir */
-
-	enum nss_ipsec_type type;		/* ENCAP or DECAP type */
-	uint32_t replay_fail_thresh;		/* Replay failure threshold */
-	uint16_t if_num;			/* Associated interface number */
-};
-
-/*
- * IPsec manager private context
- */
-struct nss_ipsecmgr_priv {
-	struct list_head list;			/* List node */
-	struct net_device *dev;			/* back pointer to tunnel device */
-	struct nss_ipsecmgr_ref ref;		/* SA objects under the tunnel */
-	struct nss_ipsecmgr_callback cb;	/* Callback entry */
-	struct rtnl_link_stats64 stats;		/* stats of IPsec tunnel */
-};
 
 /*
  * IPsec manager drv instance
@@ -223,52 +103,6 @@ struct nss_ipsecmgr_drv {
 
 	struct nss_ipsecmgr_node_stats node_stats;	/* Node stats */
 };
-
-/*
- * nss_ipsecmgr_init_tun_db()
- *	Initialize the tunnel databases
- */
-static inline void nss_ipsecmgr_init_tun_db(struct list_head *db)
-{
-	struct list_head *head = db;
-
-	/*
-	 * initialize the tunnel database
-	 */
-	INIT_LIST_HEAD(head);
-}
-
-/*
- * nss_ipsecmgr_init_flow_db()
- *	Initialize the flow databases
- */
-static inline void nss_ipsecmgr_init_flow_db(struct list_head *db)
-{
-	struct list_head *head = db;
-	int i;
-
-	/*
-	 * initialize the flow database
-	 */
-	for (i = 0; i < NSS_IPSECMGR_FLOW_MAX; i++, head++)
-		INIT_LIST_HEAD(head);
-}
-
-/*
- * nss_ipsecmgr_init_sa_db()
- * 	initialize the SA database
- */
-static inline void nss_ipsecmgr_init_sa_db(struct list_head *db)
-{
-	struct list_head *head = db;
-	int i;
-
-	/*
-	 * initialize the SA database
-	 */
-	for (i = 0; i < NSS_IPSECMGR_SA_MAX; i++, head++)
-		INIT_LIST_HEAD(head);
-}
 
 /*
  * nss_ipsecmgr_tuple2index()
@@ -353,25 +187,4 @@ static inline void nss_ipsecmgr_hton_v6addr(uint32_t *dest, uint32_t *src)
 	dest[0] = htonl(src[3]);
 }
 
-/* functions to operate on reference object */
-extern void nss_ipsecmgr_ref_add(struct nss_ipsecmgr_ref *child, struct nss_ipsecmgr_ref *parent);
-extern void nss_ipsecmgr_ref_free(struct nss_ipsecmgr_ref *ref);
-extern void nss_ipsecmgr_ref_init(struct nss_ipsecmgr_ref *ref, nss_ipsecmgr_ref_method_t free);
-
-/* functions to operate on flow object */
-extern void nss_ipsecmgr_flow_inner2tuple(struct nss_ipsecmgr_flow_inner *inner, struct nss_ipsec_tuple *tuple);
-extern void nss_ipsecmgr_flow_outer2tuple(struct nss_ipsecmgr_flow_outer *outer, struct nss_ipsec_tuple *tuple);
-extern struct nss_ipsecmgr_flow_entry *nss_ipsecmgr_flow_lookup(struct list_head *db, struct nss_ipsec_tuple *tp);
-extern nss_ipsecmgr_status_t nss_ipsecmgr_flow_alloc(struct nss_ipsecmgr_priv *priv, struct nss_ipsec_tuple *tp,
-							struct nss_ipsecmgr_sa_entry *sa);
-
-/* functions to operate on SA object */
-extern struct nss_ipsecmgr_sa_entry *nss_ipsecmgr_sa_lookup(struct list_head *db, struct nss_ipsec_tuple *tp);
-void nss_ipsecmgr_sa_update_stats(struct nss_ipsecmgr_sa_entry *sa, struct nss_ipsec_sa_stats *stats,
-					struct nss_ipsecmgr_event *ev);
-
-/* function to operate on exception data */
-extern void nss_ipsecmgr_tunnel_rx_notify(void *app_data, struct nss_ipsec_msg *nim);
-extern void nss_ipsecmgr_tunnel_rx(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi);
-extern ssize_t nss_ipsecmgr_tunnel_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos);
 #endif

@@ -322,7 +322,7 @@ static void nss_capwapmgr_msg_event_receive(void *app_data, struct nss_capwap_ms
 	struct nss_capwapmgr_priv *priv;
 	uint32_t if_num;
 
-	if (ncm->response == NSS_CMM_RESPONSE_NOTIFY) {
+	if (ncm->response == NSS_CMN_RESPONSE_NOTIFY) {
 		return;
 	}
 
@@ -355,7 +355,7 @@ static void nss_capwapmgr_msg_event_receive(void *app_data, struct nss_capwap_ms
  */
 static void nss_capwapmgr_ip_common_handler(struct nss_cmn_msg *ncm)
 {
-	if (ncm->response == NSS_CMM_RESPONSE_NOTIFY) {
+	if (ncm->response == NSS_CMN_RESPONSE_NOTIFY) {
 		return;
 	}
 

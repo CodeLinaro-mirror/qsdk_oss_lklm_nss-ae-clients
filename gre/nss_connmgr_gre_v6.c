@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -122,9 +122,10 @@ static int nss_connmgr_gre_v6_get_mac_address(uint8_t *src_ip, uint8_t *dest_ip,
 }
 
 /*
- * nss_connmgr_gre_v6_exception()
+ * nss_connmgr_gre_tap_v6_exception()
+ * 	Handle IPv6 exception for GRETAP
  */
-void nss_connmgr_gre_v6_exception(struct net_device *dev, struct sk_buff *skb)
+void nss_connmgr_gre_tap_v6_exception(struct net_device *dev, struct sk_buff *skb)
 {
 	struct ethhdr *eth = (struct ethhdr *)skb->data;
 	struct ipv6hdr *ip6h = (struct ipv6hdr *)(eth + 1);
@@ -149,6 +150,10 @@ void nss_connmgr_gre_v6_exception(struct net_device *dev, struct sk_buff *skb)
 		dev_kfree_skb_any(skb);
 		return;
 	}
+
+	/*
+	 * TODO: Support parsing GRE options
+	 */
 	skb_pull(skb, (sizeof(struct ethhdr) + sizeof(struct ipv6hdr)
 				+ sizeof(struct gre_base_hdr)));
 
@@ -162,6 +167,68 @@ void nss_connmgr_gre_v6_exception(struct net_device *dev, struct sk_buff *skb)
 		skb->protocol = eth->h_proto;
 	} else {
 		skb->protocol = htons(ETH_P_802_2);
+	}
+	skb_reset_mac_header(skb);
+	skb_reset_network_header(skb);
+	skb_reset_transport_header(skb);
+	skb_reset_mac_len(skb);
+	dev_queue_xmit(skb);
+}
+
+/*
+ * nss_connmgr_gre_tun_v6_exception()
+ * 	Handle IPv6 exception for GRETUN
+ */
+void nss_connmgr_gre_tun_v6_exception(struct net_device *dev, struct sk_buff *skb)
+{
+	struct ipv6hdr *ip6h_outer = (struct ipv6hdr *)skb->data;
+	struct ipv6hdr *ip6h_inner;
+
+	if (ip6h_outer->nexthdr != IPPROTO_GRE) {
+		/*
+		 * These are decapped IP packets.
+		 */
+		if (ip6h_outer->version == 4) {
+			skb->protocol = htons(ETH_P_IP);
+		} else if (ip6h_outer->version == 6){
+			skb->protocol = htons(ETH_P_IPV6);
+		} else {
+			nss_connmgr_gre_info("%p: wrong IP version in GRE decapped packet. skb: %p\n", dev, skb);
+			dev_kfree_skb_any(skb);
+			return;
+		}
+		skb->pkt_type = PACKET_HOST;
+		skb->dev = dev;
+
+		netif_receive_skb(skb);
+		return;
+	}
+
+	/*
+	 * GRE encapsulated packet exceptioned, remove the encapsulation
+	 * and transmit on GRE interface.
+	 */
+	if (unlikely(!pskb_may_pull(skb, sizeof(struct ipv6hdr) + sizeof(struct gre_base_hdr)))) {
+		nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
+	/*
+	 * TODO: Support parsing GRE options
+	 */
+	skb_pull(skb, sizeof(struct ipv6hdr) + sizeof(struct gre_base_hdr));
+
+	ip6h_inner = (struct ipv6hdr *)skb->data;
+	skb->dev = dev;
+	if (ip6h_inner->version == 4) {
+		skb->protocol = htons(ETH_P_IP);
+	} else if (ip6h_inner->version == 6){
+		skb->protocol = htons(ETH_P_IPV6);
+	} else {
+		nss_connmgr_gre_info("%p: wrong IP version in GRE encapped packet. skb: %p\n", dev, skb);
+		dev_kfree_skb_any(skb);
+		return;
 	}
 	skb_reset_mac_header(skb);
 	skb_reset_network_header(skb);

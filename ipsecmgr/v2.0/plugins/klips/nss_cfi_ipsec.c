@@ -43,6 +43,7 @@
 #include <nss_ipsec.h>
 #include <nss_cfi_if.h>
 #include <nss_ipsecmgr.h>
+#include <ecm_interface_ipsec.h>
 
 #define NSS_CFI_IPSEC_BASE_NAME "ipsec"
 #define NSS_CFI_IPSEC_TUNNEL_MAX 8
@@ -727,6 +728,83 @@ sa_free:
 }
 
 /*
+ * nss_cfi_ipsec_get_tunnel()
+ *	Get ipsecmgr tunnel netdevice for klips netdevice
+ */
+static struct net_device *nss_cfi_ipsec_get_tunnel(struct net_device *klips_dev, struct sk_buff *skb, int32_t *type)
+{
+	struct nss_cfi_ipsec_tunnel_entry *tun;
+	int tun_dev_index = -1;
+	int i;
+
+	write_lock_bh(&tunnel_map.lock);
+
+	for (i = 0, tun = tunnel_map.tbl; i < tunnel_map.max; i++, tun++) {
+		if ((tun->nss_dev_index < 0) || (tun->klips_dev_index < 0))
+			continue;
+
+		if (klips_dev->ifindex == tun->klips_dev_index) {
+			tun_dev_index = tun->nss_dev_index;
+			break;
+		}
+
+	}
+	write_unlock_bh(&tunnel_map.lock);
+
+	if (tun_dev_index < 0) {
+		nss_cfi_warn("%p: could not map find ipsecmgr tunnel for klips device\n", klips_dev);
+		return NULL;
+	}
+
+	switch (ip_hdr(skb)->version) {
+	case 4: {
+		struct iphdr *iph = ip_hdr(skb);
+		uint16_t natt_port = ntohs(NSS_IPSECMGR_NATT_PORT_DATA);
+
+		/*
+		 * Protocol is ESP, type is OUTER
+		 */
+		if (iph->protocol == IPPROTO_ESP) {
+			*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_OUTER;
+			break;
+		}
+
+		skb_set_transport_header(skb, sizeof(*iph));
+		if ((iph->protocol == IPPROTO_UDP) && (udp_hdr(skb)->dest == natt_port)) {
+			*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_OUTER;
+			break;
+		}
+
+		*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_INNER;
+		break;
+	}
+	case 6: {
+		struct ipv6hdr *ip6h = ipv6_hdr(skb);
+
+		/*
+		 * Protocol is ESP, type is OUTER
+		 */
+		if (ip6h->nexthdr == IPPROTO_ESP) {
+			*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_OUTER;
+			break;
+		}
+
+		/*
+		 * All other case it is Inner
+		 */
+		*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_INNER;
+		break;
+	}
+
+	default:
+		nss_cfi_warn("%p: Packet is not IPv4 or IPv6. version=%d\n", klips_dev, ip_hdr(skb)->version);
+		return NULL;
+	}
+
+	return dev_get_by_index(&init_net, tun_dev_index);
+}
+
+/*
  * nss_cfi_ipsec_dev_event()
  *	notifier function for IPsec device events.
  */
@@ -876,6 +954,10 @@ static struct notifier_block nss_cfi_ipsec_notifier = {
 	.notifier_call = nss_cfi_ipsec_dev_event,
 };
 
+static struct ecm_interface_ipsec_callback nss_cfi_ipsec_ecm =  {
+	.tunnel_get_and_hold = nss_cfi_ipsec_get_tunnel
+};
+
 /*
  * nss_cfi_ipsec_init_module()
  *	Initialize IPsec rule tables and register various callbacks
@@ -907,6 +989,7 @@ int __init nss_cfi_ipsec_init_module(void)
 	register_netdevice_notifier(&nss_cfi_ipsec_notifier);
 	nss_cfi_ocf_register_ipsec(nss_cfi_ipsec_trap_encap, nss_cfi_ipsec_trap_decap, nss_cfi_ipsec_free_session);
 
+	ecm_interface_ipsec_register_callbacks(&nss_cfi_ipsec_ecm);
 	return 0;
 }
 
@@ -924,6 +1007,9 @@ void __exit nss_cfi_ipsec_exit_module(void)
 	 * Detach the trap handlers and Linux NETDEV notifiers, before
 	 * unwinding the tunnels
 	 */
+
+	ecm_interface_ipsec_unregister_callbacks();
+
 	nss_cfi_ocf_unregister_ipsec();
 	unregister_netdevice_notifier(&nss_cfi_ipsec_notifier);
 

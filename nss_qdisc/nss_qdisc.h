@@ -127,8 +127,10 @@
 #define NSS_QDISC_MODE_NSS 0x6243
 #define NSS_QDISC_MODE_PPE 0x6245
 
-typedef void (*nss_qdisc_stats_callback_t)(void *, struct nss_shaper_node_stats_response *);
-typedef void (*nss_qdisc_configure_callback_t)(struct nss_qdisc *, struct nss_shaper_configure *);
+struct nss_qdisc;
+
+typedef void (*nss_qdisc_stats_callback_t)(struct nss_qdisc *nq, struct nss_shaper_node_stats_response *response);
+typedef void (*nss_qdisc_configure_callback_t)(struct nss_qdisc *nq, struct nss_shaper_configure *response);
 
 struct nss_qdisc {
 	struct Qdisc *qdisc;			/* Handy pointer back to containing qdisc */

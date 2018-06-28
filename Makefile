@@ -26,6 +26,7 @@ obj-$(tunipip6)+= qca-nss-tunipip6.o
 obj-$(tun6rd)+= qca-nss-tun6rd.o
 obj-$(qdisc)+= nss_qdisc/
 obj-$(vlan-mgr)+= vlan/
+obj-$(pppoe)+= pppoe/
 
 #NSS NETLINK
 ifneq ($(findstring 3.4, $(KERNELVERSION)),)

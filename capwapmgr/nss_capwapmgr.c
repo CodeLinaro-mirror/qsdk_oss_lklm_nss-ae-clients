@@ -781,10 +781,10 @@ static nss_tx_status_t nss_capwapmgr_create_ipv4_rule(void *ctx, struct nss_ipv4
 	/*
 	 * Copy over the pppoe rules and set the PPPOE_VALID flag.
 	 */
-	nircm->pppoe_rule.flow_pppoe_session_id = unic->flow_pppoe_session_id;
-	memcpy(nircm->pppoe_rule.flow_pppoe_remote_mac, unic->flow_pppoe_remote_mac, ETH_ALEN);
-	nircm->pppoe_rule.return_pppoe_session_id = unic->return_pppoe_session_id;
-	memcpy(nircm->pppoe_rule.return_pppoe_remote_mac, unic->return_pppoe_remote_mac, ETH_ALEN);
+	nircm->pppoe_rule.flow_if_exist = unic->flow_pppoe_if_exist;
+	nircm->pppoe_rule.flow_if_num = unic->flow_pppoe_if_num;
+	nircm->pppoe_rule.return_if_exist = unic->return_pppoe_if_exist;
+	nircm->pppoe_rule.return_if_num = unic->return_pppoe_if_num;
 	nircm->valid_flags |= NSS_IPV4_RULE_CREATE_PPPOE_VALID;
 
 	/*
@@ -911,10 +911,10 @@ static nss_tx_status_t nss_capwapmgr_create_ipv6_rule(void *ctx, struct nss_ipv6
 	/*
 	 * Copy over the pppoe rules and set PPPOE_VALID flag
 	 */
-	nircm->pppoe_rule.flow_pppoe_session_id = unic->flow_pppoe_session_id;
-	memcpy(nircm->pppoe_rule.flow_pppoe_remote_mac, unic->flow_pppoe_remote_mac, ETH_ALEN);
-	nircm->pppoe_rule.return_pppoe_session_id = unic->return_pppoe_session_id;
-	memcpy(nircm->pppoe_rule.return_pppoe_remote_mac, unic->return_pppoe_remote_mac, ETH_ALEN);
+	nircm->pppoe_rule.flow_if_exist = unic->flow_pppoe_if_exist;
+	nircm->pppoe_rule.flow_if_num = unic->flow_pppoe_if_num;
+	nircm->pppoe_rule.return_if_exist = unic->return_pppoe_if_exist;
+	nircm->pppoe_rule.return_if_num = unic->return_pppoe_if_num;
 	nircm->valid_flags |= NSS_IPV6_RULE_CREATE_PPPOE_VALID;
 
 	/*
@@ -1857,7 +1857,7 @@ static nss_capwapmgr_status_t nss_capwapmgr_tunnel_create_common(struct net_devi
 			type_flags |= NSS_CAPWAP_RULE_CREATE_VLAN_CONFIGURED;
 		}
 
-		if (v4->flow_pppoe_session_id) {
+		if (v4->flow_pppoe_if_exist) {
 			type_flags |= NSS_CAPWAP_RULE_CREATE_PPPOE_CONFIGURED;
 		}
 	} else {
@@ -1865,7 +1865,7 @@ static nss_capwapmgr_status_t nss_capwapmgr_tunnel_create_common(struct net_devi
 			type_flags |= NSS_CAPWAP_RULE_CREATE_VLAN_CONFIGURED;
 		}
 
-		if (v6->flow_pppoe_session_id) {
+		if (v6->flow_pppoe_if_exist) {
 			type_flags |= NSS_CAPWAP_RULE_CREATE_PPPOE_CONFIGURED;
 		}
 	}

@@ -13,6 +13,7 @@
  * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  **************************************************************************
  */
+#include <linux/version.h>
 #include <linux/types.h>
 #include <linux/ip.h>
 #include <linux/of.h>
@@ -31,6 +32,7 @@
 #include <crypto/aead.h>
 #include <crypto/internal/hash.h>
 #include <crypto/authenc.h>
+#include <crypto/skcipher.h>
 
 #include <nss_api_if.h>
 #include <nss_ipsec.h>

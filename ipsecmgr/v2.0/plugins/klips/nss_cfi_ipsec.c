@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -64,7 +64,7 @@ struct nss_cfi_ipsec_skb_cb {
 struct nss_cfi_ipsec_sa {
 	struct list_head list;
 	uint32_t sid;
-	struct nss_ipsecmgr_flow_outer outer;
+	struct nss_ipsecmgr_sa_tuple outer;
 };
 
 /*
@@ -103,7 +103,7 @@ static struct nss_cfi_ipsec_tunnel tunnel_map;	/* per tunnel device table */
  * nss_cfi_ipsec_v6addr_ntoh()
  *	Network to host order
  */
-static void nss_cfi_ipsec_v6addr_ntoh(uint32_t *dest, uint32_t *src)
+static inline void nss_cfi_ipsec_v6addr_ntoh(uint32_t *dest, uint32_t *src)
 {
 	dest[0] = ntohl(src[0]);
 	dest[1] = ntohl(src[1]);
@@ -321,90 +321,150 @@ static int32_t nss_cfi_ipsec_free_session(uint32_t crypto_sid)
 }
 
 /*
- * nss_cfi_ipsec_fill_outer_flow_v4()
- *	Fill v4 outer flow from skb.
+ * nss_cfi_ipsec_outer2sa_tuple()
+ *	Fill sa_tuple from outer header and return start of payload
  */
-static void *nss_cfi_ipsec_fill_flow_outer(uint8_t *ip_start, uint8_t iv_len, bool natt,
-						struct nss_ipsecmgr_flow_outer *outer,
-						uint8_t *ttl_hop_limit)
+static void *nss_cfi_ipsec_outer2sa_tuple(uint8_t *outer, bool natt, struct nss_ipsecmgr_sa_tuple *tuple, uint8_t *ttl, bool decap)
 {
-	struct iphdr *iph = (struct iphdr *)ip_start;
-	struct ipv6hdr *ip6h = (struct ipv6hdr *)ip_start;
-	struct ip_esp_hdr *esp;
+	struct ipv6hdr *ip6h = (struct ipv6hdr *)outer;
+	struct iphdr *ip4h = (struct iphdr *)outer;
+	struct ip_esp_hdr *esph;
 
-	/*
-	 * KLIPS only sends packets with ESP header for encapsulation.
-	 * For decapsulation, the NATT/UDP can still be present.
-	 * Note: The NATT/UDP header is added after encrypt.
-	 */
-	if (iph->version == IPVERSION) {
-		uint8_t *esp_start = ip_start + sizeof(*iph);
-		esp_start += natt ? sizeof(struct udphdr) : 0;
-		esp = (struct ip_esp_hdr *)esp_start;
+	memset(tuple, 0, sizeof(*tuple));
 
-		outer->src_ip[0] = ntohl(iph->saddr);
-		outer->dest_ip[0] = ntohl(iph->daddr);
-		outer->spi_index = ntohl(esp->spi);
-		outer->ip_version = IPVERSION;
-		*ttl_hop_limit = iph->ttl;
+	if (ip4h->version == IPVERSION) {
+		outer += sizeof(*ip4h);
 
-		return (uint8_t *)esp + sizeof(*esp) + iv_len;
+		tuple->src_ip[0] = ntohl(ip4h->saddr);
+		tuple->dest_ip[0] = ntohl(ip4h->daddr);
+		tuple->protocol = ip4h->protocol;
+		tuple->ip_ver = IPVERSION;
+		*ttl = ip4h->ttl;
+
+		/*
+		 * TODO: NAT-T ports can be programmable; Add
+		 * support for loading programmed ports by user
+		 */
+		if (natt) {
+			tuple->src_port = NSS_IPSECMGR_NATT_PORT_DATA;
+			tuple->dest_port = NSS_IPSECMGR_NATT_PORT_DATA;
+			tuple->protocol = IPPROTO_UDP;
+
+			/*
+			 * TODO: Find out why we need decap flag
+			 */
+			outer += decap ? sizeof(struct udphdr) : 0;
+		}
+
+		esph = (struct ip_esp_hdr *)outer;
+		tuple->spi_index = ntohl(esph->spi);
+
+		return outer + sizeof(*esph);
 	}
 
-	if ((iph->version == 6) && (ip6h->nexthdr == IPPROTO_ESP)) {
-		nss_cfi_ipsec_v6addr_ntoh(outer->src_ip, ip6h->saddr.s6_addr32);
-		nss_cfi_ipsec_v6addr_ntoh(outer->dest_ip, ip6h->daddr.s6_addr32);
+	BUG_ON(ip6h->version != 6);
+	BUG_ON(ip6h->nexthdr != IPPROTO_ESP);
 
-		esp = (struct ip_esp_hdr *)(ip_start + sizeof(*ip6h));
-		outer->spi_index = ntohl(esp->spi);
-		outer->ip_version = 6;
-		*ttl_hop_limit = ip6h->hop_limit;
+	outer += sizeof(*ip6h);
+	esph = (struct ip_esp_hdr *)outer;
+	nss_cfi_ipsec_v6addr_ntoh(tuple->src_ip, ip6h->saddr.s6_addr32);
+	nss_cfi_ipsec_v6addr_ntoh(tuple->dest_ip, ip6h->daddr.s6_addr32);
 
-		return ip_start + sizeof(*ip6h) + sizeof(*esp) + iv_len;
-	}
+	tuple->spi_index = ntohl(esph->spi);
+	tuple->protocol = IPPROTO_ESP;
+	*ttl = ip6h->hop_limit;
+	tuple->ip_ver = 6;
 
-	return NULL;
+	return outer + sizeof(*esph);
 }
 
 /*
- * nss_cfi_ipsec_fill_flow_inner()
+ * nss_cfi_ipsec_outer2flow_tuple()
  *	Fill inner flow
  */
-static bool nss_cfi_ipsec_fill_flow_inner(uint8_t *inner_ip, struct nss_ipsecmgr_flow_inner *inner)
+static bool nss_cfi_ipsec_outer2flow_tuple(uint8_t *outer, bool natt, struct nss_ipsecmgr_flow_tuple *tuple)
 {
-	struct iphdr *iph = (struct iphdr *)inner_ip;
-	struct ipv6hdr *ip6h = (struct ipv6hdr *)inner_ip;
-	struct frag_hdr *fragh;
+	struct ipv6hdr *ip6h = (struct ipv6hdr *)outer;
+	struct iphdr *ip4h = (struct iphdr *)outer;
+	struct ip_esp_hdr *esph;
 
-	inner->sport = 0;
-	inner->dport = 0;
-	inner->use_pattern = 0;
+	memset(tuple, 0, sizeof(*tuple));
+
+	if (ip4h->version == IPVERSION) {
+		outer += sizeof(*ip4h);
+
+		tuple->src_ip[0] = ntohl(ip4h->saddr);
+		tuple->dest_ip[0] = ntohl(ip4h->daddr);
+		tuple->protocol = ip4h->protocol;
+		tuple->ip_ver = IPVERSION;
+
+		if (natt) {
+			tuple->src_port = NSS_IPSECMGR_NATT_PORT_DATA;
+			tuple->dest_port = NSS_IPSECMGR_NATT_PORT_DATA;
+			tuple->protocol = IPPROTO_UDP;
+			outer += sizeof(struct udphdr);
+		}
+
+		esph = (struct ip_esp_hdr *)outer;
+		tuple->spi_index = ntohl(esph->spi);
+		return true;
+	}
+
+	if ((ip6h->version != 6) || (ip6h->nexthdr != IPPROTO_ESP)) {
+		return false;
+	}
+
+	outer += sizeof(*ip6h);
+	esph = (struct ip_esp_hdr *)outer;
+
+	nss_cfi_ipsec_v6addr_ntoh(tuple->src_ip, ip6h->saddr.s6_addr32);
+	nss_cfi_ipsec_v6addr_ntoh(tuple->dest_ip, ip6h->daddr.s6_addr32);
+
+	tuple->spi_index = ntohl(esph->spi);
+	tuple->protocol = IPPROTO_ESP;
+	tuple->ip_ver = 6;
+	return true;
+}
+
+/*
+ * nss_cfi_ipsec_inner2flow_tuple()
+ *	Fill inner flow
+ */
+static void nss_cfi_ipsec_inner2flow_tuple(uint8_t *inner, struct nss_ipsecmgr_flow_tuple *tuple)
+{
+	struct ipv6hdr *ip6h = (struct ipv6hdr *)inner;
+	struct iphdr *iph = (struct iphdr *)inner;
+
+	/*
+	 * TODO: Since, we are pushing 3-tuple for every 5-tuple
+	 * It is possible that the each 3-tuple maps to multiple unique
+	 * 5-tuple rules. Thus we need to add support for identifying
+	 * them and then allow adding or deleting of 3-tuple correctly
+	 */
+
+	tuple->src_port = 0;
+	tuple->dest_port = 0;
+	tuple->user_pattern = 0;
 
 	if (iph->version == IPVERSION) {
-		inner->src_ip[0] = ntohl(iph->saddr);
-		inner->dest_ip[0] = ntohl(iph->daddr);
-		inner->proto_next_hdr = iph->protocol;
-		inner->ip_version = IPVERSION;
-		goto done;
+		tuple->src_ip[0] = ntohl(iph->saddr);
+		tuple->dest_ip[0] = ntohl(iph->daddr);
+		tuple->protocol = iph->protocol;
+		tuple->ip_ver = IPVERSION;
+		return;
 	}
 
-	if (iph->version != 6)
-		return false;
+	BUG_ON(iph->version != 6);
 
-	inner->ip_version = 6;
-	nss_cfi_ipsec_v6addr_ntoh(inner->src_ip, ip6h->saddr.s6_addr32);
-	nss_cfi_ipsec_v6addr_ntoh(inner->dest_ip, ip6h->daddr.s6_addr32);
+	nss_cfi_ipsec_v6addr_ntoh(tuple->src_ip, ip6h->saddr.s6_addr32);
+	nss_cfi_ipsec_v6addr_ntoh(tuple->dest_ip, ip6h->daddr.s6_addr32);
+	tuple->protocol = ip6h->nexthdr;
+	tuple->ip_ver = 6;
 
-	if (ip6h->nexthdr != NEXTHDR_FRAGMENT) {
-		inner->proto_next_hdr = ip6h->nexthdr;
-		goto done;
+	if (ip6h->nexthdr == NEXTHDR_FRAGMENT) {
+		struct frag_hdr *fragh = (struct frag_hdr *)(inner + sizeof(*ip6h));
+		tuple->protocol = fragh->nexthdr;
 	}
-
-	fragh = (struct frag_hdr *)(inner_ip + sizeof(*ip6h));
-	inner->proto_next_hdr = fragh->nexthdr;
-
-done:
-	return true;
 }
 
 /*
@@ -413,17 +473,19 @@ done:
  */
 static int32_t nss_cfi_ipsec_trap_encap(struct sk_buff *skb, struct nss_cfi_crypto_info *crypto)
 {
-	struct nss_ipsecmgr_flow_outer outer = {0};
-	struct nss_ipsecmgr_flow_inner inner = {0};
+	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
+	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
 	struct nss_cfi_ipsec_tunnel_entry *tun;
 	struct nss_cfi_ipsec_sa *sa_entry;
-	struct nss_ipsecmgr_sa sa = {0};
+	struct nss_ipsecmgr_sa_data sa = {0};
+	nss_ipsecmgr_status_t status;
 	struct net_device *nss_dev;
 	enum nss_ipsecmgr_algo algo;
-	uint8_t ttl_hop_limit;
-	uint8_t *inner_ip;
+	uint8_t *payload;
 	int8_t iv_blk_len;
+	uint8_t ttl;
 	uint32_t if_num;
+	bool natt = false;
 
 	iv_blk_len = nss_cfi_ipsec_get_iv_blk_len(crypto->algo);
 	if (iv_blk_len < 0) {
@@ -440,30 +502,28 @@ static int32_t nss_cfi_ipsec_trap_encap(struct sk_buff *skb, struct nss_cfi_cryp
 	/*
 	 * construct SA information
 	 */
+
+	natt = nss_cfi_ipsec_get_natt(skb);
+
 	nss_ipsecmgr_sa_cmn_init_idx(&sa.cmn, algo, crypto->sid,
 				iv_blk_len, iv_blk_len, crypto->hash_len,
 				false,				/* secure_key */
 				false,				/* no_trailer */
 				false,				/* esn */
-				nss_cfi_ipsec_get_natt(skb)	/* natt */
+				natt				/* natt */
 				);
 
 	/*
 	 * KLIPS adds NATT/UDP header after encrypt.
 	 */
-	inner_ip = nss_cfi_ipsec_fill_flow_outer(skb->data, iv_blk_len, false, &outer, &ttl_hop_limit);
-	if (!inner_ip) {
-		nss_cfi_warn("%p:Failed to fill outer flow rule\n", skb);
-		return -EINVAL;
-	}
 
-	if (!nss_cfi_ipsec_fill_flow_inner(inner_ip, &inner)) {
-		nss_cfi_warn("%p:Failed to fill inner flow rule\n", skb);
-		return -EINVAL;
-	}
+	payload = nss_cfi_ipsec_outer2sa_tuple(skb->data, natt, &sa_tuple, &ttl, false);
+	BUG_ON(!payload);
+
+	nss_cfi_ipsec_inner2flow_tuple(payload + iv_blk_len, &flow_tuple);
 
 	sa.type = NSS_IPSECMGR_SA_TYPE_ENCAP;
-	sa.encap.ttl_hop_limit = ttl_hop_limit;
+	sa.encap.ttl_hop_limit = ttl;
 
 	/*
 	 * Read lock needs to be taken here as the tunnel map table
@@ -497,16 +557,18 @@ static int32_t nss_cfi_ipsec_trap_encap(struct sk_buff *skb, struct nss_cfi_cryp
 		return -ENOMEM;
 	}
 
+	status = nss_ipsecmgr_sa_add(nss_dev, &sa_tuple, &sa, &if_num);
+
 	/*
 	 * If, SA add fails then there is no need to add the flow
 	 */
-	if (nss_ipsecmgr_sa_add(nss_dev, &outer, &sa, &if_num) != NSS_IPSECMGR_OK) {
+	if ((status != NSS_IPSECMGR_OK) && (status != NSS_IPSECMGR_DUPLICATE_SA)) {
 		write_unlock(&tunnel_map.lock);
 		goto sa_free;
 	}
 
 	sa_entry->sid = crypto->sid;
-	memcpy(&sa_entry->outer, &outer, sizeof(sa_entry->outer));
+	memcpy(&sa_entry->outer, &sa_tuple, sizeof(sa_entry->outer));
 
 	INIT_LIST_HEAD(&sa_entry->list);
 	list_add_tail(&sa_entry->list, &tun->sa_list);
@@ -517,7 +579,7 @@ flow_add:
 	 * If flow add fails due to lack of an IPsec manager SA entry, we need to remove
 	 * IPsec SA entry too and unwind any previous SA programming
 	 */
-	if (nss_ipsecmgr_flow_add(nss_dev, &inner, &outer) == NSS_IPSECMGR_FAIL_SA) {
+	if (nss_ipsecmgr_flow_add(nss_dev, &flow_tuple, &sa_tuple) == NSS_IPSECMGR_FAIL_SA) {
 		list_del_init(&sa_entry->list);
 		write_unlock(&tunnel_map.lock);
 		goto sa_free;
@@ -541,17 +603,18 @@ sa_free:
  */
 static int32_t nss_cfi_ipsec_trap_decap(struct sk_buff *skb, struct nss_cfi_crypto_info *crypto)
 {
-	struct nss_ipsecmgr_flow_outer outer = {0};
-	struct nss_ipsecmgr_flow_inner inner = {0};
+	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
+	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
 	struct nss_cfi_ipsec_tunnel_entry *tun;
+	struct nss_ipsecmgr_sa_data sa = {0};
 	struct nss_cfi_ipsec_sa *sa_entry;
-	struct nss_ipsecmgr_sa sa = {0};
+	nss_ipsecmgr_status_t status;
 	struct net_device *nss_dev;
 	enum nss_ipsecmgr_algo algo;
-	uint8_t ttl_hop_limit;
-	uint8_t *inner_ip;
 	int8_t iv_blk_len;
 	uint32_t if_num;
+	uint8_t *payload;
+	uint8_t ttl;
 	bool natt;
 
 	iv_blk_len = nss_cfi_ipsec_get_iv_blk_len(crypto->algo);
@@ -581,14 +644,11 @@ static int32_t nss_cfi_ipsec_trap_decap(struct sk_buff *skb, struct nss_cfi_cryp
 	/*
 	 * construct outer flow information
 	 */
-	inner_ip = nss_cfi_ipsec_fill_flow_outer(skb_network_header(skb), iv_blk_len, natt, &outer, &ttl_hop_limit);
-	if (!inner_ip) {
-		nss_cfi_warn("%p:Failed to fill outer flow rule\n", skb);
-		return -EINVAL;
-	}
+	payload = nss_cfi_ipsec_outer2sa_tuple(skb_network_header(skb), natt, &sa_tuple, &ttl, true);
+	BUG_ON(!payload);
 
-	if (!nss_cfi_ipsec_fill_flow_inner(inner_ip, &inner)) {
-		nss_cfi_warn("%p:Failed to fill inner flow rule\n", skb);
+	if (!nss_cfi_ipsec_outer2flow_tuple(skb_network_header(skb), natt, &flow_tuple)) {
+		nss_cfi_warn("%p: Invalid packet\n", skb);
 		return -EINVAL;
 	}
 
@@ -626,16 +686,18 @@ static int32_t nss_cfi_ipsec_trap_decap(struct sk_buff *skb, struct nss_cfi_cryp
 		return -ENOMEM;
 	}
 
+	status = nss_ipsecmgr_sa_add(nss_dev, &sa_tuple, &sa, &if_num);
+
 	/*
 	 * If, SA add fails then there is no need to add the flow
 	 */
-	if (nss_ipsecmgr_sa_add(nss_dev, &outer, &sa, &if_num) != NSS_IPSECMGR_OK) {
+	if ((status != NSS_IPSECMGR_OK) && (status != NSS_IPSECMGR_DUPLICATE_SA)) {
 		write_unlock(&tunnel_map.lock);
 		goto sa_free;
 	}
 
 	sa_entry->sid = crypto->sid;
-	memcpy(&sa_entry->outer, &outer, sizeof(sa_entry->outer));
+	memcpy(&sa_entry->outer, &sa_tuple, sizeof(sa_entry->outer));
 
 	INIT_LIST_HEAD(&sa_entry->list);
 	list_add_tail(&sa_entry->list, &tun->sa_list);
@@ -646,7 +708,7 @@ flow_add:
 	 * If flow add fails due to lack of an IPsec manager SA entry,
 	 * we need to remove IPsec SA entry too
 	 */
-	if (nss_ipsecmgr_flow_add(nss_dev, &inner, &outer) == NSS_IPSECMGR_FAIL_SA) {
+	if (nss_ipsecmgr_flow_add(nss_dev, &flow_tuple, &sa_tuple) == NSS_IPSECMGR_FAIL_SA) {
 		list_del_init(&sa_entry->list);
 		write_unlock(&tunnel_map.lock);
 		goto sa_free;
@@ -904,10 +966,8 @@ void __exit nss_cfi_ipsec_exit_module(void)
 	nss_cfi_info("module unloaded\n");
 }
 
-
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("NSS IPsec offload glue");
 
 module_init(nss_cfi_ipsec_init_module);
 module_exit(nss_cfi_ipsec_exit_module);
-

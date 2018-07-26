@@ -498,8 +498,10 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_encap(struct nss_ipsecmgr_pri
 
 	sa->priv = priv;
 	sa->type = NSS_IPSEC_TYPE_ENCAP;
-	*if_num = sa->if_num = ipsecmgr_drv->encap_ifnum;
+	sa->if_num = ipsecmgr_drv->encap_ifnum;
 	sa->free_timeout = NSS_IPSECMGR_SA_FREE_TIMEOUT;
+
+	*if_num = nss_ipsec_get_ifnum(sa->if_num);
 
 	/*
 	 * Fill the data
@@ -609,8 +611,10 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_pri
 
 	sa->priv = priv;
 	sa->type = NSS_IPSEC_TYPE_DECAP;
-	*if_num = sa->if_num = ipsecmgr_drv->decap_ifnum;
+	sa->if_num = ipsecmgr_drv->decap_ifnum;
 	sa->free_timeout = NSS_IPSECMGR_SA_FREE_TIMEOUT;
+
+	*if_num = nss_ipsec_get_ifnum(sa->if_num);
 
 	memcpy(&sa->tuple, &tuple, sizeof(sa->tuple));
 	memcpy(&sa->outer, outer, sizeof(sa->outer));

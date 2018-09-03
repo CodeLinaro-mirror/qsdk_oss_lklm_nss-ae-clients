@@ -1,6 +1,6 @@
 /*
  * ********************************************************************************
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
@@ -20,8 +20,6 @@
 #define __NSS_IPSECMGR_PRIV_H
 
 #include <net/ipv6.h>
-#include <nss_api_if.h>
-#include "nss_ipsecmgr_tunnel.h"
 
 #define NSS_IPSECMGR_DEBUG_LVL_ERROR 1		/**< Turn on debug for an error. */
 #define NSS_IPSECMGR_DEBUG_LVL_WARN 2		/**< Turn on debug for a warning. */
@@ -67,18 +65,25 @@
 #endif /* !CONFIG_DYNAMIC_DEBUG */
 #define NSS_IPSECMGR_CHK_POW2(x) (__builtin_constant_p(x) && !(~(x - 1) & (x >> 1)))
 
-#define NSS_IPSECMGR_MAX_NAME (NSS_IPSECMGR_MAX_KEY_NAME + 64)
-
-#define NSS_IPSECMGR_SA_MAX  64 /* Max SAs */
-#if (~(NSS_IPSECMGR_SA_MAX - 1) & (NSS_IPSECMGR_SA_MAX >> 1))
-#error "NSS_IPSECMGR_SA_MAX is not a power of 2"
-#endif
-
-#define NSS_IPSECMGR_NODE_STATS_SZ 512
-
 #define NSS_IPSECMGR_DEFAULT_TUN_NAME "ipsecdummy"
-#define NSS_IPSECMGR_ESP_TRAIL_SZ 2 /* esp trailer size */
-#define NSS_IPSECMGR_ESP_PAD_SZ 14 /* maximum amount of padding */
+#define NSS_IPSECMGR_ESP_TRAIL_SZ 2 /* esp trailer size. */
+#define NSS_IPSECMGR_ESP_PAD_SZ 14 /* maximum amount of padding. */
+
+#define NSS_IPSECMGR_PRINT_PAGES 2
+#define NSS_IPSECMGR_PRINT_BYTES(bytes) ((((bytes) * BITS_PER_BYTE) / 4) + 4)
+#define NSS_IPSECMGR_PRINT_DWORD NSS_IPSECMGR_PRINT_BYTES(8)
+#define NSS_IPSECMGR_PRINT_WORD NSS_IPSECMGR_PRINT_BYTES(4)
+#define NSS_IPSECMGR_PRINT_SHORT NSS_IPSECMGR_PRINT_BYTES(2)
+#define NSS_IPSECMGR_PRINT_BYTE NSS_IPSECMGR_PRINT_BYTES(1)
+#define NSS_IPSECMGR_PRINT_IPADDR (NSS_IPSECMGR_PRINT_WORD * 4)
+
+/*
+ * Statistics dump information
+ */
+struct nss_ipsecmgr_print {
+	char *str;		/* Name of variable. */
+	ssize_t var_size;	/* Size of variable in bytes. */
+};
 
 /*
  * IPsec manager drv instance
@@ -90,90 +95,14 @@ struct nss_ipsecmgr_drv {
 	rwlock_t lock;					/* lock for all DB operations. */
 	struct list_head sa_db[NSS_IPSECMGR_SA_MAX];	/* SA database. */
 	struct list_head flow_db[NSS_IPSECMGR_FLOW_MAX];/* Flow database. */
-	struct list_head tun_db;			/* Tunnel database */
-
-	int encap_ifnum;			/* NSS encap interface. */
-	int decap_ifnum;			/* NSS decap interface. */
-	int data_ifnum;				/* NSS data interface. */
+	struct list_head tun_db;			/* Tunnel database. */
 
 	struct nss_ctx_instance *nss_ctx;	/* NSS context. */
-	struct delayed_work cfg_work;		/* Configure node work */
-	bool ipsec_inline;			/* IPsec inline mode */
-	uint16_t max_mtu;			/* Maximum MTU supported */
-
-	struct nss_ipsecmgr_node_stats node_stats;	/* Node stats */
+	struct delayed_work cfg_work;		/* Configure node work. */
+	uint32_t ifnum;				/* NSS IPsec base interface. */
+	uint16_t max_mtu;			/* Maximum MTU supported. */
+	bool ipsec_inline;			/* IPsec inline mode. */
 };
-
-/*
- * nss_ipsecmgr_tuple2index()
- * 	Change tuple to hash index
- */
-static inline uint32_t nss_ipsecmgr_tuple2index(struct nss_ipsec_tuple *tuple, uint32_t max)
-{
-	uint32_t val = 0;
-
-	val ^= tuple->dst_addr[0];
-	val ^= tuple->src_addr[0];
-
-	val ^= tuple->dst_addr[1];
-	val ^= tuple->src_addr[1];
-
-	val ^= tuple->dst_addr[2];
-	val ^= tuple->src_addr[2];
-
-	val ^= tuple->dst_addr[3];
-	val ^= tuple->src_addr[3];
-
-	val ^= tuple->esp_spi;
-
-	val ^= tuple->dst_port;
-	val ^= tuple->src_port;
-
-	val ^= tuple->proto_next_hdr;
-	val ^= tuple->ip_ver;
-
-	return val & (max - 1);
-}
-
-/*
- * nss_ipsecmgr_tuple_match()
- * 	Match the tuple
- */
-static inline bool nss_ipsecmgr_tuple_match(struct nss_ipsec_tuple *tuple, struct nss_ipsec_tuple *match)
-{
-	uint8_t status = 0;
-
-	status += !!(tuple->dst_addr[0] ^ match->dst_addr[0]);
-	status += !!(tuple->dst_addr[1] ^ match->dst_addr[1]);
-	status += !!(tuple->dst_addr[2] ^ match->dst_addr[2]);
-	status += !!(tuple->dst_addr[3] ^ match->dst_addr[3]);
-
-	status += !!(tuple->src_addr[0] ^ match->src_addr[0]);
-	status += !!(tuple->src_addr[1] ^ match->src_addr[1]);
-	status += !!(tuple->src_addr[2] ^ match->src_addr[2]);
-	status += !!(tuple->src_addr[3] ^ match->src_addr[3]);
-
-	status += !!(tuple->esp_spi ^ match->esp_spi);
-	status += !!(tuple->dst_port ^ match->dst_port);
-	status += !!(tuple->src_port ^ match->src_port);
-
-	status += !!(tuple->proto_next_hdr ^ match->proto_next_hdr);
-	status += !!(tuple->ip_ver ^ match->ip_ver);
-
-	return !status;
-}
-
-/*
- * nss_ipsecmgr_ntoh_v6addr()
- *	Network to host order and swap
- */
-static inline void nss_ipsecmgr_ntoh_v6addr(uint32_t *dest, uint32_t *src)
-{
-	dest[3] = ntohl(src[0]);
-	dest[2] = ntohl(src[1]);
-	dest[1] = ntohl(src[2]);
-	dest[0] = ntohl(src[3]);
-}
 
 /*
  * nss_ipsecmgr_hton_v6addr()
@@ -181,10 +110,36 @@ static inline void nss_ipsecmgr_ntoh_v6addr(uint32_t *dest, uint32_t *src)
  */
 static inline void nss_ipsecmgr_hton_v6addr(uint32_t *dest, uint32_t *src)
 {
-	dest[3] = htonl(src[0]);
-	dest[2] = htonl(src[1]);
-	dest[1] = htonl(src[2]);
-	dest[0] = htonl(src[3]);
+	dest[3] = htonl(src[3]);
+	dest[2] = htonl(src[2]);
+	dest[1] = htonl(src[1]);
+	dest[0] = htonl(src[0]);
 }
 
+/*
+ * nss_ipsecmgr_db_init_entries()
+ *	Initialize the entries databases
+ */
+static inline void nss_ipsecmgr_db_init_entries(struct list_head *db, uint32_t max)
+{
+	struct list_head *head = db;
+	int i;
+
+	/*
+	 * initialize the database
+	 */
+	for (i = 0; i < max; i++, head++)
+		INIT_LIST_HEAD(head);
+}
+
+/*
+ * nss_ipsecmgr_db_init()
+ *	Initialize the single entry database
+ */
+static inline void nss_ipsecmgr_db_init(struct list_head *db)
+{
+	INIT_LIST_HEAD(db);
+}
+
+extern struct nss_ipsecmgr_drv *ipsecmgr_drv;
 #endif

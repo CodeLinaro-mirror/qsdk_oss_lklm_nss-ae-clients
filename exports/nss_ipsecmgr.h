@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -67,11 +67,12 @@ enum nss_ipsecmgr_event_type {
 typedef enum nss_ipsecmgr_status {
 	NSS_IPSECMGR_OK,		/**< Status ok. */
 	NSS_IPSECMGR_FAIL,		/**< Failed due to unknown reason. */
+	NSS_IPSECMGR_FAIL_SA,		/**< Failed to find the SA. */
 	NSS_IPSECMGR_FAIL_NOMEM,	/**< Failed to allocate memory. */
 	NSS_IPSECMGR_FAIL_NOCRYPTO,	/**< Failed to allocate crypto resource. */
 	NSS_IPSECMGR_FAIL_MESSAGE,	/**< Failed to message the NSS. */
-	NSS_IPSECMGR_FAIL_SA,		/**< Failed to find the right SA. */
 	NSS_IPSECMGR_FAIL_FLOW_ALLOC,	/**< Failed to alloc flow. */
+	NSS_IPSECMGR_INVALID_CTX,	/**< Invalid context */
 	NSS_IPSECMGR_INVALID_ALGO,	/**< Invalid algorithm. */
 	NSS_IPSECMGR_INVALID_IPVER,	/**< Invalid IP version. */
 	NSS_IPSECMGR_INVALID_CRYPTO_IDX,/**< Invalid crypto index */
@@ -178,10 +179,10 @@ struct nss_ipsecmgr_sa_decap {
 };
 
 /**
- * nss_ipsecmgr_sa
+ * nss_ipsecmgr_sa_data
  *	Security association information for the IPsec manager.
  */
-struct nss_ipsecmgr_sa {
+struct nss_ipsecmgr_sa_data {
 	struct nss_ipsecmgr_sa_cmn cmn;		/**< Common configuration information for SA. */
 
 	enum nss_ipsecmgr_sa_type type;		/**< Type of SA. */
@@ -190,44 +191,35 @@ struct nss_ipsecmgr_sa {
 };
 
 /**
- * nss_ipsecmgr_flow_outer
- *	Outer flow information for the IPsec manager.
+ * nss_ipsecmgr_sa_tuple
+ *	SA information for the IPsec manager.
  *
  * Note: Protocol/Next Header defaults to ESP for outer.
  */
-struct nss_ipsecmgr_flow_outer {
+struct nss_ipsecmgr_sa_tuple {
 	uint32_t src_ip[4];	/**< IPv6 source IP. */
 	uint32_t dest_ip[4];	/**< IPv6 destination IP. */
 	uint32_t spi_index;	/**< SPI index of the encapsulating security payload (ESP). */
-	uint16_t sport;		/**< Source Port (unused). */
-	uint16_t dport;		/**< Destination Port (unused). */
-	uint8_t proto_next_hdr; /**< Transport layer protocol. */
-	uint8_t ip_version;	/**< IP version 4/6. */
+	uint16_t src_port;	/**< Source port. */
+	uint16_t dest_port;	/**< Destination port. */
+	uint8_t protocol;	/**< Protocol (ESP or NAT-T) */
+	uint8_t ip_ver;		/**< IP version 4/6. */
+	uint8_t res[2];		/**< Reserved */
 };
 
 /**
- * nss_ipsecmgr_flow_inner
- *	Inner flow information for the IPsec manager.
+ * nss_ipsecmgr_flow_tuple
+ *	Flow information for the IPsec manager.
  */
-struct nss_ipsecmgr_flow_inner {
+struct nss_ipsecmgr_flow_tuple {
 	uint32_t src_ip[4];		/**< Source IP. */
 	uint32_t dest_ip[4];		/**< Destination IP. */
-	uint16_t sport;			/**< Source Port (unused). */
-	uint16_t dport;			/**< Destination Port (unused). */
-	uint8_t proto_next_hdr;		/**< Transport layer protocol. */
-	uint8_t ip_version;		/**< IP version 4/6. */
-	uint8_t use_pattern;		/**< User pattern flow identifier. */
-};
-
-/**
- * nss_ipsecmgr_subnet
- *	Encapsulation subnet information for the IPsec manager.
- */
-struct nss_ipsecmgr_subnet_inner {
-	uint32_t dest_subnet[4];	/**< Destination subnet. */
-	uint32_t dest_mask[4];		/**< Destination subnet mask. */
-	uint8_t proto_next_hdr;		/**< Transport layer protocol. */
-	uint8_t ip_version;		/**< IP version 4/6. */
+	uint32_t spi_index;		/**< ESP SPI index for decapsulation flows. */
+	uint16_t src_port;			/**< Source Port (unused). */
+	uint16_t dest_port;			/**< Destination Port (unused). */
+	uint8_t protocol;		/**< Transport layer protocol. */
+	uint8_t ip_ver;			/**< IP version 4/6. */
+	uint8_t user_pattern;		/**< User defined flow identifier. */
 };
 
 /**
@@ -235,30 +227,14 @@ struct nss_ipsecmgr_subnet_inner {
  *	Security association statistics exported by the IPsec manager.
  */
 struct nss_ipsecmgr_sa_stats {
-	struct nss_ipsecmgr_flow_outer outer;	/**< Security association information. */
-	uint64_t seq_num;			/**< Current sequence number. */
-	uint64_t window_max;			/**< Maximum size of the window. */
-	uint32_t crypto_index;			/**< Crypto session index. */
+	struct nss_ipsecmgr_sa_tuple sa;	/**< Security association information. */
+	uint64_t seq_start;			/**< Starting sequence number. */
+	uint64_t seq_cur;			/**< Current sequence number. */
 	uint32_t pkt_bytes;			/**< Number of bytes processed. */
 	uint32_t pkt_count;			/**< Number of packets processed. */
 	uint32_t pkt_failed;			/**< Number of packets failed in processing. */
-	uint32_t window_size;			/**< Current size of the window. */
-	bool fail_hash_alarm;			/**< Alarm for consecutive hash fail. */
-	bool esn_enabled;			/**< Specifies whether ESN is enabled. */
-};
-
-/**
- * nss_ipsecmgr_node_stats
- * 	IPsec manager node stats
- */
-struct nss_ipsecmgr_node_stats {
-	uint64_t enqueued;		/**< Packets enqueued to the node */
-	uint64_t completed;		/**< Packets processed by the node */
-	uint64_t linearized;		/**< Linearized the packet */
-	uint64_t exceptioned;		/**< Packets exception from NSS */
-	uint64_t fail_enqueue;		/**< Packets failed to enqueue */
-	uint64_t redir_rx;		/**< Packets received in redirect ring */
-	uint64_t fail_redir;		/**< Packets dropped in redirect ring */
+	uint16_t window_size;			/**< Current size of the window. */
+	bool replay_fail_alarm;			/**< Alarm for consecutive hash fail. */
 };
 
 /**
@@ -266,15 +242,10 @@ struct nss_ipsecmgr_node_stats {
  *	Event information for the IPsec manager.
  */
 struct nss_ipsecmgr_event {
-	enum nss_ipsecmgr_event_type type;	/**< Event type. */
-
-	/**
-	 * Event information statistics for the IPsec manager.
-	 */
+	enum nss_ipsecmgr_event_type type;		/**< Event type. */
 	union {
-		struct nss_ipsecmgr_sa_stats stats;
-				/**< Security association statistics. */
-	} data;			/**< Event information. */
+		struct nss_ipsecmgr_sa_stats stats; 	/**< Security association statistics. */
+	} data;						/**< Event information. */
 };
 
 /**
@@ -453,19 +424,19 @@ void nss_ipsecmgr_tunnel_del(struct net_device *tun);
  *
  * @datatypes
  * net_device \n
- * nss_ipsecmgr_flow_outer \n
- * nss_ipsecmgr_sa \n
+ * nss_ipsecmgr_sa_tuple \n
+ * nss_ipsecmgr_sa_data \n
  *
- * @param[in] tun    Pointer to the network device associated with the tunnel.
- * @param[in] outer  Pointer to outer flow to add.
- * @param[in] sa     Pointer to the security association to add.
- * @param[in] if_num Pointer to the appropriate IPsec encap/decap interface number.
+ * @param[in] tun     Pointer to the network device associated with the tunnel.
+ * @param[in] sa      Pointer to tuple representing the SA.
+ * @param[in] data    Pointer to the security association data to add.
+ * @param[out] if_num Pointer to the IPsec inner or outer interface number.
  *
  * @return
  * nss_ipsecmgr_status.
  */
-nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *tun, struct nss_ipsecmgr_flow_outer *outer,
-				struct nss_ipsecmgr_sa *sa, uint32_t *if_num);
+nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *tun, struct nss_ipsecmgr_sa_tuple *sa,
+				struct nss_ipsecmgr_sa_data *data, uint32_t *if_num);
 
 /**
  * nss_ipsecmgr_sa_del
@@ -473,14 +444,14 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *tun, struct nss_ips
  *
  * @datatypes
  * net_device \n
- * nss_ipsecmgr_flow_outer
+ * nss_ipsecmgr_sa_tuple
  *
  * @param[in] tun   Pointer to the network device associated with the tunnel.
- * @param[in] outer Pointer to the outer flow of the SA to delete.
+ * @param[in] tuple Pointer to SA tuple to delete.
  *
  * @return
  */
-void nss_ipsecmgr_sa_del(struct net_device *tun, struct nss_ipsecmgr_flow_outer *outer);
+void nss_ipsecmgr_sa_del(struct net_device *tun, struct nss_ipsecmgr_sa_tuple *tuple);
 
 /**
  * nss_ipsecmgr_flow_add
@@ -488,18 +459,18 @@ void nss_ipsecmgr_sa_del(struct net_device *tun, struct nss_ipsecmgr_flow_outer 
  *
  * @datatypes
  * net_device \n
- * nss_ipsecmgr_flow_inner \n
- * nss_ipsecmgr_flow_outer
+ * nss_ipsecmgr_flow_tuple \n
+ * nss_ipsecmgr_sa_tuple
  *
  * @param[in] tun   Pointer to the network device associated with the tunnel.
- * @param[in] inner Pointer to the inner flow to add.
- * @param[in] outer Pointer to the outer flow of the SA to be added to.
+ * @param[in] flow  Pointer to the inner flow to add.
+ * @param[in] sa    Pointer to the outer flow of the SA to be added to.
  *
  * @return
  * nss_ipsecmgr_status.
  */
-nss_ipsecmgr_status_t nss_ipsecmgr_flow_add(struct net_device *tun, struct nss_ipsecmgr_flow_inner *inner,
-					struct nss_ipsecmgr_flow_outer *outer);
+nss_ipsecmgr_status_t nss_ipsecmgr_flow_add(struct net_device *tun, struct nss_ipsecmgr_flow_tuple *flow,
+					struct nss_ipsecmgr_sa_tuple *sa);
 
 /**
  * nss_ipsecmgr_flow_del
@@ -507,16 +478,16 @@ nss_ipsecmgr_status_t nss_ipsecmgr_flow_add(struct net_device *tun, struct nss_i
  *
  * @datatypes
  * net_device \n
- * nss_ipsecmgr_flow_inner \n
- * nss_ipsecmgr_flow_outer
+ * nss_ipsecmgr_flow_tuple \n
+ * nss_ipsecmgr_sa_tuple
  *
  * @param[in] tun   Pointer to the network device associated with the tunnel.
- * @param[in] inner Pointer to the inner flow to delete.
- * @param[in] outer Pointer to the outer flow of the SA to be deleted from.
+ * @param[in] flow  Pointer to the inner flow to delete.
+ * @param[in] sa    Pointer to the SA tuple to be deleted from.
  *
  * @return
  */
-void nss_ipsecmgr_flow_del(struct net_device *tun, struct nss_ipsecmgr_flow_inner *inner,
-			struct nss_ipsecmgr_flow_outer *outer);
+void nss_ipsecmgr_flow_del(struct net_device *tun, struct nss_ipsecmgr_flow_tuple *flow,
+			struct nss_ipsecmgr_sa_tuple *sa);
 #endif /* __KERNEL__ */
 #endif /* __NSS_IPSECMGR_H */

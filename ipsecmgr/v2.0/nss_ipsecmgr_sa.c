@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -35,9 +35,15 @@
 #include <crypto/skcipher.h>
 
 #include <nss_api_if.h>
-#include <nss_ipsec.h>
-#include <nss_cryptoapi.h>
+#include <nss_ipsec_cmn.h>
 #include <nss_ipsecmgr.h>
+#include <nss_cryptoapi.h>
+
+#include "nss_ipsecmgr_ref.h"
+#include "nss_ipsecmgr_flow.h"
+#include "nss_ipsecmgr_sa.h"
+#include "nss_ipsecmgr_ctx.h"
+#include "nss_ipsecmgr_tunnel.h"
 #include "nss_ipsecmgr_priv.h"
 
 #define NSS_IPSECMGR_DEBUGFS_NAME_SZ 128 /* bytes */
@@ -47,7 +53,7 @@ extern struct nss_ipsecmgr_drv *ipsecmgr_drv;
 /*
  * Linux crypto algorithm names.
  */
-static const char *g_ipsec_algo_name[NSS_IPSECMGR_ALGO_MAX] = {
+static const char *ipsecmgr_algo_name[NSS_IPSECMGR_ALGO_MAX] = {
 	"echainiv(authenc(hmac(sha1),cbc(aes)))",
 	"echainiv(authenc(hmac(sha256),cbc(aes)))",
 	"echainiv(authenc(hmac(sha1),cbc(des3_ede)))",
@@ -58,190 +64,218 @@ static const char *g_ipsec_algo_name[NSS_IPSECMGR_ALGO_MAX] = {
 };
 
 /*
- * nss_ipsecmgr_sa_print_stats()
- *	Print sa statistics
+ * SA tuple print info
  */
-static ssize_t nss_ipsecmgr_sa_print_stats(struct nss_ipsecmgr_sa_entry *sa, char *buf, ssize_t max_len)
+static const struct nss_ipsecmgr_print ipsecmgr_print_sa_tuple[] = {
+	{"dest_ip", NSS_IPSECMGR_PRINT_IPADDR},
+	{"dest_port", NSS_IPSECMGR_PRINT_WORD},
+	{"src_ip", NSS_IPSECMGR_PRINT_IPADDR},
+	{"src_port", NSS_IPSECMGR_PRINT_WORD},
+	{"spi", NSS_IPSECMGR_PRINT_WORD},
+	{"protocol", NSS_IPSECMGR_PRINT_WORD},
+	{"ip_version", NSS_IPSECMGR_PRINT_WORD},
+};
+
+/*
+ * SA replay print info
+ */
+static const struct nss_ipsecmgr_print ipsecmgr_print_sa_replay[] = {
+	{"replay_win_start", NSS_IPSECMGR_PRINT_DWORD},
+	{"replay_win_current", NSS_IPSECMGR_PRINT_DWORD},
+	{"replay_win_size", NSS_IPSECMGR_PRINT_WORD},
+};
+
+/*
+ * SA statistics print info
+ */
+static const struct nss_ipsecmgr_print ipsecmgr_print_sa_stats[] = {
+	{"\trx_packets", NSS_IPSECMGR_PRINT_DWORD},
+	{"\trx_bytes", NSS_IPSECMGR_PRINT_DWORD},
+	{"\ttx_packets", NSS_IPSECMGR_PRINT_DWORD},
+	{"\ttx_bytes", NSS_IPSECMGR_PRINT_DWORD},
+	{"\trx_dropped[0]", NSS_IPSECMGR_PRINT_DWORD},
+	{"\trx_dropped[1]", NSS_IPSECMGR_PRINT_DWORD},
+	{"\trx_dropped[2]", NSS_IPSECMGR_PRINT_DWORD},
+	{"\trx_dropped[3]", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_headroom", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_tailroom", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_replay", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_replay_dup", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_replay_win", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_pbuf_crypto", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_queue", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_queue_crypto", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_queue_nexthop", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_pbuf_alloc", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_pbuf_linear", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_pbuf_stats", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_pbuf_align", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_cipher", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_auth", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_seq_ovf", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_blk_len", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_hash_len", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_transform", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_crypto", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_classification", NSS_IPSECMGR_PRINT_DWORD},
+};
+
+/*
+ * nss_ipsecmgr_sa_tuple_print()
+ * 	Print SA tuple
+ */
+static ssize_t nss_ipsecmgr_sa_tuple_print(struct nss_ipsec_cmn_sa_tuple *tuple, char *buf, ssize_t max_len)
 {
-	struct nss_ipsecmgr_sa_stats_priv *stats = &sa->stats;
-	struct nss_ipsecmgr_flow_outer *outer = &sa->outer;
-	struct nss_ipsec_rule_data *data = &sa->data;
-	uint32_t addr[4];
-	ssize_t len;
-	char *type;
+	const struct nss_ipsecmgr_print *prn = ipsecmgr_print_sa_tuple;
+	uint32_t dest_ip[4], src_ip[4];
+	ssize_t len = 0;
 
-	switch (sa->type) {
-	case NSS_IPSEC_TYPE_ENCAP:
-		type = "encap";
-		break;
-
-	case NSS_IPSEC_TYPE_DECAP:
-		type = "decap";
-		break;
-
-	default:
-		return 0;
-	}
-
-	len = snprintf(buf, max_len, "Type:%s\n", type);
-
-	switch (outer->ip_version) {
+	len += snprintf(buf + len, max_len - len, "SA tuple: {");
+	switch (tuple->ip_ver) {
 	case IPVERSION:
-		len += snprintf(buf + len, max_len - len, "dest_ip: %pI4h\n", outer->dest_ip);
-		len += snprintf(buf + len, max_len - len, "src_ip: %pI4h\n", outer->src_ip);
+		len += snprintf(buf + len, max_len - len, "%s: %pI4h,", prn->str, tuple->dest_ip);
+		prn++;
+
+		len += snprintf(buf + len, max_len - len, "%s: %u,", prn->str, tuple->dest_port);
+		prn++;
+
+		len += snprintf(buf + len, max_len - len, "%s: %pI4h,", prn->str, tuple->src_ip);
+		prn++;
+
+		len += snprintf(buf + len, max_len - len, "%s: %u,", prn->str, tuple->src_port);
+		prn++;
+
 		break;
 
 	case 6:
-		nss_ipsecmgr_hton_v6addr(addr, outer->dest_ip);
-		len += snprintf(buf + len, max_len - len, "dest_ip: %pI6c\n", addr);
-		nss_ipsecmgr_hton_v6addr(addr, outer->src_ip);
-		len += snprintf(buf + len, max_len - len, "src_ip: %pI6c\n", addr);
+		nss_ipsecmgr_hton_v6addr(src_ip, tuple->src_ip);
+		nss_ipsecmgr_hton_v6addr(dest_ip, tuple->dest_ip);
+
+		len += snprintf(buf + len, max_len - len, "%s: %pI6c,", prn->str, dest_ip);
+		prn++;
+
+		len += snprintf(buf + len, max_len - len, "%s: %u,", prn->str, tuple->dest_port);
+		prn++;
+
+		len += snprintf(buf + len, max_len - len, "%s: %pI6c,", prn->str, src_ip);
+		prn++;
+
+		len += snprintf(buf + len, max_len - len, "%s: %u,", prn->str, tuple->src_port);
+		prn++;
 
 		break;
 	}
 
-	len += snprintf(buf + len, max_len - len, "spi_idx: 0x%x\n", outer->spi_index);
-	len += snprintf(buf + len, max_len - len, "crypto session: %d\n", data->crypto_index);
+	len += snprintf(buf + len, max_len - len, "%s: 0x%x,", prn->str, tuple->spi_index);
+	prn++;
 
-	len += snprintf(buf + len, max_len - len, "ESN: %d\n", data->enable_esn);
-	len += snprintf(buf + len, max_len - len, "seq_num: %llx\n\n", stats->seq_num);
+	len += snprintf(buf + len, max_len - len, "%s: %u,", prn->str, tuple->protocol);
+	prn++;
+
+	len += snprintf(buf + len, max_len - len, "%s: %u", prn->str, tuple->ip_ver);
+	prn++;
+
+	len += snprintf(buf + len, max_len - len, "}\n");
+	return len;
+}
+
+/*
+ * nss_ipsecmgr_sa_replay_print()
+ * 	Print SA replay state
+ */
+static ssize_t nss_ipsecmgr_sa_replay_print(struct nss_ipsec_cmn_sa_replay *replay, char *buf, ssize_t max_len)
+{
+	const struct nss_ipsecmgr_print *prn = ipsecmgr_print_sa_replay;
+	ssize_t len = 0;
+
+	len += snprintf(buf + len, max_len - len, "SA replay: {");
+
+	len += snprintf(buf + len, max_len - len, "%s: %llu,", prn->str, replay->seq_start);
+	prn++;
+
+	len += snprintf(buf + len, max_len - len, "%s: %llu,", prn->str, replay->seq_cur);
+	prn++;
+
+	len += snprintf(buf + len, max_len - len, "%s: %u", prn->str, replay->window_size);
+	prn++;
+
+	len += snprintf(buf + len, max_len - len, "}\n");
+	return len;
+}
+
+/*
+ * nss_ipsecmgr_sa_stats_print()
+ * 	Print SA statistics
+ */
+static ssize_t nss_ipsecmgr_sa_stats_print(struct nss_ipsecmgr_sa_stats_priv *stats, char *buf, ssize_t max_len)
+{
+	const struct nss_ipsecmgr_print *prn = ipsecmgr_print_sa_stats;
+	uint64_t *stats_word = (uint64_t *)stats;
+	ssize_t len = 0;
+	int i;
 
 	/*
-	 * Display window information only for decap SA
+	 * This expects a strict order as per the stats structure
 	 */
-	len += snprintf(buf + len, max_len - len, "win_size: %d\n", stats->window_size);
-	len += snprintf(buf + len, max_len - len, "wmax: 0x%llx\n\n", stats->window_max);
+	len += snprintf(buf + len, max_len - len, "SA stats: {\n");
 
-	/*
-	 * Packet stats
-	 */
-	len += snprintf(buf + len, max_len - len, "processed: %llu\n", stats->count);
-	len += snprintf(buf + len, max_len - len, "no_headroom: %llu\n", stats->no_headroom);
-	len += snprintf(buf + len, max_len - len, "no_tailroom: %llu\n", stats->no_tailroom);
-	len += snprintf(buf + len, max_len - len, "no_buf: %llu\n", stats->no_buf);
-	len += snprintf(buf + len, max_len - len, "fail_queue: %llu\n", stats->fail_queue);
-	len += snprintf(buf + len, max_len - len, "fail_hash: %llu\n", stats->fail_hash);
-	len += snprintf(buf + len, max_len - len, "fail_replay: %llu\n\n\n", stats->fail_replay);
+	for (i = 0; i < ARRAY_SIZE(ipsecmgr_print_sa_stats); i++, prn++)
+		len += snprintf(buf + len, max_len - len, "%s: %llu\n", prn->str, *stats_word++);
+
+	len += snprintf(buf + len, max_len - len, "}\n");
+	return len;
+}
+
+/*
+ * nss_ipsecmgr_sa_print_len()
+ * 	Return the total length for printing
+ */
+static ssize_t nss_ipsecmgr_sa_print_len(struct nss_ipsecmgr_ref *ref)
+{
+	ssize_t len = NSS_IPSECMGR_SA_PRINT_EXTRA;
+	const struct nss_ipsecmgr_print *prn;
+	int i;
+
+	for (i = 0, prn = ipsecmgr_print_sa_tuple; i < ARRAY_SIZE(ipsecmgr_print_sa_tuple); i++, prn++)
+		len += strlen(prn->str) + prn->var_size;
+
+	for (i = 0, prn = ipsecmgr_print_sa_replay; i < ARRAY_SIZE(ipsecmgr_print_sa_replay); i++, prn++)
+		len += strlen(prn->str) + prn->var_size;
+
+	for (i = 0, prn = ipsecmgr_print_sa_stats; i < ARRAY_SIZE(ipsecmgr_print_sa_stats); i++, prn++)
+		len += strlen(prn->str) + prn->var_size;
 
 	return len;
 }
 
 /*
- * nss_ipsecmgr_sa_read_stats()
- *	Read sa statistics
+ * nss_ipsecmgr_sa_print()
+ *	Print SA info
  */
-ssize_t nss_ipsecmgr_sa_read_stats(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
+static ssize_t nss_ipsecmgr_sa_print(struct nss_ipsecmgr_ref *ref, char *buf)
 {
-	struct nss_ipsecmgr_sa_entry *sa = fp->private_data;
-	ssize_t max_buf_len;
-	ssize_t len = 0;
-	ssize_t ret;
-	char *buf;
+	struct nss_ipsecmgr_sa *sa = container_of(ref, struct nss_ipsecmgr_sa, ref);
+	ssize_t max_len = nss_ipsecmgr_sa_print_len(ref);
+	ssize_t len;
 
-	max_buf_len = NSS_IPSECMGR_SA_STATS_SZ;
+	len = snprintf(buf, max_len, "---- SA(0x%x) -----\n", sa->state.tuple.spi_index);
 
-	buf = vzalloc(max_buf_len);
-	if (!buf) {
-		nss_ipsecmgr_error("Unable to allocate local buffer for SA stats\n");
-		return 0;
-	}
+	len += nss_ipsecmgr_sa_tuple_print(&sa->state.tuple, buf + len, max_len - len);
+	len += nss_ipsecmgr_sa_replay_print(&sa->state.replay, buf + len, max_len - len);
+	len += nss_ipsecmgr_sa_stats_print(&sa->stats, buf + len, max_len - len);
 
-	/*
-	 * Walk the SA database for each entry and retrieve the stats
-	 */
-	len = nss_ipsecmgr_sa_print_stats(sa, buf, max_buf_len);
-
-	ret = simple_read_from_buffer(ubuf, sz, ppos, buf, len);
-	vfree(buf);
-
-	return ret;
+	return len;
 }
-
-/*
- * nss_ipsecmgr_sa_update_stats()
- *	Update sa stats locally
- */
-void nss_ipsecmgr_sa_update_stats(struct nss_ipsecmgr_sa_entry *sa, struct nss_ipsec_sa_stats *stats,
-					struct nss_ipsecmgr_event *ev)
-{
-	struct nss_ipsecmgr_sa_stats_priv *priv_stats = &sa->stats;
-	struct nss_ipsecmgr_sa_stats *ev_stats;
-
-	/*
-	 * DEBUG check to see if the lock is taken before accessing
-	 * SA entry in the database
-	 */
-	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
-
-	/*
-	 * update SA specific stats
-	 */
-	priv_stats->count += stats->count;
-	priv_stats->bytes += stats->bytes;
-
-	priv_stats->no_headroom += stats->no_headroom;
-	priv_stats->no_tailroom += stats->no_tailroom;
-	priv_stats->no_buf += stats->no_resource;
-
-	priv_stats->fail_queue += stats->fail_queue;
-	priv_stats->fail_hash += stats->fail_hash;
-	priv_stats->fail_replay += stats->fail_replay;
-
-	priv_stats->seq_num = stats->seq_num;
-	priv_stats->window_max = stats->window_max;
-	priv_stats->window_size = stats->window_size;
-
-	/*
-	 * If, there is no event to publish then skip
-	 */
-	if (!ev)
-		return;
-
-	ev_stats = &ev->data.stats;
-
-	/*
-	 * copy stats and SA information
-	 */
-	memcpy(&ev_stats->outer, &sa->outer, sizeof(ev_stats->outer));
-
-	ev_stats->crypto_index = sa->data.crypto_index;
-
-	ev_stats->seq_num = stats->seq_num;
-	ev_stats->esn_enabled = stats->esn_enabled;
-	ev_stats->window_max = stats->window_max;
-	ev_stats->window_size = stats->window_size;
-
-	ev_stats->pkt_count = stats->count;
-	ev_stats->pkt_bytes = stats->bytes;
-
-	/*
-	 * All drop counters are consolidated into
-	 * failures for the IPsec user event
-	 */
-	ev_stats->pkt_failed = stats->no_headroom;
-	ev_stats->pkt_failed += stats->no_tailroom;
-	ev_stats->pkt_failed += stats->no_resource;
-	ev_stats->pkt_failed += stats->fail_queue;
-	ev_stats->pkt_failed += stats->fail_hash;
-	ev_stats->pkt_failed += stats->fail_replay;
-}
-
-/*
- * SA file operation structure instance
- */
-static const struct file_operations sa_stats_op = {
-	.open = simple_open,
-	.llseek = default_llseek,
-	.read = nss_ipsecmgr_sa_read_stats,
-};
 
 /*
  * nss_ipsecmgr_sa_crypto_alloc()
  *	Allocate Crypto resources
  */
-static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_priv *priv,
-							  struct nss_ipsecmgr_sa_entry *sa,
-							  struct nss_ipsecmgr_sa_cmn *cmn)
+static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_tunnel *tun,
+							  struct nss_ipsecmgr_sa *sa,
+							  struct nss_ipsecmgr_sa_cmn *cmn,
+							  struct nss_ipsec_cmn_sa_tuple *tuple,
+						  	  struct nss_ipsec_cmn_sa_data *data)
 {
 	struct nss_ipsecmgr_crypto_keys *keys = &cmn->keys;
 	struct crypto_authenc_key_param *key_param;
@@ -255,9 +289,10 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 	 */
 	if (!cmn->crypto_has_keys) {
 		sa->aead = NULL;
-		sa->data.crypto_index = cmn->index.session;
-		sa->data.cipher_blk_len = cmn->index.blk_len;
-		sa->data.iv_len = cmn->index.iv_len;
+		data->blk_len = cmn->index.blk_len;
+		data->iv_len = cmn->index.iv_len;
+		data->icv_len = cmn->icv_len;
+		tuple->crypto_index = cmn->index.session;
 		return NSS_IPSECMGR_OK;
 	}
 
@@ -269,9 +304,9 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 	case NSS_IPSECMGR_ALGO_AES_CBC_SHA256_HMAC:
 	case NSS_IPSECMGR_ALGO_3DES_CBC_SHA1_HMAC:
 	case NSS_IPSECMGR_ALGO_3DES_CBC_SHA256_HMAC:
-		sa->aead = crypto_alloc_aead(g_ipsec_algo_name[cmn->algo], 0, 0);
+		sa->aead = crypto_alloc_aead(ipsecmgr_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->aead)) {
-			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context", sa);
+			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context\n", sa);
 			return NSS_IPSECMGR_FAIL_NOCRYPTO;
 		}
 
@@ -287,7 +322,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 
 		rt_keys = vzalloc(keylen);
 		if (!rt_keys) {
-			nss_ipsecmgr_warn("%p: failed to allocate key memory", sa);
+			nss_ipsecmgr_warn("%p: failed to allocate key memory\n", sa);
 			crypto_free_aead(sa->aead);
 			return NSS_IPSECMGR_FAIL_NOMEM;
 		}
@@ -312,22 +347,17 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 		memcpy(p, keys->cipher_key, keys->cipher_keylen);
 
 		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
-			nss_ipsecmgr_warn("%p: failed to configure keys", sa);
-			vfree(rt_keys);
+			nss_ipsecmgr_warn("%p: failed to configure keys\n", sa);
 			crypto_free_aead(sa->aead);
+			vfree(rt_keys);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
 		}
 
-		/*
-		 * FIXME: ctx2session requires 32bit whereas
-		 * data has 16bit crypto index. Ideally, the message
-		 * structure should be updated to take this into account
-		 */
 		nss_cryptoapi_aead_ctx2session(sa->aead, &index);
-		sa->data.crypto_index = (uint16_t)index;
-		sa->data.cipher_blk_len = (uint8_t)crypto_aead_blocksize(sa->aead);
-		sa->data.iv_len = (uint8_t)crypto_aead_ivsize(sa->aead);
-
+		data->blk_len = (uint8_t)crypto_aead_blocksize(sa->aead);
+		data->iv_len = (uint8_t)crypto_aead_ivsize(sa->aead);
+		data->icv_len = cmn->icv_len;
+		tuple->crypto_index = (uint16_t)index;
 		vfree(rt_keys);
 		break;
 
@@ -336,31 +366,33 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 	 */
 	case NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA1_HMAC:
 	case NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC:
-		sa->ahash = crypto_alloc_ahash(g_ipsec_algo_name[cmn->algo], 0, 0);
+		sa->ahash = crypto_alloc_ahash(ipsecmgr_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->ahash)) {
-			nss_ipsecmgr_warn("%p: failed to allocate crypto ahash context", sa);
+			nss_ipsecmgr_warn("%p: failed to allocate crypto ahash context\n", sa);
 			return NSS_IPSECMGR_FAIL_NOCRYPTO;
 		}
 
 		if (crypto_ahash_setkey(sa->ahash, keys->auth_key, keys->auth_keylen)) {
-			nss_ipsecmgr_warn("%p: failed to configure keys", sa);
+			nss_ipsecmgr_warn("%p: failed to configure keys\n", sa);
 			crypto_free_ahash(sa->ahash);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
 		}
 
 		nss_cryptoapi_ahash_ctx2session(sa->ahash, &index);
-		sa->data.crypto_index = (uint16_t)index;
-		sa->data.cipher_blk_len = 0;
-		sa->data.iv_len = 0;
+		data->flags |= NSS_IPSEC_CMN_FLAG_CIPHER_NULL;
+		data->icv_len = cmn->icv_len;
+		data->blk_len = 0;
+		data->iv_len = 0;
+		tuple->crypto_index = (uint16_t)index;
 		break;
 
 	/*
 	 * GCM Mode
 	 */
 	case NSS_IPSECMGR_ALGO_AES_GCM_GMAC_RFC4106:
-		sa->aead = crypto_alloc_aead(g_ipsec_algo_name[cmn->algo], 0, 0);
+		sa->aead = crypto_alloc_aead(ipsecmgr_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->aead)) {
-			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context", sa);
+			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context\n", sa);
 			return NSS_IPSECMGR_FAIL_NOCRYPTO;
 		}
 
@@ -371,7 +403,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 		 */
 		rt_keys = vzalloc(keylen);
 		if (!rt_keys) {
-			nss_ipsecmgr_warn("%p: failed to allocate key memory", sa);
+			nss_ipsecmgr_warn("%p: failed to allocate key memory\n", sa);
 			crypto_free_aead(sa->aead);
 			return NSS_IPSECMGR_FAIL_NOMEM;
 		}
@@ -380,27 +412,23 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 		memcpy(rt_keys + keys->cipher_keylen, (uint8_t *)keys->nonce, keys->nonce_size);
 
 		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
-			nss_ipsecmgr_warn("%p: failed to configure keys", sa);
-			vfree(rt_keys);
+			nss_ipsecmgr_warn("%p: failed to configure keys\n", sa);
 			crypto_free_aead(sa->aead);
+			vfree(rt_keys);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
 		}
 
-		/*
-		 * FIXME: ctx2session requires 32bit whereas
-		 * data has 16bit crypto index. Ideally, the message
-		 * structure should be updated to take this into account
-		 */
 		nss_cryptoapi_aead_ctx2session(sa->aead, &index);
-		sa->data.crypto_index = (uint16_t)index;
-		sa->data.cipher_blk_len = (uint8_t)crypto_aead_blocksize(sa->aead);
-		sa->data.iv_len = (uint8_t)crypto_aead_ivsize(sa->aead);
-
+		data->blk_len = (uint8_t)crypto_aead_blocksize(sa->aead);
+		data->iv_len = (uint8_t)crypto_aead_ivsize(sa->aead);
+		data->icv_len = cmn->icv_len;
+		data->flags |= NSS_IPSEC_CMN_FLAG_CIPHER_GCM;
+		tuple->crypto_index = (uint16_t)index;
 		vfree(rt_keys);
 		break;
 
 	default:
-		nss_ipsecmgr_warn("%p: invalid crypto algorithm", sa);
+		nss_ipsecmgr_warn("%p: invalid crypto algorithm\n", sa);
 		return NSS_IPSECMGR_INVALID_ALGO;
 	}
 
@@ -408,12 +436,30 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_pr
 }
 
 /*
- * nss_ipsecmgr_sa_free_delayed()
+ * nss_ipsecmgr_sa_free_work()
  *	Free the SA entry in a delayed work context
  */
-static void nss_ipsecmgr_sa_free_delayed(struct work_struct *work)
+static void nss_ipsecmgr_sa_free_work(struct work_struct *work)
 {
-	struct nss_ipsecmgr_sa_entry *sa = container_of(work, struct nss_ipsecmgr_sa_entry, free_work.work);
+	struct nss_ipsecmgr_sa *sa = container_of(work, struct nss_ipsecmgr_sa, free_work.work);
+	enum nss_ipsec_cmn_msg_type type = NSS_IPSEC_CMN_MSG_TYPE_SA_DESTROY;
+	struct nss_ipsec_cmn_msg nicm;
+	nss_tx_status_t status;
+
+	memset(&nicm, 0, sizeof(nicm));
+	memcpy(&nicm.msg.sa.sa_tuple, &sa->state.tuple, sizeof(nicm.msg.sa.sa_tuple));
+
+	status = nss_ipsec_cmn_tx_msg_sync(sa->nss_ctx, sa->ifnum, type, sizeof(nicm.msg.sa), &nicm);
+
+	if (status != NSS_TX_SUCCESS) {
+		if (status == NSS_TX_FAILURE_QUEUE) {
+			nss_ipsecmgr_trace("%p: Failed to send message(%u) to NSS(%u); queue full\n", sa->nss_ctx, type, status);
+			schedule_delayed_work(&sa->free_work, NSS_IPSECMGR_SA_FREE_TIMEOUT);
+			return;
+		}
+
+		nss_ipsecmgr_warn("%p: Failed to send message(%u) to NSS(%u)\n", sa->nss_ctx, type, status);
+	}
 
 	if (sa->aead)
 		crypto_free_aead(sa->aead);
@@ -425,18 +471,18 @@ static void nss_ipsecmgr_sa_free_delayed(struct work_struct *work)
 }
 
 /*
- * nss_ipsecmgr_sa_free()
+ * nss_ipsecmgr_sa_free_ref()
  *	Detach the SA entry from the list
  */
-static void nss_ipsecmgr_sa_free(struct nss_ipsecmgr_ref *ref)
+static void nss_ipsecmgr_sa_free_ref(struct nss_ipsecmgr_ref *ref)
 {
-	struct nss_ipsecmgr_sa_entry *sa = container_of(ref, struct nss_ipsecmgr_sa_entry, ref);
+	struct nss_ipsecmgr_sa *sa = container_of(ref, struct nss_ipsecmgr_sa, ref);
 
 	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
 
 	/*
 	 * Linux does not provide any specific API(s) to test for RW locks. The caller
-	 * being internal is assumed to hold write lock before intiating this.
+	 * being internal is assumed to hold write lock before initiating this.
 	 */
 	list_del_init(&sa->list);
 
@@ -444,133 +490,173 @@ static void nss_ipsecmgr_sa_free(struct nss_ipsecmgr_ref *ref)
 	 * The free path can potentailly sleep hence we detach the SA here but
 	 * free it later
 	 */
-	schedule_delayed_work(&sa->free_work, sa->free_timeout);
+	schedule_delayed_work(&sa->free_work, NSS_IPSECMGR_SA_FREE_TIMEOUT);
+}
+
+/*
+ * nss_ipsecmgr_sa_create_resp()
+ * 	SA create response callback
+ */
+static void nss_ipsecmgr_sa_create_resp(void *app_data, struct nss_cmn_msg *ncm)
+{
+	struct list_head *db = ipsecmgr_drv->sa_db;
+	struct nss_ipsecmgr_sa *sa = app_data;
+	struct nss_ipsecmgr_ctx *ctx;
+	struct net_device *dev;
+	uint32_t hash_idx;
+
+	if (ncm->response != NSS_CMN_RESPONSE_ACK) {
+
+#ifdef NSS_IPSECMGR_DEBUG
+		if (ncm->error == NSS_IPSEC_CMN_MSG_ERROR_SA_DUP) {
+			write_lock_bh(&ipsecmgr_drv->lock);
+			if (!nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, &sa->state.tuple)) {
+				nss_ipsecmgr_trace("%p: Duplicate SA in FW not in host (%u)\n", sa, ncm->error);
+			}
+			write_unlock_bh(&ipsecmgr_drv->lock);
+		}
+#endif
+
+		nss_ipsecmgr_trace("%p: NSS response error (%u)\n", sa, ncm->error);
+		kfree(sa);
+		return;
+	}
+
+	hash_idx = nss_ipsecmgr_sa_tuple2hash(&sa->state.tuple, NSS_IPSECMGR_SA_MAX);
+
+	dev = dev_get_by_index(&init_net, sa->tunnel_id);
+	if (!dev) {
+		nss_ipsecmgr_warn("%p: Failed to find tunnel(%d) between SA creation\n", sa, sa->tunnel_id);
+		kfree(sa);
+		return;
+	}
+
+	write_lock_bh(&ipsecmgr_drv->lock);
+
+	ctx = nss_ipsecmgr_ctx_find(netdev_priv(dev), sa->type);
+	if (!ctx) {
+		write_unlock_bh(&ipsecmgr_drv->lock);
+		nss_ipsecmgr_warn("%p: Failed to find context (%u) between SA creation\n", sa, sa->type);
+		kfree(sa);
+		goto done;
+	}
+
+	/*
+	 * Add SA reference to the context.
+	 */
+	nss_ipsecmgr_ref_add(&sa->ref, &ctx->ref);
+	list_add(&sa->list, &db[hash_idx]);
+	write_unlock_bh(&ipsecmgr_drv->lock);
+
+done:
+	dev_put(dev);
 }
 
 /*
  * nss_ipsecmgr_sa_alloc_encap()
  *	Allocate encapsulation SA
  */
-static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_encap(struct nss_ipsecmgr_priv *priv,
-							struct nss_ipsecmgr_flow_outer *outer,
-							struct nss_ipsecmgr_sa *sa_data, uint32_t *if_num)
+static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_encap(struct nss_ipsecmgr_tunnel *tun,
+							struct nss_ipsecmgr_sa_tuple *tuple,
+							struct nss_ipsecmgr_sa_data *data,
+							uint32_t *ifnum)
 {
-	char sa_name[NSS_IPSECMGR_DEBUGFS_NAME_SZ] = {0};
-	struct list_head *db = ipsecmgr_drv->sa_db;
-	struct nss_ipsecmgr_sa_entry *sa;
-	struct nss_ipsec_rule_data *data;
-	struct nss_ipsec_rule_oip *oip;
-	struct nss_ipsec_tuple tuple = {0};
-	uint32_t index;
-	size_t hdr_sz;
+	const enum nss_ipsec_cmn_msg_type type = NSS_IPSEC_CMN_MSG_TYPE_SA_CREATE;
+	struct nss_ipsec_cmn_sa_tuple *sa_tuple;
+	struct nss_ipsec_cmn_sa_data *sa_data;
+	struct nss_ipsec_cmn_msg nicm;
+	struct nss_ipsecmgr_ctx *ctx;
+	struct nss_ipsecmgr_sa *sa;
+	nss_tx_status_t status;
 
-	nss_ipsecmgr_flow_outer2tuple(outer, &tuple);
+	memset(&nicm, 0, sizeof(nicm));
 
-	/*
-	 * Read lock is sufficient here since we are looking up SA DB
-	 */
-	read_lock_bh(&ipsecmgr_drv->lock);
+	sa_tuple = &nicm.msg.sa.sa_tuple;
+	sa_data =  &nicm.msg.sa.sa_data;
+
+	nss_ipsecmgr_sa2tuple(tuple, sa_tuple);
 
 	/*
 	 * Check if the SA already exists or not
 	 */
-	if (nss_ipsecmgr_sa_lookup(db, &tuple)) {
+	read_lock_bh(&ipsecmgr_drv->lock);
+	if (nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, sa_tuple)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
+		nss_ipsecmgr_trace("%p: duplicate SA found\n", tun);
 		return NSS_IPSECMGR_DUPLICATE_SA;
 	}
 
-	read_unlock_bh(&ipsecmgr_drv->lock);
+	ctx = nss_ipsecmgr_ctx_find(tun, NSS_IPSEC_CMN_CTX_TYPE_INNER);
+	if (!ctx) {
+		read_unlock_bh(&ipsecmgr_drv->lock);
+		nss_ipsecmgr_warn("%p: failed to find inner context associated with tunnel\n", tun);
+		return NSS_IPSECMGR_FAIL;
+	}
 
+	read_unlock_bh(&ipsecmgr_drv->lock);
 
 	/*
 	 * Allocate the SA entry
 	 */
 	sa = kzalloc(sizeof(*sa), in_atomic() ? GFP_ATOMIC : GFP_KERNEL);
-	if (!sa)
+	if (!sa) {
+		nss_ipsecmgr_warn("%p: Failed to allocate encap SA\n", ctx);
 		return NSS_IPSECMGR_FAIL_NOMEM;
+	}
 
 	/*
 	 * Allocate crypto resources
 	 */
-	if (nss_ipsecmgr_sa_crypto_alloc(priv, sa, &sa_data->cmn)) {
+	if (nss_ipsecmgr_sa_crypto_alloc(tun, sa, &data->cmn, sa_tuple, sa_data)) {
+		nss_ipsecmgr_warn("%p: Failed to allocate crypto resource for encap SA\n", ctx);
 		kfree(sa);
 		return NSS_IPSECMGR_FAIL_NOCRYPTO;
 	}
 
-	sa->priv = priv;
-	sa->type = NSS_IPSEC_TYPE_ENCAP;
-	sa->if_num = ipsecmgr_drv->encap_ifnum;
-	sa->free_timeout = NSS_IPSECMGR_SA_FREE_TIMEOUT;
+	sa_data->df = data->encap.df;
+	sa_data->dscp = data->encap.dscp;
+	sa_data->flags |= data->cmn.enable_natt ? NSS_IPSEC_CMN_FLAG_IPV4_NATT : 0;
+	sa_data->flags |= data->cmn.enable_esn ? NSS_IPSEC_CMN_FLAG_ESP_ESN : 0;
+	sa_data->flags |= data->cmn.skip_trailer ? NSS_IPSEC_CMN_FLAG_ESP_SKIP : 0;
+	sa_data->flags |= data->encap.copy_dscp ? NSS_IPSEC_CMN_FLAG_COPY_DSCP : 0;
+	sa_data->flags |= data->encap.copy_df ? NSS_IPSEC_CMN_FLAG_COPY_DF : 0;
 
-	*if_num = nss_ipsec_get_ifnum(sa->if_num);
-
-	/*
-	 * Fill the data
-	 */
-	data = &sa->data;
-	data->esp_icv_len = sa_data->cmn.icv_len;
-	data->esp_tail_skip = sa_data->cmn.skip_trailer;
-	data->enable_esn = sa_data->cmn.enable_esn;
-	data->nat_t_req = sa_data->cmn.enable_natt;
-
-	/*
-	 * Fill encapsulation specific data
-	 */
-	data->dscp = sa_data->encap.dscp;
-	data->df = sa_data->encap.df;
-	data->copy_dscp = sa_data->encap.copy_dscp;
-	data->copy_df = sa_data->encap.copy_df;
-
-	memcpy(&sa->tuple, &tuple, sizeof(sa->tuple));
-	memcpy(&sa->outer, outer, sizeof(sa->outer));
-
-	/*
-	 * Fill outer IP related information
-	 */
-	oip = &sa->oip;
-	oip->esp_spi = outer->spi_index;
-	oip->proto_next_hdr = outer->proto_next_hdr;
-
-	if (outer->proto_next_hdr == IPPROTO_UDP) {
-		oip->src_port = outer->sport ? outer->sport : NSS_IPSECMGR_NATT_PORT_DATA;
-		oip->dst_port = outer->dport ? outer->dport : NSS_IPSECMGR_NATT_PORT_DATA;
+	if (tuple->ip_ver == 6) {
+		sa_data->flags &= ~NSS_IPSEC_CMN_FLAG_HDR_MASK;
+		sa_data->flags |= NSS_IPSEC_CMN_FLAG_IPV6;
 	}
 
-	oip->ip_ver = outer->ip_version;
-	oip->ttl_hop_limit = sa_data->encap.ttl_hop_limit;
+	sa_tuple->hop_limit = data->encap.ttl_hop_limit;
 
-	hdr_sz = (outer->ip_version == IPVERSION) ? sizeof(oip->dst_addr[0]) : sizeof(oip->dst_addr);
-	memcpy(&oip->dst_addr, outer->dest_ip, hdr_sz);
-	memcpy(&oip->src_addr, outer->src_ip, hdr_sz);
+	/*
+	 * Copy tuple information for deletion
+	 */
+	memcpy(&sa->state.tuple, sa_tuple, sizeof(sa->state.tuple));
+	memcpy(&sa->state.data, sa_data, sizeof(sa->state.data));
+
+	sa->type = ctx->state.type;
+	sa->tunnel_id = tun->dev->ifindex;
+	sa->nss_ctx = ctx->nss_ctx;
+	sa->ifnum = ctx->ifnum;
+	sa->cb = tun->cb;
 
 	INIT_LIST_HEAD(&sa->list);
-	nss_ipsecmgr_ref_init(&sa->ref, nss_ipsecmgr_sa_free);
-	INIT_DELAYED_WORK(&sa->free_work, nss_ipsecmgr_sa_free_delayed);
+	nss_ipsecmgr_ref_init(&sa->ref, nss_ipsecmgr_sa_free_ref);
+	nss_ipsecmgr_ref_init_print(&sa->ref, nss_ipsecmgr_sa_print_len, nss_ipsecmgr_sa_print);
+	INIT_DELAYED_WORK(&sa->free_work, nss_ipsecmgr_sa_free_work);
 
-	/*
-	 * Find the index to save the SA entry
-	 */
-	index = nss_ipsecmgr_tuple2index(&tuple, NSS_IPSECMGR_SA_MAX);
+	nss_ipsec_cmn_msg_init(&nicm, ctx->ifnum, type, sizeof(nicm.msg.sa), nss_ipsecmgr_sa_create_resp, sa);
 
-	/*
-	 * Adding sa debugfs entry
-	 */
-	scnprintf(sa_name, sizeof(sa_name), "sa@spi:%x", oip->esp_spi);
-	sa->dentry = debugfs_create_dir(sa_name, ipsecmgr_drv->dentry);
-	if (sa->dentry)
-		debugfs_create_file("stats", S_IRUGO, sa->dentry, sa, &sa_stats_op);
+	status = nss_ipsec_cmn_tx_msg(ctx->nss_ctx, &nicm);
+	if (status != NSS_TX_SUCCESS) {
+		nss_ipsecmgr_warn("%p: Failed to send message(%u) to NSS(%u)\n", ctx, type, status);
+		kfree(sa);
+		return NSS_IPSECMGR_FAIL_MESSAGE;
+	}
 
-	write_lock_bh(&ipsecmgr_drv->lock);
+	*ifnum = nss_ipsec_cmn_get_ifnum_with_coreid(ctx->ifnum);
 
-	/*
-	 * Add SA reference to the tunnel
-	 */
-	nss_ipsecmgr_ref_add(&sa->ref, &priv->ref);
-	list_add(&sa->list, &db[index]);
-
-	write_unlock_bh(&ipsecmgr_drv->lock);
-
-	nss_ipsecmgr_trace("%p:encap SA added", sa);
+	nss_ipsecmgr_trace("%p:encap SA added\n", sa);
 	return NSS_IPSECMGR_OK;
 }
 
@@ -578,29 +664,40 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_encap(struct nss_ipsecmgr_pri
  * nss_ipsecmgr_sa_alloc_decap()
  *	Allocate decapsulation SA
  */
-static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_priv *priv,
-							struct nss_ipsecmgr_flow_outer *outer,
-							struct nss_ipsecmgr_sa *sa_data, uint32_t *if_num)
+static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_tunnel *tun,
+							struct nss_ipsecmgr_sa_tuple *tuple,
+							struct nss_ipsecmgr_sa_data *data,
+							uint32_t *ifnum)
 {
-	char sa_name[NSS_IPSECMGR_DEBUGFS_NAME_SZ] = {0};
-	struct list_head *db = ipsecmgr_drv->sa_db;
-	struct nss_ipsec_tuple tuple = {0};
-	struct nss_ipsecmgr_sa_entry *sa;
-	struct nss_ipsec_rule_data *data;
-	struct nss_ipsec_rule_oip *oip;
-	uint32_t index;
-	size_t hdr_sz;
+	const enum nss_ipsec_cmn_msg_type type = NSS_IPSEC_CMN_MSG_TYPE_SA_CREATE;
+	struct nss_ipsec_cmn_sa_tuple *sa_tuple;
+	struct nss_ipsec_cmn_sa_data *sa_data;
+	struct nss_ipsec_cmn_msg nicm;
+	struct nss_ipsecmgr_ctx *ctx;
+	struct nss_ipsecmgr_sa *sa;
+	nss_tx_status_t status;
 
-	nss_ipsecmgr_flow_outer2tuple(outer, &tuple);
+	memset(&nicm, 0, sizeof(nicm));
 
-	read_lock_bh(&ipsecmgr_drv->lock);
+	sa_tuple = &nicm.msg.sa.sa_tuple;
+	sa_data =  &nicm.msg.sa.sa_data;
+
+	nss_ipsecmgr_sa2tuple(tuple, sa_tuple);
 
 	/*
 	 * Check if the SA already exists or not
 	 */
-	if (nss_ipsecmgr_sa_lookup(db, &tuple)) {
+	read_lock_bh(&ipsecmgr_drv->lock);
+	if (nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, sa_tuple)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
 		return NSS_IPSECMGR_DUPLICATE_SA;
+	}
+
+	ctx = nss_ipsecmgr_ctx_find(tun, NSS_IPSEC_CMN_CTX_TYPE_OUTER);
+	if (!ctx) {
+		read_unlock_bh(&ipsecmgr_drv->lock);
+		nss_ipsecmgr_warn("%p: failed to find inner context associated with tunnel\n", tun);
+		return NSS_IPSECMGR_FAIL;
 	}
 
 	read_unlock_bh(&ipsecmgr_drv->lock);
@@ -609,108 +706,132 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_decap(struct nss_ipsecmgr_pri
 	 * Allocate the SA entry
 	 */
 	sa = kzalloc(sizeof(*sa), in_atomic() ? GFP_ATOMIC : GFP_KERNEL);
-	if (!sa)
+	if (!sa) {
+		nss_ipsecmgr_warn("%p: Failed to allocate decap SA\n", ctx);
 		return NSS_IPSECMGR_FAIL_NOMEM;
+	}
 
 	/*
 	 * Allocate crypto resources
 	 */
-	if (nss_ipsecmgr_sa_crypto_alloc(priv, sa, &sa_data->cmn)) {
+	if (nss_ipsecmgr_sa_crypto_alloc(tun, sa, &data->cmn, sa_tuple, sa_data)) {
+		nss_ipsecmgr_warn("%p: Failed to allocate crypto resource for encap SA\n", ctx);
 		kfree(sa);
 		return NSS_IPSECMGR_FAIL_NOCRYPTO;
 	}
 
-	sa->priv = priv;
-	sa->type = NSS_IPSEC_TYPE_DECAP;
-	sa->if_num = ipsecmgr_drv->decap_ifnum;
-	sa->free_timeout = NSS_IPSECMGR_SA_FREE_TIMEOUT;
+	sa_data->window_size = data->decap.replay_win;
 
-	*if_num = nss_ipsec_get_ifnum(sa->if_num);
+	sa_data->flags |= data->cmn.enable_natt ? NSS_IPSEC_CMN_FLAG_IPV4_NATT : 0;
+	sa_data->flags |= data->cmn.enable_esn ? NSS_IPSEC_CMN_FLAG_ESP_ESN : 0;
+	sa_data->flags |= data->cmn.skip_trailer ? NSS_IPSEC_CMN_FLAG_ESP_SKIP : 0;
+	sa_data->flags |= data->decap.replay_win ? NSS_IPSEC_CMN_FLAG_ESP_REPLAY : 0;
 
-	memcpy(&sa->tuple, &tuple, sizeof(sa->tuple));
-	memcpy(&sa->outer, outer, sizeof(sa->outer));
-
-	/*
-	 * Fill the data
-	 */
-	data = &sa->data;
-	data->esp_icv_len = sa_data->cmn.icv_len;
-	data->esp_tail_skip = sa_data->cmn.skip_trailer;
-	data->enable_esn = sa_data->cmn.enable_esn;
-	data->nat_t_req = sa_data->cmn.enable_natt;
-
-	/*
-	 * Fill decapsulation specific data
-	 */
-	data->window_size = sa_data->decap.replay_win;
-	sa->replay_fail_thresh = sa_data->decap.replay_fail_thresh;
-
-	/*
-	 * Fill outer IP related information
-	 */
-	oip = &sa->oip;
-	hdr_sz = (outer->ip_version == IPVERSION) ? sizeof(oip->dst_addr[0]) : sizeof(oip->dst_addr);
-	memcpy(&oip->dst_addr, outer->dest_ip, hdr_sz);
-	memcpy(&oip->src_addr, outer->src_ip, hdr_sz);
-	oip->esp_spi = outer->spi_index;
-	oip->proto_next_hdr = outer->proto_next_hdr;
-
-	if (outer->proto_next_hdr == IPPROTO_UDP) {
-		oip->src_port = outer->sport ? outer->sport : NSS_IPSECMGR_NATT_PORT_DATA;
-		oip->dst_port = outer->dport ? outer->dport : NSS_IPSECMGR_NATT_PORT_DATA;
+	if (sa_tuple->ip_ver == 6) {
+		sa_data->flags &= ~NSS_IPSEC_CMN_FLAG_HDR_MASK;
+		sa_data->flags |= NSS_IPSEC_CMN_FLAG_IPV6;
 	}
 
-	oip->ip_ver = outer->ip_version;
-	oip->ttl_hop_limit = 0;
+	sa->type = ctx->state.type;
+	sa->tunnel_id = tun->dev->ifindex;
+	sa->nss_ctx = ctx->nss_ctx;
+	sa->ifnum = ctx->ifnum;
+	sa->cb = tun->cb;
+
+	memcpy(&sa->state.tuple, sa_tuple, sizeof(sa->state.tuple));
+	memcpy(&sa->state.data, sa_data, sizeof(sa->state.data));
 
 	INIT_LIST_HEAD(&sa->list);
-	nss_ipsecmgr_ref_init(&sa->ref, nss_ipsecmgr_sa_free);
-	INIT_DELAYED_WORK(&sa->free_work, nss_ipsecmgr_sa_free_delayed);
+	nss_ipsecmgr_ref_init(&sa->ref, nss_ipsecmgr_sa_free_ref);
+	nss_ipsecmgr_ref_init_print(&sa->ref, nss_ipsecmgr_sa_print_len, nss_ipsecmgr_sa_print);
+	INIT_DELAYED_WORK(&sa->free_work, nss_ipsecmgr_sa_free_work);
 
-	/*
-	 * Find the index to save the SA entry
-	 */
-	index = nss_ipsecmgr_tuple2index(&tuple, NSS_IPSECMGR_SA_MAX);
+	nss_ipsec_cmn_msg_init(&nicm, ctx->ifnum, type, sizeof(nicm.msg.sa), nss_ipsecmgr_sa_create_resp, sa);
 
-	/*
-	 * Adding sa debugfs entry
-	 */
-	scnprintf(sa_name, sizeof(sa_name), "sa@spi:%x", oip->esp_spi);
-	sa->dentry = debugfs_create_dir(sa_name, ipsecmgr_drv->dentry);
-	if (sa->dentry)
-		debugfs_create_file("stats", S_IRUGO, sa->dentry, sa, &sa_stats_op);
+	status = nss_ipsec_cmn_tx_msg(ctx->nss_ctx, &nicm);
+	if (status != NSS_TX_SUCCESS) {
+		nss_ipsecmgr_warn("%p: Failed to send message(%u) to NSS(%u)\n", ctx, type, status);
+		kfree(sa);
+		return NSS_IPSECMGR_FAIL_MESSAGE;
+	}
 
-	/*
-	 * Write lock needed here since SA is updated
-	 */
-	write_lock_bh(&ipsecmgr_drv->lock);
+	*ifnum = nss_ipsec_cmn_get_ifnum_with_coreid(ctx->ifnum);
 
-	nss_ipsecmgr_ref_add(&sa->ref, &priv->ref);
-	list_add(&sa->list, &db[index]);
-
-	write_unlock_bh(&ipsecmgr_drv->lock);
-
-	nss_ipsecmgr_trace("%p:decap SA added", sa);
+	nss_ipsecmgr_trace("%p:decap SA added\n", sa);
 	return NSS_IPSECMGR_OK;
 }
 
 /*
- * nss_ipsecmgr_sa_lookup()
- *	Find an SA using the tuple information
+ * nss_ipsecmgr_sa_sync_state()
+ *	Update SA sync state
  */
-struct nss_ipsecmgr_sa_entry *nss_ipsecmgr_sa_lookup(struct list_head *db, struct nss_ipsec_tuple *tuple)
+void nss_ipsecmgr_sa_sync2stats(struct nss_ipsec_cmn_sa_sync *sync, struct nss_ipsecmgr_sa_stats *stats)
 {
-	uint32_t index = nss_ipsecmgr_tuple2index(tuple, NSS_IPSECMGR_SA_MAX);
-	struct list_head *head = &db[index];
-	struct nss_ipsecmgr_sa_entry *sa;
+	struct nss_ipsec_cmn_sa_stats *sa_stats = &sync->stats;
+	uint32_t *drop_counters;
+	size_t num_counters;
+	int i;
+
+	nss_ipsecmgr_sa_tuple2sa(&sync->sa_tuple, &stats->sa);
+	stats->pkt_bytes = sa_stats->cmn_stats.rx_bytes + sa_stats->cmn_stats.tx_bytes;
+	stats->pkt_count = sa_stats->cmn_stats.rx_packets + sa_stats->cmn_stats.tx_packets;
+	stats->pkt_failed = 0;
+
+	for (i = 0; i < ARRAY_SIZE(sa_stats->cmn_stats.rx_dropped); i++)
+		stats->pkt_failed += sa_stats->cmn_stats.rx_dropped[i];
 
 	/*
-	 * Linux does not provide any specific API(s) to test for RW locks. The caller
-	 * being internal is assumed to hold write lock before intiating this.
+	 * Drop counters starts after common stats counters
 	 */
-	list_for_each_entry(sa, head, list) {
-		if (nss_ipsecmgr_tuple_match(&sa->tuple, tuple))
+	drop_counters = (uint32_t *)((uint8_t *)&sa_stats + sizeof(sa_stats->cmn_stats));
+	num_counters = (sizeof(*sa_stats) - sizeof(sa_stats->cmn_stats)) / sizeof(uint32_t);
+
+	for (i = 0; i < num_counters; i++)
+		stats->pkt_failed += drop_counters[i];
+
+	stats->seq_start = sync->replay.seq_start;
+	stats->seq_cur = sync->replay.seq_cur;
+	stats->window_size = sync->replay.window_size;
+}
+
+/*
+ * nss_ipsecmgr_sa_sync_state()
+ *	Update SA sync state
+ */
+void nss_ipsecmgr_sa_sync_state(struct nss_ipsecmgr_sa *sa, struct nss_ipsec_cmn_sa_sync *sa_sync)
+{
+	uint32_t *msg_stats = (uint32_t *)&sa_sync->stats;
+	uint64_t *sa_stats = (uint64_t *)&sa->stats;
+	int num;
+
+	/*
+	 * DEBUG check to see if the lock is taken before accessing
+	 * SA entry in the database
+	 */
+	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+
+	for (num = 0; num < sizeof(sa->stats)/sizeof(*sa_stats); num++) {
+		sa_stats[num] += msg_stats[num];
+	}
+
+	memcpy(&sa->state.replay, &sa_sync->replay, sizeof(sa->state.replay));
+}
+
+/*
+ * nss_ipsecmgr_sa_find()
+ *	Find an SA using a SA tuple
+ */
+struct nss_ipsecmgr_sa *nss_ipsecmgr_sa_find(struct list_head *db, struct nss_ipsec_cmn_sa_tuple *tuple)
+{
+	struct nss_ipsecmgr_sa *sa;
+	uint32_t hash_idx;
+
+	hash_idx = nss_ipsecmgr_sa_tuple2hash(tuple, NSS_IPSECMGR_SA_MAX);
+
+	list_for_each_entry(sa, &db[hash_idx], list) {
+		if (nss_ipsecmgr_sa_tuple_match(&sa->state.tuple, tuple)) {
 			return sa;
+		}
 	}
 
 	return NULL;
@@ -720,14 +841,13 @@ struct nss_ipsecmgr_sa_entry *nss_ipsecmgr_sa_lookup(struct list_head *db, struc
  * nss_ipsecmgr_sa_del()
  *	Delete an existing SA
  */
-void nss_ipsecmgr_sa_del(struct net_device *tun, struct nss_ipsecmgr_flow_outer *outer)
+void nss_ipsecmgr_sa_del(struct net_device *dev, struct nss_ipsecmgr_sa_tuple *tuple)
 {
-	struct nss_ipsecmgr_priv *priv __attribute__((unused)) = netdev_priv(tun);
-	struct list_head *db = ipsecmgr_drv->sa_db;
-	struct nss_ipsecmgr_sa_entry *sa;
-	struct nss_ipsec_tuple tuple = {0};
+	struct nss_ipsecmgr_tunnel *tun = netdev_priv(dev);
+	struct nss_ipsec_cmn_sa_tuple sa_tuple = {0};
+	struct nss_ipsecmgr_sa *sa;
 
-	nss_ipsecmgr_flow_outer2tuple(outer, &tuple);
+	nss_ipsecmgr_sa2tuple(tuple, &sa_tuple);
 
 	/*
 	 * Write lock needed here since SA and all related Flows
@@ -736,26 +856,17 @@ void nss_ipsecmgr_sa_del(struct net_device *tun, struct nss_ipsecmgr_flow_outer 
 	 */
 	write_lock_bh(&ipsecmgr_drv->lock);
 
-	/*
-	 * Find the SA entry to free
-	 */
-	sa = nss_ipsecmgr_sa_lookup(db, &tuple);
+	sa = nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, &sa_tuple);
 	if (!sa) {
 		write_unlock_bh(&ipsecmgr_drv->lock);
+		nss_ipsecmgr_warn("%p: failed to find SA for deletion\n", tun);
 		return;
 	}
-
-	/*
-	 * Remove debugfs entry
-	 */
-	if (sa->dentry)
-		debugfs_remove_recursive(sa->dentry);
 
 	/*
 	 * Free the entire reference hierarchy
 	 */
 	nss_ipsecmgr_ref_free(&sa->ref);
-
 	write_unlock_bh(&ipsecmgr_drv->lock);
 }
 EXPORT_SYMBOL(nss_ipsecmgr_sa_del);
@@ -764,20 +875,20 @@ EXPORT_SYMBOL(nss_ipsecmgr_sa_del);
  * nss_ipsecmgr_sa_add()
  *	Add a new SA for encapsulation or decapsulation
  */
-nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *tun, struct nss_ipsecmgr_flow_outer *outer,
-					struct nss_ipsecmgr_sa *sa_data, uint32_t *if_num)
+nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *dev, struct nss_ipsecmgr_sa_tuple *tuple,
+					struct nss_ipsecmgr_sa_data *data, uint32_t *ifnum)
 {
-	struct nss_ipsecmgr_priv *priv = netdev_priv(tun);
+	struct nss_ipsecmgr_tunnel *tun = netdev_priv(dev);
 
-	switch (sa_data->type) {
+	switch (data->type) {
 	case NSS_IPSECMGR_SA_TYPE_ENCAP:
-		return nss_ipsecmgr_sa_alloc_encap(priv, outer, sa_data, if_num);
+		return nss_ipsecmgr_sa_alloc_encap(tun, tuple, data, ifnum);
 
 	case NSS_IPSECMGR_SA_TYPE_DECAP:
-		return nss_ipsecmgr_sa_alloc_decap(priv, outer, sa_data, if_num);
+		return nss_ipsecmgr_sa_alloc_decap(tun, tuple, data, ifnum);
 
 	default:
-		nss_ipsecmgr_warn("%p:Unsupported SA type(%u)", tun, sa_data->type);
+		nss_ipsecmgr_warn("%p:Unsupported SA type(%u)\n", tun, data->type);
 		return NSS_IPSECMGR_FAIL;
 	}
 }

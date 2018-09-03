@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -43,14 +43,19 @@
 #include <crypto/internal/hash.h>
 
 #include <nss_api_if.h>
-#include <nss_ipsec.h>
-#include <nss_cryptoapi.h>
+#include <nss_ipsec_cmn.h>
 #include <nss_ipsecmgr.h>
+#include <nss_cryptoapi.h>
 
 #ifdef NSS_IPSECMGR_PPE_SUPPORT
 #include <ref/ref_vsi.h>
 #endif
 
+#include "nss_ipsecmgr_ref.h"
+#include "nss_ipsecmgr_flow.h"
+#include "nss_ipsecmgr_sa.h"
+#include "nss_ipsecmgr_ctx.h"
+#include "nss_ipsecmgr_tunnel.h"
 #include "nss_ipsecmgr_priv.h"
 
 extern struct nss_ipsecmgr_drv *ipsecmgr_drv;
@@ -66,6 +71,26 @@ static void nss_ipsecmgr_ref_no_free(struct nss_ipsecmgr_ref *ref)
 }
 
 /*
+ * nss_ipsecmgr_ref_no_print_len()
+ *	dummy functions for object owner when there is no stats length
+ */
+static ssize_t nss_ipsecmgr_ref_no_print_len(struct nss_ipsecmgr_ref *ref)
+{
+	nss_ipsecmgr_trace("%p: ref_no_free triggered\n", ref);
+	return 0;
+}
+
+/*
+ * nss_ipsecmgr_ref_no_print()
+ *	dummy functions for object owner when there is no stats dump
+ */
+static ssize_t nss_ipsecmgr_ref_no_print(struct nss_ipsecmgr_ref *ref, char *buf)
+{
+	nss_ipsecmgr_trace("%p: ref_no_free triggered\n", ref);
+	return 0;
+}
+
+/*
  * nss_ipsecmgr_ref_init()
  *	initiaize the reference object
  */
@@ -77,6 +102,78 @@ void nss_ipsecmgr_ref_init(struct nss_ipsecmgr_ref *ref, nss_ipsecmgr_ref_method
 	ref->id = 0;
 	ref->parent = NULL;
 	ref->free = free ? free : nss_ipsecmgr_ref_no_free;
+	ref->print_len = nss_ipsecmgr_ref_no_print_len;
+	ref->print = nss_ipsecmgr_ref_no_print;
+}
+
+/*
+ * nss_ipsecmgr_ref_init_print
+ *	Initialize print methods
+ */
+void nss_ipsecmgr_ref_init_print(struct nss_ipsecmgr_ref *ref, nss_ipsecmgr_ref_get_method_t print_len,
+				nss_ipsecmgr_ref_print_method_t print)
+{
+	ref->print_len = print_len;
+	ref->print = print;
+}
+
+/*
+ * nss_ipsecmgr_ref_print()
+ *	Print reference node information and its children
+ */
+ssize_t nss_ipsecmgr_ref_print(struct nss_ipsecmgr_ref *ref, char *buf)
+{
+	struct nss_ipsecmgr_ref *entry;
+	size_t len = 0;
+
+	/*
+	 * DEBUG check to see if the lock is taken before touching the list
+	 */
+	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+
+	len += ref->print(ref, buf);
+
+	list_for_each_entry(entry, &ref->head, node) {
+		len += nss_ipsecmgr_ref_print(entry, buf + len);
+	}
+
+	return len;
+}
+
+/*
+ * nss_ipsecmgr_ref_print_len()
+ *	Get print length for the reference node and its children
+ */
+ssize_t nss_ipsecmgr_ref_print_len(struct nss_ipsecmgr_ref *ref)
+{
+	struct nss_ipsecmgr_ref *entry;
+	size_t total_len = 0;
+
+	/*
+	 * DEBUG check to see if the lock is taken before touching the list
+	 */
+	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+
+	list_for_each_entry(entry, &ref->head, node) {
+		total_len += nss_ipsecmgr_ref_print_len(entry);
+	}
+
+	return total_len + ref->print_len(ref);
+}
+
+/*
+ * nss_ipsecmgr_ref_del()
+ *	Delete child reference to parent chain
+ */
+void nss_ipsecmgr_ref_del(struct nss_ipsecmgr_ref *child)
+{
+	/*
+	 * DEBUG check to see if the lock is taken before touching the list
+	 */
+	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+
+	list_del_init(&child->node);
+	child->parent = child;
 }
 
 /*

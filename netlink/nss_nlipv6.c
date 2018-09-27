@@ -73,7 +73,6 @@ struct nss_nlipv6_ctx {
 static int nss_nlipv6_ops_create_rule(struct sk_buff *skb, struct genl_info *info);
 static int nss_nlipv6_ops_destroy_rule(struct sk_buff *skb, struct genl_info *info);
 
-
 /*
  * IPV6 family definition
  */
@@ -224,7 +223,6 @@ fail:
 	return -ENODEV;
 }
 
-
 /*
  * nss_nlipv6_verify_5tuple()
  * 	verify and override 5-tuple entries
@@ -274,7 +272,7 @@ static int nss_nlipv6_verify_5tuple(struct nss_ipv6_5tuple *tuple)
  * 	verify and override connection rule entries
  */
 static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, struct net_device *flow_dev,
-					struct net_device *return_dev)
+					struct net_device *return_dev, uint16_t flow_dev_type, uint16_t return_dev_type)
 {
 	struct nss_ipv6_connection_rule *conn = &msg->conn_rule;
 	struct nss_ipv6_nexthop *nexthop = &msg->nexthop_rule;
@@ -310,15 +308,27 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 		conn->flow_interface_num = nss_ipsec_get_ifnum(nss_ipsec_get_data_interface());
 	else if (is_vlan_dev(flow_dev))
 		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(flow_dev));
-	else
-		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(flow_dev);
+	else {
+		if (!flow_dev_type)
+			conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(flow_dev);
+		else {
+			conn->flow_interface_num = nss_cmn_get_interface_number_by_dev_and_type(flow_dev, flow_dev_type);
+		}
+			nss_nl_info("flow_interface_num: %d flow_interface_type: %d\n", conn->flow_interface_num, flow_dev_type);
+}
 
 	if (return_dev->type == NSS_IPSEC_ARPHRD_IPSEC)
 		conn->return_interface_num = nss_ipsec_get_ifnum(nss_ipsec_get_data_interface());
 	else if (is_vlan_dev(return_dev))
 		conn->return_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(return_dev));
-	else
-		conn->return_interface_num = nss_cmn_get_interface_number_by_dev(return_dev);
+	else {
+		if (!return_dev_type)
+			conn->return_interface_num = nss_cmn_get_interface_number_by_dev(return_dev);
+		else {
+			conn->return_interface_num = nss_cmn_get_interface_number_by_dev_and_type(return_dev, return_dev_type);
+		}
+                        nss_nl_info("return_interface_num: %d return_interface_type: %d\n", conn->return_interface_num, return_dev_type);
+	}
 
 	nexthop->flow_nexthop = conn->flow_interface_num;
 	nexthop->return_nexthop = conn->return_interface_num;
@@ -599,7 +609,8 @@ static int nss_nlipv6_ops_create_rule(struct sk_buff *skb, struct genl_info *inf
 	/*
 	 * check connection rule
 	 */
-	error = nss_nlipv6_verify_conn_rule(&nim->msg.rule_create, flow_dev, return_dev);
+	error = nss_nlipv6_verify_conn_rule(&nim->msg.rule_create, flow_dev, return_dev,
+				nl_rule->flow_if_type, nl_rule->return_if_type);
 	if (error < 0) {
 		nss_nl_error("%d:invalid conn rule information passed\n", pid);
 		goto done;
@@ -757,7 +768,6 @@ static int nss_nlipv6_ops_destroy_rule(struct sk_buff *skb, struct genl_info *in
 	nss_nlipv6_swap_addr(nim->msg.rule_destroy.tuple.flow_ip, nim->msg.rule_destroy.tuple.flow_ip);
 	nss_nlipv6_swap_addr(nim->msg.rule_destroy.tuple.return_ip, nim->msg.rule_destroy.tuple.return_ip);
 
-
 	/*
 	 * Push rule to NSS
 	 */
@@ -839,4 +849,3 @@ bool nss_nlipv6_exit(void)
 
 	return true;
 }
-

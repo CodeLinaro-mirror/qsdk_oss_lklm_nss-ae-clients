@@ -1366,7 +1366,7 @@ nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint
 				nss_capwapmgr_info("%p: dtls in_data required to create dtls tunnel\n", dev);
 				return NSS_CAPWAPMGR_FAILURE_BAD_PARAM;
 			}
-			in_data->decap.nexthop_ifnum = t->if_num;
+			in_data->decap.nexthop_ifnum = nss_capwap_ifnum_with_core_id(t->if_num);
 			t->dtls_dev = nss_dtlsmgr_session_create(in_data);
 			if (!t->dtls_dev) {
 				nss_capwapmgr_warn("%p: cannot create DTLS session\n", dev);
@@ -1825,7 +1825,7 @@ static nss_capwapmgr_status_t nss_capwapmgr_tunnel_create_common(struct net_devi
 		capwap_rule->dtls_inner_if_num = 0;
 		forward_if_num = nss_capwap_ifnum_with_core_id(capwap_if_num);
 	} else {
-		in_data->decap.nexthop_ifnum = capwap_if_num;
+		in_data->decap.nexthop_ifnum = nss_capwap_ifnum_with_core_id(capwap_if_num);
 		t->dtls_dev = nss_dtlsmgr_session_create(in_data);
 		if (!t->dtls_dev) {
 			nss_capwapmgr_warn("%p: NSS DTLS node alloc failed\n", dev);

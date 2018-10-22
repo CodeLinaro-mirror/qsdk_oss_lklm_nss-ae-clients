@@ -300,6 +300,7 @@ static void nss_connmgr_pptp_decap_exception(struct net_device *dev,
 {
 	struct iphdr *iph_outer;
 	struct nss_connmgr_pptp_session_entry *session_info;
+	struct flowi4 fl4;
 	struct nss_pptp_gre_hdr *gre_hdr;
 	__be32 tunnel_local_ip;
 	__be32 tunnel_peer_ip;
@@ -341,8 +342,9 @@ static void nss_connmgr_pptp_decap_exception(struct net_device *dev,
 			/*
 			 * This is a PPTP encapsulated packet that has been exceptioned to host from NSS.
 			 * We can send it directly to the physical device
-			 * */
-			rt = ip_route_output(&init_net, tunnel_peer_ip, tunnel_local_ip, 0, session_info->phy_dev->ifindex);
+			 */
+			rt = ip_route_output_ports(&init_net, &fl4, NULL, tunnel_peer_ip,
+					tunnel_local_ip, 0, 0, IPPROTO_GRE, RT_TOS(0), 0);
 			if (unlikely(IS_ERR(rt))) {
 				nss_connmgr_pptp_warning("%p: Martian packets, drop\n", dev);
 				nss_connmgr_pptp_warning("%p: No route or out dev, drop packet...\n", dev);

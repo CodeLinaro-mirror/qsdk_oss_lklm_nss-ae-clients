@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -491,7 +491,7 @@ struct net_device *nss_capwapmgr_netdev_create()
 
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 16, 0))
 	ndev = alloc_netdev(sizeof(struct nss_capwapmgr_priv),
-                                        "nsscapwap%d", nss_capwapmgr_dummpy_netdev_setup);
+					"nsscapwap%d", nss_capwapmgr_dummpy_netdev_setup);
 #else
 	ndev = alloc_netdev(sizeof(struct nss_capwapmgr_priv),
 					"nsscapwap%d", NET_NAME_ENUM, nss_capwapmgr_dummpy_netdev_setup);
@@ -727,7 +727,7 @@ static nss_tx_status_t nss_capwapmgr_unconfigure_ipv6_rule(struct nss_ipv6_destr
  * nss_capwapmgr_create_ipv4_rule()
  *	Create a nss entry to accelerate the given connection
  */
-static nss_tx_status_t nss_capwapmgr_create_ipv4_rule(void *ctx, struct nss_ipv4_create *unic, uint16_t rule_flags)
+static nss_tx_status_t nss_capwapmgr_create_ipv4_rule(void *ctx, struct nss_ipv4_create *unic, uint16_t rule_flags, uint16_t valid_flags)
 {
 	struct nss_ctx_instance *nss_ctx = (struct nss_ctx_instance *) ctx;
 	struct nss_ipv4_msg nim;
@@ -832,9 +832,10 @@ static nss_tx_status_t nss_capwapmgr_create_ipv4_rule(void *ctx, struct nss_ipv4
 
 	/*
 	 * Add any other additional flags which caller has requested.
-	 * For example: update MTU
+	 * For example: update MTU, update destination MAC address.
 	 */
 	nircm->rule_flags |= rule_flags;
+	nircm->valid_flags |= valid_flags;
 
 	down(&ip_response.sem);
 	status = nss_ipv4_tx(nss_ctx, &nim);
@@ -861,7 +862,7 @@ static nss_tx_status_t nss_capwapmgr_create_ipv4_rule(void *ctx, struct nss_ipv4
  * nss_capwapmgr_create_ipv6_rule()
  *	Create a nss entry to accelerate the given connection
  */
-static nss_tx_status_t nss_capwapmgr_create_ipv6_rule(void *ctx, struct nss_ipv6_create *unic, uint16_t rule_flags)
+static nss_tx_status_t nss_capwapmgr_create_ipv6_rule(void *ctx, struct nss_ipv6_create *unic, uint16_t rule_flags, uint16_t valid_flags)
 {
 	struct nss_ctx_instance *nss_ctx = (struct nss_ctx_instance *) ctx;
 	struct nss_ipv6_msg nim;
@@ -975,9 +976,10 @@ static nss_tx_status_t nss_capwapmgr_create_ipv6_rule(void *ctx, struct nss_ipv6
 
 	/*
 	 * Add any other additional flags which caller has requested.
-	 * For example: update MTU
+	 * For example: update MTU, Update destination MAC address.
 	 */
 	nircm->rule_flags |= rule_flags;
+	nircm->valid_flags |= valid_flags;
 
 	status = nss_ipv6_tx(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
@@ -1003,7 +1005,7 @@ static nss_tx_status_t nss_capwapmgr_create_ipv6_rule(void *ctx, struct nss_ipv6
  * nss_capwapmgr_configure_ipv4()
  *	Internal function for configuring IPv4 connection
  */
-static nss_tx_status_t nss_capwapmgr_configure_ipv4(struct nss_ipv4_create *pcreate, uint16_t rule_flags)
+static nss_tx_status_t nss_capwapmgr_configure_ipv4(struct nss_ipv4_create *pcreate, uint16_t rule_flags, uint16_t valid_flags)
 {
 	nss_tx_status_t status;
 	void *ctx;
@@ -1014,7 +1016,7 @@ static nss_tx_status_t nss_capwapmgr_configure_ipv4(struct nss_ipv4_create *pcre
 		return NSS_TX_FAILURE_NOT_READY;
 	}
 
-	status = nss_capwapmgr_create_ipv4_rule(ctx, pcreate, rule_flags);
+	status = nss_capwapmgr_create_ipv4_rule(ctx, pcreate, rule_flags, valid_flags);
 	if (status != NSS_TX_SUCCESS) {
 		nss_capwapmgr_warn("%p: ctx: nss_ipv4_tx() failed with %d\n", ctx, status);
 		return status;
@@ -1027,7 +1029,7 @@ static nss_tx_status_t nss_capwapmgr_configure_ipv4(struct nss_ipv4_create *pcre
  * nss_capwapmgr_configure_ipv6()
  *	Internal function for configuring IPv4 connection
  */
-static nss_tx_status_t nss_capwapmgr_configure_ipv6(struct nss_ipv6_create *pcreate, uint16_t rule_flags)
+static nss_tx_status_t nss_capwapmgr_configure_ipv6(struct nss_ipv6_create *pcreate, uint16_t rule_flags, uint16_t valid_flags)
 {
 	nss_tx_status_t status;
 	void *ctx;
@@ -1038,7 +1040,7 @@ static nss_tx_status_t nss_capwapmgr_configure_ipv6(struct nss_ipv6_create *pcre
 		return NSS_TX_FAILURE_NOT_READY;
 	}
 
-	status = nss_capwapmgr_create_ipv6_rule(ctx, pcreate, rule_flags);
+	status = nss_capwapmgr_create_ipv6_rule(ctx, pcreate, rule_flags, valid_flags);
 	if (status != NSS_TX_SUCCESS) {
 		nss_capwapmgr_warn("%p: ctx: nss_ipv6_tx() failed with %d\n", ctx, status);
 		return status;
@@ -1252,13 +1254,14 @@ nss_capwapmgr_status_t nss_capwapmgr_update_path_mtu(struct net_device *dev, uin
 
 	/*
 	 * Update the IPv4/IPv6 rule with the new MTU for flow and return
+	 * TODO: Change rule flag to valid flag
 	 */
 	if (t->capwap_rule.l3_proto == NSS_CAPWAP_TUNNEL_IPV4) {
 		struct nss_ipv4_create *v4;
 
 		v4 = &t->ip_rule.v4;
 		v4->from_mtu = v4->to_mtu = mtu;
-		nss_status = nss_capwapmgr_configure_ipv4(v4, NSS_IPV4_RULE_UPDATE_FLAG_CHANGE_MTU);
+		nss_status = nss_capwapmgr_configure_ipv4(v4, NSS_IPV4_RULE_UPDATE_FLAG_CHANGE_MTU, 0);
 		if (nss_status != NSS_TX_SUCCESS) {
 			v4->from_mtu = v4->to_mtu = ntohl(t->capwap_rule.encap.path_mtu);
 		}
@@ -1267,7 +1270,7 @@ nss_capwapmgr_status_t nss_capwapmgr_update_path_mtu(struct net_device *dev, uin
 
 		v6 = &t->ip_rule.v6;
 		v6->from_mtu = v6->to_mtu = mtu;
-		nss_status = nss_capwapmgr_configure_ipv6(v6, NSS_IPV6_RULE_UPDATE_FLAG_CHANGE_MTU);
+		nss_status = nss_capwapmgr_configure_ipv6(v6, NSS_IPV6_RULE_UPDATE_FLAG_CHANGE_MTU, 0);
 		if (nss_status != NSS_TX_SUCCESS) {
 			v6->from_mtu = v6->to_mtu = ntohl(t->capwap_rule.encap.path_mtu);
 		}
@@ -1290,6 +1293,68 @@ nss_capwapmgr_status_t nss_capwapmgr_update_path_mtu(struct net_device *dev, uin
 	return status;
 }
 EXPORT_SYMBOL(nss_capwapmgr_update_path_mtu);
+
+/*
+ * nss_capwapmgr_update_dest_mac_addr()
+ *	API for updating Destination Mac Addr
+ */
+nss_capwapmgr_status_t nss_capwapmgr_update_dest_mac_addr(struct net_device *dev, uint8_t tunnel_id, uint8_t *mac_addr)
+{
+	struct nss_capwapmgr_priv *priv;
+	struct nss_capwapmgr_tunnel *t;
+	nss_capwapmgr_status_t status;
+	nss_tx_status_t nss_status;
+	struct nss_ipv6_create *v6;
+	uint8_t mac_addr_old[ETH_ALEN];
+
+	t = nss_capwapmgr_verify_tunnel_param(dev, tunnel_id);
+	if (!t) {
+		nss_capwapmgr_warn("%p: can't find tunnel: %d\n", dev, tunnel_id);
+		return NSS_CAPWAPMGR_FAILURE_BAD_PARAM;
+	}
+
+	dev_hold(dev);
+	priv = netdev_priv(dev);
+	nss_capwapmgr_info("%p: %d: tunnel update mac Addr is being called\n", dev, t->if_num);
+
+	/*
+	 * Update the IPv4/IPv6 rule with the new destination mac address for flow and return.
+	 * Since the encap direction is handled by the return rule, we are updating the src_mac.
+	 */
+	if (t->capwap_rule.l3_proto == NSS_CAPWAP_TUNNEL_IPV4) {
+		struct nss_ipv4_create *v4;
+
+		v4 = &t->ip_rule.v4;
+		memcpy(mac_addr_old, v4->src_mac, ETH_ALEN);
+		memcpy(v4->src_mac, mac_addr, ETH_ALEN);
+		nss_status = nss_capwapmgr_configure_ipv4(v4, 0, NSS_IPV4_RULE_CREATE_DEST_MAC_VALID);
+
+		if (nss_status != NSS_TX_SUCCESS) {
+			nss_capwapmgr_warn("%p: Update Destination Mac for tunnel error : %d \n", dev, nss_status);
+			memcpy(t->ip_rule.v4.src_mac, mac_addr_old, ETH_ALEN);
+		}
+
+		dev_put(dev);
+		return status;
+
+	}
+
+	v6 = &t->ip_rule.v6;
+	memcpy(mac_addr_old, v6->src_mac, ETH_ALEN);
+	memcpy(v6->src_mac, mac_addr, ETH_ALEN);
+	nss_status = nss_capwapmgr_configure_ipv6(v6, 0, NSS_IPV6_RULE_CREATE_DEST_MAC_VALID);
+
+	if (nss_status != NSS_TX_SUCCESS) {
+		nss_capwapmgr_warn("%p: Update Destination Mac for tunnel error : %d \n", dev, nss_status);
+		memcpy(t->ip_rule.v6.src_mac, mac_addr_old, ETH_ALEN);
+		dev_put(dev);
+		return NSS_CAPWAPMGR_FAILURE_IP_RULE;
+	}
+
+	dev_put(dev);
+	return status;
+}
+EXPORT_SYMBOL(nss_capwapmgr_update_dest_mac_addr);
 
 /*
  * nss_capwapmgr_configure_dtls
@@ -1429,7 +1494,7 @@ nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint
 			return NSS_CAPWAPMGR_FAILURE_IP_DESTROY_RULE;
 		}
 		t->ip_rule.v4.dest_interface_num = ip_if_num;
-		nss_status = nss_capwapmgr_configure_ipv4(&t->ip_rule.v4, 0);
+		nss_status = nss_capwapmgr_configure_ipv4(&t->ip_rule.v4, 0, 0);
 	} else {
 		if (t->capwap_rule.which_udp == NSS_CAPWAP_TUNNEL_UDP) {
 			v6.protocol = IPPROTO_UDP;
@@ -1457,7 +1522,7 @@ nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint
 		}
 
 		t->ip_rule.v6.dest_interface_num = ip_if_num;
-		nss_status = nss_capwapmgr_configure_ipv6(&t->ip_rule.v6, 0);
+		nss_status = nss_capwapmgr_configure_ipv6(&t->ip_rule.v6, 0, 0);
 	}
 
 	if (nss_status != NSS_TX_SUCCESS) {
@@ -1918,10 +1983,10 @@ static nss_capwapmgr_status_t nss_capwapmgr_tunnel_create_common(struct net_devi
 
 	if (v4) {
 		v4->dest_interface_num = forward_if_num;
-		nss_status = nss_capwapmgr_configure_ipv4(v4, 0);
+		nss_status = nss_capwapmgr_configure_ipv4(v4, 0, 0);
 	} else {
 		v6->dest_interface_num = forward_if_num;
-		nss_status = nss_capwapmgr_configure_ipv6(v6, 0);
+		nss_status = nss_capwapmgr_configure_ipv6(v6, 0, 0);
 	}
 
 	if (nss_status != NSS_TX_SUCCESS) {
@@ -2141,9 +2206,9 @@ nss_capwapmgr_status_t nss_capwapmgr_tunnel_destroy(struct net_device *dev, uint
 			dev, if_num, tunnel_id);
 
 		if (t->capwap_rule.l3_proto == NSS_CAPWAP_TUNNEL_IPV4) {
-			nss_capwapmgr_configure_ipv4(&t->ip_rule.v4, 0);
+			nss_capwapmgr_configure_ipv4(&t->ip_rule.v4, 0, 0);
 		} else {
-			nss_capwapmgr_configure_ipv6(&t->ip_rule.v6, 0);
+			nss_capwapmgr_configure_ipv6(&t->ip_rule.v6, 0, 0);
 		}
 
 		return NSS_CAPWAPMGR_FAILURE_CAPWAP_DESTROY_RULE;

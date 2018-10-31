@@ -332,6 +332,9 @@ static bool nss_connmgr_mapt_check_correctness_of_mapt_rule(struct net_device *d
 	 * Validate local rule parameters
 	 */
 	switch (rule_pair->local.style) {
+	case NAT46_XLATE_NONE:
+		break;
+
 	case NAT46_XLATE_MAP:
 		if (!nss_connmgr_mapt_validate_rule_style_mapt(dev, &rule_pair->local, rule_num, true, stats)) {
 			return false;

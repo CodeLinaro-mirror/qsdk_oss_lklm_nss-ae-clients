@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -2183,6 +2183,16 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 	bool is_red;
 	bool alloc_scheduler = true;
 	struct net_device *dev = qdisc_dev(sch);
+	uint32_t port_num = nss_ppe_port_num_get(nq);
+
+	/*
+	 * HW qdisc is supported only on physical and bridge interfaces.
+	 */
+	if (port_num >= NSS_PPE_PORT_MAX) {
+		nss_qdisc_info("HW qdisc not supported on port %d\n", port_num);
+		return -1;
+	}
+
 	memset(&nq->npq, 0, sizeof(struct nss_ppe_qdisc));
 
 	switch (type) {

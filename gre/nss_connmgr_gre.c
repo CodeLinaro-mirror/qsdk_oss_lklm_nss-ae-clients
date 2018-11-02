@@ -47,6 +47,12 @@ static bool enable_notifier;
 module_param(enable_notifier, bool, 0);
 
 /*
+ * Unaligned infra in nss is disabled by default
+ */
+static bool enable_unalign;
+module_param(enable_unalign, bool, 0);
+
+/*
  * nss_connmgr_gre_dev_change_mtu()
  *	Netdev ops function to modify MTU of netdevice.
  */
@@ -387,12 +393,18 @@ static int32_t nss_connmgr_gre_prepare_config_cmd(struct net_device *dev,
 	if ((dev->type == ARPHRD_ETHER) && (dev->priv_flags & IFF_GRE_V4_TAP)) {
 		cmsg->mode = NSS_GRE_MODE_TAP;
 		cmsg->ip_type = NSS_GRE_IP_IPV4;
+		if (enable_unalign) {
+			cmsg->flags |= NSS_GRE_CONFIG_USE_UNALIGNED;
+		}
 		return nss_connmgr_gre_v4_get_config(dev, req, next_dev, hold);
 	}
 
 	if ((dev->type == ARPHRD_ETHER) && (dev->priv_flags & IFF_GRE_V6_TAP)) {
 		cmsg->mode = NSS_GRE_MODE_TAP;
 		cmsg->ip_type = NSS_GRE_IP_IPV6;
+		if (enable_unalign) {
+			cmsg->flags |= NSS_GRE_CONFIG_USE_UNALIGNED;
+		}
 		return nss_connmgr_gre_v6_get_config(dev, req, next_dev, hold);
 	}
 

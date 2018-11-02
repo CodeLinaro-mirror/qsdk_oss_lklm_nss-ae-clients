@@ -287,7 +287,7 @@ int nss_connmgr_gre_v6_get_config(struct net_device *dev, struct nss_gre_msg *re
 	/*
 	 * IPv6 outer tos field is always inherited from inner IP header.
 	 */
-	cmsg->flags = nss_connmgr_gre_get_nss_config_flags(t->parms.o_flags,
+	cmsg->flags |= nss_connmgr_gre_get_nss_config_flags(t->parms.o_flags,
 								     t->parms.i_flags,
 								     0x1,
 								     t->parms.hop_limit, 0);

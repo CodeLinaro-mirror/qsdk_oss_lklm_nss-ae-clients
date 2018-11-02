@@ -326,7 +326,7 @@ int nss_connmgr_gre_v4_get_config(struct net_device *dev, struct nss_gre_msg *re
 	memcpy(cmsg->src_ip, &src_ip, 4);
 	memcpy(cmsg->dest_ip, &dest_ip, 4);
 
-	cmsg->flags = nss_connmgr_gre_get_nss_config_flags(t->parms.o_flags,
+	cmsg->flags |= nss_connmgr_gre_get_nss_config_flags(t->parms.o_flags,
 								     t->parms.i_flags,
 								     iphdr->tos, iphdr->ttl,
 								     iphdr->frag_off);

@@ -99,7 +99,6 @@
 #define NSS_BRIDGE_MGR_ACL_FIN_RULE_ID 1
 #define NSS_BRIDGE_MGR_ACL_SYN_RULE_ID 2
 #define NSS_BRIDGE_MGR_ACL_RST_RULE_ID 3
-#define NSS_BRIDGE_MGR_ACL_SERVICE_CODE 10
 
 #endif
 
@@ -693,7 +692,7 @@ static bool nss_bridge_mgr_l2_exception_acl_enable(void)
 	 * Bind ACL list with service code
 	 */
 	error = fal_acl_list_bind(NSS_BRIDGE_MGR_ACL_DEV_ID, NSS_BRIDGE_MGR_ACL_LIST_ID,
-				FAL_ACL_DIREC_IN, FAL_ACL_BIND_SERVICE_CODE, NSS_BRIDGE_MGR_ACL_SERVICE_CODE);
+				FAL_ACL_DIREC_IN, FAL_ACL_BIND_SERVICE_CODE, NSS_PPE_SC_VLAN_FILTER_BYPASS);
 	if (error != SW_OK) {
 		pr_err("Could not bind ACL list, error = %d\n", error);
 		goto bind_fail;

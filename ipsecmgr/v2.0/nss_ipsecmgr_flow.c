@@ -398,6 +398,7 @@ flow_init:
 	memcpy(&nim->msg.rule.oip, &sa->oip, sizeof(nim->msg.rule.oip));
 	memcpy(&nim->msg.rule.data, &sa->data, sizeof(nim->msg.rule.data));
 	memcpy(&nim->tuple, tuple, sizeof(nim->tuple));
+	nim->msg.rule.data.use_pattern = inner->use_pattern;
 
 	/*
 	 * We need to set protocol to UDP in case of NAT-T;

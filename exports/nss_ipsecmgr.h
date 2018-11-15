@@ -216,7 +216,7 @@ struct nss_ipsecmgr_flow_inner {
 	uint16_t dport;			/**< Destination Port (unused). */
 	uint8_t proto_next_hdr;		/**< Transport layer protocol. */
 	uint8_t ip_version;		/**< IP version 4/6. */
-	uint8_t user_defined;		/**< User defined flow identifier. */
+	uint8_t use_pattern;		/**< User pattern flow identifier. */
 };
 
 /**

@@ -378,7 +378,7 @@ static bool nss_cfi_ipsec_fill_flow_inner(uint8_t *inner_ip, struct nss_ipsecmgr
 
 	inner->sport = 0;
 	inner->dport = 0;
-	inner->user_defined = 0;
+	inner->use_pattern = 0;
 
 	if (iph->version == IPVERSION) {
 		inner->src_ip[0] = ntohl(iph->saddr);

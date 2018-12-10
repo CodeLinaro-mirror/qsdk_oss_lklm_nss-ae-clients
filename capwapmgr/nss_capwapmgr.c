@@ -873,9 +873,11 @@ static nss_tx_status_t nss_capwapmgr_create_ipv4_rule(void *ctx, struct nss_ipv4
 	/*
 	 * Copy over the qos rules and set the QOS_VALID flag
 	 */
-	nircm->qos_rule.flow_qos_tag = unic->flow_qos_tag;
-	nircm->qos_rule.return_qos_tag = unic->return_qos_tag;
-	nircm->valid_flags |= NSS_IPV4_RULE_CREATE_QOS_VALID;
+	if (unic->flags & NSS_IPV6_CREATE_FLAG_QOS_VALID) {
+		nircm->qos_rule.flow_qos_tag = unic->flow_qos_tag;
+		nircm->qos_rule.return_qos_tag = unic->return_qos_tag;
+		nircm->valid_flags |= NSS_IPV4_RULE_CREATE_QOS_VALID;
+	}
 
 	if (unic->flags & NSS_IPV4_CREATE_FLAG_NO_SEQ_CHECK) {
 		nircm->rule_flags |= NSS_IPV4_RULE_CREATE_FLAG_NO_SEQ_CHECK;
@@ -1017,9 +1019,11 @@ static nss_tx_status_t nss_capwapmgr_create_ipv6_rule(void *ctx, struct nss_ipv6
 	/*
 	 * Copy over the qos rules and set the QOS_VALID flag
 	 */
-	nircm->qos_rule.flow_qos_tag = unic->flow_qos_tag;
-	nircm->qos_rule.return_qos_tag = unic->return_qos_tag;
-	nircm->valid_flags |= NSS_IPV6_RULE_CREATE_QOS_VALID;
+	if (unic->flags & NSS_IPV6_CREATE_FLAG_QOS_VALID) {
+		nircm->qos_rule.flow_qos_tag = unic->flow_qos_tag;
+		nircm->qos_rule.return_qos_tag = unic->return_qos_tag;
+		nircm->valid_flags |= NSS_IPV6_RULE_CREATE_QOS_VALID;
+	}
 
 	if (unic->flags & NSS_IPV6_CREATE_FLAG_NO_SEQ_CHECK) {
 		nircm->rule_flags |= NSS_IPV6_RULE_CREATE_FLAG_NO_SEQ_CHECK;

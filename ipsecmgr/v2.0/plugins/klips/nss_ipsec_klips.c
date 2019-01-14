@@ -478,6 +478,7 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 {
 	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
 	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
+	uint16_t crypto_idx = crypto->sid & NSS_IPSEC_KLIPS_SES_MASK;
 	struct nss_ipsec_klips_tunnel_entry *tun;
 	struct nss_ipsec_klips_sa *sa_entry;
 	struct nss_ipsecmgr_sa_data sa = {0};
@@ -548,7 +549,7 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 		return -ENOENT;
 	}
 
-	sa_entry = nss_ipsec_klips_sa_lookup(tun, crypto->sid);
+	sa_entry = nss_ipsec_klips_sa_lookup(tun, crypto_idx);
 	if (sa_entry)
 		goto flow_add;
 
@@ -569,7 +570,7 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 		goto sa_free;
 	}
 
-	sa_entry->sid = crypto->sid;
+	sa_entry->sid = crypto_idx;
 	memcpy(&sa_entry->outer, &sa_tuple, sizeof(sa_entry->outer));
 
 	INIT_LIST_HEAD(&sa_entry->list);
@@ -607,6 +608,7 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 {
 	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
 	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
+	uint16_t crypto_idx = crypto->sid & NSS_IPSEC_KLIPS_SES_MASK;
 	struct nss_ipsec_klips_tunnel_entry *tun;
 	struct nss_ipsecmgr_sa_data sa = {0};
 	struct nss_ipsec_klips_sa *sa_entry;
@@ -677,7 +679,7 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 		return -ENOENT;
 	}
 
-	sa_entry = nss_ipsec_klips_sa_lookup(tun, crypto->sid);
+	sa_entry = nss_ipsec_klips_sa_lookup(tun, crypto_idx);
 	if (sa_entry)
 		goto flow_add;
 
@@ -698,7 +700,7 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 		goto sa_free;
 	}
 
-	sa_entry->sid = crypto->sid;
+	sa_entry->sid = crypto_idx;
 	memcpy(&sa_entry->outer, &sa_tuple, sizeof(sa_entry->outer));
 
 	INIT_LIST_HEAD(&sa_entry->list);

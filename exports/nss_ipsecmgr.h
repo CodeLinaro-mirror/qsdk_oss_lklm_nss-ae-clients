@@ -203,10 +203,10 @@ struct nss_ipsecmgr_sa_tuple {
 	uint32_t src_ip[4];	/**< IPv6 source IP. */
 	uint32_t dest_ip[4];	/**< IPv6 destination IP. */
 	uint32_t spi_index;	/**< SPI index of the encapsulating security payload (ESP). */
-	uint16_t src_port;	/**< Source port. */
-	uint16_t dest_port;	/**< Destination port. */
-	uint8_t protocol;	/**< Protocol (ESP or NAT-T) */
-	uint8_t ip_ver;		/**< IP version 4/6. */
+	uint16_t sport;		/**< Source port. */
+	uint16_t dport;		/**< Destination port. */
+	uint8_t proto_next_hdr;	/**< Protocol (ESP or NAT-T) */
+	uint8_t ip_version;	/**< IP version 4/6. */
 	uint8_t res[2];		/**< Reserved */
 };
 
@@ -218,11 +218,11 @@ struct nss_ipsecmgr_flow_tuple {
 	uint32_t src_ip[4];		/**< Source IP. */
 	uint32_t dest_ip[4];		/**< Destination IP. */
 	uint32_t spi_index;		/**< ESP SPI index for decapsulation flows. */
-	uint16_t src_port;			/**< Source Port (unused). */
-	uint16_t dest_port;			/**< Destination Port (unused). */
-	uint8_t protocol;		/**< Transport layer protocol. */
-	uint8_t ip_ver;			/**< IP version 4/6. */
-	uint8_t user_pattern;		/**< User defined flow identifier. */
+	uint16_t sport;			/**< Source Port (unused). */
+	uint16_t dport;			/**< Destination Port (unused). */
+	uint8_t proto_next_hdr;		/**< Transport layer proto_next_hdr. */
+	uint8_t ip_version;		/**< IP version 4/6. */
+	uint8_t use_pattern;		/**< User defined flow identifier. */
 };
 
 /**

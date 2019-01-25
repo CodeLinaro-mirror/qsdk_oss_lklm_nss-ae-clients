@@ -625,7 +625,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_alloc_encap(struct nss_ipsecmgr_tun
 	sa_data->flags |= data->encap.copy_dscp ? NSS_IPSEC_CMN_FLAG_COPY_DSCP : 0;
 	sa_data->flags |= data->encap.copy_df ? NSS_IPSEC_CMN_FLAG_COPY_DF : 0;
 
-	if (tuple->ip_ver == 6) {
+	if (tuple->ip_version == 6) {
 		sa_data->flags &= ~NSS_IPSEC_CMN_FLAG_HDR_MASK;
 		sa_data->flags |= NSS_IPSEC_CMN_FLAG_IPV6;
 	}

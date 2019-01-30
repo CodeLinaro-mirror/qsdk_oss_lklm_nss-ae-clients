@@ -61,6 +61,8 @@ static const char *ipsecmgr_algo_name[NSS_IPSECMGR_ALGO_MAX] = {
 	"hmac(sha1)",
 	"hmac(sha256)",
 	"seqiv(rfc4106(gcm(aes)))"
+	"echainiv(authenc(hmac(md5),cbc(aes)))",
+	"echainiv(authenc(hmac(md5),cbc(des3_ede)))",
 };
 
 /*
@@ -300,8 +302,10 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_tu
 	/*
 	 * AEAD Algorithms
 	 */
+	case NSS_IPSECMGR_ALGO_AES_CBC_MD5_HMAC:
 	case NSS_IPSECMGR_ALGO_AES_CBC_SHA1_HMAC:
 	case NSS_IPSECMGR_ALGO_AES_CBC_SHA256_HMAC:
+	case NSS_IPSECMGR_ALGO_3DES_CBC_MD5_HMAC:
 	case NSS_IPSECMGR_ALGO_3DES_CBC_SHA1_HMAC:
 	case NSS_IPSECMGR_ALGO_3DES_CBC_SHA256_HMAC:
 		sa->aead = crypto_alloc_aead(ipsecmgr_algo_name[cmn->algo], 0, 0);

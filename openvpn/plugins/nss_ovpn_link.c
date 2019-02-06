@@ -43,11 +43,18 @@
 /*
  * Statically compile messages at different levels
  */
-#if (NSS_OVPN_LINK_DEBUG_LEVEL < 3)
+#if (NSS_OVPN_LINK_DEBUG_LEVEL < 1)
 #define nss_ovpn_link_info(s, ...)
 #else
 #define nss_ovpn_link_info(s, ...) \
 		pr_notice("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
+#endif
+
+#if (NSS_OVPN_LINK_DEBUG_LEVEL < 2)
+#define nss_ovpn_link_warn(s, ...)
+#else
+#define nss_ovpn_link_warn(s, ...) \
+		pr_warn("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
 #endif
 #endif /* CONFIG_DYNAMIC_DEBUG */
 

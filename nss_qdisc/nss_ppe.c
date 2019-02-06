@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -1123,7 +1123,7 @@ static int nss_ppe_queue_shaper_set(struct nss_qdisc *nq)
 {
 	fal_shaper_token_number_t token;
 	fal_shaper_config_t cfg;
-	uint32_t port_num = nss_ppe_port_num_get(nq);
+	uint32_t port_num __maybe_unused = nss_ppe_port_num_get(nq);
 	struct nss_ppe_qdisc *npq = &nq->npq;
 
 	/*

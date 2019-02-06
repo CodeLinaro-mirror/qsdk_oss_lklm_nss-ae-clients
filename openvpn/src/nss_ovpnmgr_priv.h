@@ -20,6 +20,11 @@
 #ifndef __NSS_OVPNMGR_PRIV__H
 #define __NSS_OVPNMGR_PRIV__H
 
+#define NSS_OVPNMGR_DEBUG_LVL_ERROR 1		/* Turn on debug for an error. */
+#define NSS_OVPNMGR_DEBUG_LVL_WARN 2		/* Turn on debug for a warning. */
+#define NSS_OVPNMGR_DEBUG_LVL_INFO 3		/* Turn on debug for information. */
+#define NSS_OVPNMGR_DEBUG_LVL_TRACE 4		/* Turn on debug for trace. */
+
 /*
  * Compile messages for dynamic enable/disable
  */

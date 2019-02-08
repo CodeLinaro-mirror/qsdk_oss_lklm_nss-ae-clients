@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -216,9 +216,6 @@ static netdev_tx_t nss_capwapmgr_start_xmit(struct sk_buff *skb, struct net_devi
 			}
 		}
 
-		kfree_skb(skb);
-		nss_capwapmgr_warn("%p: (CAPWAP packet) Failed to xmit the packet : %d\n", dev, status);
-		stats->tx_dropped++;
 		return NETDEV_TX_BUSY;
 	}
 

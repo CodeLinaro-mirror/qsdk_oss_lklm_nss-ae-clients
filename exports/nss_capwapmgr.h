@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -189,6 +189,17 @@ extern nss_capwapmgr_status_t nss_capwapmgr_disable_tunnel(struct net_device *de
  * @return nss_capwapmgr_status_t
  */
 extern nss_capwapmgr_status_t nss_capwapmgr_update_path_mtu(struct net_device *dev, uint8_t tunnel_id, uint32_t mtu);
+
+/**
+ * @brief Updates Destination MAC Address of a CAPWAP tunnel
+ *
+ * @param netdevice
+ * @param tunnel_id
+ * @param New MAC Address
+ *
+ * @return nss_capwapmgr_status_t
+ */
+nss_capwapmgr_status_t nss_capwapmgr_update_dest_mac_addr(struct net_device *dev, uint8_t tunnel_id, uint8_t *mac_addr);
 
 /**
  * @brief Get the DTLS net_device associated to the CAPWAP tunnel

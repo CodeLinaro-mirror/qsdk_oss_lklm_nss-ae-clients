@@ -97,12 +97,13 @@ enum nss_ipsecmgr_algo {
 	NSS_IPSECMGR_ALGO_AES_CBC_MD5_HMAC,		/**< AES_CBC_MD5_HMAC. */
 	NSS_IPSECMGR_ALGO_3DES_CBC_MD5_HMAC,		/**< 3DES_CBC_MD5_HMAC. */
 	NSS_IPSECMGR_ALGO_AES_CBC_SHA384_HMAC,		/**< AES CBC SHA384 HMAC. */
+	NSS_IPSECMGR_ALGO_AES_CBC_SHA512_HMAC,		/**< AES CBC SHA512 HMAC. */
 	NSS_IPSECMGR_ALGO_MAX
 };
 
 /**
  * nss_ipsecmgr_sa_type
- * 	Types of security associations in IPsec manager.
+ *	Types of security associations in IPsec manager.
  */
 enum nss_ipsecmgr_sa_type {
 	NSS_IPSECMGR_SA_TYPE_NONE = 0,

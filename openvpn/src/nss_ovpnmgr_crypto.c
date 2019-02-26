@@ -453,34 +453,53 @@ int nss_ovpnmgr_crypto_key_add(uint32_t tunnel_id, uint8_t key_id, struct nss_ov
 
 	tun = netdev_priv(tun_dev);
 
-	/* Register Encryption */
-	ret = nss_ovpnmgr_crypto_ctx_alloc(&encrypt, cfg, &cfg->encrypt);
-	if (ret) {
-		nss_ovpnmgr_warn("%p: Failed to register Encryption session\n", tun);
-		dev_put(tun_dev);
-		return ret;
+	/*
+	 * Check if crypto keys are negotiated during rekey.
+	 * Otherwise crypto context is allocated when tunnel is added
+	 */
+	if (key_id) {
+		/* Register Encryption */
+		ret = nss_ovpnmgr_crypto_ctx_alloc(&encrypt, cfg, &cfg->encrypt);
+		if (ret) {
+			nss_ovpnmgr_warn("%p: Failed to register Encryption session\n", tun);
+			dev_put(tun_dev);
+			return ret;
+		}
+
+		/* Register Decryption */
+		ret = nss_ovpnmgr_crypto_ctx_alloc(&decrypt, cfg, &cfg->decrypt);
+		if (ret) {
+			/* Deregister Encryption here */
+			nss_ovpnmgr_warn("%p: Failed to register Decryption session\n", tun);
+			goto free_encrypt;
+		}
+
+		encrypt.key_id = key_id;
+		decrypt.key_id = key_id;
+
+		read_lock_bh(&ovpnmgr_ctx.lock);
+		/* copy old active key into expiring key */
+		memcpy(&tun->inner.expiring, &tun->inner.active, sizeof(tun->inner.active));
+		memcpy(&tun->outer.expiring, &tun->outer.active, sizeof(tun->outer.active));
+
+		/* copy the new key as active key */
+		memcpy(&tun->inner.active, &encrypt, sizeof(encrypt));
+		memcpy(&tun->outer.active, &decrypt, sizeof(decrypt));
+		read_unlock_bh(&ovpnmgr_ctx.lock);
+	} else {
+		/*
+		 * Initial crypto context is created during tunnel configuration.
+		 * copy crypto context for processing.
+		 * We will explicitly reset expiring key to 0.
+		 */
+		read_lock_bh(&ovpnmgr_ctx.lock);
+		memset(&tun->inner.expiring, 0, sizeof(tun->inner.expiring));
+		memset(&tun->outer.expiring, 0, sizeof(tun->outer.expiring));
+
+		memcpy(&encrypt, &tun->inner.active, sizeof(encrypt));
+		memcpy(&decrypt, &tun->outer.active, sizeof(decrypt));
+		read_unlock_bh(&ovpnmgr_ctx.lock);
 	}
-
-	/* Register Decryption */
-	ret = nss_ovpnmgr_crypto_ctx_alloc(&decrypt, cfg, &cfg->decrypt);
-	if (ret) {
-		/* Deregister Encryption here */
-		nss_ovpnmgr_warn("%p: Failed to register Decryption session\n", tun);
-		goto free_encrypt;
-	}
-
-	encrypt.key_id = key_id;
-	decrypt.key_id = key_id;
-
-	read_lock_bh(&ovpnmgr_ctx.lock);
-	/* copy old active key into expiring key */
-	memcpy(&tun->inner.expiring, &tun->inner.active, sizeof(tun->inner.active));
-	memcpy(&tun->outer.expiring, &tun->outer.active, sizeof(tun->outer.active));
-
-	/* copy the new key as active key */
-	memcpy(&tun->inner.active, &encrypt, sizeof(encrypt));
-	memcpy(&tun->outer.active, &decrypt, sizeof(decrypt));
-	read_unlock_bh(&ovpnmgr_ctx.lock);
 
 	/*
 	 * Send crypto key addition command to inner node.

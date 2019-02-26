@@ -24,6 +24,7 @@
 #include <net/sock.h>
 #include <net/udp_tunnel.h>
 #include <linux/crypto.h>
+#include <linux/inetdevice.h>
 
 #include <nss_api_if.h>
 #include <nss_qvpn.h>
@@ -216,6 +217,80 @@ static int nss_ovpn_sk_route_add(struct socket *sock, unsigned long argp)
 }
 
 /*
+ * nss_ovpn_sk_update_ipv4_tuple()
+ *	Update ipv4 tuple with hop_limit and source IP if needed.
+ */
+static int nss_ovpn_sk_update_ipv4_tuple(struct nss_ovpn_sk_pinfo *pinfo, struct nss_ovpn_sk_tunnel *tun_data)
+{
+	struct rtable *rt;
+
+	rt = ip_route_output(dev_net(pinfo->dev), tun_data->tun_hdr.dst_ip[0], 0, 0, 0);
+	if (unlikely(IS_ERR(rt))) {
+		nss_ovpn_sk_warn("%p: Failed to find IPv4 route.\n", pinfo);
+		return -EINVAL;
+	}
+
+	if (!tun_data->tun_hdr.src_ip[0]) {
+		__be32 addr;
+
+		nss_ovpn_sk_info("%p: Source IP address is 0, find it\n", pinfo);
+		/*
+		 * Get Source IP address for given dst_ip.
+		 */
+		addr = inet_select_addr(rt->dst.dev, tun_data->tun_hdr.dst_ip[0], RT_SCOPE_LINK);
+		if (!addr) {
+			nss_ovpn_sk_warn("%p: Failed to find source IPv4 address.\n", pinfo);
+			return -EINVAL;
+		}
+
+		tun_data->tun_hdr.src_ip[0] = addr;
+	}
+
+	/*
+	 * Get TTL.
+	 */
+	tun_data->tun_hdr.hop_limit = ip4_dst_hoplimit(&rt->dst);
+	return 0;
+}
+
+/*
+ * nss_ovpn_sk_update_ipv6_tuple()
+ *	Update ipv6 tuple with hop_limit and source IP if needed.
+ */
+static int nss_ovpn_sk_update_ipv6_tuple(struct nss_ovpn_sk_pinfo *pinfo, struct nss_ovpn_sk_tunnel *tun_data)
+{
+	struct dst_entry *dst;
+	struct rt6_info *rt6;
+	int addr_type;
+
+	rt6 = rt6_lookup(dev_net(pinfo->dev), (struct in6_addr *)tun_data->tun_hdr.dst_ip, NULL, 0, 0);
+	if (!rt6) {
+		nss_ovpn_sk_warn("%p: Failed to find IPv6 route.\n", pinfo);
+		return -EINVAL;
+	}
+
+	dst = &rt6->dst;
+	/*
+	 * Find Source IP address if application did not provide.
+	 */
+	addr_type = ipv6_addr_type((struct in6_addr *)&tun_data->tun_hdr.src_ip);
+	if (addr_type == IPV6_ADDR_ANY) {
+		int ret;
+
+		ret = ipv6_dev_get_saddr(dev_net(pinfo->dev), ip6_dst_idev(dst)->dev,
+				(struct in6_addr *)tun_data->tun_hdr.dst_ip, 0,
+				(struct in6_addr *)tun_data->tun_hdr.src_ip);
+		if (ret) {
+			nss_ovpn_sk_warn("%p: Failed to find source IPv6 address: %d\n", pinfo, ret);
+			return -EINVAL;
+		}
+	}
+
+	tun_data->tun_hdr.hop_limit = ip6_dst_hoplimit(dst);
+	return 0;
+}
+
+/*
  * nss_ovpn_sk_tun_del()
  *	Delete tunnel.
  */
@@ -243,11 +318,11 @@ static int nss_ovpn_sk_tun_del(struct socket *sock, unsigned long argp)
  */
 static int nss_ovpn_sk_tun_add(struct socket *sock, unsigned long argp)
 {
+	struct nss_ovpn_sk_pinfo *pinfo = (struct nss_ovpn_sk_pinfo *)sock->sk;
 	struct nss_ovpnmgr_crypto_config crypto_cfg;
 	struct nss_ovpnmgr_tun_config tun_cfg;
 	struct nss_ovpnmgr_tun_tuple tun_hdr;
 	struct nss_ovpn_sk_tunnel tun_data;
-	struct nss_ovpn_sk_pinfo *pinfo = (struct nss_ovpn_sk_pinfo *)sock->sk;
 	struct net_device *tun_dev;
 	uint32_t tunnel_id;
 	int err;
@@ -263,10 +338,24 @@ static int nss_ovpn_sk_tun_add(struct socket *sock, unsigned long argp)
 	}
 
 	tun_cfg.flags = tun_data.ovpn.flags;
+
+	/*
+	 * Update TTL and if necessary source IP address.
+	 */
+	if (tun_data.ovpn.flags & NSS_OVPN_SK_OVPN_HDR_FLAG_IPv6) {
+		err = nss_ovpn_sk_update_ipv6_tuple(pinfo, &tun_data);
+	} else {
+		err = nss_ovpn_sk_update_ipv4_tuple(pinfo, &tun_data);
+	}
+
+	if (err)
+		return err;
+
 	memcpy(&tun_hdr.src_ip[0], &tun_data.tun_hdr.src_ip[0], sizeof(tun_data.tun_hdr.src_ip));
 	memcpy(&tun_hdr.dst_ip[0], &tun_data.tun_hdr.dst_ip[0], sizeof(tun_data.tun_hdr.dst_ip));
 	tun_hdr.src_port = tun_data.tun_hdr.src_port;
 	tun_hdr.dst_port = tun_data.tun_hdr.dst_port;
+	tun_hdr.hop_limit = tun_data.tun_hdr.hop_limit;
 
 	crypto_cfg.algo = tun_data.crypto.config.algo;
 	crypto_cfg.encrypt.cipher_keylen = tun_data.crypto.config.cipher_key_size;
@@ -279,12 +368,30 @@ static int nss_ovpn_sk_tun_add(struct socket *sock, unsigned long argp)
 	memcpy(&crypto_cfg.decrypt.cipher_key, &tun_data.crypto.decrypt.cipher_key, tun_data.crypto.config.cipher_key_size);
 	memcpy(&crypto_cfg.decrypt.hmac_key, &tun_data.crypto.decrypt.hmac_key, tun_data.crypto.config.hmac_key_size);
 
+	/*
+	 * Add new tunnel.
+	 */
 	tunnel_id = nss_ovpnmgr_tun_add(pinfo->dev, &tun_hdr, &tun_cfg, &crypto_cfg);
 	if (!tunnel_id) {
 		nss_ovpn_sk_warn("%p: Failed to add tunnel for application:%u\n", sock, pinfo->pid);
 		return -EINVAL;
 	}
 
+	if (crypto_cfg.algo != NSS_OVPNMGR_ALGO_NULL_CIPHER_NULL_AUTH) {
+		/*
+		 * Add crypto key.
+		 */
+		err = nss_ovpnmgr_crypto_key_add(tunnel_id, tun_data.crypto.key_id, &crypto_cfg);
+		if (err) {
+			nss_ovpn_sk_warn("%p: crypto key add failed for tunnel_id = %u\n", sock, tunnel_id);
+			nss_ovpnmgr_tun_del(tunnel_id);
+			return -EFAULT;
+		}
+	}
+
+	/*
+	 * Bring up tunnel netdev.
+	 */
 	tun_dev = dev_get_by_index(&init_net, tunnel_id);
 	if (unlikely(!tun_dev)) {
 		nss_ovpn_sk_warn("%p: tun_dev is not found: tunnel_id = %u\n", sock, tunnel_id);

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -41,6 +41,7 @@
 #include <crypto/des.h>
 #include <crypto/sha.h>
 #include <crypto/skcipher.h>
+#include <crypto/hash.h>
 
 #include <nss_api_if.h>
 #include <nss_dynamic_interface.h>
@@ -90,7 +91,6 @@ static int nss_dtlsmgr_ctx_alloc_crypto(struct nss_dtlsmgr_ctx *ctx, struct nss_
 
 	nss_dtlsmgr_trace("cipher_keylen:%d auth_keylen:%d nonce_len:%d\n",
 			  crypto->cipher_key.len, crypto->auth_key.len, crypto->nonce.len);
-
 
 	/*
 	 * Construct keys

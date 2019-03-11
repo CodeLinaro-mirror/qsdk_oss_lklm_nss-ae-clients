@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -41,16 +41,111 @@
 #define MAX_WIFI_HEADROOM 66
 
 /*
- * netdevice notifier is disabled by default
+ * GRE connection manager context structure
  */
-static bool enable_notifier;
-module_param(enable_notifier, bool, 0);
+struct nss_connmgr_gre_context {
+	struct list_head list;		/* List of GRE interface instances */
+	spinlock_t lock;		/* Lock to protect list */
+} gre_connmgr_ctx;
+
+/*
+ * GRE interface instance
+ */
+struct nss_gre_iface_instance {
+	struct list_head list;			/* List of GRE interface instances */
+	struct net_device *dev;			/* GRE netdevice */
+	struct nss_connmgr_gre_cfg gre_cfg;	/* GRE configuration */
+	enum nss_connmgr_gre_iftype gre_iftype;	/* GRE interface type */
+	uint32_t inner_ifnum;			/* GRE inner dynamic interface */
+	uint32_t outer_ifnum;			/* GRE outer dynamic interface */
+};
 
 /*
  * Unaligned infra in nss is disabled by default
  */
 static bool enable_unalign;
 module_param(enable_unalign, bool, 0);
+
+/*
+ * nss_connmgr_gre_is_gre()
+ *	Check whether device is of type GRE Tap or GRE Tun.
+ */
+static bool nss_connmgr_gre_is_gre(struct net_device *dev)
+{
+	if ((dev->type == ARPHRD_IPGRE) ||
+	      (dev->type == ARPHRD_IP6GRE) || ((dev->type == ARPHRD_ETHER) &&
+	      (dev->priv_flags & (IFF_GRE_V4_TAP | IFF_GRE_V6_TAP)))) {
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * nss_connmgr_gre_alloc_instance()
+ *	Allocate GRE interface instance.
+ */
+static struct nss_gre_iface_instance *nss_connmgr_gre_alloc_instance(struct net_device *dev)
+{
+	struct nss_gre_iface_instance *ngii;
+
+	if (!nss_connmgr_gre_is_gre(dev)) {
+		nss_connmgr_gre_warning("%p: dev is not a GRE interface\n", dev);
+		return NULL;
+	}
+
+	ngii = kzalloc(sizeof(*ngii), GFP_KERNEL);
+	if (!ngii)
+		return NULL;
+
+	INIT_LIST_HEAD(&ngii->list);
+	ngii->dev = dev;
+	return ngii;
+}
+
+/*
+ * nss_connmgr_gre_free_instance()
+ *	Free GRE interface instance.
+ */
+static void nss_connmgr_gre_free_instance(struct nss_gre_iface_instance *ngii)
+{
+	spin_lock(&gre_connmgr_ctx.lock);
+	ngii->dev = NULL;
+
+	if (!list_empty(&ngii->list))
+		list_del(&ngii->list);
+
+	spin_unlock(&gre_connmgr_ctx.lock);
+	kfree(ngii);
+}
+
+/*
+ * nss_connmgr_gre_find_instance()
+ *	Find GRE interface instance from list.
+ */
+static struct nss_gre_iface_instance *nss_connmgr_gre_find_instance(struct net_device *dev)
+{
+	struct nss_gre_iface_instance *ngii;
+
+	if (!nss_connmgr_gre_is_gre(dev)) {
+		nss_connmgr_gre_warning("%p: dev is not a GRE interface\n", dev);
+		return NULL;
+	}
+
+	/*
+	 * Check if dev instance is in the list
+	 */
+	spin_lock(&gre_connmgr_ctx.lock);
+	list_for_each_entry(ngii, &gre_connmgr_ctx.list, list) {
+		if (ngii->dev == dev) {
+			spin_unlock(&gre_connmgr_ctx.lock);
+			return ngii;
+		}
+	}
+
+	spin_unlock(&gre_connmgr_ctx.lock);
+	return NULL;
+}
 
 /*
  * nss_connmgr_gre_dev_change_mtu()
@@ -598,21 +693,6 @@ static void nss_connmgr_gre_event_receive(void *if_ctx, struct nss_gre_msg *tnlm
 }
 
 /*
- * nss_connmgr_gre_is_gre()
- *	Check whether device is of type GRE Tap or GRE Tun.
- */
-static bool nss_connmgr_gre_is_gre(struct net_device *dev)
-{
-	if ((dev->type == ARPHRD_IPGRE) ||
-	      (dev->type == ARPHRD_IP6GRE) || ((dev->type == ARPHRD_ETHER) &&
-	      (dev->priv_flags & (IFF_GRE_V4_TAP | IFF_GRE_V6_TAP)))) {
-		return true;
-	}
-
-	return false;
-}
-
-/*
  * nss_connmgr_gre_make_name()
  *	Generate a name for netdevice if user does not provide one.
  */
@@ -638,18 +718,18 @@ static void nss_connmgr_gre_make_name(struct nss_connmgr_gre_cfg *cfg, char *nam
 static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_gre_cfg *cfg,
 							     enum nss_connmgr_gre_err_codes *err_code)
 {
+	struct nss_ctx_instance *nss_ctx;
 	struct net_device *dev = NULL;
-	int ret = -1;
+	struct net_device *next_dev = NULL;
+	struct nss_gre_iface_instance *ngii;
 	struct nss_gre_msg req;
 	struct nss_gre_config_msg *cmsg = &req.msg.cmsg;
-	int32_t inner_if, outer_if;
-	uint32_t features = 0;
-	struct nss_ctx_instance *nss_ctx;
-	nss_tx_status_t status;
-	char name[IFNAMSIZ] = {0};
 	nss_connmgr_gre_priv_t *priv;
-	int retry;
-	struct net_device *next_dev = NULL;
+	nss_tx_status_t status;
+	uint32_t features = 0;
+	int32_t inner_if, outer_if;
+	char name[IFNAMSIZ] = {0};
+	int ret = -1, retry;
 
 	if (cfg->name) {
 		strlcpy(name, cfg->name, IFNAMSIZ);
@@ -795,14 +875,26 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	}
 
 	/*
+	 * Create GRE interface instance
+	 */
+	ngii = nss_connmgr_gre_alloc_instance(dev);
+	if (!ngii) {
+		nss_connmgr_gre_warning("%p: GRE interfacen intance creation failed\n", dev);
+		*err_code = GRE_ERR_ALLOC_GRE_INSTANCE;
+		goto unregister_netdev;
+	}
+
+	/*
 	 * Create nss outer dynamic interface
 	 */
 	outer_if = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (outer_if < 0) {
 		nss_connmgr_gre_warning("%p: Request interface number failed\n", dev);
 		*err_code = GRE_ERR_DYNMAIC_IFACE_CREATE;
-		goto unregister_netdev;
+		goto free_gre_instance;
 	}
+
+	ngii->outer_ifnum = outer_if;
 
 	/*
 	 * Create nss inner dynamic interface
@@ -811,9 +903,10 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	if (inner_if < 0) {
 		nss_connmgr_gre_warning("%p: Request interface number failed\n", dev);
 		*err_code = GRE_ERR_DYNMAIC_IFACE_CREATE;
-		goto unregister_netdev;
+		goto free_gre_instance;
 	}
 
+	ngii->inner_ifnum = inner_if;
 	priv = (nss_connmgr_gre_priv_t *)netdev_priv(dev);
 	priv->nss_if_number = inner_if;
 	priv->next_dev = next_dev;
@@ -882,6 +975,13 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 		goto unregister_nss_interface;
 	}
 
+	memcpy(&ngii->gre_cfg, cfg, sizeof(*cfg));
+	ngii->gre_iftype = NSS_CONNMGR_GRE_IFTYPE_PLUME_GRE;
+
+	spin_lock(&gre_connmgr_ctx.lock);
+	list_add(&ngii->list, &gre_connmgr_ctx.list);
+	spin_unlock(&gre_connmgr_ctx.lock);
+
 	/*
 	 * Success
 	 */
@@ -911,6 +1011,9 @@ dealloc_outer_node:
 		}
 		nss_connmgr_gre_error("%p: Fatal Error, Unable to dealloc the node[%d] in the NSS FW!\n", dev, outer_if);
 	}
+
+free_gre_instance:
+	nss_connmgr_gre_free_instance(ngii);
 
 unregister_netdev:
 	unregister_netdevice(dev);
@@ -1026,11 +1129,17 @@ dealloc_outer:
  */
 static enum nss_connmgr_gre_err_codes __nss_connmgr_gre_destroy_interface(struct net_device *dev)
 {
-	int inner_if, outer_if;
+	struct nss_gre_iface_instance *ngii;
 	nss_connmgr_gre_priv_t *priv;
 	enum nss_connmgr_gre_err_codes ret;
 
 	netif_tx_disable(dev);
+
+	ngii = nss_connmgr_gre_find_instance(dev);
+	if(!ngii) {
+		nss_connmgr_gre_warning("%p: GRE interface instance is not found.\n", dev);
+		return GRE_ERR_NO_GRE_INSTANCE;
+	}
 
 	/*
 	 * Decrement ref to next_dev
@@ -1038,37 +1147,22 @@ static enum nss_connmgr_gre_err_codes __nss_connmgr_gre_destroy_interface(struct
 	priv = (nss_connmgr_gre_priv_t *)netdev_priv(dev);
 	dev_put(priv->next_dev);
 
-	/*
-	 * Check if inner gre interface is registered with NSS
-	 */
-	inner_if = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
-	if (inner_if < 0) {
-		nss_connmgr_gre_info("%p: Net device is not registered with nss\n", dev);
-		return GRE_ERR_NODE_UNREG_IN_AE;
-	}
-
-	/*
-	 * Check if outer gre interface is registered with NSS
-	 */
-	outer_if = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
-	if (outer_if < 0) {
-		nss_connmgr_gre_info("%p: Net device is not registered with nss\n", dev);
-		return GRE_ERR_NODE_UNREG_IN_AE;
-	}
-
-	ret = nss_connmgr_gre_destroy_inner_interface(dev, inner_if);
+	ret = nss_connmgr_gre_destroy_inner_interface(dev, ngii->inner_ifnum);
 	if (ret != GRE_SUCCESS) {
-		nss_connmgr_gre_info("%p: failed to destroy inner interface: %d\n", dev, inner_if);
+		nss_connmgr_gre_warning("%p: failed to destroy inner interface: %d\n", dev, ngii->inner_ifnum);
 		return ret;
 	}
 
-	ret = nss_connmgr_gre_destroy_outer_interface(dev, outer_if);
+	ret = nss_connmgr_gre_destroy_outer_interface(dev, ngii->outer_ifnum);
 	if (ret != GRE_SUCCESS) {
-		nss_connmgr_gre_info("%p: failed to destroy outer interface: %d\n", dev, outer_if);
+		nss_connmgr_gre_warning("%p: failed to destroy outer interface: %d\n", dev, ngii->outer_ifnum);
 		return ret;
 	}
 
-	nss_connmgr_gre_info("%p: deleted gre instance, inner_if = %d outer_if = %d\n", dev, inner_if, outer_if);
+	nss_connmgr_gre_info("%p: deleted gre instance, inner_if = %d outer_if = %d\n",
+			dev, ngii->inner_ifnum, ngii->outer_ifnum);
+
+	nss_connmgr_gre_free_instance(ngii);
 	unregister_netdevice(dev);
 	return GRE_SUCCESS;
 }
@@ -1101,8 +1195,11 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	nss_tx_status_t status;
 	struct net_device *next_dev = NULL;
 
-	if (!nss_connmgr_gre_is_gre(dev)) {
-		nss_connmgr_gre_info("%p: No GRE net_device found\n", dev);
+	/*
+	 * If GRE interface instance is found return, dev is Plume GRE interface type.
+	 */
+	if (nss_connmgr_gre_find_instance(dev)) {
+		nss_connmgr_gre_info("%p: Plume GRE interface is up.\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -1257,8 +1354,11 @@ static int nss_connmgr_gre_dev_down(struct net_device *dev)
 	int inner_if, outer_if;
 	nss_tx_status_t status;
 
-	if (!nss_connmgr_gre_is_gre(dev)) {
-		nss_connmgr_gre_info("%p: No GRE net_device found\n", dev);
+	/*
+	 * If GRE interface instance is found return, dev is Plume GRE interface type.
+	 */
+	if (nss_connmgr_gre_find_instance(dev)) {
+		nss_connmgr_gre_info("%p: Plume GRE interface is down.\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -1364,9 +1464,9 @@ static int __init nss_connmgr_gre_dev_init_module(void)
 		return 0;
 	}
 #endif
-	if (enable_notifier) {
-		register_netdevice_notifier(&nss_connmgr_gre_notifier);
-	}
+	INIT_LIST_HEAD(&gre_connmgr_ctx.list);
+	spin_lock_init(&gre_connmgr_ctx.lock);
+	register_netdevice_notifier(&nss_connmgr_gre_notifier);
 
 	return 0;
 }
@@ -1377,6 +1477,7 @@ static int __init nss_connmgr_gre_dev_init_module(void)
  */
 static void __exit nss_connmgr_gre_exit_module(void)
 {
+	struct nss_gre_iface_instance *ngii, *n;
 #ifdef CONFIG_OF
 	/*
 	 * If the node is not compatible, don't do anything.
@@ -1385,10 +1486,17 @@ static void __exit nss_connmgr_gre_exit_module(void)
 		return;
 	}
 #endif
-	if (enable_notifier) {
-		unregister_netdevice_notifier(&nss_connmgr_gre_notifier);
+	/*
+	 * Unregister GRE interfaces created and delete interface
+	 * instances.
+	 */
+	list_for_each_entry_safe(ngii, n, &gre_connmgr_ctx.list, list) {
+		rtnl_lock();
+		__nss_connmgr_gre_destroy_interface(ngii->dev);
+		rtnl_unlock();
 	}
 
+	unregister_netdevice_notifier(&nss_connmgr_gre_notifier);
 }
 
 /*

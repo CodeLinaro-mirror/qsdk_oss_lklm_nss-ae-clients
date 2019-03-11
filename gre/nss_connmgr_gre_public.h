@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -69,6 +69,8 @@ enum nss_connmgr_gre_err_codes {
 	GRE_ERR_AE_SET_NEXT_HOP = 22,		/**< Set next hop in AE failed */
 	GRE_ERR_UNSUPPORTED_CFG = 23,		/**< Unsupported configuration */
 	GRE_ERR_IN_INTERRUPT_CTX = 24,		/**< APIs invoked in interrupt context */
+	GRE_ERR_ALLOC_GRE_INSTANCE = 25,	/**< GRE interface instance allcation failed */
+	GRE_ERR_NO_GRE_INSTANCE = 26,		/**< GRE interface instance is not found */
 	GRE_ERR_MAX
 };
 

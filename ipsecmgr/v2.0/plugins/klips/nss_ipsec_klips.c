@@ -44,6 +44,7 @@
 #include <nss_cfi_if.h>
 #include <nss_ipsecmgr.h>
 #include <ecm_interface_ipsec.h>
+#include <ecm_notifier.h>
 
 #include "nss_ipsec_klips.h"
 
@@ -756,8 +757,11 @@ flow_add_fail:
 /*
  * nss_ipsec_klips_get_tunnel()
  *	Get ipsecmgr tunnel netdevice for klips netdevice
+ *
+ * The device returned has had a reference added and the pointer is safe until
+ * the user calls dev_put to indicate they have finished with it
  */
-static struct net_device *nss_ipsec_klips_get_tunnel(struct net_device *klips_dev, struct sk_buff *skb, int32_t *type)
+static struct net_device *nss_ipsec_klips_get_tunnel(struct net_device *klips_dev)
 {
 	struct nss_ipsec_klips_tunnel_entry *tun;
 	int tun_dev_index = -1;
@@ -778,9 +782,19 @@ static struct net_device *nss_ipsec_klips_get_tunnel(struct net_device *klips_de
 	write_unlock_bh(&tunnel_map.lock);
 
 	if (tun_dev_index < 0) {
-		nss_ipsec_klips_warn("%p: could not map find ipsecmgr tunnel for klips device\n", klips_dev);
+		nss_ipsec_klips_trace("%p: could not map find ipsecmgr tunnel for klips device\n", klips_dev);
 		return NULL;
 	}
+
+	return dev_get_by_index(&init_net, tun_dev_index);
+}
+
+/*
+ * nss_ipsec_klips_get_dev_and_type()
+ *	Get ipsecmgr tunnel netdevice and type for klips netdevice
+ */
+static struct net_device *nss_ipsec_klips_get_dev_and_type(struct net_device *klips_dev, struct sk_buff *skb, int32_t *type)
+{
 
 	switch (ip_hdr(skb)->version) {
 	case 4: {
@@ -827,7 +841,34 @@ static struct net_device *nss_ipsec_klips_get_tunnel(struct net_device *klips_de
 		return NULL;
 	}
 
-	return dev_get_by_index(&init_net, tun_dev_index);
+	return nss_ipsec_klips_get_tunnel(klips_dev);
+}
+
+/*
+ * nss_ipsec_klips_flow_delete()
+ *	Delete a ipsec flow.
+ */
+static bool nss_ipsec_klips_flow_delete(struct net_device *nss_dev, struct nss_ipsecmgr_flow_tuple *flow_tuple)
+{
+	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
+
+	nss_ipsec_klips_trace("%p: Flow delete for tuple src_ip= %u:%u:%u:%u, dest_ip= %u:%u:%u:%u, proto_next_hdr= %u,\
+			ip_version= %u\n", nss_dev, flow_tuple->src_ip[0], flow_tuple->src_ip[1], flow_tuple->src_ip[2],
+			flow_tuple->src_ip[3], flow_tuple->dest_ip[0], flow_tuple->dest_ip[1], flow_tuple->dest_ip[2],
+			flow_tuple->dest_ip[3], flow_tuple->proto_next_hdr, flow_tuple->ip_version);
+
+	if (nss_ipsecmgr_flow_get_sa(nss_dev, flow_tuple, &sa_tuple) != NSS_IPSECMGR_OK) {
+		nss_ipsec_klips_trace("%p: SA not found\n", nss_dev);
+		return false;
+	}
+
+	nss_ipsecmgr_flow_del(nss_dev, flow_tuple, &sa_tuple);
+
+	/*
+	 * TODO:handle case when tx message to NSS fails in nss_ipsecmgr_flow_del()
+	 */
+	nss_ipsec_klips_trace("%p: IPSec Flow deleted\n", nss_dev);
+	return true;
 }
 
 /*
@@ -976,12 +1017,161 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 	return NOTIFY_OK;
 }
 
+/*
+ * nss_ipsec_klips_in6_to_addr()
+ * 	Converts to flow ip from Linux ipv6 addr (host order).
+ */
+static inline void nss_ipsec_klips_in6_to_addr(struct in6_addr *in6, uint32_t addr[4])
+{
+	addr[0] = in6->in6_u.u6_addr32[3];
+	addr[1] = in6->in6_u.u6_addr32[2];
+	addr[2] = in6->in6_u.u6_addr32[1];
+	addr[3] = in6->in6_u.u6_addr32[0];
+}
+
+/*
+ * nss_ipsec_klips_ecm_conn_to_tuple()
+ * 	Converts ecm_notifier_connection_data to nss_ipsecmgr_flow_tuple.
+ */
+static inline bool nss_ipsec_klips_ecm_conn_to_tuple(struct ecm_notifier_connection_data *conn,
+		struct nss_ipsecmgr_flow_tuple *tuple, bool is_return)
+{
+	struct in6_addr *sip6, *dip6;
+	struct in_addr *sip, *dip;
+
+	memset(tuple, 0, sizeof(*tuple));
+	tuple->ip_version = conn->tuple.ip_ver;
+	tuple->proto_next_hdr = conn->tuple.protocol;
+
+	if (is_return) {
+		sip = &conn->tuple.dest.in;
+		dip = &conn->tuple.src.in;
+		sip6 = &conn->tuple.dest.in6;
+		dip6 = &conn->tuple.src.in6;
+		tuple->sport = conn->tuple.dst_port;
+		tuple->dport = conn->tuple.src_port;
+	} else {
+		dip = &conn->tuple.dest.in;
+		sip = &conn->tuple.src.in;
+		dip6 = &conn->tuple.dest.in6;
+		sip6 = &conn->tuple.src.in6;
+		tuple->dport = conn->tuple.dst_port;
+		tuple->sport = conn->tuple.src_port;
+	}
+
+	switch (tuple->ip_version) {
+	case 4:
+		tuple->dest_ip[0] = dip->s_addr;
+		tuple->src_ip[0] = sip->s_addr;
+		break;
+
+	case 6:
+		nss_ipsec_klips_in6_to_addr(dip6, tuple->dest_ip);
+		nss_ipsec_klips_in6_to_addr(sip6, tuple->src_ip);
+		break;
+
+	default:
+		/*
+                 * Shouldn't come here.
+                 */
+                nss_ipsec_klips_err("%p: Invalid protocol\n", conn);
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * nss_ipsec_klips_ecm_conn_notify()
+ *	Notifier function for ECM connection events.
+ */
+static int nss_ipsec_klips_ecm_conn_notify(struct notifier_block *nb, unsigned long event, void *ptr)
+{
+	struct ecm_notifier_connection_data *conn = ptr;
+	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
+	struct net_device *nss_dev;
+	bool is_return = false;
+
+	if (event != ECM_NOTIFIER_ACTION_CONNECTION_REMOVED) {
+
+		/*
+		 * Invalid event, Do nothing.
+		 */
+		nss_ipsec_klips_trace("%p: Invalid event recieved\n", nb);
+		return NOTIFY_OK;
+	}
+
+	nss_ipsec_klips_trace("%p: Event ECM_NOTIFIER_ACTION_CONNECTION_REMOVE recieved\n", nb);
+
+	switch (conn->tuple.protocol) {
+	case IPPROTO_ESP:
+
+		/*
+		 * Connection belongs to outer flow and it will delete when parent SA gets deref.
+		 */
+		nss_ipsec_klips_trace("%p: Connection protocol is ESP, no action required\n", nb);
+		return NOTIFY_OK;
+
+	case IPPROTO_UDP:
+
+		/*
+		 * If Connection belongs to NAT-T (Outer flow) then it will delete when parent SA gets deref.
+		 */
+		if (conn->tuple.src_port == NSS_IPSECMGR_NATT_PORT_DATA) {
+			nss_ipsec_klips_trace("%p: Connection is with NAT-T source port, no action required\n", nb);
+			return NOTIFY_OK;
+		} else if (conn->tuple.dst_port == NSS_IPSECMGR_NATT_PORT_DATA) {
+			nss_ipsec_klips_trace("%p: Connection is with NAT-T dest port, no action required\n", nb);
+			return NOTIFY_OK;
+		}
+
+		break;
+
+	default:
+		break;
+	}
+
+	nss_dev = nss_ipsec_klips_get_tunnel(conn->from_dev);
+	if (nss_dev) {
+		is_return = true;
+		nss_ipsec_klips_trace("%p: Tunnel Device found in 'from' dir\n", conn);
+		goto found;
+	}
+
+	nss_dev = nss_ipsec_klips_get_tunnel(conn->to_dev);
+	if (!nss_dev) {
+		nss_ipsec_klips_trace("%p: Tunnel Device not found for 'to_dev' & 'from_dev'\n", conn);
+		return NOTIFY_DONE;
+	}
+
+	nss_ipsec_klips_trace("%p: Tunnel Device found in 'to' dir\n", conn);
+
+found:
+	if (!nss_ipsec_klips_ecm_conn_to_tuple(conn, &flow_tuple, is_return)) {
+		nss_ipsec_klips_err("%p: Invalid connection data\n", conn);
+		dev_put(nss_dev);
+		return NOTIFY_DONE;
+	}
+
+	if (!nss_ipsec_klips_flow_delete(nss_dev, &flow_tuple)) {
+		nss_ipsec_klips_trace("%p: nss_ipsec_klips_flow_delete failed\n", conn);
+	}
+
+	dev_put(nss_dev);
+	return NOTIFY_OK;
+}
+
+
 static struct notifier_block nss_ipsec_klips_notifier = {
 	.notifier_call = nss_ipsec_klips_dev_event,
 };
 
 static struct ecm_interface_ipsec_callback nss_ipsec_klips_ecm =  {
-	.tunnel_get_and_hold = nss_ipsec_klips_get_tunnel
+	.tunnel_get_and_hold = nss_ipsec_klips_get_dev_and_type
+};
+
+static struct notifier_block nss_ipsec_klips_ecm_conn_notifier = {
+	.notifier_call = nss_ipsec_klips_ecm_conn_notify,
 };
 
 /*
@@ -1016,6 +1206,7 @@ int __init nss_ipsec_klips_init_module(void)
 	nss_cfi_ocf_register_ipsec(nss_ipsec_klips_trap_encap, nss_ipsec_klips_trap_decap, nss_ipsec_klips_free_session);
 
 	ecm_interface_ipsec_register_callbacks(&nss_ipsec_klips_ecm);
+	ecm_notifier_register_connection_notify(&nss_ipsec_klips_ecm_conn_notifier);
 	return 0;
 }
 
@@ -1034,6 +1225,7 @@ void __exit nss_ipsec_klips_exit_module(void)
 	 * unwinding the tunnels
 	 */
 
+	ecm_notifier_unregister_connection_notify(&nss_ipsec_klips_ecm_conn_notifier);
 	ecm_interface_ipsec_unregister_callbacks();
 
 	nss_cfi_ocf_unregister_ipsec();

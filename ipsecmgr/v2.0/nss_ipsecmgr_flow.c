@@ -248,6 +248,41 @@ struct nss_ipsecmgr_flow *nss_ipsecmgr_flow_find(struct list_head *db, struct ns
 }
 
 /*
+ * nss_ipsecmgr_flow_get_sa()
+ *	Lookup flow_tuple in flow database and return sa_tuple.
+ */
+nss_ipsecmgr_status_t nss_ipsecmgr_flow_get_sa(struct net_device *tun, struct nss_ipsecmgr_flow_tuple *flow_tuple,
+					struct nss_ipsecmgr_sa_tuple *sa_tuple)
+{
+	struct nss_ipsec_cmn_flow_tuple tuple;
+	struct nss_ipsecmgr_flow *flow;
+	struct nss_ipsecmgr_sa *sa;
+
+	nss_ipsecmgr_flow2tuple(flow_tuple, &tuple);
+	write_lock_bh(&ipsecmgr_drv->lock);
+
+	flow = nss_ipsecmgr_flow_find(ipsecmgr_drv->flow_db, &tuple);
+	if (!flow) {
+		write_unlock_bh(&ipsecmgr_drv->lock);
+		nss_ipsecmgr_trace("%p: Failed to find flow", tun);
+		return NSS_IPSECMGR_FAIL_FLOW;
+	}
+
+	sa = flow->sa;
+	if (!sa) {
+		write_unlock_bh(&ipsecmgr_drv->lock);
+		nss_ipsecmgr_error("%p: SA is not associated with flow", tun);
+		return NSS_IPSECMGR_FAIL_SA;
+	}
+
+	nss_ipsecmgr_sa_tuple2sa(&sa->state.tuple, sa_tuple);
+	write_unlock_bh(&ipsecmgr_drv->lock);
+
+	return NSS_IPSECMGR_OK;
+}
+EXPORT_SYMBOL(nss_ipsecmgr_flow_get_sa);
+
+/*
  * nss_ipsecmgr_flow_del()
  *	Delete a existing flow from the database
  *

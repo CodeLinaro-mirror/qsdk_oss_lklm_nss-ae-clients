@@ -80,6 +80,7 @@ typedef enum nss_ipsecmgr_status {
 	NSS_IPSECMGR_INVALID_WINDOW,	/**< Invalid window size. */
 	NSS_IPSECMGR_DUPLICATE_SA,	/**< Duplicate SA allocation. */
 	NSS_IPSECMGR_DUPLICATE_FLOW,	/**< Duplicate flow allocation. */
+	NSS_IPSECMGR_FAIL_FLOW,		/**< Failed to find the flow. */
 } nss_ipsecmgr_status_t;
 
 /**
@@ -494,5 +495,24 @@ nss_ipsecmgr_status_t nss_ipsecmgr_flow_add(struct net_device *tun, struct nss_i
  */
 void nss_ipsecmgr_flow_del(struct net_device *tun, struct nss_ipsecmgr_flow_tuple *flow,
 			struct nss_ipsecmgr_sa_tuple *sa);
+
+/**
+ * nss_ipsecmgr_flow_get_sa
+ *	Finds SA associated with given Flow.
+ *
+ * @datatypes
+ * net_device \n
+ * nss_ipsecmgr_flow_tuple \n
+ * nss_ipsecmgr_sa_tuple
+ *
+ * @param[in] tun   Pointer to the network device associated with the tunnel.
+ * @param[in] flow  Pointer to the inner flow to look.
+ * @param[out] sa   Pointer to SA tuple to fill.
+ *
+ * @return
+ * nss_ipsecmgr_status.
+ */
+nss_ipsecmgr_status_t nss_ipsecmgr_flow_get_sa(struct net_device *tun, struct nss_ipsecmgr_flow_tuple *flow,
+					struct nss_ipsecmgr_sa_tuple *sa);
 #endif /* __KERNEL__ */
 #endif /* __NSS_IPSECMGR_H */

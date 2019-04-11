@@ -53,6 +53,8 @@
 #define NSS_IPSEC_KLIPS_BASE_NAME "ipsec"
 #define NSS_IPSEC_KLIPS_TUNNEL_MAX 8
 #define NSS_IPSEC_KLIPS_SES_MASK 0xffff
+#define NSS_IPSEC_KLIPS_FLAG_NATT 0x00000001
+#define NSS_IPSEC_KLIPS_FLAG_TRANSPORT_MODE 0x00000002
 
 /*
  * This is used by KLIPS for communicate the device along with the
@@ -61,7 +63,7 @@
  */
 struct nss_ipsec_klips_skb_cb {
 	struct net_device *hlos_dev;
-	bool natt;
+	uint32_t flags;
 };
 
 /*
@@ -174,13 +176,15 @@ static enum nss_ipsecmgr_algo nss_ipsec_klips_get_algo(enum nss_crypto_cmn_algo 
 }
 
 /*
- * nss_ipsec_klips_get_natt()
- * 	Get NATT information. Openswan stack fills up NATT flag in skb.
+ * nss_ipsec_klips_get_skb_cb()
+ * 	Get pointer to skb->cb typecasted to private structure.
  */
-static inline bool nss_ipsec_klips_get_natt(struct sk_buff *skb)
+static inline struct nss_ipsec_klips_skb_cb *nss_ipsec_klips_get_skb_cb(struct sk_buff *skb)
 {
-	struct nss_ipsec_klips_skb_cb *ipsec_cb = (struct nss_ipsec_klips_skb_cb *)skb->cb;
-	return ipsec_cb->natt;
+
+	BUILD_BUG_ON(sizeof(skb->cb) < sizeof(struct nss_ipsec_klips_skb_cb));
+
+	return (struct nss_ipsec_klips_skb_cb *)skb->cb;
 }
 
 /*
@@ -441,10 +445,10 @@ static bool nss_ipsec_klips_outer2flow_tuple(uint8_t *outer, bool natt, struct n
  * nss_ipsec_klips_inner2flow_tuple()
  *	Fill inner flow
  */
-static void nss_ipsec_klips_inner2flow_tuple(uint8_t *inner, struct nss_ipsecmgr_flow_tuple *tuple)
+static void nss_ipsec_klips_inner2flow_tuple(uint8_t *ip, uint8_t proto, struct nss_ipsecmgr_flow_tuple *tuple)
 {
-	struct ipv6hdr *ip6h = (struct ipv6hdr *)inner;
-	struct iphdr *iph = (struct iphdr *)inner;
+	struct ipv6hdr *ip6h = (struct ipv6hdr *)ip;
+	struct iphdr *iph = (struct iphdr *)ip;
 
 	/*
 	 * TODO: Since, we are pushing 3-tuple for every 5-tuple
@@ -456,26 +460,26 @@ static void nss_ipsec_klips_inner2flow_tuple(uint8_t *inner, struct nss_ipsecmgr
 	tuple->sport = 0;
 	tuple->dport = 0;
 	tuple->use_pattern = 0;
+	tuple->ip_version = iph->version;
 
-	if (iph->version == IPVERSION) {
+	if (tuple->ip_version == IPVERSION) {
 		tuple->src_ip[0] = ntohl(iph->saddr);
 		tuple->dest_ip[0] = ntohl(iph->daddr);
-		tuple->proto_next_hdr = iph->protocol;
-		tuple->ip_version = IPVERSION;
+		tuple->proto_next_hdr = proto ? proto : iph->protocol;
 		return;
 	}
 
-	BUG_ON(iph->version != 6);
+	BUG_ON(tuple->ip_version != 6);
 
 	nss_ipsec_klips_v6addr_ntoh(tuple->src_ip, ip6h->saddr.s6_addr32);
 	nss_ipsec_klips_v6addr_ntoh(tuple->dest_ip, ip6h->daddr.s6_addr32);
-	tuple->proto_next_hdr = ip6h->nexthdr;
-	tuple->ip_version = 6;
 
 	if (ip6h->nexthdr == NEXTHDR_FRAGMENT) {
-		struct frag_hdr *fragh = (struct frag_hdr *)(inner + sizeof(*ip6h));
-		tuple->proto_next_hdr = fragh->nexthdr;
+		struct frag_hdr *fragh = (struct frag_hdr *)(ip + sizeof(*ip6h));
+		proto = fragh->nexthdr;
 	}
+
+	tuple->proto_next_hdr = proto ? proto : ip6h->nexthdr;
 }
 
 /*
@@ -484,20 +488,25 @@ static void nss_ipsec_klips_inner2flow_tuple(uint8_t *inner, struct nss_ipsecmgr
  */
 static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_crypto_info *crypto)
 {
+	uint16_t crypto_idx = crypto->sid & NSS_IPSEC_KLIPS_SES_MASK;
 	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
 	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
-	uint16_t crypto_idx = crypto->sid & NSS_IPSEC_KLIPS_SES_MASK;
 	struct nss_ipsec_klips_tunnel_entry *tun;
+	struct nss_ipsec_klips_skb_cb *skb_cb;
 	struct nss_ipsec_klips_sa *sa_entry;
 	struct nss_ipsecmgr_sa_data sa = {0};
 	nss_ipsecmgr_status_t status;
 	struct net_device *nss_dev;
 	enum nss_ipsecmgr_algo algo;
-	uint8_t *payload;
+	uint32_t tail_offset;
+	bool transport_mode;
+	bool natt;
 	int8_t iv_blk_len;
-	uint8_t ttl;
+	uint8_t *payload;
 	uint32_t if_num;
-	bool natt = false;
+	uint8_t ttl;
+
+	BUG_ON(skb_is_nonlinear(skb) || skb_has_frag_list(skb));
 
 	iv_blk_len = nss_ipsec_klips_get_blk_len(crypto->algo);
 	if (iv_blk_len < 0) {
@@ -511,15 +520,22 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 		return -EOPNOTSUPP;
 	}
 
+	skb_cb = nss_ipsec_klips_get_skb_cb(skb);
+	if (!skb_cb) {
+		nss_ipsec_klips_warn("%p:skb->cb is NULL\n", skb);
+		return -EINVAL;
+	}
+
 	/*
 	 * construct SA information
 	 */
 
-	natt = nss_ipsec_klips_get_natt(skb);
+	transport_mode = skb_cb->flags & NSS_IPSEC_KLIPS_FLAG_TRANSPORT_MODE;
+	natt = skb_cb->flags & NSS_IPSEC_KLIPS_FLAG_NATT;
 
 	nss_ipsecmgr_sa_cmn_init_idx(&sa.cmn, algo, crypto->sid,
 				iv_blk_len, iv_blk_len, crypto->hash_len,
-				false,				/* secure_key */
+				transport_mode,			/* enable transport mode */
 				false,				/* no_trailer */
 				false,				/* esn */
 				natt);				/* natt */
@@ -531,7 +547,13 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 	payload = nss_ipsec_klips_outer2sa_tuple(skb->data, natt, &sa_tuple, &ttl, false);
 	BUG_ON(!payload);
 
-	nss_ipsec_klips_inner2flow_tuple(payload + iv_blk_len, &flow_tuple);
+	if (transport_mode) {
+		tail_offset = skb->len - crypto->hash_len - sizeof(uint8_t);
+		nss_ipsec_klips_inner2flow_tuple(skb->data, skb->data[tail_offset], &flow_tuple);
+
+	} else {
+		nss_ipsec_klips_inner2flow_tuple(payload + iv_blk_len, 0, &flow_tuple);
+	}
 
 	sa.type = NSS_IPSECMGR_SA_TYPE_ENCAP;
 	sa.encap.ttl_hop_limit = ttl;
@@ -615,11 +637,13 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
 	uint16_t crypto_idx = crypto->sid & NSS_IPSEC_KLIPS_SES_MASK;
 	struct nss_ipsec_klips_tunnel_entry *tun;
+	struct nss_ipsec_klips_skb_cb *skb_cb;
 	struct nss_ipsecmgr_sa_data sa = {0};
 	struct nss_ipsec_klips_sa *sa_entry;
 	nss_ipsecmgr_status_t status;
 	struct net_device *nss_dev;
 	enum nss_ipsecmgr_algo algo;
+	bool transport_mode;
 	int8_t iv_blk_len;
 	uint32_t if_num;
 	uint8_t *payload;
@@ -638,13 +662,21 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 		return -EOPNOTSUPP;
 	}
 
+	skb_cb = nss_ipsec_klips_get_skb_cb(skb);
+	if (!skb_cb) {
+		nss_ipsec_klips_warn("%p:skb->cb is NULL\n", skb);
+		return -EINVAL;
+	}
+
 	/*
 	 * construct SA information
 	 */
-	natt = nss_ipsec_klips_get_natt(skb);
+	transport_mode = skb_cb->flags & NSS_IPSEC_KLIPS_FLAG_TRANSPORT_MODE;
+	natt = skb_cb->flags & NSS_IPSEC_KLIPS_FLAG_NATT;
+
 	nss_ipsecmgr_sa_cmn_init_idx(&sa.cmn, algo, crypto->sid,
 				iv_blk_len, iv_blk_len, crypto->hash_len,
-				false,	/* secure_key */
+				transport_mode,	/* enable transport mode */
 				false,	/* no_trailer */
 				false,	/* esn */
 				natt	/* natt */

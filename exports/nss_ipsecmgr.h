@@ -143,15 +143,17 @@ struct nss_ipsecmgr_crypto_index {
  * 	Common information necessary to configure an SA.
  */
 struct nss_ipsecmgr_sa_cmn {
-	enum nss_ipsecmgr_algo algo;	/**< Supported crypto algorithms */
+	enum nss_ipsecmgr_algo algo;		/**< Supported crypto algorithms */
 	struct nss_ipsecmgr_crypto_keys keys;	/**< Crypto keys */
 	struct nss_ipsecmgr_crypto_index index;	/**< Crypto index or offset */
 
-	uint8_t icv_len;	/**< Hash length. */
-	bool skip_trailer;	/**< Skip the ESP trailer for encapsulation. */
-	bool enable_esn;	/**< Enable the extended sequence number. */
-	bool enable_natt;	/**< NAT-T is required. */
-	bool crypto_has_keys;	/**< Crypto configured with keys. */
+	uint8_t icv_len;			/**< Hash length. */
+
+	bool skip_trailer;			/**< Skip the ESP trailer for encapsulation. */
+	bool enable_esn;			/**< Enable the extended sequence number. */
+	bool enable_natt;			/**< NAT-T is required. */
+	bool crypto_has_keys;			/**< Crypto configured with keys. */
+	bool transport_mode;			/**< True, if IPSec is in transport mode. */
 };
 
 /**
@@ -319,6 +321,7 @@ static inline bool nss_ipsecmgr_sa_cmn_init_keys(struct nss_ipsecmgr_sa_cmn *cmn
 	cmn->enable_natt = natt;
 
 	cmn->crypto_has_keys = true;
+	cmn->transport_mode = false;
 
 	return true;
 }
@@ -345,7 +348,7 @@ static inline bool nss_ipsecmgr_sa_cmn_init_keys(struct nss_ipsecmgr_sa_cmn *cmn
  */
 static inline bool nss_ipsecmgr_sa_cmn_init_idx(struct nss_ipsecmgr_sa_cmn *cmn, enum nss_ipsecmgr_algo algo,
 						uint16_t crypto_idx,  uint8_t blk_len, uint8_t iv_len,
-						uint8_t hash_len, bool secure_key, bool no_trailer, bool esn,
+						uint8_t hash_len, bool transport_mode, bool no_trailer, bool esn,
 						bool natt)
 {
 	if (algo >= NSS_IPSECMGR_ALGO_MAX)
@@ -362,6 +365,7 @@ static inline bool nss_ipsecmgr_sa_cmn_init_idx(struct nss_ipsecmgr_sa_cmn *cmn,
 	cmn->skip_trailer = no_trailer;
 
 	cmn->crypto_has_keys = false;
+	cmn->transport_mode = transport_mode;
 
 	return true;
 }

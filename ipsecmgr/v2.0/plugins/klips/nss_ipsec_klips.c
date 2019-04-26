@@ -45,7 +45,9 @@
 #include <nss_ipsecmgr.h>
 #include <ecm_interface_ipsec.h>
 #include <ecm_notifier.h>
-
+#if defined(NSS_L2TPV2_ENABLED)
+#include <nss_l2tpmgr.h>
+#endif
 #include "nss_ipsec_klips.h"
 
 #define NSS_IPSEC_KLIPS_BASE_NAME "ipsec"
@@ -1165,6 +1167,12 @@ static struct notifier_block nss_ipsec_klips_ecm_conn_notifier = {
 	.notifier_call = nss_ipsec_klips_ecm_conn_notify,
 };
 
+#if defined(NSS_L2TPV2_ENABLED)
+static struct l2tpmgr_ipsecmgr_cb nss_ipsec_klips_l2tp =  {
+	.cb = nss_ipsec_klips_get_tunnel
+};
+#endif
+
 /*
  * nss_ipsec_klips_init_module()
  *	Initialize IPsec rule tables and register various callbacks
@@ -1198,6 +1206,9 @@ int __init nss_ipsec_klips_init_module(void)
 
 	ecm_interface_ipsec_register_callbacks(&nss_ipsec_klips_ecm);
 	ecm_notifier_register_connection_notify(&nss_ipsec_klips_ecm_conn_notifier);
+#if defined(NSS_L2TPV2_ENABLED)
+	l2tpmgr_register_ipsecmgr_callback(&nss_ipsec_klips_l2tp);
+#endif
 	return 0;
 }
 
@@ -1218,6 +1229,9 @@ void __exit nss_ipsec_klips_exit_module(void)
 
 	ecm_notifier_unregister_connection_notify(&nss_ipsec_klips_ecm_conn_notifier);
 	ecm_interface_ipsec_unregister_callbacks();
+#if defined(NSS_L2TPV2_ENABLED)
+	l2tpmgr_unregister_ipsecmgr_callback();
+#endif
 
 	nss_cfi_ocf_unregister_ipsec();
 	unregister_netdevice_notifier(&nss_ipsec_klips_notifier);

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2016,2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2019 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -13,6 +13,7 @@
  * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  **************************************************************************
  */
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -31,6 +32,8 @@
 #include "nss_nlipv4_if.h"
 #include "nss_nlipv6_if.h"
 #include "nss_nlipsec_if.h"
+#include "nss_nlgre_redir_if.h"
+#include "nss_nlgre_redir.h"
 #include "nss_nloam_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
@@ -120,6 +123,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLIPV6_INIT,		/* init */
 		.exit = NSS_NLIPV6_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLIPV6		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLGRE_REDIR
+		 */
+		.name = NSS_NLGRE_REDIR_FAMILY,		/* gre_redir */
+		.entry = NSS_NLGRE_REDIR_INIT,		/* init */
+		.exit = NSS_NLGRE_REDIR_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLGRE_REDIR		/* 1 or 0 */
 	},
 
 };

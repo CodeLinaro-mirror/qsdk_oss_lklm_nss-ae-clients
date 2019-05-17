@@ -537,6 +537,7 @@ static void nss_ovpnmgr_tun_init_qvpn_config(struct nss_ovpnmgr_tun *tun, struct
 
 	qvpn_cfg->hdr_cfg.src_port = ntohs(tun->tun_hdr.src_port);
 	qvpn_cfg->hdr_cfg.dst_port = ntohs(tun->tun_hdr.dst_port);
+	qvpn_cfg->hdr_cfg.hop_limit = tun->tun_hdr.hop_limit;
 	qvpn_cfg->hdr_cfg.hdr_flags |= NSS_QVPN_HDR_FLAG_L4_UDP;
 	qvpn_cfg->hdr_cfg.seqnum_size = 4;
 	qvpn_cfg->hdr_cfg.anti_replay_alg = NSS_QVPN_ANTI_REPLAY_ALG_REPLAY_WINDOW;
@@ -680,7 +681,7 @@ static int nss_ovpnmgr_tun_outer_config(struct nss_ovpnmgr_tun *tun)
 	 *	NSS_QVPN_CMDS_TYPE_REMOVE_L3_L4_HDR, NSS_QVPN_CMDS_TYPE_REMOVE_VPN_HDR
 	 */
 
-	if (tun->inner.active.crypto_idx != U16_MAX) {
+	if (tun->outer.active.crypto_idx != U16_MAX) {
 		qvpn_cfg->cmd[total_cmds++] = NSS_QVPN_CMDS_TYPE_DECRYPT;
 		qvpn_cfg->cmd_profile = NSS_QVPN_PROFILE_CRYPTO_DECAP;
 	} else {
@@ -896,6 +897,11 @@ static int nss_ovpnmgr_tun_config_verify(struct nss_ovpnmgr_tun_tuple *tun_hdr, 
 		nss_ovpnmgr_warn("%p: IP/UDP Tunnel parameters are invalid.\n", tun_hdr);
 		return -EINVAL;
 	}
+
+	if (!tun_hdr->hop_limit) {
+		nss_ovpnmgr_warn("%p: Invalid hop_limit.\n", tun_hdr);
+		return -EINVAL;
+	}
 	return 0;
 }
 
@@ -920,6 +926,7 @@ static void nss_ovpnmgr_tun_config_dump(struct net_device *app_dev, struct nss_o
 		nss_ovpnmgr_info("local tunnel Port = %d\n", tun_hdr->src_port);
 		nss_ovpnmgr_info("remote tunnel Port = %d\n", tun_hdr->dst_port);
 	}
+	nss_ovpnmgr_info("hop_limit = %d\n", tun_hdr->hop_limit);
 	nss_ovpnmgr_info("Crypto: algo = %d, cipher_keylen = %d, hmac_keylen = %d\n",
 			crypto_cfg->algo, crypto_cfg->encrypt.cipher_keylen,
 			crypto_cfg->encrypt.hmac_keylen);

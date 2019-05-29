@@ -51,7 +51,7 @@
 #include "nss_ipsecmgr.h"
 #include "nss_nl.h"
 #include "nss_nlcmn_if.h"
-#include "nss_nlgre_redir.h"
+#include "nss_nlgre_redir_cmd.h"
 #include "nss_nlipsec_if.h"
 #include "nss_nlipsec.h"
 #include "nss_nlipv4_if.h"
@@ -326,7 +326,7 @@ static int nss_nlipv4_verify_conn_rule(struct nss_ipv4_rule_create_msg *msg, str
 		/*
 		 * Currently this implementation is only for gre_redir
 		 */
-		conn->flow_interface_num = nss_nlgre_redir_get_ifnum(flow_dev,
+		conn->flow_interface_num = nss_nlgre_redir_cmd_get_ifnum(flow_dev,
 					NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_OUTER);
 		if (conn->flow_interface_num < 0 ) {
 			nss_nl_error("%p: Failed to get flow interface number (dev:%s, type:%d)\n",
@@ -384,7 +384,7 @@ static int nss_nlipv4_verify_conn_rule(struct nss_ipv4_rule_create_msg *msg, str
 		break;
 
 	case NSS_NL_IFTYPE_TUNNEL_GRE:
-		conn->return_interface_num = nss_nlgre_redir_get_ifnum(return_dev,
+		conn->return_interface_num = nss_nlgre_redir_cmd_get_ifnum(return_dev,
 				NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_OFFL_INNER);
 		if (conn->return_interface_num < 0 ) {
 			nss_nl_error("%p: Failed to get return interface number (dev:%s, type:%d)\n",

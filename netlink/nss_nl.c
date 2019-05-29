@@ -33,7 +33,7 @@
 #include "nss_nlipv6_if.h"
 #include "nss_nlipsec_if.h"
 #include "nss_nlgre_redir_if.h"
-#include "nss_nlgre_redir.h"
+#include "nss_nlgre_redir_family.h"
 #include "nss_nloam_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
@@ -129,9 +129,9 @@ static struct nss_nl_family family_handlers[] = {
 		 * NSS_NLGRE_REDIR
 		 */
 		.name = NSS_NLGRE_REDIR_FAMILY,		/* gre_redir */
-		.entry = NSS_NLGRE_REDIR_INIT,		/* init */
-		.exit = NSS_NLGRE_REDIR_EXIT,		/* exit */
-		.valid = CONFIG_NSS_NLGRE_REDIR		/* 1 or 0 */
+		.entry = NSS_NLGRE_REDIR_FAMILY_INIT,	/* init */
+		.exit = NSS_NLGRE_REDIR_FAMILY_EXIT,	/* exit */
+		.valid = CONFIG_NSS_NLGRE_REDIR_FAMILY	/* 1 or 0 */
 	},
 
 };

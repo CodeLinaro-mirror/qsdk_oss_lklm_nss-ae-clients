@@ -309,8 +309,8 @@ static void nss_capwapmgr_fill_up_stats(struct rtnl_link_stats64 *stats, struct 
 	stats->tx_errors += tstats->tx_mem_failure_drops;
 	stats->tx_bytes += tstats->pnode_stats.tx_bytes;
 
-	stats->tx_dropped += (tstats->tx_dropped_sg_ref + tstats->tx_dropped_ver_mis + tstats->tx_dropped_unalign
-			+ tstats->tx_dropped_hroom + tstats->tx_dropped_dtls + tstats->tx_dropped_nwireless);
+	stats->tx_dropped += (tstats->tx_dropped_sg_ref + tstats->tx_dropped_ver_mis + tstats->tx_dropped_hroom
+			 + tstats->tx_dropped_dtls + tstats->tx_dropped_nwireless);
 	stats->tx_packets += tstats->pnode_stats.tx_packets;
 }
 
@@ -2474,7 +2474,6 @@ static void nss_capwapmgr_tunnel_save_stats(struct nss_capwap_tunnel_stats *save
 	save->tx_mem_failure_drops += fstats->tx_mem_failure_drops;
 	save->tx_dropped_sg_ref += fstats->tx_dropped_sg_ref;
 	save->tx_dropped_ver_mis += fstats->tx_dropped_ver_mis;
-	save->tx_dropped_unalign += fstats->tx_dropped_unalign;
 	save->tx_dropped_hroom += fstats->tx_dropped_hroom;
 	save->tx_dropped_dtls += fstats->tx_dropped_dtls;
 	save->tx_dropped_nwireless += fstats->tx_dropped_nwireless;

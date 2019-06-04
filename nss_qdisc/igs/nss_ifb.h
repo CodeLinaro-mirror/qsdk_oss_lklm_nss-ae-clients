@@ -14,6 +14,17 @@
  **************************************************************************
  */
 
+#define NSS_IFB_MSG_TIMEOUT (600*HZ)	/* 1 min timeout */
+
+/*
+ * nss_ifb_if_config
+ *	Types of IFB configuration messages.
+ */
+enum nss_ifb_if_config {
+	NSS_IFB_SET_IGS_NODE,
+	NSS_IFB_CLEAR_IGS_NODE,
+};
+
 /*
  * nss_ifb_info
  *	IFB and its mapped interface's bind structure.
@@ -26,10 +37,48 @@ struct nss_ifb_info {
 };
 
 /*
+ * nss_ifb_list_del()
+ *	API to delete member in ifb list.
+ */
+extern void nss_ifb_list_del(struct nss_ifb_info *ifb_info);
+
+/*
  * nss_ifb_is_mapped()
  *	Returns the map status of the given ifb bind structure.
  */
 extern bool nss_ifb_is_mapped(struct nss_ifb_info *ifb_info);
+
+/*
+ * nss_ifb_config_msg_tx()
+ *	Send IFB configure message to an IFB mapped interface.
+ */
+extern int32_t nss_ifb_config_msg_tx(struct net_device *dev, int32_t ifb_num,
+		 enum nss_ifb_if_config config, void *cb);
+
+/*
+ * nss_ifb_config_msg_tx_sync()
+ *	Send IFB configure message to an IFB mapped interface and wait for the response.
+ */
+extern int32_t nss_ifb_config_msg_tx_sync(struct net_device *dev, int32_t ifb_num,
+		 enum nss_ifb_if_config config, void *cb);
+
+/*
+ * nss_ifb_clear_igs_node()
+ *	Send CLEAR configure message to an IFB mapped interface.
+ */
+extern bool nss_ifb_clear_igs_node(struct nss_ifb_info *ifb_info);
+
+/*
+ * nss_ifb_init()
+ *	Initialization API.
+ */
+extern void nss_ifb_init(void);
+
+/*
+ * nss_ifb_find_map_dev()
+ *	Find and return the IFB mapped netdev in the ifb list.
+ */
+extern struct nss_ifb_info *nss_ifb_find_map_dev(struct net_device *dev);
 
 /*
  * nss_ifb_find_dev()

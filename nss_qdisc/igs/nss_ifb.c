@@ -24,6 +24,28 @@ static LIST_HEAD(nss_ifb_list);			/* List of IFB and its mapped interface */
 static DEFINE_SPINLOCK(nss_ifb_list_lock);	/* Lock for the ifb list */
 
 /*
+ * nss_ifb_msg_response
+ *	NSS firmware message response structure.
+ */
+static struct nss_ifb_msg_response {
+	struct semaphore sem;
+	wait_queue_head_t wq;
+	enum nss_cmn_response response;
+	bool cond;
+} msg_response;
+
+/*
+ * nss_ifb_list_del()
+ *	API to delete member in ifb list.
+ */
+void nss_ifb_list_del(struct nss_ifb_info *ifb_info)
+{
+	spin_lock_bh(&nss_ifb_list_lock);
+	list_del(&ifb_info->map_list);
+	spin_unlock_bh(&nss_ifb_list_lock);
+}
+
+/*
  * nss_ifb_list_add()
  *	API to add member in ifb list.
  */
@@ -46,6 +68,207 @@ bool nss_ifb_is_mapped(struct nss_ifb_info *ifb_info)
 	is_mapped = ifb_info->is_mapped;
 	spin_unlock_bh(&nss_ifb_list_lock);
 	return is_mapped;
+}
+
+/*
+ * nss_ifb_config_msg_init()
+ *	Initialize IFB configure interface's message.
+ */
+static void nss_ifb_config_msg_init(struct nss_if_msg *ncm, uint16_t if_num,
+		 uint32_t type,  uint32_t len, void *cb, void *app_data)
+{
+	nss_cmn_msg_init(&ncm->cm, if_num, type, len, cb, app_data);
+}
+
+/*
+ * nss_ifb_clear_config_cb()
+ *	CLEAR configure handler for an IFB mapped interface.
+ */
+static void nss_ifb_clear_config_cb(void *app_data, struct nss_if_msg *nim)
+{
+	struct nss_ifb_info *ifb_info = (struct nss_ifb_info *)app_data;
+	bool ret;
+
+	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
+		nss_igs_error("Response error: %d\n", nim->cm.response);
+		return;
+	}
+
+	do {
+		ret = spin_trylock_bh(&nss_ifb_list_lock);
+	} while (!ret);
+	ifb_info->is_mapped = false;
+	spin_unlock_bh(&nss_ifb_list_lock);
+}
+
+/*
+ * nss_ifb_wake_up_cb()
+ *	IFB wake up handler for an IFB mapped interface.
+ */
+static void nss_ifb_wake_up_cb(void *app_data, struct nss_if_msg *nim)
+{
+	msg_response.response = nim->cm.response;
+	msg_response.cond = 0;
+	wake_up(&msg_response.wq);
+}
+
+/*
+ * nss_ifb_config_msg_fill()
+ *	Fill the IFB configure message.
+ */
+static bool nss_ifb_config_msg_fill(struct nss_if_msg *nim_ptr, struct net_device *dev,
+		int32_t ifb_num, enum nss_ifb_if_config config, void *cb)
+{
+	uint32_t if_src_num;
+
+	if_src_num = nss_cmn_get_interface_number_by_dev(dev);
+	if (if_src_num < 0) {
+		nss_igs_error("invalid device %s\n", dev->name);
+		return -1;
+	}
+
+	if (!nss_igs_verify_if_num(ifb_num)) {
+		nss_igs_error("ifb num: %d is invalid\n", ifb_num);
+		return -1;
+	}
+
+	switch (config) {
+	case NSS_IFB_SET_IGS_NODE:
+		nss_ifb_config_msg_init(nim_ptr, if_src_num, NSS_IF_SET_IGS_NODE,
+			sizeof(struct nss_if_igs_config), nss_ifb_wake_up_cb, cb);
+		nim_ptr->msg.config_igs.igs_num = ifb_num;
+		break;
+	case NSS_IFB_CLEAR_IGS_NODE:
+		nss_ifb_config_msg_init(nim_ptr, if_src_num, NSS_IF_CLEAR_IGS_NODE,
+			sizeof(struct nss_if_igs_config), nss_ifb_clear_config_cb, cb);
+		nim_ptr->msg.config_igs.igs_num = ifb_num;
+		break;
+	}
+
+	return 0;
+}
+
+/*
+ * nss_ifb_config_msg_tx()
+ *	Send IFB configure message to an IFB mapped interface.
+ */
+int32_t nss_ifb_config_msg_tx(struct net_device *dev, int32_t ifb_num,
+		 enum nss_ifb_if_config config, void *cb)
+{
+	struct nss_if_msg nim;
+	int32_t ret;
+
+	if ((ret = nss_ifb_config_msg_fill(&nim, dev, ifb_num, config, cb))) {
+		nss_igs_error("Error in setting up IFB %d config message\n", config);
+		return -1;
+	}
+
+	ret = nss_if_tx_msg(nss_igs_get_context(), &nim);
+	if (ret != NSS_TX_SUCCESS) {
+		nss_igs_error("failed to send config message\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+ * nss_ifb_config_msg_tx_sync()
+ *	Send IFB configure message to an IFB mapped interface and wait for the response.
+ */
+int32_t nss_ifb_config_msg_tx_sync(struct net_device *dev, int32_t ifb_num,
+		 enum nss_ifb_if_config config, void *cb)
+{
+	struct nss_if_msg nim;
+	int32_t ret;
+
+	if ((ret = nss_ifb_config_msg_fill(&nim, dev, ifb_num, config, cb))) {
+		nss_igs_error("Error in setting up IFB %d config message\n", config);
+		return -1;
+	}
+
+	down(&msg_response.sem);
+	ret = nss_if_tx_msg(nss_igs_get_context(), &nim);
+	if (ret != NSS_TX_SUCCESS) {
+		up(&msg_response.sem);
+		nss_igs_error("failed to send config message\n");
+		return -1;
+	}
+
+	msg_response.cond = 1;
+	if (!wait_event_timeout(msg_response.wq, msg_response.cond == 0, NSS_IFB_MSG_TIMEOUT)) {
+		nss_igs_error("config for attach interface msg timeout\n");
+		up(&msg_response.sem);
+		return -1;
+	} else if (msg_response.response != NSS_CMN_RESPONSE_ACK) {
+		up(&msg_response.sem);
+		nss_igs_error("config for attach interface msg return with response: %d\n", msg_response.response);
+		return -1;
+	}
+
+	up(&msg_response.sem);
+	return 0;
+}
+
+/*
+ * nss_ifb_clear_igs_node()
+ *	Send CLEAR configure message to an IFB mapped interface.
+ */
+bool nss_ifb_clear_igs_node(struct nss_ifb_info *ifb_info)
+{
+	int32_t if_num;
+
+	spin_lock_bh(&nss_ifb_list_lock);
+	if (!(ifb_info->is_mapped)) {
+		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->map_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return true;
+	}
+
+	/*
+	 * Send CLEAR config message to the mapped interface.
+	 */
+	if_num = nss_cmn_get_interface_number_by_dev_and_type(ifb_info->ifb_dev, NSS_DYNAMIC_INTERFACE_TYPE_IGS);
+	if (if_num < 0) {
+		nss_igs_error("No %s IFB device found in NSS firmware\n", ifb_info->ifb_dev->name);
+	}
+
+	if (nss_ifb_config_msg_tx(ifb_info->map_dev, if_num, NSS_IFB_CLEAR_IGS_NODE, ifb_info) < 0) {
+		nss_igs_error("Sending unassign to %s dev failed\n", ifb_info->map_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return false;
+	}
+	spin_unlock_bh(&nss_ifb_list_lock);
+	return true;
+}
+
+/*
+ * nss_ifb_init()
+ *	Initialization API.
+ */
+void nss_ifb_init()
+{
+	sema_init(&msg_response.sem, 1);
+	init_waitqueue_head(&msg_response.wq);
+}
+
+/*
+ * nss_ifb_find_map_dev()
+ *	Find and return the IFB mapped netdev in the ifb list.
+ */
+struct nss_ifb_info *nss_ifb_find_map_dev(struct net_device *dev)
+{
+	struct nss_ifb_info *ifb_info;
+
+	spin_lock_bh(&nss_ifb_list_lock);
+	list_for_each_entry(ifb_info, &nss_ifb_list, map_list) {
+		if (ifb_info->map_dev == dev) {
+			spin_unlock_bh(&nss_ifb_list_lock);
+			return ifb_info;
+		}
+	}
+	spin_unlock_bh(&nss_ifb_list_lock);
+	return NULL;
 }
 
 /*

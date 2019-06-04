@@ -32,6 +32,16 @@ static void nss_mirred_release(struct tc_action *tc_act, int bind)
 {
 	struct nss_mirred_tcf *act = nss_mirred_get(tc_act);
 	struct net_device *dev = rcu_dereference_protected(act->tcfm_dev, 1);
+	struct nss_ifb_info *ifb_info = nss_ifb_find_dev(dev);
+
+	if (!ifb_info) {
+		nss_igs_error("IFB device %s not found in the linked list \n", dev->name);
+		return;
+	}
+
+	if (!nss_ifb_clear_igs_node(ifb_info)) {
+		nss_igs_error("Error in sending IFB CLEAR configure message\n");
+	}
 
 	/*
 	 * Delete the nss mirred action list.
@@ -116,6 +126,15 @@ static int nss_mirred_init(struct net *net, struct nlattr *nla,
 		return -ENODEV;
 	}
 
+	ifb_info = nss_ifb_find_map_dev(from_dev);
+	if (ifb_info) {
+		if (nss_ifb_is_mapped(ifb_info)) {
+			nss_igs_error("%s device is already mapped to the other IFB device\n",
+					from_dev->name);
+			return -EEXIST;
+		}
+	}
+
 	ifb_info = nss_ifb_find_dev(to_dev);
 	if (ifb_info) {
 		if (nss_ifb_is_mapped(ifb_info)) {
@@ -135,6 +154,14 @@ static int nss_mirred_init(struct net *net, struct nlattr *nla,
 			nss_igs_error("failure in IFB creation\n");
 			return -EINVAL;
 		}
+	}
+
+	/*
+	 * Send config message to the interface attached to an IFB interface.
+	 */
+	if (nss_ifb_config_msg_tx_sync(from_dev, ifb_num, NSS_IFB_SET_IGS_NODE, NULL) < 0) {
+		nss_igs_error("Sending config to %s dev failed\n", from_dev->name);
+		return -EINVAL;
 	}
 
 	/*
@@ -284,6 +311,51 @@ out:
 }
 
 /*
+ * nss_mirred_unregister_event_handler()
+ *	nss mirred un-register event handler.
+ */
+static void nss_mirred_unregister_event_handler(struct net_device *dev)
+{
+	struct nss_ifb_info *ifb_info;
+
+	/*
+	 * IFB interface.
+	 */
+	if (netif_is_ifb_dev(dev)) {
+		ifb_info = nss_ifb_find_dev(dev);
+	} else {
+		/*
+		 * Check if the device is an IFB mapped device.
+		 */
+		ifb_info = nss_ifb_find_map_dev(dev);
+	}
+
+	/*
+	 * Device not present in ifb list.
+	 */
+	if (!ifb_info) {
+		return;
+	}
+
+	/*
+	 * Send IFB CLEAR configure message to the mapped interface.
+	 */
+	if (!nss_ifb_clear_igs_node(ifb_info)) {
+		nss_igs_error("Error in sending IFB CLEAR configure message\n");
+	}
+	if (netif_is_ifb_dev(dev)) {
+		int32_t ifb_num = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_IGS);
+
+		if (ifb_num < 0) {
+			nss_igs_error("Invalid %s IFB device\n", dev->name);
+			return;
+		}
+		nss_ifb_delete_if(ifb_num);
+		nss_ifb_list_del(ifb_info);
+	}
+}
+
+/*
  * nss_mirred_device_event()
  *	nssmirred device event callback.
  */
@@ -296,6 +368,8 @@ static int nss_mirred_device_event(struct notifier_block *unused,
 	if (event != NETDEV_UNREGISTER) {
 		return NOTIFY_DONE;
 	}
+
+	nss_mirred_unregister_event_handler(dev);
 
 	ASSERT_RTNL();
 
@@ -351,7 +425,10 @@ static int __init nss_mirred_init_module(void)
 	err = tcf_register_action(&nss_mirred_act_ops, NSS_MIRRED_TAB_MASK);
 	if (err) {
 		unregister_netdevice_notifier(&nss_mirred_device_notifier);
+		return err;
 	}
+
+	nss_ifb_init();
 	return err;
 }
 

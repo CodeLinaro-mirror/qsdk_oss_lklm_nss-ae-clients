@@ -19,6 +19,7 @@
 #include <linux/tc_act/tc_nss_mirred.h>
 #include "nss_mirred.h"
 #include "nss_igs.h"
+#include "nss_ifb.h"
 
 static LIST_HEAD(nss_mirred_list);		/* List for all nss mirred actions */
 static DEFINE_SPINLOCK(nss_mirred_list_lock);	/* Lock for the nss mirred list */
@@ -63,7 +64,8 @@ static int nss_mirred_init(struct net *net, struct nlattr *nla,
 	struct tc_nss_mirred *parm;
 	struct nss_mirred_tcf *act;
 	struct net_device *to_dev, *from_dev;
-	int ret;
+	struct nss_ifb_info *ifb_info;
+	int32_t ret, ifb_num;
 
 	if (!nla) {
 		return -EINVAL;
@@ -112,6 +114,37 @@ static int nss_mirred_init(struct net *net, struct nlattr *nla,
 	if (!netif_is_ifb_dev(to_dev)) {
 		nss_igs_error("%s is not an IFB device\n", to_dev->name);
 		return -ENODEV;
+	}
+
+	ifb_info = nss_ifb_find_dev(to_dev);
+	if (ifb_info) {
+		if (nss_ifb_is_mapped(ifb_info)) {
+			nss_igs_error("%s IFB device is already mapped to the other device\n",
+					to_dev->name);
+			return -EEXIST;
+		}
+	}
+
+	ifb_num = nss_cmn_get_interface_number_by_dev_and_type(to_dev, NSS_DYNAMIC_INTERFACE_TYPE_IGS);
+	if (ifb_num < 0) {
+		/*
+		 * Create the IFB instance in the NSS firmware.
+		 */
+		ifb_num = nss_ifb_create_if(to_dev);
+		if (ifb_num < 0) {
+			nss_igs_error("failure in IFB creation\n");
+			return -EINVAL;
+		}
+	}
+
+	/*
+	 * Bind an IFB device with its requested mapped interface.
+	 */
+	ret = nss_ifb_bind(ifb_info, from_dev, to_dev);
+	if (ret < 0) {
+		nss_igs_error(" Binding an IFB device failed\n");
+		nss_ifb_delete_if(ifb_num);
+		return ret;
 	}
 
 	/*

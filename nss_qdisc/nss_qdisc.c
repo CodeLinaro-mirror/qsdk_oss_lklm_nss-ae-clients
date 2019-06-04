@@ -988,6 +988,32 @@ static void nss_qdisc_bounce_callback(void *app_data, struct sk_buff *skb)
 }
 
 /*
+ * nss_qdisc_mark_and_schedule()
+ *	Mark the classid in packet and enqueue it.
+ */
+static void nss_qdisc_mark_and_schedule(void *app_data, struct sk_buff *skb)
+{
+	struct Qdisc *sch = (struct Qdisc *)app_data;
+	uint16_t temp = TC_H_MAJ(skb->priority) >> 16;
+
+	/*
+	 * Restore the priority field of skb to its value before bouncing.
+	 * Before bounce, we saved the priority value to tc_index field.
+	 *
+	 * Save the qostag of shaped packet to tc_index field.
+	 */
+	skb->priority = (skb->tc_index << 16) | TC_H_MIN(skb->priority);
+	skb->tc_index = temp;
+
+	/*
+	 * Enqueue the packet for transmit and schedule a dequeue
+	 * This enqueue has to be protected in order to avoid corruption.
+	 */
+	nss_qdisc_add_to_tail_protected(skb, sch);
+	__netif_schedule(sch);
+}
+
+/*
  * nss_qdisc_replace()
  *	Used to replace old qdisc with a new qdisc.
  */
@@ -1218,6 +1244,15 @@ int nss_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 	 */
 	if (nss_qdisc_iterate_fl(skb, sch)) {
 		kfree_skb(skb);
+		return NET_XMIT_SUCCESS;
+	}
+
+	/*
+	 * Skip the shaping of already shaped packets.
+	 */
+	if (skb->tc_verd & TC_NCLS_NSS) {
+		skb->tc_verd = CLR_TC_NCLS_NSS(skb->tc_verd);
+		nss_qdisc_mark_and_schedule(nq->qdisc, skb);
 		return NET_XMIT_SUCCESS;
 	}
 
@@ -2202,8 +2237,17 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 		 * register for bridge bouncing as it will be responsible for
 		 * bouncing packets to the NSS for bridge shaping.
 		 */
-		nq->bounce_context = nss_shaper_register_shaper_bounce_bridge(nq->nss_interface_number,
-							nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
+		if (nss_igs_verify_if_num(nq->nss_interface_number)) {
+			nss_qdisc_error("Since %d is an IFB device, it cannot"
+					" register for bridge bouncing\n", nq->nss_interface_number);
+			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
+			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
+			goto init_fail;
+		} else {
+			nq->bounce_context = nss_shaper_register_shaper_bounce_bridge(nq->nss_interface_number,
+					nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
+		}
+
 		if (!nq->bounce_context) {
 			nss_qdisc_error("Qdisc %p (type %d): is root but cannot register "
 					"for bridge bouncing\n", nq->qdisc, nq->type);
@@ -2245,8 +2289,14 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 			/*
 			 * Register for interface bounce shaping.
 			 */
-			nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
-								nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
+			if (nss_igs_verify_if_num(nq->nss_interface_number)) {
+				nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
+						nss_qdisc_mark_and_schedule, nq->qdisc, THIS_MODULE);
+			} else {
+				nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
+						nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
+			}
+
 			if (!nq->bounce_context) {
 				nss_qdisc_error("Qdisc %p (type %d): is root but failed "
 				"to register for interface bouncing\n", nq->qdisc, nq->type);

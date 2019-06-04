@@ -17,6 +17,7 @@
 #include <nss_api_if.h>
 #include <nss_cmn.h>
 #include <linux/tc_act/tc_nss_mirred.h>
+#include <net/netfilter/nf_conntrack_core.h>
 #include "nss_mirred.h"
 #include "nss_igs.h"
 #include "nss_ifb.h"
@@ -412,6 +413,28 @@ struct tc_action_ops nss_mirred_act_ops = {
 };
 
 /*
+ * nss_mirred_igs_nf_ops
+ *	Pre-routing hooks into netfilter packet monitoring point.
+ */
+struct nf_hook_ops nss_mirred_igs_nf_ops[] __read_mostly = {
+	/*
+	 * Pre routing hook is used to copy class-id to the ECM rule.
+	 */
+	{
+		.hook		=	nss_ifb_igs_ip_pre_routing_hook,
+		.pf		=	NFPROTO_IPV4,
+		.hooknum	=	NF_INET_PRE_ROUTING,
+		.priority	=	NF_IP_PRI_CONNTRACK + 1,
+	},
+	{
+		.hook		=	nss_ifb_igs_ip_pre_routing_hook,
+		.pf		=	NFPROTO_IPV6,
+		.hooknum	=	NF_INET_PRE_ROUTING,
+		.priority	=	NF_IP_PRI_CONNTRACK + 1,
+	},
+};
+
+/*
  * nss_mirred_init_module()
  *	nssmirred init function.
  */
@@ -428,8 +451,16 @@ static int __init nss_mirred_init_module(void)
 		return err;
 	}
 
+	err = nf_register_hooks(nss_mirred_igs_nf_ops, ARRAY_SIZE(nss_mirred_igs_nf_ops));
+	if (err < 0) {
+		nss_igs_error("Registering ingress nf hooks failed, ret: %d\n", err);
+		tcf_unregister_action(&nss_mirred_act_ops);
+		unregister_netdevice_notifier(&nss_mirred_device_notifier);
+		return err;
+	}
+
 	nss_ifb_init();
-	return err;
+	return 0;
 }
 
 /*
@@ -438,6 +469,8 @@ static int __init nss_mirred_init_module(void)
  */
 static void __exit nss_mirred_cleanup_module(void)
 {
+	nf_unregister_hooks(nss_mirred_igs_nf_ops, ARRAY_SIZE(nss_mirred_igs_nf_ops));
+
 	/*
 	 * Un-register nss mirred action.
 	 */

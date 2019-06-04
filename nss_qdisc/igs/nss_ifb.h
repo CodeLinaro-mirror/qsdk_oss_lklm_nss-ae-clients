@@ -37,6 +37,16 @@ struct nss_ifb_info {
 };
 
 /*
+ * nss_ifb_igs_ip_pre_routing_hook()
+ *	Copy class-id to Linux CT structure.
+ *
+ * Copy class-id from tc_index field of skb in ingress QoS fields inside
+ * DSCP CT extention structure.
+ */
+extern unsigned int nss_ifb_igs_ip_pre_routing_hook(void *priv, struct sk_buff *skb,
+		 const struct nf_hook_state *state);
+
+/*
  * nss_ifb_list_del()
  *	API to delete member in ifb list.
  */

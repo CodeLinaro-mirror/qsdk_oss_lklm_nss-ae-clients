@@ -16,6 +16,7 @@
 
 #include <nss_api_if.h>
 #include <nss_cmn.h>
+#include <net/netfilter/nf_conntrack_dscpremark_ext.h>
 #include "nss_mirred.h"
 #include "nss_igs.h"
 #include "nss_ifb.h"
@@ -33,6 +34,58 @@ static struct nss_ifb_msg_response {
 	enum nss_cmn_response response;
 	bool cond;
 } msg_response;
+
+/*
+ * nss_ifb_igs_ip_pre_routing_hook()
+ *	Copy class-id to Linux CT structure.
+ *
+ * Copy class-id from tc_index field of skb in ingress QoS fields inside
+ * DSCP CT extention structure.
+ */
+unsigned int nss_ifb_igs_ip_pre_routing_hook(void *priv, struct sk_buff *skb,
+		 const struct nf_hook_state *state)
+{
+	struct nf_conn *ct;
+	struct nf_ct_dscpremark_ext *dscpcte;
+	enum ip_conntrack_info ctinfo;
+
+	if (unlikely(!skb))
+		return NF_ACCEPT;
+
+	/*
+	 * Return if ingress qostag value (saved in tc_index field) is 0.
+	 */
+	if (likely(!skb->tc_index))
+		return NF_ACCEPT;
+
+	ct = nf_ct_get(skb, &ctinfo);
+	if (!ct)
+		return NF_ACCEPT;
+
+	spin_lock_bh(&ct->lock);
+	dscpcte = nf_ct_dscpremark_ext_find(ct);
+	if (!dscpcte) {
+		spin_unlock_bh(&ct->lock);
+		return NF_ACCEPT;
+	}
+
+	/*
+	 * Copy ingress qostag value (saved in tc_index) to ingress
+	 * qostag fields of DSCP CT extension structure.
+	 */
+	if (IP_CT_DIR_ORIGINAL == CTINFO2DIR(ctinfo)) {
+		dscpcte->igs_flow_qos_tag = skb->tc_index;
+	} else {
+		dscpcte->igs_reply_qos_tag = skb->tc_index;
+	}
+	spin_unlock_bh(&ct->lock);
+
+	/*
+	 * Reset the tc_index field as it no longer required.
+	 */
+	skb->tc_index = 0;
+	return NF_ACCEPT;
+}
 
 /*
  * nss_ifb_list_del()

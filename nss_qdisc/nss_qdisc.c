@@ -1126,6 +1126,41 @@ void nss_qdisc_reset(struct Qdisc *sch)
 }
 
 /*
+ * nss_qdisc_iterate_fl()
+ *	Iterate the filter list over the qdisc.
+ *
+ * Return 1, if the packet need not to be processed further, otherwise, return 0.
+ */
+static bool nss_qdisc_iterate_fl(struct sk_buff *skb, struct Qdisc *sch)
+{
+	struct nss_qdisc *nq = qdisc_priv(sch);
+	struct tcf_proto *tcf;
+	struct tcf_result res;
+	int status;
+
+	if (!(tcf = rcu_dereference_bh(nq->filter_list))) {
+		return 0;
+	}
+
+	status = tc_classify(skb, tcf, &res, false);
+	if ((status == TC_ACT_STOLEN) || (status == TC_ACT_QUEUED)) {
+		return 1;
+	}
+
+	/*
+	 * Check the tc filter's action result.
+	 * Save the higher 16-bits of skb's priority field in tc_index
+	 * and update it with the class-id to be used for ingress shaping
+	 * by NSS firmware.
+	 */
+	if (status != TC_ACT_UNSPEC) {
+		skb->tc_index = TC_H_MAJ(skb->priority) >> 16;
+		skb->priority = TC_H_MAKE(res.classid, skb->priority);
+	}
+	return 0;
+}
+
+/*
  * nss_qdisc_enqueue()
  *	Generic enqueue call for enqueuing packets into NSS for shaping
  */
@@ -1177,6 +1212,14 @@ int nss_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 	 * the bridge root qdisc created for it. When the packet is returned from being
 	 * shaped we allow it to be dequeued for transmit.
 	 */
+
+	/*
+	 * Iterate over the filters attached to the qdisc.
+	 */
+	if (nss_qdisc_iterate_fl(skb, sch)) {
+		kfree_skb(skb);
+		return NET_XMIT_SUCCESS;
+	}
 
 	if (!nq->is_virtual) {
 		/*
@@ -1780,6 +1823,10 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 	nss_qdisc_info("Qdisc %p (type %d) destroy\n",
 			nq->qdisc, nq->type);
 
+	/*
+	 * Destroy any attached filter over qdisc.
+	 */
+	tcf_destroy_chain(&nq->filter_list);
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	if (nq->mode == NSS_QDISC_MODE_PPE) {
 		nss_ppe_destroy(nq);
@@ -1923,6 +1970,11 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	 * Set shaper node state to IDLE
 	 */
 	atomic_set(&nq->state, NSS_QDISC_STATE_IDLE);
+
+	/*
+	 * Initialize filter list.
+	 */
+	RCU_INIT_POINTER(nq->filter_list, NULL);
 
 	/*
 	 * If we are a class, then classid is used as the qos tag.
@@ -2590,6 +2642,57 @@ static int nss_qdisc_if_event_cb(struct notifier_block *unused,
 	}
 
 	return NOTIFY_DONE;
+}
+
+/*
+ * nss_qdisc_tcf_chain()
+ *	Return the filter list of qdisc.
+ */
+struct tcf_proto __rcu **nss_qdisc_tcf_chain(struct Qdisc *sch, unsigned long arg)
+{
+	struct nss_qdisc *nq = qdisc_priv(sch);
+
+	/*
+	 * Currently filter addition is only supported over IFB interfaces.
+	 */
+	if (!nss_igs_verify_if_num(nq->nss_interface_number)) {
+		nss_qdisc_error("%d is not an ifb interface. Filter addition is only"
+				" supported for IFB interfaces.", nq->nss_interface_number);
+		return NULL;
+	}
+
+	/*
+	 * Currently, support is available only for tc filter iterations
+	 * at root qdisc.
+	 */
+	if (nq->is_root) {
+		return &(nq->filter_list);
+	}
+	return NULL;
+}
+
+/*
+ * nss_qdisc_tcf_bind()
+ *	Bind the filter to the qdisc.
+ *
+ * This is an empty callback, because, currently, tc filter iteration support
+ * is not present at class of a qdisc.
+ */
+unsigned long nss_qdisc_tcf_bind(struct Qdisc *sch, unsigned long parent, u32 classid)
+{
+	return (unsigned long)NULL;
+}
+
+/*
+ * nss_qdisc_tcf_unbind()
+ *	Unbind the filter from the qdisc.
+ *
+ * This is an empty callback, because, currently, tc filter iteration support
+ * is not present at class of a qdisc.
+ */
+void nss_qdisc_tcf_unbind(struct Qdisc *sch, unsigned long arg)
+{
+	return;
 }
 
 static struct notifier_block nss_qdisc_device_notifier = {

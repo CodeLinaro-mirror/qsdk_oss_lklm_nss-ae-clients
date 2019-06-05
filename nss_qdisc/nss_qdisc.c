@@ -28,7 +28,7 @@
 
 void *nss_qdisc_ctx;			/* Shaping context for nss_qdisc */
 
-#define NSS_QDISC_COMMAND_TIMEOUT (600*HZ) /* We set 1min to be the command */
+#define NSS_QDISC_COMMAND_TIMEOUT (10*HZ) /* We set 10sec to be the command */
 					   /* timeout value for messages */
 
 /*

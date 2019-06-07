@@ -62,6 +62,7 @@ struct nss_ipsecmgr_sa_stats_priv {
 	uint64_t fail_hash_len;			/**< Failure in decap due to bad hash block len. */
 	uint64_t fail_transform;		/**< Failure in transformation; general error. */
 	uint64_t fail_crypto;			/**< Failure in crypto transformation. */
+	uint64_t fail_cle;			/* Failure in classification; general failure */
 };
 
 /*

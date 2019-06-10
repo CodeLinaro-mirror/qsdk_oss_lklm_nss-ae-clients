@@ -31,6 +31,7 @@ obj-$(pvxlanmgr)+= pvxlanmgr/
 obj-$(pppoe)+= pppoe/
 obj-$(ovpn-mgr)+= openvpn/
 obj-$(eogremgr)+= eogremgr/
+obj-$(clmapmgr)+= clmapmgr/
 
 #NSS NETLINK
 obj-$(netlink)+= netlink/

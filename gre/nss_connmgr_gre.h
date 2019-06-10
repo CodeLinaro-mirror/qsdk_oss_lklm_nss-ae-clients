@@ -23,6 +23,8 @@
 #ifndef _NSS_CONNMGR_GRE_H_
 #define _NSS_CONNMGR_GRE_H_
 
+#include "nss_connmgr_gre_public.h"
+
 /*
  * GRE debug macros
  */

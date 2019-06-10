@@ -17,6 +17,8 @@
 #ifndef _NSS_CONNMGR_GRE_PUBLIC_H_
 #define _NSS_CONNMGR_GRE_PUBLIC_H_
 
+#include "nss_dynamic_interface.h"
+
 /**
  * @brief tap/tun enums
  *
@@ -79,34 +81,40 @@ enum nss_connmgr_gre_err_codes {
  *
  * User of this client driver needs to fill in this structure and call
  * nss_connmgr_gre_create_interface() API to create GRE tap interface.
- * There is no support for Keys, Sequence number and checksum.
+ * There is no support for Sequence number and checksum.
  */
 struct nss_connmgr_gre_cfg {
-	enum nss_connmgr_gre_mode mode;		/**< GRE modes. (Mandatory Field) */
+	enum nss_connmgr_gre_mode mode;		/**< GRE modes. (Mandatory field) */
 	enum nss_connmgr_gre_ip_type ip_type;	/**< IP types (Mandatory field) */
 
 	bool set_df;				/**< Set DF flag ? (Optional field) */
-	bool ikey_valid, okey_valid;		/**< Take care of keys ? (No support) */
-	bool iseq_valid, oseq_valid;		/**< Take care of sequence number ? (No support) */
+	bool ikey_valid, okey_valid;		/**< Take care of keys ? (Optional field)*/
+	bool iseq_valid, oseq_valid;		/**< Take care of sequence number ? (No support)*/
 	bool icsum_valid, ocsum_valid;		/**< Take care of checksum ? (No support)*/
 	bool tos_inherit;			/**< Inherit TOS ? (Optional) */
 	bool ttl_inherit;			/**< Interit TTL ? (Optional) */
-	bool use_mac_hdr;			/**< Add MAC header which is provided (Optional Field)*/
-	bool add_padding;			/**< Add padding to make GRE 4 byte aligned ? (Optional Field) */
-	bool copy_metadata;			/**< Copy metadata during alignment ? (Optional Field) */
-	bool is_ipv6;				/**< Set if addr is IPv6 (Mandatory Field)*/
+	bool dscp_valid;			/**< Is DSCP provided per packet? (Optional) */
+	bool use_mac_hdr;			/**< Add MAC header which is provided (Optional field)*/
+	bool add_padding;			/**< Add padding to make GRE 4 byte aligned ? (Optional field) */
+	bool copy_metadata;			/**< Copy metadata during alignment ? (Optional field) */
+	bool is_ipv6;				/**< Set if addr is IPv6 (Mandatory field)*/
 
-	uint32_t src_ip[4];			/**< Src IP address (Mandatory Field) */
-	uint32_t dest_ip[4];			/**< Dest IP address (Mandatory Field)*/
+	uint32_t src_ip[4];			/**< Src IP address (Mandatory field) */
+	uint32_t dest_ip[4];			/**< Dest IP address (Mandatory field)*/
 
 	uint16_t src_mac[3];			/**< Src MAC address (Depends on use_mac_hdr field) */
 	uint16_t dest_mac[3];			/**< Dest MAC address (Depends on use_mac_hdr field) */
 
-	uint32_t ikey;				/**< In Key (No support) */
-	uint32_t okey;				/**< Out Key (No support) */
+	uint32_t ikey;				/**< In Key (Optional field)*/
+	uint32_t okey;				/**< Out Key (Optional field)*/
 
-	struct net_device *next_dev;		/**< Next hop netdevice (Mandatory Field) */
-	char *name;				/**< Name of GRE Tap interface (Optional Field) */
+	struct net_device *next_dev;		/**< Next network device inner flow (Mandatory field)*/
+	enum nss_dynamic_interface_type inner_nss_if_type;	/**< Dynamic interface type of inner network device */
+
+	struct net_device *next_dev_outer;	/**< Next network device outer flow (Mandatory field)*/
+	enum nss_dynamic_interface_type outer_nss_if_type;	/**< Dynamic interface type of outer network device */
+
+	char *name;				/**< Name of GRE Tap interface (Optional field) */
 
 	uint8_t ttl;				/**< Time to Live (Depends on ttl_inherit field) */
 	uint8_t tos;				/**< Type of service (Depends on tos_inherit field) */
@@ -119,7 +127,23 @@ struct nss_connmgr_gre_cfg {
  * API to create/delete GRE interface. These API should not
  * be invoked in interrupt/softirq context
  */
-struct net_device *nss_connmgr_gre_create_interface(struct nss_connmgr_gre_cfg *cfg, enum nss_connmgr_gre_err_codes *err_code);
+struct net_device *nss_connmgr_gre_create_interface(
+		struct nss_connmgr_gre_cfg *cfg, enum nss_connmgr_gre_err_codes *err_code);
+
 enum nss_connmgr_gre_err_codes nss_connmgr_gre_destroy_interface(struct net_device *dev);
+
+/**
+ * @brief GRE interface Open API
+ *
+ * API to enable GRE interface.
+ */
+extern int nss_connmgr_gre_dev_open(struct net_device *dev);
+
+/**
+ * @brief GRE interface Close API
+ *
+ * API to disable GRE interface.
+ */
+extern int nss_connmgr_gre_dev_close(struct net_device *dev);
 
 #endif

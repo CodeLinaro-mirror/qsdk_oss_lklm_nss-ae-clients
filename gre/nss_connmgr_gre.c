@@ -33,7 +33,7 @@
 
 #include <nss_api_if.h>
 #include <nss_dynamic_interface.h>
-
+#include <nss_cmn.h>
 #include "nss_connmgr_gre_public.h"
 #include "nss_connmgr_gre.h"
 
@@ -225,7 +225,7 @@ static netdev_tx_t nss_connmgr_gre_dev_xmit(struct sk_buff *skb, struct net_devi
 	struct nss_ctx_instance *gre_ctx;
 	nss_connmgr_gre_priv_t *priv = netdev_priv(dev);
 
-	if_number = priv->nss_if_number;
+	if_number = priv->nss_if_number_inner;
 	if (unlikely(if_number <= 0)) {
 		nss_connmgr_gre_info("%p: GRE dev is not registered with nss\n", dev);
 		goto fail;
@@ -305,7 +305,7 @@ struct rtnl_link_stats64 *nss_connmgr_gre_dev_stats64(struct net_device *dev,
  * nss_connmgr_gre_dev_open()
  *	Netdev ops function to open netdevice.
  */
-static int nss_connmgr_gre_dev_open(struct net_device *dev)
+int nss_connmgr_gre_dev_open(struct net_device *dev)
 {
 	struct nss_ctx_instance *nss_ctx;
 	struct nss_gre_msg req;
@@ -361,12 +361,13 @@ static int nss_connmgr_gre_dev_open(struct net_device *dev)
 	netif_start_queue(dev);
 	return 0;
 }
+EXPORT_SYMBOL(nss_connmgr_gre_dev_open);
 
 /*
  * nss_connmgr_gre_dev_close()
  *	Netdevice ops function to close netdevice.
  */
-static int nss_connmgr_gre_dev_close(struct net_device *dev)
+int nss_connmgr_gre_dev_close(struct net_device *dev)
 {
 	struct nss_ctx_instance *nss_ctx;
 	struct nss_gre_msg req;
@@ -425,6 +426,7 @@ static int nss_connmgr_gre_dev_close(struct net_device *dev)
 
 	return 0;
 }
+EXPORT_SYMBOL(nss_connmgr_gre_dev_close);
 
 /*
  * Tap net device ops
@@ -720,7 +722,8 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 {
 	struct nss_ctx_instance *nss_ctx;
 	struct net_device *dev = NULL;
-	struct net_device *next_dev = NULL;
+	struct net_device *next_dev_inner = NULL;
+	struct net_device *next_dev_outer = NULL;
 	struct nss_gre_iface_instance *ngii;
 	struct nss_gre_msg req;
 	struct nss_gre_config_msg *cmsg = &req.msg.cmsg;
@@ -729,7 +732,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	uint32_t features = 0;
 	int32_t inner_if, outer_if;
 	char name[IFNAMSIZ] = {0};
-	int ret = -1, retry;
+	int ret = -1, retry, next_if_num_inner = 0, next_if_num_outer = 0;
 
 	if (cfg->name) {
 		strlcpy(name, cfg->name, IFNAMSIZ);
@@ -801,7 +804,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	 * Create config cmd for acceleration engine
 	 */
 	memset(&req, 0, sizeof(struct nss_gre_msg));
-	ret = nss_connmgr_gre_prepare_config_cmd(dev, &req, &next_dev, true);
+	ret = nss_connmgr_gre_prepare_config_cmd(dev, &req, &next_dev_inner, true);
 	if (ret) {
 		nss_connmgr_gre_warning("%p: gre get config failed\n", dev);
 		*err_code = ret;
@@ -818,6 +821,14 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	}
 
 	/*
+	 * Ignore set MAC flag for EoGRE
+	 * TODO: Find a better way to clear this flag
+	 */
+	if (cfg->next_dev_outer) {
+		cmsg->flags &= ~NSS_GRE_CONFIG_SET_MAC;
+	}
+
+	/*
 	 * By now, we should have valid MAC addresses
 	 */
 	if (!is_valid_ether_addr((const u8 *)cmsg->src_mac) ||
@@ -827,27 +838,91 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 		goto release_ref;
 	}
 
+	/*
+	 * Configure the inner nexthop ifnum
+	 */
 	if (cfg->next_dev) {
-
-		if (next_dev) {
-			dev_put(next_dev);
+		/*
+		 * Release hold on GRE inner's nexthop that we have found,
+		 * since it has been passed explicitly via the cfg
+		 */
+		if (next_dev_inner) {
+			dev_put(next_dev_inner);
 		}
 
 		dev_hold(cfg->next_dev);
-		cmsg->next_node_if_num = nss_cmn_get_interface_number_by_dev(cfg->next_dev);
-		next_dev = cfg->next_dev;
 
-		if (cmsg->next_node_if_num < 0) {
-			nss_connmgr_gre_warning("%p: Next dev = %s is not registered with ae engine\n",
+		/*
+		 * TODO: Use the dynamic interface type for the inner's nexthop, in addition to the next_dev.
+		 */
+		next_if_num_inner = nss_cmn_get_interface_number_by_dev(cfg->next_dev);
+		next_dev_inner = cfg->next_dev;
+		if (next_if_num_inner < 0) {
+			nss_connmgr_gre_warning("%p: Next dev inner device= %s is not registered with ae engine\n",
 						dev, cfg->next_dev->name);
 			*err_code = GRE_ERR_NEXT_NODE_UNREG_IN_AE;
 			goto release_ref;
 		}
+
 		cmsg->flags |= NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE;
 	}
 
 	/*
-	 * By now, we should have a valid next node
+	 * Configure the outer nexthop ifnum
+	 */
+	if (cfg->next_dev_outer) {
+		dev_hold(cfg->next_dev_outer);
+
+		/*
+		 * Verify if dynamic interface type is in range.
+		 */
+		if (cfg->outer_nss_if_type >= NSS_DYNAMIC_INTERFACE_TYPE_MAX) {
+			nss_connmgr_gre_warning("%p: invalid cfg, outer nexthop type %d is not in range\n",
+				       dev, cfg->outer_nss_if_type);
+			goto release_ref;
+		}
+
+		next_if_num_outer = nss_cmn_get_interface_number_by_dev_and_type(cfg->next_dev_outer, cfg->outer_nss_if_type);
+		next_dev_outer = cfg->next_dev_outer;
+
+		if (next_if_num_outer < 0) {
+			nss_connmgr_gre_warning("%p: Next dev outer device %s with dynamic if num %d not registered with NSS\n",
+					dev, cfg->next_dev_outer->name, next_if_num_outer);
+			*err_code = GRE_ERR_NEXT_NODE_UNREG_IN_AE;
+			goto release_ref;
+		}
+
+		/*
+		 * Get the NSS ctx for the outer next hop
+		 */
+		nss_ctx = nss_dynamic_interface_get_nss_ctx_by_type(cfg->outer_nss_if_type);
+		if (!nss_ctx) {
+			nss_connmgr_gre_warning("Could not get NSS context for type : %d\n", cfg->outer_nss_if_type);
+			goto release_ref;
+		}
+
+		/*
+		 * Append the core-id for the outer next hop ifnum
+		 */
+		next_if_num_outer = nss_cmn_append_core_id(nss_ctx, next_if_num_outer);
+		if (!next_if_num_outer) {
+			nss_connmgr_gre_warning("%p: Could not get interface number with core ID for outer nexthop device %s with core ID.\n",
+				       nss_ctx, next_dev_outer->name);
+			goto release_ref;
+		}
+
+		/*
+		 * Set per packet DSCP configuration if needed
+		 */
+		if (cfg->dscp_valid) {
+			cmsg->flags |= NSS_GRE_CONFIG_DSCP_VALID;
+		}
+
+		cmsg->flags |= NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE;
+	}
+
+	/*
+	 * By now, we should have a valid next node for either inner or outer
 	 */
 	if (!(cmsg->flags & NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE)) {
 		nss_connmgr_gre_warning("%p: Next dev is not available\n", dev);
@@ -895,6 +970,8 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	}
 
 	ngii->outer_ifnum = outer_if;
+	priv = (nss_connmgr_gre_priv_t *)netdev_priv(dev);
+	priv->next_dev_outer = next_dev_outer;
 
 	/*
 	 * Create nss inner dynamic interface
@@ -907,9 +984,8 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	}
 
 	ngii->inner_ifnum = inner_if;
-	priv = (nss_connmgr_gre_priv_t *)netdev_priv(dev);
-	priv->nss_if_number = inner_if;
-	priv->next_dev = next_dev;
+	priv->next_dev_inner = next_dev_inner;
+	priv->nss_if_number_inner = inner_if;
 
 	/*
 	 * Register outer gre tunnel with NSS
@@ -946,33 +1022,56 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	/*
 	 * Send encap config to AE
 	 */
+	cmsg->flags &= ~NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE;
+
+	/*
+	 * Configure nexthop to inner node if available
+	 */
+	if (next_if_num_inner) {
+		cmsg->next_node_if_num = next_if_num_inner;
+		cmsg->flags |= NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE;
+	}
 	cmsg->sibling_if_num = outer_if;
 	nss_gre_msg_init(&req, inner_if, NSS_GRE_MSG_ENCAP_CONFIGURE, sizeof(struct nss_gre_config_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
 		*err_code = GRE_ERR_AE_CONFIG_FAILED;
+		nss_connmgr_gre_info("%p: Send Encap config to AE failed\n", next_dev_inner);
 		goto unregister_nss_interface;
 	}
 
 	/*
 	 * Send decap config to AE
 	 */
+	cmsg->flags &= ~NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE;
+
+	/*
+	 * Configure nexthop to outer node if available
+	 */
+	if (next_if_num_outer) {
+		cmsg->next_node_if_num = next_if_num_outer;
+		cmsg->flags |= NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE;
+	}
 	cmsg->sibling_if_num = inner_if;
 	nss_gre_msg_init(&req, outer_if, NSS_GRE_MSG_DECAP_CONFIGURE, sizeof(struct nss_gre_config_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
 		*err_code = GRE_ERR_AE_CONFIG_FAILED;
+		nss_connmgr_gre_info("%p: Send decap config to AE failed\n", next_dev_outer);
 		goto unregister_nss_interface;
 	}
 
 	/*
-	 * Set vap next hop
+	 * Set vap next hop if next_dev is configured
+	 * TODO: Do this in a more generic manner by checking the dynamic interface type of next_dev
 	 */
-	ret = nss_connmgr_gre_set_wifi_next_hop(cfg->next_dev);
-	if (ret) {
-		nss_connmgr_gre_info("%p: Setting next hop of wifi vdev failed\n", dev);
-		*err_code = ret;
-		goto unregister_nss_interface;
+	if (cfg->next_dev) {
+		ret = nss_connmgr_gre_set_wifi_next_hop(cfg->next_dev);
+		if (ret) {
+			nss_connmgr_gre_info("%p: Setting next hop of wifi vdev failed\n", dev);
+			*err_code = ret;
+			goto unregister_nss_interface;
+		}
 	}
 
 	memcpy(&ngii->gre_cfg, cfg, sizeof(*cfg));
@@ -1019,8 +1118,12 @@ unregister_netdev:
 	unregister_netdevice(dev);
 
 release_ref:
-	if (next_dev) {
-		dev_put(next_dev);
+	if (next_dev_inner) {
+		dev_put(next_dev_inner);
+	}
+
+	if (next_dev_outer) {
+		dev_put(next_dev_outer);
 	}
 
 	return dev;
@@ -1145,7 +1248,13 @@ static enum nss_connmgr_gre_err_codes __nss_connmgr_gre_destroy_interface(struct
 	 * Decrement ref to next_dev
 	 */
 	priv = (nss_connmgr_gre_priv_t *)netdev_priv(dev);
-	dev_put(priv->next_dev);
+	if (priv->next_dev_inner) {
+		dev_put(priv->next_dev_inner);
+	}
+
+	if (priv->next_dev_outer) {
+		dev_put(priv->next_dev_outer);
+	}
 
 	ret = nss_connmgr_gre_destroy_inner_interface(dev, ngii->inner_ifnum);
 	if (ret != GRE_SUCCESS) {
@@ -1169,12 +1278,14 @@ static enum nss_connmgr_gre_err_codes __nss_connmgr_gre_destroy_interface(struct
 
 /*
  * nss_connmgr_gre_validate_config()
- *	No support for KEY, CSUM, SEQ number
+ *	No support for CSUM, SEQ number.
  */
 static bool nss_connmgr_gre_validate_config(struct nss_connmgr_gre_cfg *cfg)
 {
-	if (cfg->ikey_valid || cfg->okey_valid || cfg->iseq_valid ||
-	    cfg->oseq_valid || cfg->icsum_valid || cfg->ocsum_valid) {
+	/*
+	 * TODO:Disallow key for standard GRE TAP/TUN.
+	 */
+	if (cfg->iseq_valid || cfg->oseq_valid || cfg->icsum_valid || cfg->ocsum_valid) {
 		return false;
 	}
 
@@ -1635,10 +1746,10 @@ uint32_t nss_connmgr_gre_get_nss_config_flags(uint16_t o_flags, uint16_t i_flags
 	return gre_flags;
 }
 
-/*
- *  nss_connmgr_gre_destroy_interface()
- *	User API to delete interface
- */
+ /*
+  * nss_connmgr_gre_destroy_interface()
+  *	User API to delete interface
+  */
 enum nss_connmgr_gre_err_codes nss_connmgr_gre_destroy_interface(struct net_device *dev)
 {
 	enum nss_connmgr_gre_err_codes ret;
@@ -1689,7 +1800,7 @@ struct net_device *nss_connmgr_gre_create_interface(struct nss_connmgr_gre_cfg *
 	}
 
 	if (!nss_connmgr_gre_validate_config(cfg)) {
-		nss_connmgr_gre_info("No support for Key/Csum/Sequence number\n");
+		nss_connmgr_gre_info("No support for Csum/Sequence number\n");
 		*err_code = GRE_ERR_UNSUPPORTED_CFG;
 		return NULL;
 	}

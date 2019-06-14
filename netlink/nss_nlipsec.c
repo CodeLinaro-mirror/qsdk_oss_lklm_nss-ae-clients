@@ -502,7 +502,7 @@ static int nss_nlipsec_op_add_sa(struct sk_buff *skb, struct genl_info *info)
 	sa_data->cmn.keys.auth_key = sa_rule->auth_key;
 	sa_data->cmn.keys.nonce = sa_rule->nonce;
 
-	if (nss_ipsecmgr_sa_add(dev, &sa_rule->tuple, sa_data, &if_num)) {
+	if (nss_ipsecmgr_sa_add_sync(dev, &sa_rule->tuple, sa_data, &if_num)) {
 		nss_nl_error("%d: Failed to add SA for net device(%s)\n", pid, nl_rule->ifname);
 		error = -EINVAL;
 	}
@@ -567,7 +567,7 @@ static int nss_nlipsec_op_add_flow(struct sk_buff *skb, struct genl_info *info)
 	flow_tuple = &nl_rule->rule.flow.tuple;
 	sa_tuple = &nl_rule->rule.flow.sa;
 
-	if (nss_ipsecmgr_flow_add(dev, flow_tuple, sa_tuple)) {
+	if (nss_ipsecmgr_flow_add_sync(dev, flow_tuple, sa_tuple)) {
 		nss_nl_error("%d: Failed to add subnet for net_device(%s)", pid, nl_rule->ifname);
 		error = -EINVAL;
 	}

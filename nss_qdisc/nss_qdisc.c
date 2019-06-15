@@ -43,15 +43,16 @@ void *nss_qdisc_ctx;			/* Shaping context for nss_qdisc */
  */
 bool nss_qdisc_interface_is_virtual(struct nss_ctx_instance *nss_ctx, int32_t if_num)
 {
-#if defined(NSS_QDISC_BRIDGE_SUPPORT)
-	return nss_cmn_interface_is_redirect(nss_ctx, if_num) || nss_bridge_verify_if_num(if_num);
-#else
 	/*
 	 * If there is no bridge client, then bridge gets represented
 	 * as a redirect interface. So this check is sufficient.
 	 */
-	return nss_cmn_interface_is_redirect(nss_ctx, if_num);
+	bool is_virtual = nss_cmn_interface_is_redirect(nss_ctx, if_num) || nss_igs_verify_if_num(if_num);
+
+#if defined(NSS_QDISC_BRIDGE_SUPPORT)
+	is_virtual = is_virtual || nss_bridge_verify_if_num(if_num);
 #endif
+	return is_virtual;
 }
 
 #if defined(NSS_QDISC_PPE_SUPPORT)

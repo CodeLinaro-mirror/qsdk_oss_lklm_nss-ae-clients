@@ -378,15 +378,47 @@ int32_t nss_ifb_bind(struct nss_ifb_info *ifb_info, struct net_device *from_dev,
 }
 
 /*
+ * nss_ifb_update_dev_stats()
+ *	IFB stats function to copy the common stats to the netdevice.
+ */
+static void nss_ifb_update_dev_stats(struct net_device *dev, struct nss_igs_stats_sync_msg *sync_stats)
+{
+	struct pcpu_sw_netstats stats;
+	struct nss_cmn_node_stats *node_stats = &(sync_stats->node_stats);
+
+	if (!dev) {
+		nss_igs_error("Device is NULL\n");
+		return;
+	}
+
+	u64_stats_init(&stats.syncp);
+	u64_stats_update_begin(&stats.syncp);
+
+	/*
+	 * In NSS firmware, the IFB interface's stats are getting updated
+	 * post shaping. Therefore IFB interface's stats should be updated
+	 * with NSS firmware's IFB TX stats only.
+	 */
+	stats.rx_packets = stats.tx_packets = node_stats->tx_packets;
+	stats.rx_bytes = stats.tx_bytes = node_stats->tx_bytes;
+	dev->stats.rx_dropped = dev->stats.tx_dropped += sync_stats->igs_stats.tx_dropped;
+	u64_stats_update_end(&stats.syncp);
+
+	ifb_update_offload_stats(dev, &stats);
+}
+
+/*
  * nss_ifb_event_cb()
  *	Event Callback for IFB interface to receive events from NSS firmware.
  */
 static void nss_ifb_event_cb(void *if_ctx, struct nss_cmn_msg *ncm)
 {
 	struct net_device *netdev = if_ctx;
+	struct nss_igs_msg *nim = (struct nss_igs_msg *)ncm;
 
 	switch (ncm->type) {
 	case NSS_IGS_MSG_SYNC_STATS:
+		nss_ifb_update_dev_stats(netdev, (struct nss_igs_stats_sync_msg *)&nim->msg.stats);
 		break;
 
 	default:

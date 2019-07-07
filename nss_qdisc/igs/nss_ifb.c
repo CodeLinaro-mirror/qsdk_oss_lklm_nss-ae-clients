@@ -21,6 +21,11 @@
 #include "nss_igs.h"
 #include "nss_ifb.h"
 
+/*
+ * TODO: Current implementation only supports one IFB interface to be mapped with
+ * any one interface at a time. This has to be changed to support the mapping of
+ * an IFB device to multiple interfaces.
+ */
 static LIST_HEAD(nss_ifb_list);			/* List of IFB and its mapped interface */
 static DEFINE_SPINLOCK(nss_ifb_list_lock);	/* Lock for the ifb list */
 
@@ -155,6 +160,17 @@ static void nss_ifb_clear_config_cb(void *app_data, struct nss_if_msg *nim)
 }
 
 /*
+ * nss_ifb_async_cb()
+ *	IFB asynchronous handler for an IFB mapped interface.
+ */
+static void nss_ifb_async_cb(void *app_data, struct nss_if_msg *nim)
+{
+	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
+		nss_igs_error("Response error: %d\n", nim->cm.response);
+	}
+}
+
+/*
  * nss_ifb_wake_up_cb()
  *	IFB wake up handler for an IFB mapped interface.
  */
@@ -174,15 +190,18 @@ static bool nss_ifb_config_msg_fill(struct nss_if_msg *nim_ptr, struct net_devic
 {
 	uint32_t if_src_num;
 
-	if_src_num = nss_cmn_get_interface_number_by_dev(dev);
-	if (if_src_num < 0) {
-		nss_igs_error("invalid device %s\n", dev->name);
-		return -1;
-	}
-
-	if (!nss_igs_verify_if_num(ifb_num)) {
-		nss_igs_error("ifb num: %d is invalid\n", ifb_num);
-		return -1;
+	if (netif_is_ifb_dev(dev)) {
+		if_src_num = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_IGS);
+		if (if_src_num < 0) {
+			nss_igs_error("invalid IFB device %s\n", dev->name);
+			return -1;
+		}
+	} else {
+		if_src_num = nss_cmn_get_interface_number_by_dev(dev);
+		if (if_src_num < 0) {
+			nss_igs_error("invalid device %s\n", dev->name);
+			return -1;
+		}
 	}
 
 	switch (config) {
@@ -195,6 +214,32 @@ static bool nss_ifb_config_msg_fill(struct nss_if_msg *nim_ptr, struct net_devic
 		nss_ifb_config_msg_init(nim_ptr, if_src_num, NSS_IF_CLEAR_IGS_NODE,
 			sizeof(struct nss_if_igs_config), nss_ifb_clear_config_cb, cb);
 		nim_ptr->msg.config_igs.igs_num = ifb_num;
+		break;
+	case NSS_IFB_SET_NEXTHOP:
+		nss_ifb_config_msg_init(nim_ptr, if_src_num, NSS_IF_SET_NEXTHOP,
+			sizeof(struct nss_if_set_nexthop), nss_ifb_wake_up_cb, cb);
+		nim_ptr->msg.set_nexthop.nexthop = ifb_num;
+		break;
+	case NSS_IFB_RESET_NEXTHOP:
+		nss_ifb_config_msg_init(nim_ptr, if_src_num, NSS_IF_RESET_NEXTHOP,
+			sizeof(struct nss_if_set_nexthop), nss_ifb_async_cb, cb);
+		nim_ptr->msg.set_nexthop.nexthop = ifb_num;
+		break;
+	case NSS_IFB_OPEN:
+		nss_ifb_config_msg_init(nim_ptr, if_src_num, NSS_IF_OPEN,
+			sizeof(struct nss_if_open), nss_ifb_async_cb, cb);
+		/*
+		 * Reset the elements of interface's open configuration.
+		 */
+		memset (&nim_ptr->msg.open, 0, sizeof(struct nss_if_open));
+		break;
+	case NSS_IFB_CLOSE:
+		nss_ifb_config_msg_init(nim_ptr, if_src_num, NSS_IF_CLOSE,
+			sizeof(struct nss_if_close), nss_ifb_async_cb, cb);
+		/*
+		 * Reset the elements of interface's close configuration.
+		 */
+		memset (&nim_ptr->msg.close, 0, sizeof(struct nss_if_close));
 		break;
 	}
 
@@ -261,6 +306,106 @@ int32_t nss_ifb_config_msg_tx_sync(struct net_device *dev, int32_t ifb_num,
 
 	up(&msg_response.sem);
 	return 0;
+}
+
+/*
+ * nss_ifb_reset_nexthop()
+ *	Send RESET NEXTHOP configure message to an IFB mapped interface.
+ */
+bool nss_ifb_reset_nexthop(struct nss_ifb_info *ifb_info)
+{
+	int32_t if_num;
+
+	spin_lock_bh(&nss_ifb_list_lock);
+	if (!(ifb_info->is_mapped)) {
+		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->map_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return true;
+	}
+
+	/*
+	 * Send RESET NEXTHOP config message to the mapped interface.
+	 */
+	if_num = nss_cmn_get_interface_number_by_dev_and_type(ifb_info->ifb_dev, NSS_DYNAMIC_INTERFACE_TYPE_IGS);
+	if (if_num < 0) {
+		nss_igs_error("No %s IFB device found in NSS firmware\n", ifb_info->ifb_dev->name);
+	}
+
+	if (nss_ifb_config_msg_tx(ifb_info->map_dev, if_num, NSS_IFB_RESET_NEXTHOP, NULL) < 0) {
+		nss_igs_error("Sending RESET NEXTHOP config to %s dev failed\n", ifb_info->map_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return false;
+	}
+	spin_unlock_bh(&nss_ifb_list_lock);
+	return true;
+}
+
+/*
+ * nss_ifb_down()
+ *	Send interface's DOWN configure message to an IFB interface.
+ */
+bool nss_ifb_down(struct nss_ifb_info *ifb_info)
+{
+	int32_t ifb_num;
+
+	spin_lock_bh(&nss_ifb_list_lock);
+	if (!(ifb_info->is_mapped)) {
+		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->ifb_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return true;
+	}
+
+	/*
+	 * Send interface's DOWN config message to an IFB interface.
+	 */
+	ifb_num = nss_cmn_get_interface_number_by_dev_and_type(ifb_info->ifb_dev, NSS_DYNAMIC_INTERFACE_TYPE_IGS);
+	if (ifb_num < 0) {
+		nss_igs_error("No %s IFB device found in NSS FW\n", ifb_info->ifb_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return false;
+	}
+
+	if (nss_ifb_config_msg_tx(ifb_info->ifb_dev, ifb_num, NSS_IFB_CLOSE, ifb_info) < 0) {
+		nss_igs_error("Sending unassign to %s dev failed\n", ifb_info->map_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return false;
+	}
+	spin_unlock_bh(&nss_ifb_list_lock);
+	return true;
+}
+
+/*
+ * nss_ifb_up()
+ *	Send interface's UP configure message to an IFB interface.
+ */
+bool nss_ifb_up(struct nss_ifb_info *ifb_info)
+{
+	int32_t ifb_num;
+
+	spin_lock_bh(&nss_ifb_list_lock);
+	if (!(ifb_info->is_mapped)) {
+		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->ifb_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return true;
+	}
+
+	/*
+	 * Send interface's UP config message to an IFB interface.
+	 */
+	ifb_num = nss_cmn_get_interface_number_by_dev_and_type(ifb_info->ifb_dev, NSS_DYNAMIC_INTERFACE_TYPE_IGS);
+	if (ifb_num < 0) {
+		nss_igs_error("No %s IFB device found in NSS FW\n", ifb_info->ifb_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return false;
+	}
+
+	if (nss_ifb_config_msg_tx(ifb_info->ifb_dev, ifb_num, NSS_IFB_OPEN, ifb_info) < 0) {
+		nss_igs_error("Sending unassign to %s dev failed\n", ifb_info->map_dev->name);
+		spin_unlock_bh(&nss_ifb_list_lock);
+		return false;
+	}
+	spin_unlock_bh(&nss_ifb_list_lock);
+	return true;
 }
 
 /*

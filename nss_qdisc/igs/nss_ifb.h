@@ -23,6 +23,10 @@
 enum nss_ifb_if_config {
 	NSS_IFB_SET_IGS_NODE,
 	NSS_IFB_CLEAR_IGS_NODE,
+	NSS_IFB_SET_NEXTHOP,
+	NSS_IFB_RESET_NEXTHOP,
+	NSS_IFB_OPEN,
+	NSS_IFB_CLOSE,
 };
 
 /*
@@ -73,10 +77,28 @@ extern int32_t nss_ifb_config_msg_tx_sync(struct net_device *dev, int32_t ifb_nu
 		 enum nss_ifb_if_config config, void *cb);
 
 /*
+ * nss_ifb_reset_nexthop()
+ *	Send RESET NEXTHOP configure message to an IFB mapped interface.
+ */
+extern bool nss_ifb_reset_nexthop(struct nss_ifb_info *ifb_info);
+
+/*
  * nss_ifb_clear_igs_node()
  *	Send CLEAR configure message to an IFB mapped interface.
  */
 extern bool nss_ifb_clear_igs_node(struct nss_ifb_info *ifb_info);
+
+/*
+ * nss_ifb_down()
+ *	Send interface's DOWN configure message to an IFB interface.
+ */
+extern bool nss_ifb_down(struct nss_ifb_info *ifb_info);
+
+/*
+ * nss_ifb_up()
+ *	Send interface's UP configure message to an IFB interface.
+ */
+extern bool nss_ifb_up(struct nss_ifb_info *ifb_info);
 
 /*
  * nss_ifb_init()

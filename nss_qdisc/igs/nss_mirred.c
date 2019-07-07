@@ -40,6 +40,13 @@ static void nss_mirred_release(struct tc_action *tc_act, int bind)
 		return;
 	}
 
+	/*
+	 * Send IFB RESET NEXTHOP configure message to the mapped interface.
+	 */
+	if (!nss_ifb_reset_nexthop(ifb_info)) {
+		nss_igs_error("Error in sending IFB RESET NEXTHOP configure message\n");
+	}
+
 	if (!nss_ifb_clear_igs_node(ifb_info)) {
 		nss_igs_error("Error in sending IFB CLEAR configure message\n");
 	}
@@ -162,6 +169,14 @@ static int nss_mirred_init(struct net *net, struct nlattr *nla,
 	 */
 	if (nss_ifb_config_msg_tx_sync(from_dev, ifb_num, NSS_IFB_SET_IGS_NODE, NULL) < 0) {
 		nss_igs_error("Sending config to %s dev failed\n", from_dev->name);
+		return -EINVAL;
+	}
+
+	/*
+	 * Send next hop config message to the interface attached to an IFB interface.
+	 */
+	if (nss_ifb_config_msg_tx_sync(from_dev, ifb_num, NSS_IFB_SET_NEXTHOP, NULL) < 0) {
+		nss_igs_error("Sending next hop config to %s dev failed\n", from_dev->name);
 		return -EINVAL;
 	}
 
@@ -339,6 +354,13 @@ static void nss_mirred_unregister_event_handler(struct net_device *dev)
 	}
 
 	/*
+	 * Send IFB RESET NEXTHOP configure message to the mapped interface.
+	 */
+	if (!nss_ifb_reset_nexthop(ifb_info)) {
+		nss_igs_error("Error in sending IFB RESET NEXTHOP configure message\n");
+	}
+
+	/*
 	 * Send IFB CLEAR configure message to the mapped interface.
 	 */
 	if (!nss_ifb_clear_igs_node(ifb_info)) {
@@ -357,6 +379,58 @@ static void nss_mirred_unregister_event_handler(struct net_device *dev)
 }
 
 /*
+ * nss_mirred_down_event_handler()
+ *	nss mirred interface's down event handler.
+ */
+static void nss_mirred_down_event_handler(struct net_device *dev)
+{
+	struct nss_ifb_info *ifb_info;
+
+	/*
+	 * IFB interface.
+	 */
+	if (!netif_is_ifb_dev(dev)) {
+		return;
+	}
+
+	ifb_info = nss_ifb_find_dev(dev);
+
+	if (!ifb_info) {
+		return;
+	}
+
+	if (!nss_ifb_down(ifb_info)) {
+		nss_igs_error("Error in sending IFB DOWN configure message\n");
+	}
+}
+
+/*
+ * nss_mirred_up_event_handler()
+ *	nss mirred interface's up event handler.
+ */
+static void nss_mirred_up_event_handler(struct net_device *dev)
+{
+	struct nss_ifb_info *ifb_info;
+
+	/*
+	 * IFB interface.
+	 */
+	if (!netif_is_ifb_dev(dev)) {
+		return;
+	}
+
+	ifb_info = nss_ifb_find_dev(dev);
+
+	if (!ifb_info) {
+		return;
+	}
+
+	if (!nss_ifb_up(ifb_info)) {
+		nss_igs_error("Error in sending IFB UP configure message\n");
+	}
+}
+
+/*
  * nss_mirred_device_event()
  *	nssmirred device event callback.
  */
@@ -366,26 +440,32 @@ static int nss_mirred_device_event(struct notifier_block *unused,
 	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
 	struct nss_mirred_tcf *act;
 
-	if (event != NETDEV_UNREGISTER) {
-		return NOTIFY_DONE;
-	}
+	switch (event) {
+	case NETDEV_UNREGISTER:
+		nss_mirred_unregister_event_handler(dev);
 
-	nss_mirred_unregister_event_handler(dev);
+		ASSERT_RTNL();
 
-	ASSERT_RTNL();
-
-	/*
-	 * Free up the actions instance present in
-	 * the nss mirred list.
-	 */
-	spin_lock_bh(&nss_mirred_list_lock);
-	list_for_each_entry(act, &nss_mirred_list, tcfm_list) {
-		if (rcu_access_pointer(act->tcfm_dev) == dev) {
-			dev_put(dev);
-			RCU_INIT_POINTER(act->tcfm_dev, NULL);
+		/*
+		 * Free up the actions instance present in
+		 * the nss mirred list.
+		 */
+		spin_lock_bh(&nss_mirred_list_lock);
+		list_for_each_entry(act, &nss_mirred_list, tcfm_list) {
+			if (rcu_access_pointer(act->tcfm_dev) == dev) {
+				dev_put(dev);
+				RCU_INIT_POINTER(act->tcfm_dev, NULL);
+			}
 		}
+		spin_unlock_bh(&nss_mirred_list_lock);
+		break;
+	case NETDEV_UP:
+		nss_mirred_up_event_handler(dev);
+		break;
+	case NETDEV_DOWN:
+		nss_mirred_down_event_handler(dev);
+		break;
 	}
-	spin_unlock_bh(&nss_mirred_list_lock);
 
 	return NOTIFY_DONE;
 }

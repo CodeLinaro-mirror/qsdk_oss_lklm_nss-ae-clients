@@ -84,8 +84,8 @@ struct nss_ipsec_klips_sa {
  * the table
  */
 struct nss_ipsec_klips_tunnel_entry {
-	int32_t klips_dev_index;
-	int32_t nss_dev_index;
+	struct net_device *klips_dev;
+	struct net_device *nss_dev;
 	struct list_head sa_list;
 };
 
@@ -190,7 +190,7 @@ static inline bool nss_ipsec_klips_get_natt(struct sk_buff *skb)
 static struct nss_ipsec_klips_tunnel_entry *nss_ipsec_klips_get_tun_entry(struct sk_buff *skb)
 {
 	struct nss_ipsec_klips_skb_cb *ipsec_cb = (struct nss_ipsec_klips_skb_cb *)skb->cb;
-	int32_t klips_dev_index = ipsec_cb->hlos_dev->ifindex;
+	struct net_device *klips_dev = ipsec_cb->hlos_dev;
 	struct nss_ipsec_klips_tunnel_entry *tun;
 	int i;
 
@@ -200,13 +200,10 @@ static struct nss_ipsec_klips_tunnel_entry *nss_ipsec_klips_get_tun_entry(struct
 	 */
 	BUG_ON(write_can_lock(&tunnel_map.lock));
 
-	skb->skb_iif = klips_dev_index;
+	skb->skb_iif = klips_dev->ifindex;
 
 	for (i = 0, tun = tunnel_map.tbl; i < tunnel_map.max; i++, tun++) {
-		if (tun->klips_dev_index < 0)
-			continue;
-
-		if (klips_dev_index == tun->klips_dev_index)
+		if (klips_dev == tun->klips_dev)
 			return tun;
 	}
 
@@ -264,8 +261,7 @@ static struct nss_ipsec_klips_sa *nss_ipsec_klips_sa_lookup(struct nss_ipsec_kli
  * nss_ipsec_klips_sa_flush()
  *	Flush all SA entries
  */
-static void nss_ipsec_klips_sa_flush(struct nss_ipsec_klips_tunnel_entry *tun,
-					struct net_device *nss_dev)
+static void nss_ipsec_klips_sa_flush(struct nss_ipsec_klips_tunnel_entry *tun, struct net_device *nss_dev)
 {
 	struct list_head *head = &tun->sa_list;
 	struct nss_ipsec_klips_sa *sa;
@@ -303,7 +299,7 @@ static int32_t nss_ipsec_klips_free_session(uint32_t crypto_sid)
 	write_lock_bh(&tunnel_map.lock);
 
 	for (i = 0, tun = tunnel_map.tbl; i < tunnel_map.max; i++, tun++) {
-		if ((tun->nss_dev_index < 0) || (tun->klips_dev_index < 0))
+		if (!tun->nss_dev || !tun->klips_dev)
 			continue;
 
 		sa = nss_ipsec_klips_sa_lookup(tun, crypto_idx);
@@ -318,12 +314,8 @@ static int32_t nss_ipsec_klips_free_session(uint32_t crypto_sid)
 		return -ENOENT;
 	}
 
-	nss_dev = dev_get_by_index(&init_net, tun->nss_dev_index);
-	if (!nss_dev) {
-		write_unlock_bh(&tunnel_map.lock);
-		kfree(sa);
-		return -ENOENT;
-	}
+	nss_dev = tun->nss_dev;
+	dev_hold(nss_dev);
 
 	write_unlock_bh(&tunnel_map.lock);
 
@@ -342,7 +334,8 @@ static int32_t nss_ipsec_klips_free_session(uint32_t crypto_sid)
  * nss_ipsec_klips_outer2sa_tuple()
  *	Fill sa_tuple from outer header and return start of payload
  */
-static void *nss_ipsec_klips_outer2sa_tuple(uint8_t *outer, bool natt, struct nss_ipsecmgr_sa_tuple *tuple, uint8_t *ttl, bool decap)
+static void *nss_ipsec_klips_outer2sa_tuple(uint8_t *outer, bool natt, struct nss_ipsecmgr_sa_tuple *tuple,
+						uint8_t *ttl, bool decap)
 {
 	struct ipv6hdr *ip6h = (struct ipv6hdr *)outer;
 	struct iphdr *ip4h = (struct iphdr *)outer;
@@ -556,13 +549,8 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 		return -ENOENT;
 	}
 
-	nss_dev = dev_get_by_index(&init_net, tun->nss_dev_index);
-	if (!nss_dev) {
-		write_unlock(&tunnel_map.lock);
-		nss_ipsec_klips_warn("%p:Failed to find NSS device(%d) in Linux\n",
-						skb, tun->nss_dev_index);
-		return -ENOENT;
-	}
+	nss_dev = tun->nss_dev;
+	BUG_ON(!nss_dev);
 
 	sa_entry = nss_ipsec_klips_sa_lookup(tun, crypto_idx);
 	if (!sa_entry) {
@@ -572,7 +560,6 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 		sa_entry = kzalloc(sizeof(*sa_entry), GFP_ATOMIC);
 		if (!sa_entry) {
 			write_unlock(&tunnel_map.lock);
-			dev_put(nss_dev);
 			return -ENOMEM;
 		}
 
@@ -607,7 +594,6 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 		goto flow_add_fail;
 	}
 
-	dev_put(nss_dev);
 	write_unlock(&tunnel_map.lock);
 
 	nss_ipsec_klips_dbg("Encap SA rule pushed successfully\n");
@@ -616,7 +602,6 @@ static int32_t nss_ipsec_klips_trap_encap(struct sk_buff *skb, struct nss_cfi_cr
 sa_add_fail:
 	kfree(sa_entry);
 flow_add_fail:
-	dev_put(nss_dev);
 	return -EINVAL;
 }
 
@@ -691,13 +676,8 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 		return -ENOENT;
 	}
 
-	nss_dev = dev_get_by_index(&init_net, tun->nss_dev_index);
-	if (!nss_dev) {
-		write_unlock(&tunnel_map.lock);
-		nss_ipsec_klips_warn("%p:Failed to find NSS device(%d) in Linux\n",
-							skb, tun->nss_dev_index);
-		return -ENOENT;
-	}
+	nss_dev = tun->nss_dev;
+	BUG_ON(!nss_dev);
 
 	sa_entry = nss_ipsec_klips_sa_lookup(tun, crypto_idx);
 	if (!sa_entry) {
@@ -707,7 +687,6 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 		sa_entry = kzalloc(sizeof(*sa_entry), GFP_ATOMIC);
 		if (!sa_entry) {
 			write_unlock(&tunnel_map.lock);
-			dev_put(nss_dev);
 			return -ENOMEM;
 		}
 
@@ -743,7 +722,6 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 
 	}
 
-	dev_put(nss_dev);
 	write_unlock(&tunnel_map.lock);
 
 	nss_ipsec_klips_dbg("Decap SA rule pushed successfully\n");
@@ -752,7 +730,6 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 sa_add_fail:
 	kfree(sa_entry);
 flow_add_fail:
-	dev_put(nss_dev);
 	return -EINVAL;
 }
 
@@ -766,36 +743,33 @@ flow_add_fail:
 static struct net_device *nss_ipsec_klips_get_tunnel(struct net_device *klips_dev)
 {
 	struct nss_ipsec_klips_tunnel_entry *tun;
-	int tun_dev_index = -1;
+	struct net_device *tun_dev = NULL;
 	int i;
 
 	write_lock_bh(&tunnel_map.lock);
 
 	for (i = 0, tun = tunnel_map.tbl; i < tunnel_map.max; i++, tun++) {
-		if ((tun->nss_dev_index < 0) || (tun->klips_dev_index < 0))
+		if (!tun->nss_dev || !tun->klips_dev)
 			continue;
 
-		if (klips_dev->ifindex == tun->klips_dev_index) {
-			tun_dev_index = tun->nss_dev_index;
+		if (klips_dev == tun->klips_dev) {
+			tun_dev = tun->nss_dev;
+			dev_hold(tun_dev);
 			break;
 		}
 
 	}
+
 	write_unlock_bh(&tunnel_map.lock);
-
-	if (tun_dev_index < 0) {
-		nss_ipsec_klips_trace("%p: could not map find ipsecmgr tunnel for klips device\n", klips_dev);
-		return NULL;
-	}
-
-	return dev_get_by_index(&init_net, tun_dev_index);
+	return tun_dev;
 }
 
 /*
  * nss_ipsec_klips_get_dev_and_type()
  *	Get ipsecmgr tunnel netdevice and type for klips netdevice
  */
-static struct net_device *nss_ipsec_klips_get_dev_and_type(struct net_device *klips_dev, struct sk_buff *skb, int32_t *type)
+static struct net_device *nss_ipsec_klips_get_dev_and_type(struct net_device *klips_dev, struct sk_buff *skb,
+							int32_t *type)
 {
 
 	switch (ip_hdr(skb)->version) {
@@ -854,9 +828,10 @@ static bool nss_ipsec_klips_flow_delete(struct net_device *nss_dev, struct nss_i
 {
 	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
 
-	nss_ipsec_klips_trace("%p: Flow delete for tuple src_ip= %u:%u:%u:%u, dest_ip= %u:%u:%u:%u, proto_next_hdr= %u,\
-			ip_version= %u\n", nss_dev, flow_tuple->src_ip[0], flow_tuple->src_ip[1], flow_tuple->src_ip[2],
-			flow_tuple->src_ip[3], flow_tuple->dest_ip[0], flow_tuple->dest_ip[1], flow_tuple->dest_ip[2],
+	nss_ipsec_klips_trace("%p: Flow delete for tuple src_ip= %u:%u:%u:%u, dest_ip= %u:%u:%u:%u,\
+			proto_next_hdr=%u, ip_version= %u\n", nss_dev, flow_tuple->src_ip[0],
+			flow_tuple->src_ip[1], flow_tuple->src_ip[2], flow_tuple->src_ip[3],
+			flow_tuple->dest_ip[0], flow_tuple->dest_ip[1], flow_tuple->dest_ip[2],
 			flow_tuple->dest_ip[3], flow_tuple->proto_next_hdr, flow_tuple->ip_version);
 
 	if (nss_ipsecmgr_flow_get_sa(nss_dev, flow_tuple, &sa_tuple) != NSS_IPSECMGR_OK) {
@@ -884,6 +859,7 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 	struct nss_ipsec_klips_tunnel_entry *tun;
 	struct net_device *nss_dev;
 	int16_t index = 0;
+	int mtu = 0;
 
 	if (tunnel_map.max <= tunnel_map.used)
 		return NOTIFY_DONE;
@@ -921,8 +897,9 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 		write_lock_bh(&tunnel_map.lock);
 
 		tunnel_map.used++;
-		tunnel_map.tbl[index].nss_dev_index = nss_dev->ifindex;
-		tunnel_map.tbl[index].klips_dev_index = klips_dev->ifindex;
+		tunnel_map.tbl[index].nss_dev = nss_dev;
+		tunnel_map.tbl[index].klips_dev = klips_dev;
+		dev_hold(klips_dev);
 
 		write_unlock_bh(&tunnel_map.lock);
 		break;
@@ -941,13 +918,13 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 		write_lock_bh(&tunnel_map.lock);
 		tun = &tunnel_map.tbl[index];
 
-		if ((tun->klips_dev_index < 0) || (tun->nss_dev_index < 0)) {
+		if (!tun->klips_dev || !tun->nss_dev) {
 			write_unlock_bh(&tunnel_map.lock);
 			nss_ipsec_klips_err("%p:Failed to find tunnel map\n", klips_dev);
 			return NOTIFY_DONE;
 		}
 
-		if (tun->klips_dev_index != klips_dev->ifindex) {
+		if (tun->klips_dev != klips_dev) {
 			write_unlock_bh(&tunnel_map.lock);
 			nss_ipsec_klips_err("Failed to find NSS IPsec tunnel dev for %s\n", klips_dev->name);
 			return NOTIFY_DONE;
@@ -956,30 +933,28 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 		/*
 		 * Since, we created the NSS device then we should not never see this happen
 		 */
-		nss_dev = dev_get_by_index(&init_net, tun->nss_dev_index);
+		nss_dev = tun->nss_dev;
 		BUG_ON(!nss_dev);
 
 		nss_ipsec_klips_info("IPsec interface being unregistered: %s\n", klips_dev->name);
-
 		nss_ipsec_klips_sa_flush(tun, nss_dev);
 
 		/*
 		 * Write lock is needed here since tunnel map table
 		 * is modified
 		 */
-		tun->nss_dev_index = -1;
-		tun->klips_dev_index = -1;
+		tun->nss_dev = NULL;
+		tun->klips_dev = NULL;
 		tunnel_map.used--;
 
 		write_unlock_bh(&tunnel_map.lock);
 
 		nss_ipsecmgr_tunnel_del(nss_dev);
-		dev_put(nss_dev);
+		dev_put(klips_dev);
 		break;
 
 	case NETDEV_CHANGEMTU:
 		index = nss_ipsec_klips_get_index(klips_dev->name);
-
 		if ((index < 0) || (index >= tunnel_map.max)) {
 			nss_ipsec_klips_trace("Netdev(%s) is not KLIPS IPsec related\n", klips_dev->name);
 			return NOTIFY_DONE;
@@ -992,24 +967,23 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 		write_lock_bh(&tunnel_map.lock);
 		tun = &tunnel_map.tbl[index];
 
-		if ((tun->klips_dev_index < 0) || (tun->nss_dev_index < 0)) {
+		if (!tun->klips_dev || !tun->nss_dev) {
 			write_unlock_bh(&tunnel_map.lock);
 			nss_ipsec_klips_err("%p:Failed to find tunnel map\n", klips_dev);
 			return NOTIFY_DONE;
 		}
 
-		if (tun->klips_dev_index != klips_dev->ifindex) {
+		if (tun->klips_dev != klips_dev) {
 			write_unlock_bh(&tunnel_map.lock);
 			nss_ipsec_klips_err("Failed to find NSS IPsec tunnel dev for %s\n", klips_dev->name);
 			return NOTIFY_DONE;
 		}
 
-		nss_dev = dev_get_by_index(&init_net, tun->nss_dev_index);
-		BUG_ON(!nss_dev);
+		nss_dev = tun->nss_dev;
+		mtu = klips_dev->mtu;
 		write_unlock_bh(&tunnel_map.lock);
 
-		dev_set_mtu(nss_dev, klips_dev->mtu);
-		dev_put(nss_dev);
+		dev_set_mtu(nss_dev, mtu);
 		break;
 
 	default:
@@ -1191,8 +1165,8 @@ int __init nss_ipsec_klips_init_module(void)
 	}
 
 	for (i = 0, tun = tunnel_map.tbl; i < tunnel_max; i++, tun++) {
-		tun->nss_dev_index = -1;
-		tun->klips_dev_index = -1;
+		tun->nss_dev = NULL;
+		tun->klips_dev = NULL;
 		INIT_LIST_HEAD(&tun->sa_list);
 	}
 
@@ -1219,7 +1193,6 @@ int __init nss_ipsec_klips_init_module(void)
 void __exit nss_ipsec_klips_exit_module(void)
 {
 	struct nss_ipsec_klips_tunnel_entry *tun;
-	struct net_device *nss_dev;
 	int i;
 
 	/*
@@ -1243,26 +1216,21 @@ void __exit nss_ipsec_klips_exit_module(void)
 	write_lock_bh(&tunnel_map.lock);
 
 	for (i = 0, tun = tunnel_map.tbl; i < tunnel_map.max; i++, tun++) {
-		if ((tun->nss_dev_index < 0) || (tun->klips_dev_index < 0))
+		if (!tun->nss_dev || !tun->klips_dev)
 			continue;
 
 		/*
 		 * Find the NSS device associated with klips device
 		 */
-		nss_dev = dev_get_by_index(&init_net, tun->nss_dev_index);
-		if (nss_dev) {
-			nss_ipsec_klips_sa_flush(tun, nss_dev);
-			nss_ipsecmgr_tunnel_del(nss_dev);
-			dev_put(nss_dev);
-		}
-
+		nss_ipsec_klips_sa_flush(tun, tun->nss_dev);
+		nss_ipsecmgr_tunnel_del(tun->nss_dev);
 		BUG_ON(!list_empty(&tun->sa_list));
 
 		/*
 		 * Reset the tunnel entry
 		 */
-		tun->nss_dev_index = -1;
-		tun->klips_dev_index = -1;
+		tun->nss_dev = NULL;
+		tun->klips_dev = NULL;
 		tunnel_map.used--;
 	}
 

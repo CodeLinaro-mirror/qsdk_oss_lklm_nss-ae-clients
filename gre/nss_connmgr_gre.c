@@ -63,7 +63,7 @@ struct nss_gre_iface_instance {
 /*
  * Unaligned infra in nss is disabled by default
  */
-static bool enable_unalign;
+static bool enable_unalign = 1;
 module_param(enable_unalign, bool, 0);
 
 /*

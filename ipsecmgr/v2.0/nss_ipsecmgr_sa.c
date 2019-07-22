@@ -659,6 +659,7 @@ static void nss_ipsecmgr_sa_init_encap(struct nss_ipsecmgr_sa *sa, struct nss_ip
 	sa_data->flags |= data->cmn.skip_trailer ? NSS_IPSEC_CMN_FLAG_ESP_SKIP : 0;
 	sa_data->flags |= data->encap.copy_dscp ? NSS_IPSEC_CMN_FLAG_COPY_DSCP : 0;
 	sa_data->flags |= data->encap.copy_df ? NSS_IPSEC_CMN_FLAG_COPY_DF : 0;
+	sa_data->flags |= data->cmn.transport_mode ? NSS_IPSEC_CMN_FLAG_MODE_TRANS : 0;
 
 	if (sa_tuple->ip_ver == 6) {
 		sa_data->flags &= ~NSS_IPSEC_CMN_FLAG_HDR_MASK;
@@ -692,6 +693,7 @@ static void nss_ipsecmgr_sa_init_decap(struct nss_ipsecmgr_sa *sa, struct nss_ip
 	sa_data->flags |= data->cmn.enable_natt ? NSS_IPSEC_CMN_FLAG_IPV4_NATT : 0;
 	sa_data->flags |= data->cmn.enable_esn ? NSS_IPSEC_CMN_FLAG_ESP_ESN : 0;
 	sa_data->flags |= data->cmn.skip_trailer ? NSS_IPSEC_CMN_FLAG_ESP_SKIP : 0;
+	sa_data->flags |= data->cmn.transport_mode ? NSS_IPSEC_CMN_FLAG_MODE_TRANS : 0;
 	sa_data->flags |= data->decap.replay_win ? NSS_IPSEC_CMN_FLAG_ESP_REPLAY : 0;
 
 	if (sa_tuple->ip_ver == 6) {

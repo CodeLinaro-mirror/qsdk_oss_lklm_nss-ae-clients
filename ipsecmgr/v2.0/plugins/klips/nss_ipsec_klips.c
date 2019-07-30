@@ -499,13 +499,7 @@ static void *nss_ipsec_klips_outer2sa_tuple(uint8_t *outer, bool natt, struct ns
 	struct iphdr *ip4h = (struct iphdr *)outer;
 	struct ip_esp_hdr *esph;
 
-	/*
-	 * Bug if outer is not 4 byte aligned.
-	 */
-	BUG_ON(!IS_ALIGNED((uintptr_t)outer, 4));
-
 	memset(tuple, 0, sizeof(*tuple));
-
 	if (ip4h->version == IPVERSION) {
 		outer += sizeof(*ip4h);
 
@@ -562,13 +556,7 @@ static bool nss_ipsec_klips_outer2flow_tuple(uint8_t *outer, bool natt, struct n
 	struct iphdr *ip4h = (struct iphdr *)outer;
 	struct ip_esp_hdr *esph;
 
-	/*
-	 * Bug if outer is not 4 byte aligned.
-	 */
-	BUG_ON(!IS_ALIGNED((uintptr_t)outer, 4));
-
 	memset(tuple, 0, sizeof(*tuple));
-
 	if (ip4h->version == IPVERSION) {
 		outer += sizeof(*ip4h);
 
@@ -613,11 +601,6 @@ static void nss_ipsec_klips_inner2flow_tuple(uint8_t *ip, uint8_t proto, struct 
 {
 	struct ipv6hdr *ip6h = (struct ipv6hdr *)ip;
 	struct iphdr *iph = (struct iphdr *)ip;
-
-	/*
-	 * Bug if inner is not 4 byte aligned.
-	 */
-	BUG_ON(!IS_ALIGNED((uintptr_t)ip, 4));
 
 	/*
 	 * TODO: Since, we are pushing 3-tuple for every 5-tuple
@@ -727,9 +710,37 @@ static int nss_ipsec_klips_fallback_esp_handler(struct sk_buff *skb)
  * nss_ipsec_klips_init_trans_offload()
  * 	Reset all headers added by KLIPS for transport mode.
  */
-static void nss_ipsec_klips_init_trans_offload(struct sk_buff *skb, int8_t iv_blk_len)
+static void nss_ipsec_klips_init_trans_offload(struct sk_buff *skb, int8_t iv_len, uint8_t hash_len)
 {
-	return;
+	struct iphdr iph;
+	uint8_t ip_proto;
+	uint8_t *tail;
+	uint8_t pad;
+
+	/*
+	 * Note: We need to reset the SKB to the inner payload.
+	 * Strip the outer ESP header added by KLIPs, move outer
+	 * IP header before payload and trim the trailer by reading
+	 * the inner payload length
+	 */
+	skb_reset_network_header(skb);
+	tail = skb_tail_pointer(skb) - hash_len - (2 * sizeof(uint8_t));
+
+	ip_proto = tail[1];
+	pad = tail[0];
+	skb_trim(skb, (tail - skb->data) - pad);
+
+	if (ip_hdr(skb)->version == IPVERSION) {
+		memcpy(&iph, skb->data, sizeof(iph));
+		skb_pull(skb, sizeof(iph) + sizeof(struct ip_esp_hdr) + iv_len);
+		iph.protocol = ip_proto;
+		iph.tot_len = htons(skb->len + sizeof(iph));
+		memcpy(skb_push(skb, sizeof(iph)), &iph, sizeof(iph));
+		skb_reset_network_header(skb);
+		return;
+	}
+
+	BUG_ON(ip_hdr(skb)->version != IPVERSION);
 }
 
 /*
@@ -848,11 +859,24 @@ static int32_t nss_ipsec_klips_offload_inner(struct sk_buff *orig_skb, struct ns
 	write_unlock(&tunnel_map.lock);
 
 	/*
+	 * If it is a IPv6 packet in transport mode, drop it as
+	 * this flow is not supported.
+	 */
+	if (ipsec_cb->flags & NSS_IPSEC_KLIPS_FLAG_TRANSPORT_MODE) {
+		skb_reset_network_header(orig_skb);
+		if (unlikely(ip_hdr(orig_skb)->version != IPVERSION)) {
+			nss_ipsec_klips_warn("%p:IPv6 transport mode offload is not supported\n", orig_skb);
+			dev_put(nss_dev);
+			return 1;
+		}
+	}
+
+	/*
 	 * We create a copy of the KLIPS skb; since this will be transmitted out
 	 * of NSS. We cannot expect it to return to host. Hence, we overwrite
 	 * the skb with the clone.
 	 */
-	skb = skb_copy(orig_skb, GFP_ATOMIC);
+	skb = skb_copy_expand(orig_skb, nss_dev->needed_headroom, nss_dev->needed_tailroom, GFP_ATOMIC);
 	if (!skb) {
 		nss_ipsec_klips_err("%p: Unable to create copy of SKB\n", nss_dev);
 		dev_put(nss_dev);
@@ -867,7 +891,7 @@ static int32_t nss_ipsec_klips_offload_inner(struct sk_buff *orig_skb, struct ns
 	skb->skb_iif = orig_skb->skb_iif;
 
 	if (ipsec_cb->flags & NSS_IPSEC_KLIPS_FLAG_TRANSPORT_MODE) {
-		nss_ipsec_klips_init_trans_offload(skb, iv_len);
+		nss_ipsec_klips_init_trans_offload(skb, iv_len, crypto->hash_len);
 	} else {
 		nss_ipsec_klips_init_tun_offload(skb, iv_len);
 	}

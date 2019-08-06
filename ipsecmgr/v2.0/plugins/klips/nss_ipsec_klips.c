@@ -781,7 +781,7 @@ static void nss_ipsec_klips_init_tun_offload(struct sk_buff *skb, int8_t iv_len)
  * nss_ipsec_klips_offload_inner()
  * 	Offload SKB to NSS for encapsulation.
  *
- * This function will always return 0 to indicate offload is enabled.
+ * This function will return 0 if packet is offloaded else return 1.
  */
 static int32_t nss_ipsec_klips_offload_inner(struct sk_buff *orig_skb, struct nss_cfi_crypto_info *crypto)
 {
@@ -819,7 +819,7 @@ static int32_t nss_ipsec_klips_offload_inner(struct sk_buff *orig_skb, struct ns
 	if (!tun) {
 		write_unlock(&tunnel_map.lock);
 		nss_ipsec_klips_warn("%p: Failed to find tun entry\n", ipsec_cb->hlos_dev);
-		return 0;
+		return 1;
 	}
 
 	nss_dev = tun->nss_dev;
@@ -829,7 +829,16 @@ static int32_t nss_ipsec_klips_offload_inner(struct sk_buff *orig_skb, struct ns
 	if (!sa) {
 		write_unlock(&tunnel_map.lock);
 		nss_ipsec_klips_trace("%p: Failed to find SA entry(%u)\n", tun, crypto_idx);
-		return 0;
+		return 1;
+	}
+
+	/*
+	 * Check if SA is present,else let it process through KLIPS.
+	 * Note: This can happen for the first few encapsulation packet
+	 */
+	if (!nss_ipsecmgr_sa_verify(nss_dev, &sa->outer)) {
+		write_unlock(&tunnel_map.lock);
+		return 1;
 	}
 
 	/*
@@ -988,7 +997,7 @@ static int nss_ipsec_klips_offload_outer(struct sk_buff *skb, struct nss_ipsecmg
 	 */
 	status = nss_ipsecmgr_sa_tx_outer(nss_dev, sa_tuple, skb);
 	if (status != NSS_IPSECMGR_OK) {
-		goto drop_skb;
+		dev_kfree_skb_any(skb);
 	}
 
 	/*

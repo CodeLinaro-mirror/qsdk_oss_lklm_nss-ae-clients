@@ -118,6 +118,7 @@ static inline uint32_t nss_ipsecmgr_flow_tuple2hash(struct nss_ipsec_cmn_flow_tu
 	val ^= tuple->spi_index;
 	val ^= tuple->protocol;
 	val ^= tuple->ip_ver;
+	val ^= tuple->user_pattern;
 
 	return val & (max - 1);
 }

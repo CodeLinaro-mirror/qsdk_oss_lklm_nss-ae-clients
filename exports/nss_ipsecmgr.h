@@ -194,6 +194,8 @@ struct nss_ipsecmgr_sa_decap {
 /**
  * nss_ipsecmgr_sa_data
  *	Security association information for the IPsec manager.
+ *
+ * Note: Zero out structure before filling the fields.
  */
 struct nss_ipsecmgr_sa_data {
 	struct nss_ipsecmgr_sa_cmn cmn;		/**< Common configuration information for SA. */
@@ -208,6 +210,7 @@ struct nss_ipsecmgr_sa_data {
  *	SA information for the IPsec manager.
  *
  * Note: Protocol/Next Header defaults to ESP for outer.
+ *	 Zero out structure before filling the fields.
  */
 struct nss_ipsecmgr_sa_tuple {
 	uint32_t src_ip[4];	/**< IPv6 source IP. */
@@ -223,6 +226,8 @@ struct nss_ipsecmgr_sa_tuple {
 /**
  * nss_ipsecmgr_flow_tuple
  *	Flow information for the IPsec manager.
+ *
+ * Note: Zero out structure before filling the fields.
  */
 struct nss_ipsecmgr_flow_tuple {
 	uint32_t src_ip[4];		/**< Source IP. */

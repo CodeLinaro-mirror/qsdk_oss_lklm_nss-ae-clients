@@ -90,6 +90,14 @@ static const struct nss_ipsecmgr_print ipsecmgr_print_sa_replay[] = {
 };
 
 /*
+ * SA tx default print info
+ */
+static const struct nss_ipsecmgr_print ipsecmgr_print_sa_feature[] = {
+	{"tx_default", NSS_IPSECMGR_PRINT_BYTE},
+	{"flags", NSS_IPSECMGR_PRINT_WORD},
+};
+
+/*
  * SA statistics print info
  */
 static const struct nss_ipsecmgr_print ipsecmgr_print_sa_stats[] = {
@@ -184,6 +192,24 @@ static ssize_t nss_ipsecmgr_sa_tuple_print(struct nss_ipsec_cmn_sa_tuple *tuple,
 }
 
 /*
+ * nss_ipsecmgr_sa_feature_print()
+ *	Print SA tx default value
+ */
+static ssize_t nss_ipsecmgr_sa_feature_print(struct nss_ipsecmgr_sa *sa, char *buf, ssize_t max_len)
+{
+	const struct nss_ipsecmgr_print *prn = ipsecmgr_print_sa_feature;
+	ssize_t len = 0;
+
+	len += snprintf(buf + len, max_len - len, "SA feature: {");
+	len += snprintf(buf + len, max_len - len, "%s: %u,", prn->str, sa->state.tx_default);
+	prn++;
+	len += snprintf(buf + len, max_len - len, "%s: 0x%x", prn->str, sa->state.data.flags);
+	len += snprintf(buf + len, max_len - len, "}\n");
+
+	return len;
+}
+
+/*
  * nss_ipsecmgr_sa_replay_print()
  * 	Print SA replay state
  */
@@ -249,6 +275,9 @@ static ssize_t nss_ipsecmgr_sa_print_len(struct nss_ipsecmgr_ref *ref)
 	for (i = 0, prn = ipsecmgr_print_sa_stats; i < ARRAY_SIZE(ipsecmgr_print_sa_stats); i++, prn++)
 		len += strlen(prn->str) + prn->var_size;
 
+	for (i = 0, prn = ipsecmgr_print_sa_feature; i < ARRAY_SIZE(ipsecmgr_print_sa_feature); i++, prn++)
+		len += strlen(prn->str) + prn->var_size;
+
 	return len;
 }
 
@@ -266,6 +295,7 @@ static ssize_t nss_ipsecmgr_sa_print(struct nss_ipsecmgr_ref *ref, char *buf)
 
 	len += nss_ipsecmgr_sa_tuple_print(&sa->state.tuple, buf + len, max_len - len);
 	len += nss_ipsecmgr_sa_replay_print(&sa->state.replay, buf + len, max_len - len);
+	len += nss_ipsecmgr_sa_feature_print(sa, buf + len, max_len - len);
 	len += nss_ipsecmgr_sa_stats_print(&sa->stats, buf + len, max_len - len);
 
 	return len;

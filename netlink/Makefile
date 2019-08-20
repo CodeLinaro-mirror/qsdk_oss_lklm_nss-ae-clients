@@ -8,8 +8,11 @@ ccflags-y += -DCONFIG_NSS_NLIPV4=1
 ccflags-y += -DCONFIG_NSS_NLIPV6=1
 ccflags-y += -DCONFIG_NSS_NLIPSEC=1
 ccflags-y += -DCONFIG_NSS_NLOAM=1
+ccflags-y += -DCONFIG_NSS_NLGRE_REDIR=1
 
 qca-nss-netlink-objs := nss_nl.o
+qca-nss-netlink-objs += nss_nlgre_redir.o
+qca-nss-netlink-objs += nss_nlgre_redir_mgr.o
 qca-nss-netlink-objs += nss_nlipv4.o
 qca-nss-netlink-objs += nss_nlipv6.o
 qca-nss-netlink-objs += nss_nlipsec.o

@@ -36,25 +36,25 @@
 #include <linux/semaphore.h>
 #include <linux/in.h>
 
-#include <net/genetlink.h>
-#include <net/route.h>
 #include <net/arp.h>
-#include <net/neighbour.h>
 #include <net/genetlink.h>
+#include <net/neighbour.h>
 #include <net/net_namespace.h>
+#include <net/route.h>
 #include <net/sock.h>
 
 #include <nss_api_if.h>
 #include <nss_cmn.h>
 #include <nss_nl_if.h>
-#include "nss_nl.h"
-#include "nss_nlcmn_if.h"
-#include "nss_nlipv4_if.h"
-#include "nss_nlipsec.h"
 #include "nss_ipsec.h"
 #include "nss_ipsec_cmn.h"
 #include "nss_ipsecmgr.h"
+#include "nss_nl.h"
+#include "nss_nlcmn_if.h"
+#include "nss_nlgre_redir.h"
 #include "nss_nlipsec_if.h"
+#include "nss_nlipsec.h"
+#include "nss_nlipv4_if.h"
 
 /*
  * NSS NETLINK IPv4 context
@@ -322,6 +322,21 @@ static int nss_nlipv4_verify_conn_rule(struct nss_ipv4_rule_create_msg *msg, str
 							tuple->return_ident, tuple->flow_ident);
 		break;
 
+	case NSS_NL_IFTYPE_TUNNEL_GRE:
+		/*
+		 * Currently this implementation is only for gre_redir
+		 */
+		conn->flow_interface_num = nss_nlgre_redir_get_ifnum(flow_dev,
+					NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_OUTER);
+		if (conn->flow_interface_num < 0 ) {
+			nss_nl_error("%p: Failed to get flow interface number (dev:%s, type:%d)\n",
+								flow_dev, flow_dev->name, flow_iftype);
+			return -EINVAL;
+		}
+
+		conn->flow_mtu = NSS_NLIPV4_MAX_MTU;
+		break;
+
 	case NSS_NL_IFTYPE_VLAN:
 		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(flow_dev));
 		if (conn->flow_interface_num < 0 ) {
@@ -366,6 +381,18 @@ static int nss_nlipv4_verify_conn_rule(struct nss_ipv4_rule_create_msg *msg, str
 
 		conn->return_mtu = nss_nlipsec_get_mtu(return_dev, 4, tuple->protocol,
 							tuple->return_ident, tuple->flow_ident);
+		break;
+
+	case NSS_NL_IFTYPE_TUNNEL_GRE:
+		conn->return_interface_num = nss_nlgre_redir_get_ifnum(return_dev,
+				NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_OFFL_INNER);
+		if (conn->return_interface_num < 0 ) {
+			nss_nl_error("%p: Failed to get return interface number (dev:%s, type:%d)\n",
+							return_dev, return_dev->name, return_iftype);
+			return -EINVAL;
+		}
+
+		conn->return_mtu = NSS_NLIPV4_MAX_MTU;
 		break;
 
 	case NSS_NL_IFTYPE_VLAN:

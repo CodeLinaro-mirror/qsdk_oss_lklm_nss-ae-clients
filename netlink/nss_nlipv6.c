@@ -57,6 +57,7 @@
 #include "nss_nlipv6_if.h"
 #include "nss_ipsecmgr.h"
 #include "nss_nlipsec_if.h"
+#include "nss_nlgre_redir.h"
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
 #define DST_NEIGH_LOOKUP(dst, ip_addr) dst_neigh_lookup(dst, ip_addr)
@@ -335,6 +336,17 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 							tuple->return_ident, tuple->flow_ident);
 		break;
 
+	case NSS_NL_IFTYPE_TUNNEL_GRE:
+		conn->flow_interface_num = nss_nlgre_redir_get_ifnum(flow_dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_OUTER);
+		if (conn->flow_interface_num < 0 ) {
+			nss_nl_error("%p: Failed to get flow interface number (dev:%s, type:%d)\n",
+			flow_dev, flow_dev->name, flow_iftype);
+			return -EINVAL;
+		}
+
+		conn->flow_mtu = NSS_NLIPV6_MAX_MTU;
+		break;
+
 	case NSS_NL_IFTYPE_VLAN:
 		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(flow_dev));
 		if (conn->flow_interface_num < 0 ) {
@@ -380,6 +392,18 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 
 		conn->return_mtu = nss_nlipsec_get_mtu(return_dev, 6, tuple->protocol,
 							tuple->return_ident, tuple->flow_ident);
+		break;
+
+	case NSS_NL_IFTYPE_TUNNEL_GRE:
+		conn->return_interface_num = nss_nlgre_redir_get_ifnum(return_dev,
+		NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_OFFL_INNER);
+		if (conn->return_interface_num < 0 ) {
+			nss_nl_error("%p: Failed to get return interface number (dev:%s, type:%d)\n",
+			return_dev, return_dev->name, return_iftype);
+			return -EINVAL;
+		}
+
+		conn->return_mtu = NSS_NLIPV6_MAX_MTU;
 		break;
 
 	case NSS_NL_IFTYPE_VLAN:

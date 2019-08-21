@@ -67,6 +67,7 @@
  */
 struct nss_ipsec_klips_skb_cb {
 	struct net_device *hlos_dev;
+	struct sock *sk;
 	uint32_t flags;
 	uint16_t replay_win;
 	uint16_t magic;
@@ -93,9 +94,11 @@ struct nss_ipsec_klips_sa {
  * the table
  */
 struct nss_ipsec_klips_tun {
+	struct list_head sa_list;
+	sk_encap_rcv_method_t sk_encap_rcv;
 	struct net_device *klips_dev;
 	struct net_device *nss_dev;
-	struct list_head sa_list;
+	struct sock *sk;
 };
 
 /*
@@ -710,6 +713,46 @@ static int nss_ipsec_klips_fallback_esp_handler(struct sk_buff *skb)
 }
 
 /*
+ * nss_ipsec_klips_fallback_natt_handler()
+ *	Invoke KLIPS encap recieve handler for socket.
+ */
+static int nss_ipsec_klips_fallback_natt_handler(struct sock *sk, struct sk_buff *skb)
+{
+	struct nss_ipsec_klips_tun *tun;
+	sk_encap_rcv_method_t encap_rcv;
+
+	read_lock(&tunnel_map.lock);
+
+	tun = nss_ipsec_klips_get_tun_by_addr(skb);
+	if (!tun) {
+		read_unlock(&tunnel_map.lock);
+		nss_ipsec_klips_warn("%p: Unable to find tunnel assciated, dropping skb", skb);
+		goto drop_skb;
+	}
+
+	if (tun->sk != sk) {
+		read_unlock(&tunnel_map.lock);
+		nss_ipsec_klips_warn("%p: Packet recieved from incorrect socket, dropping skb", tun);
+		goto drop_skb;
+	}
+
+	encap_rcv = tun->sk_encap_rcv;
+	if (!encap_rcv) {
+		read_unlock(&tunnel_map.lock);
+		nss_ipsec_klips_warn("%p: NULL sk_encap_rcv, dropping skb", tun);
+		goto drop_skb;
+	}
+
+	read_unlock(&tunnel_map.lock);
+
+	return encap_rcv(sk, skb);
+
+drop_skb:
+	dev_kfree_skb_any(skb);
+	return 0;
+}
+
+/*
  * nss_ipsec_klips_init_trans_offload()
  * 	Reset all headers added by KLIPS for transport mode.
  */
@@ -960,7 +1003,7 @@ static int nss_ipsec_klips_offload_outer(struct sk_buff *skb, struct nss_ipsecmg
 	tun = nss_ipsec_klips_get_tun_by_addr(skb);
 	if (!tun) {
 		write_unlock(&tunnel_map.lock);
-		return nss_ipsec_klips_fallback_esp_handler(skb);
+		return -ENODEV;
 	}
 
 	ifindex = tun->klips_dev->ifindex;
@@ -975,11 +1018,11 @@ static int nss_ipsec_klips_offload_outer(struct sk_buff *skb, struct nss_ipsecmg
 	 */
 	if (!nss_ipsecmgr_sa_verify(nss_dev, sa_tuple)) {
 		dev_put(nss_dev);
-		return nss_ipsec_klips_fallback_esp_handler(skb);
+		return -ENODATA;
 	}
 
 	/*
-	 * In case of Decap, skb->data points to ESP header.
+	 * In case of Decap, skb->data points to ESP header or UDP header for NATT.
 	 * Set the skb->data to outer IP header.
 	 */
 	skb_push(skb, skb->data - skb_network_header(skb));
@@ -1032,13 +1075,127 @@ static int nss_ipsec_klips_offload_esp(struct sk_buff *skb)
 	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
 	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
 	uint8_t ttl;
+	int ret;
 
 	nss_ipsec_klips_trace("%p: SKb recieved by KLIPS plugin\n", skb);
 
 	nss_ipsec_klips_outer2sa_tuple(skb_network_header(skb), false, &sa_tuple, &ttl, true);
 	nss_ipsec_klips_outer2flow_tuple(skb_network_header(skb), false, &flow_tuple);
 
-	return nss_ipsec_klips_offload_outer(skb, &sa_tuple, &flow_tuple);
+	ret = nss_ipsec_klips_offload_outer(skb, &sa_tuple, &flow_tuple);
+	if (ret) {
+		nss_ipsec_klips_trace("%p: Fallback to klips esp handler. error(%d)\n", skb, ret);
+		return nss_ipsec_klips_fallback_esp_handler(skb);
+	}
+
+	return 0;
+}
+
+/*
+ * nss_ipsec_klips_offload_natt()
+ * 	Socket encap recieve handler for IPsec UDP encapsulated packets.
+ *
+ * Shell returns the following value:
+ * =0 if SKB is consumed.
+ * >0 if skb should be passed on to UDP.
+ * <0 if skb should be resubmitted.
+ */
+int nss_ipsec_klips_offload_natt(struct sock *sk, struct sk_buff *skb)
+{
+	size_t hdr_len = sizeof(struct udphdr) +  sizeof(struct ip_esp_hdr);
+	struct nss_ipsecmgr_flow_tuple flow_tuple = {0};
+	struct nss_ipsecmgr_sa_tuple sa_tuple = {0};
+	struct ip_esp_hdr *esph;
+	uint8_t ttl;
+	int status;
+
+	/*
+	 * Socket has to be of type UDP_ENCAP_ESPINUDP .
+	 */
+	BUG_ON(udp_sk(sk)->encap_type != UDP_ENCAP_ESPINUDP);
+
+	/*
+	 * NAT-keepalive packet has udphdr & one byte payload (rfc3948).
+	 */
+	if (skb->len < hdr_len) {
+		goto fallback;
+	}
+
+	/*
+	 * In case of non-linear SKB we would like to ensure that
+	 * all the required headers are present in the first segment
+	 */
+	if (skb_is_nonlinear(skb) && (skb_headlen(skb) < hdr_len)) {
+		if (skb_linearize(skb)) {
+			dev_kfree_skb_any(skb);
+			return 0;
+		}
+
+		/*
+		 * skb_linearize may change header. So, reload all required pointer.
+		 */
+		skb_reset_transport_header(skb);
+		skb_set_network_header(skb, -(int)sizeof(struct iphdr));
+	}
+
+	/*
+	 * Check if packet has non-ESP marker (rfc3948)
+	 */
+	esph = (struct ip_esp_hdr *)(skb_transport_header(skb) + sizeof(struct udphdr));
+	if (ntohl(esph->spi) == NSS_IPSEC_KLIPS_NON_ESP_MARKER) {
+		goto fallback;
+	}
+
+	/*
+	 * ESP packet recieved, offload it to NSS else send it to KLIPS.
+	 */
+	nss_ipsec_klips_outer2sa_tuple(skb_network_header(skb), true, &sa_tuple, &ttl, true);
+	nss_ipsec_klips_outer2flow_tuple(skb_network_header(skb), true, &flow_tuple);
+
+	status = nss_ipsec_klips_offload_outer(skb, &sa_tuple, &flow_tuple);
+	if (status) {
+		nss_ipsec_klips_trace("%p: Fallback to klips natt handler. error(%d)\n", skb, status);
+		goto fallback;
+	}
+
+	return 0;
+
+fallback:
+	return nss_ipsec_klips_fallback_natt_handler(sk, skb);
+}
+
+/*
+ * nss_ipsec_klips_register_natt_handler()
+ * 	Hold and set the encap recieve handler of socket with offload method.
+ */
+static void nss_ipsec_klips_register_natt_handler(struct nss_ipsec_klips_tun *tun, struct sock *sk)
+{
+	/*
+	 * write lock is needed as we are modifying tunnel entry.
+	 */
+	BUG_ON(write_can_lock(&tunnel_map.lock));
+
+	sock_hold(sk);
+	tun->sk_encap_rcv = udp_sk(sk)->encap_rcv;
+	tun->sk = sk;
+	xchg(&udp_sk(sk)->encap_rcv, nss_ipsec_klips_offload_natt);
+}
+
+/*
+ * nss_ipsec_klips_unregister_natt_handler()
+ * 	 Release socket and revert encap recieve handler to original.
+ */
+static void nss_ipsec_klips_unregister_natt_handler(struct nss_ipsec_klips_tun *tun, struct sock *sk)
+{
+	/*
+	 * write lock is needed as we are modifying tunnel entry.
+	 */
+	BUG_ON(write_can_lock(&tunnel_map.lock));
+
+	xchg(&udp_sk(tun->sk)->encap_rcv, tun->sk_encap_rcv);
+	sock_put(tun->sk);
+	tun->sk = NULL;
+	tun->sk_encap_rcv = NULL;
 }
 
 /*
@@ -1296,8 +1453,15 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 		return -EINVAL;
 	}
 
+	/*
+	 * Convert socket to use our (de)encapsulation routine and save original pointers in tun map.
+	 */
+	if (natt && !tun->sk && skb_cb->sk) {
+		nss_ipsec_klips_info("%p: Updating sock(%p) encap_rcv handler\n", tun, skb_cb->sk);
+		nss_ipsec_klips_register_natt_handler(tun, skb_cb->sk);
+	}
+
 	write_unlock(&tunnel_map.lock);
-	nss_ipsec_klips_trace("%p: Decap SA rule message sent\n", tun);
 
 	return 0;
 }
@@ -1509,6 +1673,8 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 		tunnel_map.used++;
 		tunnel_map.tbl[index].nss_dev = nss_dev;
 		tunnel_map.tbl[index].klips_dev = klips_dev;
+		tunnel_map.tbl[index].sk = NULL;
+		tunnel_map.tbl[index].sk_encap_rcv = NULL;
 		dev_hold(klips_dev);
 
 		write_unlock_bh(&tunnel_map.lock);
@@ -1560,6 +1726,15 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 		 */
 		tun->nss_dev = NULL;
 		tun->klips_dev = NULL;
+
+		/*
+		 * Revert socket encap_rcv. Those fields are only used for NATT.
+		 */
+		if (tun->sk) {
+			nss_ipsec_klips_info("%p: Releasing socket(%p)\n", tun, tun->sk);
+			nss_ipsec_klips_unregister_natt_handler(tun, tun->sk);
+		}
+
 		tunnel_map.used--;
 
 		/*

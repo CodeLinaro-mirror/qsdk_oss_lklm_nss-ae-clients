@@ -19,45 +19,43 @@
  *	NSS Netlink IPv6 Handler
  */
 
+#include <linux/completion.h>
+#include <linux/etherdevice.h>
+#include <linux/if.h>
+#include <linux/if_addr.h>
+#include <linux/if_vlan.h>
+#include <linux/in.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/types.h>
-#include <linux/version.h>
-#include <linux/if.h>
 #include <linux/netlink.h>
 #include <linux/rcupdate.h>
-#include <linux/etherdevice.h>
-#include <linux/if_addr.h>
+#include <linux/semaphore.h>
+#include <linux/types.h>
+#include <linux/version.h>
 #include <linux/version.h>
 #include <linux/vmalloc.h>
-#include <linux/if_vlan.h>
-#include <linux/completion.h>
-#include <linux/semaphore.h>
 #include <net/addrconf.h>
-#include <linux/in.h>
-
-#include <net/genetlink.h>
-#include <net/route.h>
-#include <net/ip6_route.h>
 #include <net/arp.h>
-#include <net/neighbour.h>
 #include <net/genetlink.h>
+#include <net/ip6_route.h>
+#include <net/neighbour.h>
 #include <net/net_namespace.h>
+#include <net/route.h>
 #include <net/sock.h>
 
 #include <nss_api_if.h>
 #include <nss_cmn.h>
 #include <nss_ipsec.h>
-#include "nss_nlipsec.h"
 #include <nss_ipsec_cmn.h>
 #include <nss_nl_if.h>
-#include "nss_nl.h"
-#include "nss_nlipv6.h"
-#include "nss_nlcmn_if.h"
-#include "nss_nlipv6_if.h"
 #include "nss_ipsecmgr.h"
-#include "nss_nlipsec_if.h"
+#include "nss_nl.h"
+#include "nss_nlcmn_if.h"
 #include "nss_nlgre_redir_cmd.h"
+#include "nss_nlipsec.h"
+#include "nss_nlipsec_if.h"
+#include "nss_nlipv6.h"
+#include "nss_nlipv6_if.h"
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
 #define DST_NEIGH_LOOKUP(dst, ip_addr) dst_neigh_lookup(dst, ip_addr)
@@ -142,6 +140,7 @@ static struct neighbour *nss_nlipv6_get_neigh(uint32_t dst_addr[4])
 
 		return neigh;
 	}
+	dst_release(dst);
 
 	return NULL;
 }
@@ -220,7 +219,7 @@ static int nss_nlipv6_get_macaddr(uint32_t ip_addr[4], uint8_t mac_addr[])
 		goto fail;
 	}
 
-	memcpy(mac_addr, neigh->ha, (size_t)neigh->dev->addr_len);
+	ether_addr_copy(mac_addr, neigh->ha);
 	neigh_release(neigh);
 	return 0;
 fail:
@@ -823,12 +822,10 @@ static int nss_nlipv6_ops_create_rule(struct sk_buff *skb, struct genl_info *inf
 	/*
 	 * Push Rule to NSS
 	 */
-	tx_status = nss_ipv6_tx(gbl_ctx.nss, nim);
+	tx_status = nss_ipv6_tx_sync(gbl_ctx.nss, nim);
 	if (tx_status != NSS_TX_SUCCESS) {
-		nlmsg_free(resp);
 		nss_nl_error("%d:unable to send IPV6 rule create, status(%d)\n", pid, tx_status);
 		error = -EBUSY;
-		goto done;
 	}
 
 done:
@@ -904,9 +901,8 @@ static int nss_nlipv6_ops_destroy_rule(struct sk_buff *skb, struct genl_info *in
 	/*
 	 * Push rule to NSS
 	 */
-	tx_status = nss_ipv6_tx(gbl_ctx.nss, nim);
+	tx_status = nss_ipv6_tx_sync(gbl_ctx.nss, nim);
 	if (tx_status != NSS_TX_SUCCESS) {
-		nlmsg_free(resp);
 		nss_nl_error("%d:unable to send IPV6 rule delete, status(%d)\n", pid, tx_status);
 		return -EBUSY;
 	}

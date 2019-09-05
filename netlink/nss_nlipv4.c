@@ -211,7 +211,7 @@ static int nss_nlipv4_get_macaddr(uint32_t ip_addr, uint8_t mac_addr[])
 		goto fail;
 	}
 
-	memcpy(mac_addr, neigh->ha, (size_t)neigh->dev->addr_len);
+	ether_addr_copy(mac_addr, neigh->ha);
 	neigh_release(neigh);
 	return 0;
 fail:
@@ -827,11 +827,10 @@ static int nss_nlipv4_ops_create_rule(struct sk_buff *skb, struct genl_info *inf
 	/*
 	 * Push Rule to NSS
 	 */
-	tx_status = nss_ipv4_tx(gbl_ctx.nss, nim);
+	tx_status = nss_ipv4_tx_sync(gbl_ctx.nss, nim);
 	if (tx_status != NSS_TX_SUCCESS) {
 		nss_nl_error("%d:unable to send IPv4 rule create, status(%d)\n", pid, tx_status);
 		error = -EBUSY;
-		goto done;
 	}
 
 done:
@@ -902,7 +901,7 @@ static int nss_nlipv4_ops_destroy_rule(struct sk_buff *skb, struct genl_info *in
 	/*
 	 * Push rule to NSS
 	 */
-	tx_status = nss_ipv4_tx(gbl_ctx.nss, nim);
+	tx_status = nss_ipv4_tx_sync(gbl_ctx.nss, nim);
 	if (tx_status != NSS_TX_SUCCESS) {
 		nss_nl_error("%d:unable to send IPv4 rule delete, status(%d)\n", pid, tx_status);
 		return -EBUSY;

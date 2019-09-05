@@ -233,7 +233,6 @@ int nss_nlipsec_get_ifnum(struct net_device *dev, uint8_t proto, uint16_t dest_p
 	 * Interface number with core-id
 	 */
 	return nss_ipsec_cmn_get_ifnum_with_coreid(ifnum);
-
 }
 
 /*
@@ -308,7 +307,7 @@ static int nss_nlipsec_op_create_tunnel(struct sk_buff *skb, struct genl_info *i
 	 * Create a IPsec tunnel device
 	 */
 	cb.app_data = &gbl_ctx;
-	cb.skb_dev = NULL; /* FIXME: passing NULL ???? */
+	cb.skb_dev = NULL;
 	cb.data_cb = NULL;
 	cb.event_cb = nss_nlipsec_process_event;
 	dev = nss_ipsecmgr_tunnel_add(&cb);
@@ -324,7 +323,7 @@ static int nss_nlipsec_op_create_tunnel(struct sk_buff *skb, struct genl_info *i
 	nss_nlipsec_add_ref(dev);
 
 	/*
-	 * Response message
+	 * Response message to caller
 	 */
 	resp = nss_nl_copy_msg(skb);
 	if (!resp) {
@@ -477,6 +476,7 @@ static int nss_nlipsec_op_add_sa(struct sk_buff *skb, struct genl_info *info)
 	struct nss_nlipsec_rule_sa *sa_rule;
 	struct nss_nlipsec_rule *nl_rule;
 	struct net_device *dev;
+	struct sk_buff *resp;
 	uint32_t pid, if_num;
 	int error = 0;
 
@@ -502,11 +502,45 @@ static int nss_nlipsec_op_add_sa(struct sk_buff *skb, struct genl_info *info)
 	sa_data->cmn.keys.auth_key = sa_rule->auth_key;
 	sa_data->cmn.keys.nonce = sa_rule->nonce;
 
-	if (nss_ipsecmgr_sa_add_sync(dev, &sa_rule->tuple, sa_data, &if_num)) {
-		nss_nl_error("%d: Failed to add SA for net device(%s)\n", pid, nl_rule->ifname);
-		error = -EINVAL;
+	error = nss_ipsecmgr_sa_add_sync(dev, &sa_rule->tuple, sa_data, &if_num);
+	if (error) {
+		nss_nl_error("%d: Failed to add SA for net device(%s), error:%d\n", pid, nl_rule->ifname, error);
+		goto free_dev;
 	}
 
+	/*
+	 * Response message to caller
+	 */
+	resp = nss_nl_copy_msg(skb);
+	if (!resp) {
+		nss_nl_error("unable to copy incoming message\n");
+		error = -ENOMEM;
+		goto free_dev;
+	}
+
+	/*
+	 * Overload the nl_rule with the new response address
+	 */
+	nl_rule = nss_nl_get_data(resp);
+
+	/*
+	 * Init the command
+	 */
+	nss_nlipsec_rule_init(nl_rule, NSS_NLIPSEC_CMD_ADD_SA);
+
+	/*
+	 * We need to send the ifnum to the user; copy
+	 * the if_number into the same rule and send it
+	 * as part of the response for the create operation
+	 */
+	nl_rule->ifnum = if_num;
+
+	/*
+	 * Send to userspace
+	 */
+	nss_nl_ucast_resp(resp);
+
+free_dev:
 	/*
 	 *  dev_put for dev_get done on nss_nlipsec_get_rule
 	 */
@@ -567,9 +601,9 @@ static int nss_nlipsec_op_add_flow(struct sk_buff *skb, struct genl_info *info)
 	flow_tuple = &nl_rule->rule.flow.tuple;
 	sa_tuple = &nl_rule->rule.flow.sa;
 
-	if (nss_ipsecmgr_flow_add_sync(dev, flow_tuple, sa_tuple)) {
+	error = nss_ipsecmgr_flow_add_sync(dev, flow_tuple, sa_tuple);
+	if (error) {
 		nss_nl_error("%d: Failed to add subnet for net_device(%s)", pid, nl_rule->ifname);
-		error = -EINVAL;
 	}
 
 	/*

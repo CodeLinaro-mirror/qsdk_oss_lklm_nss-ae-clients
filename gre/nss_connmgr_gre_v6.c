@@ -276,7 +276,10 @@ int nss_connmgr_gre_v6_set_config(struct net_device *dev, struct nss_connmgr_gre
 	memcpy(t->parms.laddr.s6_addr, &cfg->src_ip, 16);
 	memcpy(t->parms.raddr.s6_addr, &cfg->dest_ip, 16);
 
-	t->parms.flowinfo = 0;
+	t->parms.flowinfo = cfg->tos << 2;
+	if (cfg->tos_inherit) {
+		t->parms.flowinfo |= 0x1;
+	}
 
 	t->parms.hop_limit = cfg->ttl;
 	if (cfg->ttl_inherit) {
@@ -330,13 +333,13 @@ int nss_connmgr_gre_v6_get_config(struct net_device *dev, struct nss_gre_msg *re
 	 */
 	cmsg->flags |= nss_connmgr_gre_get_nss_config_flags(t->parms.o_flags,
 								     t->parms.i_flags,
-								     0x1,
+								     t->parms.flowinfo,
 								     t->parms.hop_limit, 0);
 
 	cmsg->ikey = t->parms.i_key;
 	cmsg->okey = t->parms.o_key;
 	cmsg->ttl = t->parms.hop_limit;
-	cmsg->tos = t->parms.flowinfo;
+	cmsg->tos = t->parms.flowinfo >> 2;
 
 	/*
 	 * fill in MAC addresses

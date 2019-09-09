@@ -911,13 +911,6 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 			goto release_ref;
 		}
 
-		/*
-		 * Set per packet DSCP configuration if needed
-		 */
-		if (cfg->dscp_valid) {
-			cmsg->flags |= NSS_GRE_CONFIG_DSCP_VALID;
-		}
-
 		cmsg->flags |= NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE;
 	}
 
@@ -937,6 +930,13 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	if (cfg->copy_metadata) {
 		cmsg->flags |= NSS_GRE_CONFIG_COPY_METADATA;
 		cmsg->metadata_size = sizeof(struct nss_wifi_append_statsv2_metahdr);
+	}
+
+	/*
+	 * Set per packet DSCP configuration if needed
+	 */
+	if (cfg->dscp_valid) {
+		cmsg->flags |= NSS_GRE_CONFIG_DSCP_VALID;
 	}
 
 	/*
@@ -1286,6 +1286,15 @@ static bool nss_connmgr_gre_validate_config(struct nss_connmgr_gre_cfg *cfg)
 	 * TODO:Disallow key for standard GRE TAP/TUN.
 	 */
 	if (cfg->iseq_valid || cfg->oseq_valid || cfg->icsum_valid || cfg->ocsum_valid) {
+		nss_connmgr_gre_info("Bad config, seq and csum are not supported.\n");
+		return false;
+	}
+
+	/*
+	 * Validate DSCP and ToS inherit flags.
+	 */
+	if (cfg->dscp_valid && cfg->tos_inherit) {
+		nss_connmgr_gre_info("Bad config, Both DSCP and ToS inherit flags are set.\n");
 		return false;
 	}
 
@@ -1800,7 +1809,6 @@ struct net_device *nss_connmgr_gre_create_interface(struct nss_connmgr_gre_cfg *
 	}
 
 	if (!nss_connmgr_gre_validate_config(cfg)) {
-		nss_connmgr_gre_info("No support for Csum/Sequence number\n");
 		*err_code = GRE_ERR_UNSUPPORTED_CFG;
 		return NULL;
 	}

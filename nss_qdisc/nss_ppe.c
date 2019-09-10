@@ -391,10 +391,10 @@ static int nss_ppe_l1_res_free(struct nss_qdisc *nq)
 	}
 
 	/*
-	 * Bridge interface will have one level less than the max shaper levels.
+	 * Loopback will have one level less than the max shaper levels.
 	 * L1 scheduler was configured at init time, so resources were allocated.
 	 */
-	if (nq->is_bridge) {
+	if (nq->needs_ppe_loopback) {
 		offset = npq->l0spid - nss_ppe_base_get(port_num, NSS_PPE_L0_SP);
 		if (nss_ppe_res_free(port_num, offset, NSS_PPE_L0_SP) != 0) {
 			nss_qdisc_error("Used res:%d not found for port:%d, type:%d\n", npq->l0spid, port_num, NSS_PPE_L0_SP);
@@ -465,10 +465,10 @@ static int nss_ppe_l1_res_alloc(struct nss_qdisc *nq)
 	}
 
 	/*
-	 * For bridge, we use loopback which has no dedicated L1 schedulers. L0
-	 * SP is the only resource we need to allocate.
+	 * Loopback has no dedicated L1 schedulers. L0 SP is the only resource we
+	 * need to allocate.
 	 */
-	if (nq->is_bridge) {
+	if (nq->needs_ppe_loopback) {
 		npq->l0spid = nss_ppe_base_get(port_num, NSS_PPE_L0_SP) + l0sp->offset;
 		npq->l1_valid = true;
 		nss_qdisc_info("Level1 scheduler resource allocation successful\n");
@@ -633,10 +633,10 @@ static int nss_ppe_l1_queue_scheduler_set(struct nss_qdisc *nq)
 	struct nss_ppe_qdisc *npq = &nq->npq;
 
 	/*
-	 * Bridge interface will have one level less than the max shaper levels.
+	 * Loopback will have one level less than the max shaper levels.
 	 * L1 scheduler was configured at init time, so no need to allocate resources.
 	 */
-	if (nq->is_bridge) {
+	if (nq->needs_ppe_loopback) {
 		/*
 		 * Allocate resource if we have not already done so.
 		 */
@@ -1229,9 +1229,9 @@ static int nss_ppe_max_level_get(struct nss_qdisc *nq)
 	int level = NSS_PPE_MAX_LEVEL;
 
 	/*
-	 * For bridge ports, one level is being used by loopback.
+	 * Loopback uses one level.
 	 */
-	if (nq->is_bridge) {
+	if (nq->needs_ppe_loopback) {
 		level = level - 1;
 	}
 
@@ -1370,7 +1370,7 @@ static int nss_ppe_default_conf_set(uint32_t port_num)
 	nss_ppe_all_queue_disable(port_num);
 
 	/*
-	 * No resources were allocated for Port 0 (bridge interface).
+	 * No resources were allocated for Port 0 (Loopback port).
 	 * L1 scheduler was configured at init time.
 	 */
 	if (port_num == 0) {
@@ -1929,7 +1929,7 @@ int nss_ppe_port_num_get(struct nss_qdisc *nq)
 	 * Fetch port number based on interface type.
 	 * TODO: Change this when API from DP is available
 	 */
-	if (!(nq->is_bridge)) {
+	if (!nq->needs_ppe_loopback) {
 		port_num = nq->nss_interface_number;
 	}
 
@@ -1999,10 +1999,10 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 	}
 
 	/*
-	 * Return error in case NSS Qdisc is attached to PPE qdisc on bridge interface.
+	 * Return error in case NSS Qdisc is attached to loopback.
 	 */
-	if (nq->is_bridge) {
-		nss_qdisc_warning("NSS Qdisc cannot be attached to PPE Qdisc on bridge interface.\n");
+	if (nq->needs_ppe_loopback) {
+		nss_qdisc_warning("NSS Qdisc cannot be attached to PPE Qdisc on loopback interface.\n");
 		return -EINVAL;
 	}
 
@@ -2218,7 +2218,7 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 	uint32_t port_num = nss_ppe_port_num_get(nq);
 
 	/*
-	 * HW qdisc is supported only on physical and bridge interfaces.
+	 * HW qdisc is supported only on physical and loopbaack ports.
 	 */
 	if (port_num >= NSS_PPE_PORT_MAX) {
 		nss_qdisc_info("HW qdisc not supported on port %d\n", port_num);

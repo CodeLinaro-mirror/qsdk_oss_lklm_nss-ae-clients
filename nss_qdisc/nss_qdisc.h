@@ -145,6 +145,7 @@ struct nss_qdisc {
 						 * the NSS e.g. perhaps operating on a wifi interface
 						 * or bridge.
 						 */
+	bool needs_ppe_loopback;		/* True when qdisc is on bridge or igs */
 	bool destroy_virtual_interface;		/* Set if the interface is first registered in NSS by
 						 * us. This means it needs to be un-regisreted when the
 						 * module goes down.

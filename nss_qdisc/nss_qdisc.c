@@ -75,6 +75,19 @@ static int nss_qdisc_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shape
 	}
 
 	/*
+	 * Bridge and IFB needs PPE looback port shapers.
+	 */
+	if (nq->is_bridge || nss_igs_verify_if_num(nq->nss_interface_number)) {
+		nss_qdisc_info("Qdisc %p (type %d) init qdisc: %p, needs PPE loopback port\n",
+			nq->qdisc, nq->type, nq->qdisc);
+		nq->needs_ppe_loopback = true;
+	} else {
+		nss_qdisc_info("Qdisc %p (type %d) init qdisc: %p, does not need PPE loopback port\n",
+			nq->qdisc, nq->type, nq->qdisc);
+		nq->needs_ppe_loopback = false;
+	}
+
+	/*
 	 * Set the parent of PPE qdisc.
 	 */
 	status = nss_ppe_set_parent(sch, nq, parent);

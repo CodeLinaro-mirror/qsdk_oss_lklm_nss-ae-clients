@@ -1,0 +1,148 @@
+/*
+ **************************************************************************
+ * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that the
+ * above copyright notice and this permission notice appear in all copies.
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
+ * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ **************************************************************************
+ */
+
+/*
+ * nss_bridge_mgr_ovs.c
+ *	Handle OVS bridge notifications.
+ */
+#include <linux/netdevice.h>
+#include <linux/notifier.h>
+#include <ovsmgr.h>
+
+#include "nss_bridge_mgr_priv.h"
+
+/*
+ * nss_bridge_mgr_ovs_handle_port_event()
+ *	Handle OVS bridge port events
+ */
+static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
+{
+	struct ovsmgr_dp_port_info *port;
+	struct nss_bridge_pvt *b_pvt;
+	struct net_device *master_dev, *dev;
+	int err;
+
+	port = ovs_info->port;
+	if (!port || !port->master || !port->dev) {
+		nss_bridge_mgr_warn("%p: Invalid ovs_info\n", ovs_info);
+		return -EINVAL;
+	}
+
+	master_dev = port->master;
+	dev = port->dev;
+
+	/*
+	 * Check if upper_dev is a known bridge.
+	 */
+	b_pvt = nss_bridge_mgr_find_instance(master_dev);
+	if (!b_pvt) {
+		nss_bridge_mgr_warn("%p: Couldn't find bridge instance for master: %s\n", port, master_dev->name);
+		return -ENOENT;
+	}
+
+	/*
+	 * add port to the bridge.
+	 */
+	if (event == OVSMGR_DP_PORT_ADD) {
+		nss_bridge_mgr_trace("%p: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
+
+		err = nss_bridge_mgr_join_bridge(dev, b_pvt);
+		if (err) {
+			nss_bridge_mgr_warn("%p: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
+			return err;
+		}
+
+		return 0;
+	}
+
+	/*
+	 * delete port from bridge.
+	 */
+	nss_bridge_mgr_trace("%p: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
+
+	err = nss_bridge_mgr_leave_bridge(dev, b_pvt);
+	if (err) {
+		nss_bridge_mgr_warn("%p: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
+		return err;
+	}
+
+	return 0;
+}
+
+/*
+ * nss_bridge_mgr_ovs_notifier_callback()
+ *	Netdevice notifier callback to inform us of change of state of a netdevice
+ */
+static int nss_bridge_mgr_ovs_notifier_callback(struct notifier_block *nb, unsigned long event, void *data)
+{
+	struct ovsmgr_notifiers_info *ovs_info = (struct ovsmgr_notifiers_info *)data;
+
+	nss_bridge_mgr_info("OVS notifier event: %lu\n", event);
+
+	switch (event) {
+	case OVSMGR_DP_BR_ADD:
+		nss_bridge_mgr_register_br(ovs_info->dev);
+		break;
+	case OVSMGR_DP_BR_DEL:
+		nss_bridge_mgr_unregister_br(ovs_info->dev);
+		break;
+	case OVSMGR_DP_PORT_ADD:
+	case OVSMGR_DP_PORT_DEL:
+		nss_bridge_mgr_ovs_handle_port_event(ovs_info, event);
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+/*
+ * struct notifier_block nss_bridge_mgr_ovs_notifier
+ *	Registration for OVS events
+ */
+static struct notifier_block ovs_notifier __read_mostly = {
+	.notifier_call = nss_bridge_mgr_ovs_notifier_callback,
+};
+
+/*
+ * nss_bridge_mgr_is_ovs_port()
+ *	Return true if dev is an OVS port.
+ */
+int nss_bridge_mgr_is_ovs_port(struct net_device *dev)
+{
+	if (dev->priv_flags & IFF_OVS_DATAPATH) {
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * nss_bridge_mgr_ovs_exit()
+ *	Cleanup OVS bridge handlers.
+ */
+void nss_bridge_mgr_ovs_exit(void)
+{
+	ovsmgr_notifier_unregister(&ovs_notifier);
+}
+
+/*
+ * nss_bridge_mgr_exit_module()
+ *	Initialize OVS bridge handlers.
+ */
+void nss_bridge_mgr_ovs_init(void)
+{
+	ovsmgr_notifier_register(&ovs_notifier);
+}

@@ -733,18 +733,35 @@ static void nss_ipsecmgr_sa_init_decap(struct nss_ipsecmgr_sa *sa, struct nss_ip
  * nss_ipsecmgr_sa_sync_state()
  *	Update SA sync state
  */
-void nss_ipsecmgr_sa_sync2stats(struct nss_ipsec_cmn_sa_sync *sync, struct nss_ipsecmgr_sa_stats *stats)
+void nss_ipsecmgr_sa_sync2stats(struct nss_ipsecmgr_sa *sa, struct nss_ipsec_cmn_sa_sync *sync,
+					struct nss_ipsecmgr_sa_stats *stats)
 {
 	struct nss_ipsec_cmn_sa_stats *sa_stats = &sync->stats;
+	struct nss_ipsec_cmn_sa_data *sa_data = &sa->state.data;
 	uint32_t *drop_counters;
 	size_t num_counters;
 	int i;
 
 	nss_ipsecmgr_sa_tuple2sa(&sync->sa_tuple, &stats->sa);
-	stats->pkt_bytes = sa_stats->cmn_stats.rx_bytes + sa_stats->cmn_stats.tx_bytes;
-	stats->pkt_count = sa_stats->cmn_stats.rx_packets + sa_stats->cmn_stats.tx_packets;
-	stats->pkt_failed = 0;
 
+	switch (sa->type) {
+	case NSS_IPSEC_CMN_CTX_TYPE_INNER:
+	case NSS_IPSEC_CMN_CTX_TYPE_MDATA_INNER:
+		stats->pkt_count = sa_stats->cmn_stats.tx_packets;
+		stats->pkt_bytes = sa_stats->cmn_stats.tx_bytes;
+		break;
+
+	case NSS_IPSEC_CMN_CTX_TYPE_OUTER:
+	case NSS_IPSEC_CMN_CTX_TYPE_MDATA_OUTER:
+		stats->pkt_count = sa_stats->cmn_stats.rx_packets;
+		stats->pkt_bytes = sa_stats->cmn_stats.rx_bytes;
+		break;
+	default:
+		return;
+
+	}
+
+	stats->pkt_failed = 0;
 	for (i = 0; i < ARRAY_SIZE(sa_stats->cmn_stats.rx_dropped); i++)
 		stats->pkt_failed += sa_stats->cmn_stats.rx_dropped[i];
 
@@ -757,9 +774,11 @@ void nss_ipsecmgr_sa_sync2stats(struct nss_ipsec_cmn_sa_sync *sync, struct nss_i
 	for (i = 0; i < num_counters; i++)
 		stats->pkt_failed += drop_counters[i];
 
-	stats->seq_start = sync->replay.seq_start;
-	stats->seq_cur = sync->replay.seq_cur;
-	stats->window_size = sync->replay.window_size;
+	if (sa_data->window_size) {
+		stats->window_size = sa_data->window_size;
+		stats->seq_start = sync->replay.seq_start;
+		stats->seq_cur = sync->replay.seq_cur;
+	}
 }
 
 /*

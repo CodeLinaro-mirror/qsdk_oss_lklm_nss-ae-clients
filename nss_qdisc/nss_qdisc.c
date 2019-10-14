@@ -14,6 +14,7 @@
  **************************************************************************
  */
 
+#include <nss_api_if.h>
 #include "nss_qdisc.h"
 #include "nss_fifo.h"
 #include "nss_codel.h"
@@ -1880,7 +1881,9 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 	 * How we begin to tidy up depends on whether we are root or child
 	 */
 	nq->pending_final_state = NSS_QDISC_STATE_IDLE;
-	if (nq->is_root) {
+	if (!nq->is_root) {
+		nss_qdisc_child_cleanup_free_node(nq);
+	} else {
 
 		/*
 		 * If this is root on a bridge interface, then unassign
@@ -1897,8 +1900,12 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 		 */
 		nss_qdisc_root_cleanup_free_node(nq);
 
-	} else {
-		nss_qdisc_child_cleanup_free_node(nq);
+		/*
+		 * In case of IGS interface, release the reference of the IGS module.
+		 */
+		if (nss_igs_verify_if_num(nq->nss_interface_number)) {
+			nss_igs_module_put();
+		}
 	}
 
 	/*
@@ -1951,6 +1958,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	bool mode_ppe = false;
 #endif
+	bool igs_put = false;
 
 	if (accel_mode >= TCA_NSS_ACCEL_MODE_MAX) {
 		nss_qdisc_warning("Qdisc %p (type %d) accel_mode:%u should be < %u\n",
@@ -2238,15 +2246,15 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 		 * register for bridge bouncing as it will be responsible for
 		 * bouncing packets to the NSS for bridge shaping.
 		 */
-		if (nss_igs_verify_if_num(nq->nss_interface_number)) {
+		if (!nss_igs_verify_if_num(nq->nss_interface_number)) {
+			nq->bounce_context = nss_shaper_register_shaper_bounce_bridge(nq->nss_interface_number,
+					nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
+		} else {
 			nss_qdisc_error("Since %d is an IFB device, it cannot"
 					" register for bridge bouncing\n", nq->nss_interface_number);
 			nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
 			atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
 			goto init_fail;
-		} else {
-			nq->bounce_context = nss_shaper_register_shaper_bounce_bridge(nq->nss_interface_number,
-					nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
 		}
 
 		if (!nq->bounce_context) {
@@ -2290,12 +2298,31 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 			/*
 			 * Register for interface bounce shaping.
 			 */
-			if (nss_igs_verify_if_num(nq->nss_interface_number)) {
-				nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
-						nss_qdisc_mark_and_schedule, nq->qdisc, THIS_MODULE);
-			} else {
+			if (!nss_igs_verify_if_num(nq->nss_interface_number)) {
 				nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
 						nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
+			} else {
+
+				/*
+				 * In case of IGS interface, take the reference of IGS module.
+				 */
+				if (!nss_igs_module_get()) {
+					nss_qdisc_error("Module reference failed for IGS interface %d"
+							" , Qdisc %p (type %d)\n", nq->nss_interface_number,
+							nq->qdisc, nq->type);
+					nss_shaper_unregister_shaping(nq->nss_shaping_ctx);
+					atomic_set(&nq->state, NSS_QDISC_STATE_INIT_FAILED);
+					goto init_fail;
+				}
+
+				/*
+				 * Set the flag to indicate the IGS module reference get is successful.
+				 * This flag will be used to decrement the IGS module reference in case
+				 * of any error conditions.
+				 */
+				igs_put = true;
+				nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
+						nss_qdisc_mark_and_schedule, nq->qdisc, THIS_MODULE);
 			}
 
 			if (!nq->bounce_context) {
@@ -2342,6 +2369,12 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	 */
 	if (!wait_event_timeout(nq->wait_queue, atomic_read(&nq->state) != NSS_QDISC_STATE_IDLE,
 				NSS_QDISC_COMMAND_TIMEOUT)) {
+		/*
+		 * Decrement the IGS module reference.
+		 */
+		if (igs_put) {
+			nss_igs_module_put();
+		}
 		nss_qdisc_error("init for qdisc %x timedout!\n", nq->qos_tag);
 		return -1;
 	}
@@ -2379,6 +2412,13 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	}
 
 init_fail:
+
+	/*
+	 * Decrement the IGS module reference.
+	 */
+	if (igs_put) {
+		nss_igs_module_put();
+	}
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	if (nq->mode == NSS_QDISC_MODE_PPE) {

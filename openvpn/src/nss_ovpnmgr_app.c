@@ -96,6 +96,17 @@ struct net_device *nss_ovpnmgr_app_find_tun(struct net_device *app_dev, struct n
 		return NULL;
 	}
 
+	/*
+	 * Check if application device is in UP state. If it is UP then only
+	 * allow ECM to push flow rules. This logic will make sure that openvpn
+	 * flows are not accelerated when tunnel device is down
+	 */
+	if (!(app->dev->flags & IFF_UP)) {
+		read_unlock_bh(&ovpnmgr_ctx.lock);
+		nss_ovpnmgr_warn("%p: Application device not up, app_dev=%s\n", app->dev, app->dev->name);
+		return NULL;
+	}
+
 	if (app->mode == NSS_OVPNMGR_APP_MODE_CLIENT) {
 		/*
 		 * There are no routes in client mode.

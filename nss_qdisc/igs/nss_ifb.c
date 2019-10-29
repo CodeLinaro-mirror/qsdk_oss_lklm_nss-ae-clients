@@ -318,7 +318,7 @@ bool nss_ifb_reset_nexthop(struct nss_ifb_info *ifb_info)
 
 	spin_lock_bh(&nss_ifb_list_lock);
 	if (!(ifb_info->is_mapped)) {
-		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->map_dev->name);
+		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->ifb_dev->name);
 		spin_unlock_bh(&nss_ifb_list_lock);
 		return true;
 	}
@@ -418,7 +418,7 @@ bool nss_ifb_clear_igs_node(struct nss_ifb_info *ifb_info)
 
 	spin_lock_bh(&nss_ifb_list_lock);
 	if (!(ifb_info->is_mapped)) {
-		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->map_dev->name);
+		nss_igs_info("%s IFB device mapped flag is not set\n", ifb_info->ifb_dev->name);
 		spin_unlock_bh(&nss_ifb_list_lock);
 		return true;
 	}

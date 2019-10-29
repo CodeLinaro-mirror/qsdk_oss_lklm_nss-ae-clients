@@ -539,6 +539,11 @@ static int __init nss_mirred_init_module(void)
 		return err;
 	}
 
+	/*
+	 * Set the IGS module reference variable.
+	 */
+	nss_igs_module_save(&nss_mirred_act_ops, THIS_MODULE);
+
 	nss_ifb_init();
 	return 0;
 }
@@ -549,6 +554,11 @@ static int __init nss_mirred_init_module(void)
  */
 static void __exit nss_mirred_cleanup_module(void)
 {
+	/*
+	 * Reset the IGS module reference variable.
+	 */
+	nss_igs_module_save(&nss_mirred_act_ops, NULL);
+
 	nf_unregister_hooks(nss_mirred_igs_nf_ops, ARRAY_SIZE(nss_mirred_igs_nf_ops));
 
 	/*

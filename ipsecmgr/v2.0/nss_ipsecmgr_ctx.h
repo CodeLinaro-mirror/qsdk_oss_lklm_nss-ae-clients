@@ -86,6 +86,7 @@ struct nss_ipsecmgr_ctx_state {
 	ssize_t print_len;				/* Print buffer length */
 	ssize_t stats_len;				/* Total stats length */
 	uint32_t except_ifnum;				/* Exception interface number */
+	uint32_t sibling_ifnum;				/* Sibling interface number */
 	enum nss_ipsec_cmn_ctx_type type;		/* Type */
 	enum nss_dynamic_interface_type di_type;	/* Dynamic interface type */
 };
@@ -121,6 +122,14 @@ static inline void nss_ipsecmgr_ctx_attach(struct list_head *db, struct nss_ipse
 static inline void nss_ipsecmgr_ctx_set_except(struct nss_ipsecmgr_ctx *ctx, uint32_t except_ifnum)
 {
 	ctx->state.except_ifnum = except_ifnum;
+}
+
+/*
+ * Set the sibling interface number for context
+ */
+static inline void nss_ipsecmgr_ctx_set_sibling(struct nss_ipsecmgr_ctx *ctx, uint32_t sibling_ifnum)
+{
+	ctx->state.sibling_ifnum = sibling_ifnum;
 }
 
 extern const struct file_operations ipsecmgr_ctx_file_ops;

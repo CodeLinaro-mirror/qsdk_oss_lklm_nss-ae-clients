@@ -536,6 +536,13 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 	nss_ipsecmgr_ctx_set_except(outer, inner->ifnum);
 	nss_ipsecmgr_ctx_set_except(mdata_outer, inner->ifnum);
 
+	/*
+	 * We need to setup the sibling interface number for inner & outer;
+	 * The sibling interface is used by the NSS to configure SA on sibling.
+	 */
+	nss_ipsecmgr_ctx_set_sibling(inner, mdata_inner->ifnum);
+	nss_ipsecmgr_ctx_set_sibling(outer, mdata_outer->ifnum);
+
 	if (!nss_ipsecmgr_ctx_config(inner)) {
 		nss_ipsecmgr_warn("%px: failed to configure inner context\n", tun);
 		goto free_mdata_outer;

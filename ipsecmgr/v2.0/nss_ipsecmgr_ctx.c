@@ -875,6 +875,7 @@ bool nss_ipsecmgr_ctx_config(struct nss_ipsecmgr_ctx *ctx)
 	ctx_msg = &nicm.msg.ctx;
 	ctx_msg->type = ctx->state.type;
 	ctx_msg->except_ifnum = ctx->state.except_ifnum;
+	ctx_msg->sibling_ifnum = ctx->state.sibling_ifnum;
 
 	status = nss_ipsec_cmn_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ctx_msg), &nicm);
 	if (status != NSS_TX_SUCCESS) {

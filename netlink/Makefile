@@ -29,6 +29,14 @@ qca-nss-netlink-objs += nss_nlcapwap.o
 else
 ccflags-y += -DCONFIG_NSS_NLCAPWAP=0
 endif
+DTLS_ENABLED:=CONFIG_PACKAGE_kmod-qca-nss-drv-dtlsmgr=y
+DTLS_CONFIG:=$(shell  grep $(DTLS_ENABLED) $(TOPDIR)/.config)
+ifeq ($(DTLS_CONFIG),$(DTLS_ENABLED))
+ccflags-y += -DCONFIG_NSS_NLDTLS=1
+qca-nss-netlink-objs += nss_nldtls.o
+else
+ccflags-y += -DCONFIG_NSS_NLDTLS=0
+endif
 ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64 ipq60xx ipq60xx_64))
 ccflags-y += -DCONFIG_NSS_NLCRYPTOV2=1
 qca-nss-netlink-objs += nss_nlcryptov2.o

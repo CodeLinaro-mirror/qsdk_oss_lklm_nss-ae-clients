@@ -36,6 +36,8 @@
 #include "nss_nlcmn_if.h"
 #include "nss_nlcrypto.h"
 #include "nss_nlcryptov2.h"
+#include "nss_nldtls.h"
+#include "nss_nldtls_if.h"
 #include "nss_nlgre_redir_if.h"
 #include "nss_nlgre_redir_family.h"
 #include "nss_nlipsec.h"
@@ -145,6 +147,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLCAPWAP_INIT,		/* init */
 		.exit = NSS_NLCAPWAP_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLCAPWAP		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLDTLS
+		 */
+		.name = NSS_NLDTLS_FAMILY,		/* dtls */
+		.entry = NSS_NLDTLS_INIT,		/* init */
+		.exit = NSS_NLDTLS_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLDTLS		/* 1 or 0 */
 	},
 };
 

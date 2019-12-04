@@ -445,14 +445,16 @@ fail:
 /*
  * nss_match_cmd_debugfs_set_if_nexthop
  * 	Set next hop of an interface to a match instance.
+ * 	Only VAP and physical interfaces are supported as of now.
  */
 ssize_t nss_match_cmd_debugfs_set_if_nexthop(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
 	struct net_device *dev;
-	uint32_t if_num;
+	uint32_t if_num, type = 0;
 	uint32_t nh_if_num;
 	int table_id;
 	struct nss_ctx_instance *nss_ctx = nss_match_get_context();
+	struct nss_ctx_instance *wifi_nss_ctx = nss_wifi_get_context();
 	char *dev_name, *nexthop_msg;
 	char *cmd_buf = NULL;
 	nss_tx_status_t nss_tx_status;
@@ -462,6 +464,11 @@ ssize_t nss_match_cmd_debugfs_set_if_nexthop(struct file *file, const char __use
 	if (!cmd_buf) {
 		pr_warn("%p: Cannot allocate buffer to read input", nss_ctx);
 		return -ENOMEM;
+	}
+
+	if (!nss_ctx) {
+		nss_match_warn("Cannot find nss context\n");
+		return -EFAULT;
 	}
 
 	if (copy_from_user(cmd_buf, buf, count)) {
@@ -515,7 +522,21 @@ ssize_t nss_match_cmd_debugfs_set_if_nexthop(struct file *file, const char __use
 		return -EFAULT;
 	}
 
-	nss_tx_status = nss_phys_if_set_nexthop(nss_ctx, if_num, nh_if_num);
+	if (wifi_nss_ctx) {
+		type = nss_dynamic_interface_get_type(wifi_nss_ctx, if_num);
+	}
+
+	if (type == NSS_DYNAMIC_INTERFACE_TYPE_VAP) {
+		nss_tx_status = nss_wifi_vdev_set_next_hop(wifi_nss_ctx, if_num, nh_if_num);
+	} else if (if_num < NSS_MAX_PHYSICAL_INTERFACES) {
+		nss_tx_status = nss_phys_if_set_nexthop(nss_ctx, if_num, nh_if_num);
+	} else {
+		pr_warn("Invalid interface to set nexthop. Failed to set nexthop on if_num %d.\n", if_num);
+		kfree(nexthop_msg);
+		dev_put(dev);
+		return -EFAULT;
+	}
+
 	if (nss_tx_status != NSS_TX_SUCCESS) {
 		pr_warn("%p: Sending message failed, cannot change nexthop\n", nss_ctx);
 	}

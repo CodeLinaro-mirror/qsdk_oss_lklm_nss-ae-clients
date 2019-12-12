@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -201,6 +201,8 @@ struct nss_dtlsmgr_stats {
 	uint16_t epoch;			/**< Current Epoch value. */
 };
 
+#ifdef __KERNEL__ /* only for kernel use. */
+
 /**
  * NSS DTLS manager session stats update callback
  */
@@ -222,6 +224,7 @@ struct nss_dtlsmgr_config {
 	struct nss_dtlsmgr_decap_config decap;		/**< Decap data. */
 };
 
+#endif /* __KERNEL__ */
 /**
  * NSS DTLS manager session tx/rx cipher update parameters
  */
@@ -242,6 +245,7 @@ struct nss_dtlsmgr_metadata {
 	uint8_t res[2];		/**< Reserved. */
 };
 
+#ifdef __KERNEL__ /* only for kernel use. */
 /**
  * nss_dtlsmgr_metadata_get_ctype
  *	Returns the type of DTLS payload
@@ -365,4 +369,5 @@ bool nss_dtlsmgr_session_switch_decap(struct net_device *dev);
  * @return interface number for success
  */
 int32_t nss_dtlsmgr_get_interface(struct net_device *dev, enum nss_dtlsmgr_interface_type type);
+#endif /* __KERNEL__ */
 #endif /* _NSS_DTLSMGR_H_ */

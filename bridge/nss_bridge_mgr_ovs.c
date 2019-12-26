@@ -21,6 +21,7 @@
 #include <linux/netdevice.h>
 #include <linux/notifier.h>
 #include <ovsmgr.h>
+#include <nss_vlan_mgr.h>
 
 #include "nss_bridge_mgr_priv.h"
 
@@ -83,6 +84,53 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 }
 
 /*
+ * nss_bridge_mgr_ovs_handle_vlan_event()
+ *	Handle VLAN events OVS bridge port
+ */
+static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
+{
+	struct ovsmgr_dp_port_vlan_info *vlan;
+	struct nss_bridge_pvt *b_pvt;
+	struct net_device *master_dev, *dev;
+
+	vlan = ovs_info->vlan;
+	if (!vlan || !vlan->master || !vlan->dev) {
+		nss_bridge_mgr_warn("%p: Invalid ovs_info\n", ovs_info);
+		return;
+	}
+
+	master_dev = vlan->master;
+	dev = vlan->dev;
+
+	/*
+	 * Check if upper_dev is a known bridge.
+	 */
+	b_pvt = nss_bridge_mgr_find_instance(master_dev);
+	if (!b_pvt) {
+		nss_bridge_mgr_warn("%p: Couldn't find bridge instance for master: %s\n", vlan, master_dev->name);
+		return;
+	}
+
+	if (event == OVSMGR_DP_VLAN_ADD) {
+		/*
+		 * add VLAN in bridge.
+		 */
+		nss_bridge_mgr_trace("%p: VLAN = %d, add on port %s, bridge %s\n",
+				b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
+
+		nss_vlan_mgr_add_vlan_rule(dev, b_pvt->vsi, vlan->vh.h_vlan_TCI);
+		return;
+	}
+
+	/*
+	 * delete VLAN from bridge.
+	 */
+	nss_bridge_mgr_trace("%p: VLAN = %d, delete on port %s, bridge %s\n",
+					b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
+	nss_vlan_mgr_del_vlan_rule(dev, b_pvt->vsi, vlan->vh.h_vlan_TCI);
+}
+
+/*
  * nss_bridge_mgr_ovs_notifier_callback()
  *	Netdevice notifier callback to inform us of change of state of a netdevice
  */
@@ -102,6 +150,10 @@ static int nss_bridge_mgr_ovs_notifier_callback(struct notifier_block *nb, unsig
 	case OVSMGR_DP_PORT_ADD:
 	case OVSMGR_DP_PORT_DEL:
 		nss_bridge_mgr_ovs_handle_port_event(ovs_info, event);
+		break;
+	case OVSMGR_DP_VLAN_ADD:
+	case OVSMGR_DP_VLAN_DEL:
+		nss_bridge_mgr_ovs_handle_vlan_event(ovs_info, event);
 		break;
 	}
 

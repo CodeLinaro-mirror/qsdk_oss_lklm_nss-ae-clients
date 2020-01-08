@@ -48,6 +48,8 @@
 #include "nss_nlipv6_if.h"
 #include "nss_nloam.h"
 #include "nss_nloam_if.h"
+#include "nss_nlethrx.h"
+#include "nss_nlethrx_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -156,6 +158,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLDTLS_INIT,		/* init */
 		.exit = NSS_NLDTLS_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLDTLS		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLETHRX
+		 */
+		.name = NSS_NLETHRX_FAMILY,		/* ethrx */
+		.entry = NSS_NLETHRX_INIT,		/* init */
+		.exit = NSS_NLETHRX_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLETHRX		/* 1 or 0 */
 	},
 };
 

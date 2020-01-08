@@ -41,6 +41,7 @@ struct nss_nlcmn {
  * @brief NSS subsystems in alphabetical order for nssinfo tool
  */
 enum nss_nlcmn_subsys {
+	NSS_NLCMN_SUBSYS_EDMA,
 	NSS_NLCMN_SUBSYS_ETHRX,
 	NSS_NLCMN_SUBSYS_IPV4,
 	NSS_NLCMN_SUBSYS_MAX

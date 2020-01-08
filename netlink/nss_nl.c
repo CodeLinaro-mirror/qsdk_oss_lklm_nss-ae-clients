@@ -50,6 +50,8 @@
 #include "nss_nloam_if.h"
 #include "nss_nlethrx.h"
 #include "nss_nlethrx_if.h"
+#include "nss_nledma.h"
+#include "nss_nledma_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -167,6 +169,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLETHRX_INIT,		/* init */
 		.exit = NSS_NLETHRX_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLETHRX		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLEDMA
+		 */
+		.name = NSS_NLEDMA_FAMILY,		/* edma */
+		.entry = NSS_NLEDMA_INIT,		/* init */
+		.exit = NSS_NLEDMA_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLEDMA		/* 1 or 0 */
 	},
 };
 

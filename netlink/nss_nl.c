@@ -64,6 +64,8 @@
 #include "nss_nlc2c_rx_if.h"
 #include "nss_nlipv4_reasm.h"
 #include "nss_nlipv4_reasm_if.h"
+#include "nss_nlipv6_reasm.h"
+#include "nss_nlipv6_reasm_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -235,6 +237,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLIPV4_REASM_INIT,		/* init */
 		.exit = NSS_NLIPV4_REASM_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLIPV4_REASM	/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLIPV6_REASM
+		 */
+		.name = NSS_NLIPV6_REASM_FAMILY,	/* ipv6_reasm */
+		.entry = NSS_NLIPV6_REASM_INIT,		/* init */
+		.exit = NSS_NLIPV6_REASM_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLIPV6_REASM	/* 1 or 0 */
 	},
 };
 

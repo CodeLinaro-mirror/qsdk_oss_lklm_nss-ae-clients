@@ -60,6 +60,8 @@
 #include "nss_nln2h_if.h"
 #include "nss_nlc2c_tx.h"
 #include "nss_nlc2c_tx_if.h"
+#include "nss_nlc2c_rx.h"
+#include "nss_nlc2c_rx_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -213,6 +215,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLC2C_TX_INIT,		/* init */
 		.exit = NSS_NLC2C_TX_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLC2C_TX		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLC2C_RX
+		 */
+		.name = NSS_NLC2C_RX_FAMILY,		/* c2c_rx */
+		.entry = NSS_NLC2C_RX_INIT,		/* init */
+		.exit = NSS_NLC2C_RX_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLC2C_RX		/* 1 or 0 */
 	},
 };
 

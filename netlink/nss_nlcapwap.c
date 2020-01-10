@@ -84,6 +84,36 @@ struct genl_family nss_nlcapwap_family = {
 };
 
 /*
+ * nss_nlcapwap_process_notify()
+ *	process notification messages from NSS
+ */
+static int nss_nlcapwap_process_notify(struct notifier_block *nb, unsigned long val, void *data)
+{
+	struct sk_buff *skb;
+	struct nss_capwap_stats_notification *nss_stats, *nl_stats;
+
+	nss_stats = (struct nss_capwap_stats_notification *)data;
+	skb = nss_nl_new_msg(&nss_nlcapwap_family, NSS_NLCMN_SUBSYS_CAPWAP);
+	if (!skb) {
+		nss_nl_error("unable to allocate NSS_NLCAPWAP event\n");
+		return NOTIFY_DONE;
+	}
+
+	nl_stats = nss_nl_get_data(skb);
+	memcpy(nl_stats, nss_stats, sizeof(struct nss_capwap_stats_notification));
+	nss_nl_mcast_event(&nss_nlcapwap_family, skb);
+
+	return NOTIFY_DONE;
+}
+
+/*
+ * device call back handler for capwap from NSS
+ */
+static struct notifier_block nss_capwap_stats_notifier_nb = {
+	.notifier_call = nss_nlcapwap_process_notify,
+};
+
+/*
  * nss_nlcapwap_update_tun_status()
  *	Sets tun status to true or false based on parameter passed
  *	0: The tunnel id is unused
@@ -1010,6 +1040,15 @@ static int nss_nlcapwap_ops_meta_header(struct sk_buff *skb, struct genl_info *i
 }
 
 /*
+ * nss_nlcapwap_ops_get_stats()
+ *	get stats handler
+ */
+static int nss_nlcapwap_ops_get_stats(struct sk_buff *skb, struct genl_info *info)
+{
+	return 0;
+}
+
+/*
  * nss_nlcapwap_cmd_ops
  *	Operation table called by the generic netlink layer based on the command
  */
@@ -1022,6 +1061,7 @@ struct genl_ops nss_nlcapwap_cmd_ops[] = {
 	{.cmd = NSS_NLCAPWAP_CMD_TYPE_TX_PACKETS, .doit = nss_nlcapwap_ops_tx_packets,},
 	{.cmd = NSS_NLCAPWAP_CMD_TYPE_META_HEADER, .doit = nss_nlcapwap_ops_meta_header,},
 	{.cmd = NSS_NLCAPWAP_CMD_TYPE_IP_FLOW, .doit = nss_nlcapwap_ops_ip_flow,},
+	{.cmd = NSS_STATS_EVENT_NOTIFY, .doit = nss_nlcapwap_ops_get_stats,},
 };
 
 /*
@@ -1067,6 +1107,16 @@ bool nss_nlcapwap_init(void)
 	}
 
 	/*
+	 * register device call back handler for capwap from NSS
+	 */
+	err = nss_capwap_stats_register_notifier(&nss_capwap_stats_notifier_nb);
+	if (err) {
+		nss_nl_info_always("Error: %d unable to register capwap stats notifier\n", err);
+		genl_unregister_family(&nss_nlcapwap_family);
+		return false;
+	}
+
+	/*
 	 * Register the capwap netdev rx handler
 	 */
 	nss_nlcapwap_register_netdev_handler();
@@ -1098,6 +1148,11 @@ bool nss_nlcapwap_exit(void)
 	for (i = 0; i < NSS_CAPWAPMGR_MAX_TUNNELS; i++) {
 		nss_nlcapwap_destroy_tun(i);
 	}
+
+	/*
+	 * Unregister the device callback handler for capwap
+	 */
+	nss_capwap_stats_unregister_notifier(&nss_capwap_stats_notifier_nb);
 
 	/*
 	 * unregister the ops family

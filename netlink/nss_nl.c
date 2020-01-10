@@ -52,6 +52,8 @@
 #include "nss_nlethrx_if.h"
 #include "nss_nledma.h"
 #include "nss_nledma_if.h"
+#include "nss_nlcapwap.h"
+#include "nss_nlcapwap_if.h"
 #include "nss_nldynamic_interface.h"
 #include "nss_nldynamic_interface_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)

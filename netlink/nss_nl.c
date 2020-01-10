@@ -56,6 +56,8 @@
 #include "nss_nlcapwap_if.h"
 #include "nss_nldynamic_interface.h"
 #include "nss_nldynamic_interface_if.h"
+#include "nss_nln2h.h"
+#include "nss_nln2h_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -191,6 +193,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLDYNAMIC_INTERFACE_INIT,	/* init */
 		.exit = NSS_NLDYNAMIC_INTERFACE_EXIT,	/* exit */
 		.valid = CONFIG_NSS_NLDYNAMIC_INTERFACE	/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLN2H
+		 */
+		.name = NSS_NLN2H_FAMILY,		/* n2h */
+		.entry = NSS_NLN2H_INIT,		/* init */
+		.exit = NSS_NLN2H_EXIT,			/* exit */
+		.valid = CONFIG_NSS_NLN2H		/* 1 or 0 */
 	},
 };
 

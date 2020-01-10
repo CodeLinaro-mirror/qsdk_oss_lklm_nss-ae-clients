@@ -70,6 +70,8 @@
 #include "nss_nlwifili_if.h"
 #include "nss_nllso_rx.h"
 #include "nss_nllso_rx_if.h"
+#include "nss_nlmap_t.h"
+#include "nss_nlmap_t_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -268,6 +270,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLLSO_RX_INIT,		/* init */
 		.exit = NSS_NLLSO_RX_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLLSO_RX		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLMAP_T
+		 */
+		.name = NSS_NLMAP_T_FAMILY,		/* map_t */
+		.entry = NSS_NLMAP_T_INIT,		/* init */
+		.exit = NSS_NLMAP_T_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLMAP_T		/* 1 or 0 */
 	},
 };
 

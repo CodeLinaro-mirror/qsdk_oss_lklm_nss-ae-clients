@@ -52,6 +52,8 @@
 #include "nss_nlethrx_if.h"
 #include "nss_nledma.h"
 #include "nss_nledma_if.h"
+#include "nss_nldynamic_interface.h"
+#include "nss_nldynamic_interface_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -178,6 +180,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLEDMA_INIT,		/* init */
 		.exit = NSS_NLEDMA_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLEDMA		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLDYNAMIC_INTERFACE
+		 */
+		.name = NSS_NLDYNAMIC_INTERFACE_FAMILY,	/* dynamic interface */
+		.entry = NSS_NLDYNAMIC_INTERFACE_INIT,	/* init */
+		.exit = NSS_NLDYNAMIC_INTERFACE_EXIT,	/* exit */
+		.valid = CONFIG_NSS_NLDYNAMIC_INTERFACE	/* 1 or 0 */
 	},
 };
 

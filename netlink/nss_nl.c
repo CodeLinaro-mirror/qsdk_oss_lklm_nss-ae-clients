@@ -72,6 +72,8 @@
 #include "nss_nllso_rx_if.h"
 #include "nss_nlmap_t.h"
 #include "nss_nlmap_t_if.h"
+#include "nss_nlpppoe.h"
+#include "nss_nlpppoe_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -279,6 +281,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLMAP_T_INIT,		/* init */
 		.exit = NSS_NLMAP_T_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLMAP_T		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLPPPOE
+		 */
+		.name = NSS_NLPPPOE_FAMILY,		/* pppoe */
+		.entry = NSS_NLPPPOE_INIT,		/* init */
+		.exit = NSS_NLPPPOE_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLPPPOE		/* 1 or 0 */
 	},
 };
 

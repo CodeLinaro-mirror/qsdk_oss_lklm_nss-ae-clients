@@ -66,6 +66,8 @@
 #include "nss_nlipv4_reasm_if.h"
 #include "nss_nlipv6_reasm.h"
 #include "nss_nlipv6_reasm_if.h"
+#include "nss_nlwifili.h"
+#include "nss_nlwifili_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -246,6 +248,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLIPV6_REASM_INIT,		/* init */
 		.exit = NSS_NLIPV6_REASM_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLIPV6_REASM	/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLWIFILI
+		 */
+		.name = NSS_NLWIFILI_FAMILY,		/* wifili */
+		.entry = NSS_NLWIFILI_INIT,		/* init */
+		.exit = NSS_NLWIFILI_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLWIFILI		/* 1 or 0 */
 	},
 };
 

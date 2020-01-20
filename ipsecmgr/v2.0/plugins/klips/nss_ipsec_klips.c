@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -84,6 +84,16 @@ struct nss_ipsec_klips_sa {
 };
 
 /*
+ * 3-tuple information for each tunnel.
+ */
+struct nss_ipsec_klips_tun_addr {
+	uint32_t src[4];	/* Source IP address in network order */
+	uint32_t dest[4];	/* Destination IP address in network order */
+	uint8_t ver;		/* IP version 4 or 6 */
+	uint8_t res[3];		/* Reserved */
+};
+
+/*
  * CFI IPsec netdevice  mapping between HLOS devices and NSS devices
  * Essentially various HLOS IPsec devices will be used as indexes to
  * map into the NSS devices. For example
@@ -95,6 +105,7 @@ struct nss_ipsec_klips_sa {
  */
 struct nss_ipsec_klips_tun {
 	struct list_head sa_list;
+	struct nss_ipsec_klips_tun_addr addr;
 	sk_encap_rcv_method_t sk_encap_rcv;
 	struct net_device *klips_dev;
 	struct net_device *nss_dev;
@@ -233,6 +244,50 @@ static inline struct nss_ipsec_klips_skb_cb *nss_ipsec_klips_get_skb_cb(struct s
 }
 
 /*
+ * nss_ipsec_klips_tun_match_addr()
+ * 	Compare tunnel address with ip header.
+ */
+static bool nss_ipsec_klips_tun_match_addr(struct sk_buff *skb, struct nss_ipsec_klips_tun *tun)
+{
+	struct nss_ipsec_klips_tun_addr *addr = &tun->addr;
+	uint8_t version = ip_hdr(skb)->version;
+	uint32_t status = 0;
+
+	status += addr->ver ^ version;
+
+	switch (version) {
+	case IPVERSION: {
+		struct iphdr *iph = ip_hdr(skb);
+
+		status += addr->src[0] ^ iph->saddr;
+		status += addr->dest[0] ^ iph->daddr;
+
+		return !status;
+	}
+
+	case 6: {
+		struct ipv6hdr *ip6h = ipv6_hdr(skb);
+
+		status += addr->src[0] ^ ip6h->saddr.s6_addr32[0];
+		status += addr->src[1] ^ ip6h->saddr.s6_addr32[1];
+		status += addr->src[2] ^ ip6h->saddr.s6_addr32[2];
+		status += addr->src[3] ^ ip6h->saddr.s6_addr32[3];
+
+		status += addr->dest[0] ^ ip6h->daddr.s6_addr32[0];
+		status += addr->dest[1] ^ ip6h->daddr.s6_addr32[1];
+		status += addr->dest[2] ^ ip6h->daddr.s6_addr32[2];
+		status += addr->dest[3] ^ ip6h->daddr.s6_addr32[3];
+
+		return !status;
+	}
+
+	default:
+		nss_ipsec_klips_warn("%p: non ip version:%u received", skb, version);
+		return false;
+	}
+}
+
+/*
  * nss_ipsec_klips_get_tun()
  * 	get tunnel entry for given klips dev.
  */
@@ -290,64 +345,6 @@ static struct net_device *nss_ipsec_klips_get_tun_dev(struct net_device *klips_d
 }
 
 /*
- * nss_ipsec_klips_match_addr()
- * 	Match ip_addr with addresses associated with net_device.
- */
-static bool nss_ipsec_klips_match_addr(struct net_device *dev, struct sk_buff *skb)
-{
-	struct inet6_dev *in6_dev;
-	struct inet6_ifaddr *ifa;
-	struct ipv6hdr *ip6h;
-	struct iphdr *iph;
-	bool match = false;
-
-	iph = ip_hdr(skb);
-
-	if (iph->version == IPVERSION) {
-		struct in_device *in_dev;
-		struct in_ifaddr *ifa;
-
-		in_dev = in_dev_get(dev);
-		if (!in_dev) {
-			nss_ipsec_klips_warn("%p: Failed to find in_dev\n", dev);
-			return false;
-		}
-
-		rcu_read_lock();
-		for (ifa = in_dev->ifa_list; ifa && !match; ifa = ifa->ifa_next) {
-			match = (ifa->ifa_local == iph->daddr);
-		}
-
-		rcu_read_unlock();
-
-		in_dev_put(in_dev);
-		return match;
-	}
-
-	ip6h = ipv6_hdr(skb);
-
-	in6_dev = in6_dev_get(dev);
-	if (!in6_dev) {
-		nss_ipsec_klips_warn("%p: Failed to find in6_dev\n", dev);
-		return false;
-	}
-
-	read_lock_bh(&in6_dev->lock);
-
-	list_for_each_entry(ifa, &in6_dev->addr_list, if_list) {
-		match = ipv6_addr_equal(&ifa->addr, &ip6h->daddr);
-		if (match) {
-			break;
-		}
-	}
-
-	read_unlock_bh(&in6_dev->lock);
-
-	in6_dev_put(in6_dev);
-	return match;
-}
-
-/*
  * nss_ipsec_klips_get_tun_by_addr()
  * 	Get the tunnel entry for given ip header from tunnel map table.
  */
@@ -367,7 +364,7 @@ static struct nss_ipsec_klips_tun *nss_ipsec_klips_get_tun_by_addr(struct sk_buf
 			continue;
 		}
 
-		if (nss_ipsec_klips_match_addr(tun->klips_dev, skb)) {
+		if (nss_ipsec_klips_tun_match_addr(skb, tun)) {
 			return tun;
 		}
 	}
@@ -668,6 +665,30 @@ static void nss_ipsec_klips_sa2ecm_tuple(struct nss_ipsecmgr_sa_tuple *sa, struc
 	tuple->dest.in6.s6_addr32[1] = sa->dest_ip[1];
 	tuple->dest.in6.s6_addr32[2] = sa->dest_ip[2];
 	tuple->dest.in6.s6_addr32[3] = sa->dest_ip[3];
+}
+
+/*
+ * nss_ipsec_klips_outer2tun_addr()
+ * 	Fill tunnel address information.
+ */
+static inline void nss_ipsec_klips_outer2tun_addr(uint8_t *iph, struct nss_ipsec_klips_tun_addr *addr)
+{
+	struct iphdr *ip4h = (struct iphdr *)iph;
+	struct ipv6hdr *ip6h;
+
+	addr->ver = ip4h->version;
+
+	if (ip4h->version == IPVERSION) {
+		addr->src[0] = ip4h->saddr;
+		addr->dest[0] = ip4h->daddr;
+		return;
+	}
+
+	ip6h = (struct ipv6hdr *)iph;
+	BUG_ON(ip6h->version != 6);
+
+	memcpy(addr->src, ip6h->saddr.s6_addr32, sizeof(addr->src));
+	memcpy(addr->dest, ip6h->daddr.s6_addr32, sizeof(addr->dest));
 }
 
 /*
@@ -1411,6 +1432,14 @@ static int32_t nss_ipsec_klips_trap_decap(struct sk_buff *skb, struct nss_cfi_cr
 	nss_dev = tun->nss_dev;
 	BUG_ON(!nss_dev);
 
+	if (!tun->addr.ver) {
+		/*
+		 * Fill tunnel address.
+		 */
+		nss_ipsec_klips_outer2tun_addr(skb_network_header(skb), &tun->addr);
+		nss_ipsec_klips_trace("%p:Tunnel tuple configured\n", skb);
+	}
+
 	/*
 	 * This information is used by ECM to know input interface.
 	 */
@@ -1675,6 +1704,7 @@ static int nss_ipsec_klips_dev_event(struct notifier_block *this, unsigned long 
 		tunnel_map.tbl[index].klips_dev = klips_dev;
 		tunnel_map.tbl[index].sk = NULL;
 		tunnel_map.tbl[index].sk_encap_rcv = NULL;
+		memset(&tunnel_map.tbl[index].addr, 0, sizeof(tunnel_map.tbl[index].addr));
 		dev_hold(klips_dev);
 
 		write_unlock_bh(&tunnel_map.lock);

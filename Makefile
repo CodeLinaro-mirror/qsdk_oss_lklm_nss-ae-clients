@@ -34,6 +34,7 @@ obj-$(ovpn-mgr)+= openvpn/
 obj-$(eogremgr)+= eogremgr/
 obj-$(clmapmgr)+= clmapmgr/
 obj-$(match)+= match/
+obj-$(tlsmgr)+= tls/
 
 #NSS NETLINK
 obj-$(netlink)+= netlink/

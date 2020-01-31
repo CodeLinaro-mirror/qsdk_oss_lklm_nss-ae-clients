@@ -34,16 +34,6 @@
 #define NSS_NLCAPWAP_KEY_SZ 32
 
 /**
- * @brief Enumeration for capwap mode
- */
-enum nss_nlcapwap_mode {
-	NSS_NLCAPWAP_MODE_UNKNOWN,		/**< Unknown mode for capwap */
-	NSS_NLCAPWAP_MODE_RX,			/**< Capwap tunnel operating in rx mode */
-	NSS_NLCAPWAP_MODE_TX,			/**< Capwap tunnel operating in tx mode */
-	NSS_NLCAPWAP_MODE_MAX			/**< Max number of capwap mode */
-};
-
-/**
  * @brief Enumeration for all command types.
  */
 enum nss_nlcapwap_cmd_type {
@@ -56,6 +46,7 @@ enum nss_nlcapwap_cmd_type {
 	NSS_NLCAPWAP_CMD_TYPE_TX_PACKETS,		/**< Helps in configuring parameters for sending traffic. */
 	NSS_NLCAPWAP_CMD_TYPE_META_HEADER,		/**< Creates a meta header for capwap. */
 	NSS_NLCAPWAP_CMD_TYPE_IP_FLOW,			/**< To add or delete an ip flow for capwap. */
+	NSS_NLCAPWAP_CMD_TYPE_KEEPALIVE,		/**< To enable or disable keepalive for capwap. */
 	NSS_NLCAPWAP_CMD_TYPE_MAX			/**< Max number of commands type. */
 };
 
@@ -73,7 +64,6 @@ enum nss_nlcapwap_ip_flow_mode {
  * @brief Parameters for creating tunnel
  */
 struct nss_nlcapwap_create_tun {
-	enum nss_nlcapwap_mode mode;		/**< Tx or rx mode */
 	struct nss_capwap_rule_msg rule;	/**< Rule to add capwap tunnel */
 	char gmac_ifname[IFNAMSIZ];		/**< WAN interface name */
 	bool inner_trustsec_en;			/**< Inner trustsec is enabled */
@@ -127,6 +117,7 @@ struct nss_nlcapwap_perf {
 struct nss_nlcapwap_tx_packets {
 	uint32_t pkt_size;				/**< Packet size */
 	uint32_t num_of_packets;			/**< Number of packets to be transmitted */
+	uint16_t tun_id;				/**< Tunnel used for transmission */
 };
 
 /**
@@ -144,6 +135,15 @@ struct nss_nlcapwap_ip_flow {
 struct nss_nlcapwap_meta_header {
 	uint8_t meta_header_blob[NSS_NLCAPWAP_META_HEADER_SZ];	/**< Binary blob of meta header. */
 	uint16_t type;						/**< Type of meta header. */
+	uint16_t tun_id;					/**< Tunnel for which meta header used */
+};
+
+/**
+ * @brief parameters to enable or disable keepalive pkt transmission
+ */
+struct nss_nlcapwap_keepalive {
+	uint16_t tun_id;			/**< Tunnel used for transmission */
+	bool tx_keepalive;			/**< Flag to check for dtls keepalive ON/OFF status */
 };
 
 /**
@@ -164,6 +164,7 @@ struct nss_nlcapwap_rule {
 		struct nss_nlcapwap_meta_header meta_header;	/**< Creates meta header */
 		struct nss_nlcapwap_ip_flow ip_flow;		/**< Add or delete ip flow rules */
 		struct nss_nlcapwap_update_mtu update_mtu;	/**< Update mtu of the path */
+		struct nss_nlcapwap_keepalive kalive;		/**< Enable or disable keepalive transmission */
 	} msg;
 };
 

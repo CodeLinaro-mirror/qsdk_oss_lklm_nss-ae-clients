@@ -14,6 +14,7 @@
  **************************************************************************
  */
 
+#include <linux/debugfs.h>
 #include <linux/if.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -21,6 +22,7 @@
 #include <linux/netlink.h>
 #include <linux/types.h>
 #include <linux/version.h>
+#include <linux/workqueue.h>
 
 #include <net/genetlink.h>
 #include <net/sock.h>
@@ -41,24 +43,9 @@
 #include "nss_nlcmn_if.h"
 
 /*
- * Lock variable for synchronization
- */
-static DEFINE_SPINLOCK(lock);
-
-/*
- * Bitmap to keep track of tunnel state
- */
-static DECLARE_BITMAP(tun_data, NSS_CAPWAPMGR_MAX_TUNNELS);
-
-/*
  * Global capwap context variable
  */
-static struct nss_nlcapwap_global_ctx capwap_gbl_ctx;
-
-/*
- * Atomic variable to keep track of peformance
- */
-static atomic_t enable_perf = ATOMIC_INIT(0);
+static struct nss_nlcapwap_global_ctx global_ctx;
 
 /*
  * nss_nlcapwap_family_mcgrp
@@ -114,55 +101,17 @@ static struct notifier_block nss_capwap_stats_notifier_nb = {
 };
 
 /*
- * nss_nlcapwap_update_tun_status()
- *	Sets tun status to true or false based on parameter passed
- *	0: The tunnel id is unused
- *	1: The tunnel id is already taken and is in use
+ * nss_nlcapwap_get_tun_by_index()
+ *	Returns the tunnel context based on index passed
  */
-static inline bool nss_nlcapwap_update_tun_status(int index, int status)
+static struct nss_nlcapwap_tunnel *nss_nlcapwap_get_tun_by_index(int idx)
 {
-	if ((index < 0) || (index >= NSS_CAPWAPMGR_MAX_TUNNELS)) {
-		nss_nl_error("index value out of bound: %d\n", index);
-		return false;
+	if (idx >= NSS_CAPWAPMGR_MAX_TUNNELS) {
+		nss_nl_error("Index value out of bound: %d\n", idx);
+		return NULL;
 	}
 
-	/*
-	 * Test if tunnel is not set to status already
-	 */
-	spin_lock(&lock);
-	if (test_bit(index, tun_data) == status) {
-		spin_unlock(&lock);
-		nss_nl_error("Tunnel %d status is already set to: %d\n", index, status);
-		return false;
-	}
-
-	spin_unlock(&lock);
-	change_bit(index, tun_data);
-	return true;
-}
-
-/*
- * nss_nlcapwap_get_meta_header()
- *	Returns meta header
- */
-static inline struct nss_nlcapwap_meta_header nss_nlcapwap_get_meta_header(void)
-{
-	struct nss_nlcapwap_meta_header meta_hdr;
-	spin_lock(&lock);
-	meta_hdr = capwap_gbl_ctx.meta_header;
-	spin_unlock(&lock);
-	return meta_hdr;
-}
-
-/*
- * nss_nlcapwap_set_meta_header()
- *	Sets the value of meta header
- */
-static inline void nss_nlcapwap_set_meta_header(struct nss_nlcapwap_meta_header meta_hdr)
-{
-	spin_lock(&lock);
-	capwap_gbl_ctx.meta_header = meta_hdr;
-	spin_unlock(&lock);
+	return test_bit(idx, global_ctx.tun_bitmap) ? &global_ctx.tun[idx] : NULL;
 }
 
 /*
@@ -171,46 +120,214 @@ static inline void nss_nlcapwap_set_meta_header(struct nss_nlcapwap_meta_header 
  */
 static rx_handler_result_t nss_nlcapwapmgr_rx_handler(struct sk_buff **pskb)
 {
-	struct nss_capwap_metaheader *pre;
-	uint32_t pattern, no_pattern, i;
+	struct nss_capwap_metaheader *mh;
+	struct nss_nlcapwap_tunnel *tun;
 	struct sk_buff *skb = *pskb;
+	uint32_t matched = 0;
 	uint8_t *data;
+	int len;
+	int i;
 
-	if (atomic_read(&enable_perf)) {
-		goto done;
+	len = skb->len;
+	mh = (struct nss_capwap_metaheader *)skb->data;
+
+	/*
+	 * We need to pull the meta header for the payload start
+	 */
+	if (!atomic_read(&global_ctx.enable_perf)) {
+		data = skb_pull(skb, sizeof(*mh) + sizeof(struct ethhdr));
+		/*
+		 * Test bytes with known pattern
+		 */
+		for (i = 0; i < skb->len; i++, data++) {
+			matched += (*data == NSS_NLCAPWAP_DATA);
+		}
 	}
 
-	data = skb->data;
-	pattern = no_pattern = 0;
-	for (i = 0; i < skb->len; i++) {
-		(data[i] == NSS_NLCAPWAP_DATA) ? pattern++ : no_pattern++;
+	nss_nl_info("RX packet for tun(%d), len(%d) matched(%d)\n", mh->tunnel_id, len, matched);
+
+	write_lock_bh(&global_ctx.lock);
+	tun = nss_nlcapwap_get_tun_by_index(mh->tunnel_id);
+	if (!tun) {
+		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", skb, mh->tunnel_id);
+		write_unlock_bh(&global_ctx.lock);
+		goto free;
 	}
 
-done:
-	pre = (struct nss_capwap_metaheader *)skb->data;
-	nss_nl_info("tunnel %d: NETDEV RX: len:%d (%d,%d)\n", pre->tunnel_id,
-	      skb->len, pattern, no_pattern);
+	tun->stats.rx_data_pkts++;
+	write_unlock_bh(&global_ctx.lock);
+
+free:
 	dev_kfree_skb_any(skb);
 	return RX_HANDLER_CONSUMED;
 }
 
 /*
- * nss_nlcapwap_register_netdev_handler()
- *	Handler to register capwap netdev rx handler
+ * nss_nlcapwap_tx_keepalive()
+ *	Handler for sending capwap keepalive frames
  */
-static void nss_nlcapwap_register_netdev_handler(void)
+static int nss_nlcapwap_tx_keepalive(struct nss_nlcapwap_tunnel_keepalive *kp)
 {
-	struct net_device *capwap_ndev = nss_capwapmgr_get_netdev();
+	struct nss_nlcapwap_app_hdr *apph;
+	struct nss_nlcapwap_tunnel *tun;
+	struct net_device *capwap_dev;
+	struct net_device *dtls_dev;
+	struct nss_nlcapwap_hdr *ch;
+	struct sk_buff *skb;
+	size_t align_offset;
+	size_t skb_sz;
 
 	/*
-	 * Register a netdevice rx handler
+	 * Check if dtls is enabled for the tunnel
 	 */
-	rtnl_lock();
-	if (netdev_rx_handler_register(capwap_ndev, nss_nlcapwapmgr_rx_handler, NULL)) {
-		nss_nl_error("Couldn't register CAPWAP RX handler\n");
+	dtls_dev = nss_capwapmgr_get_dtls_netdev(global_ctx.capwap_dev, kp->tun_id);
+	if (!dtls_dev) {
+		nss_nl_error("%p: DTLS net_device not found for capwap_dev(%s)\n", &kp, capwap_dev->name);
+		return -ENODEV;
 	}
 
-	rtnl_unlock();
+	/*
+	 * Allocate a new skb
+	 */
+	skb_sz = NSS_NLCAPWAP_MAX_HEADROOM + NSS_NLCAPWAP_KALIVE_PAYLOAD_SZ + NSS_NLCAPWAP_MAX_TAILROOM;
+	skb_sz += SMP_CACHE_BYTES;
+
+	skb = dev_alloc_skb(skb_sz);
+	if (!skb) {
+		nss_nl_error("%p: Could not allocate a skb of size(%zu)\n", kp, skb_sz);
+		dev_put(dtls_dev);
+		return -ENOMEM;
+	}
+
+	align_offset = PTR_ALIGN(skb->data, SMP_CACHE_BYTES) - skb->data;
+	skb_reserve(skb, NSS_NLCAPWAP_MAX_HEADROOM + align_offset);
+
+	/*
+	 * Set the queue mapping to highest priority queue
+	 */
+	skb_set_queue_mapping(skb, 1);
+
+	/*
+	 * Initialize the capwap header with zero
+	 */
+	ch = (struct nss_nlcapwap_hdr *)skb_put(skb, sizeof(*ch));
+	memset(ch, 0, sizeof(*ch));
+
+	/*
+	 * Set the keepalive timer bit
+	 */
+	ch->K = 1;
+
+	/*
+	 * Fill the packet data with msg_type and tun_id
+	 */
+	apph = (struct nss_nlcapwap_app_hdr *)skb_put(skb, sizeof(*apph));
+
+	write_lock_bh(&global_ctx.lock);
+	tun = nss_nlcapwap_get_tun_by_index(kp->tun_id);
+	if (!tun) {
+		write_unlock_bh(&global_ctx.lock);
+		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", kp, kp->tun_id);
+		return -ENODEV;
+	}
+
+	apph->tun_id = kp->tun_id;
+	apph->seq_num = kp->tx_seq;
+
+	kp->tx_seq++;
+	tun->stats.tx_ka_pkts++;
+	write_unlock_bh(&global_ctx.lock);
+
+	BUG_ON(!IS_ALIGNED((unsigned long)skb->data, sizeof(uint32_t)));
+
+	if (dtls_dev->netdev_ops->ndo_start_xmit(skb, dtls_dev) != NETDEV_TX_OK) {
+		dev_kfree_skb_any(skb);
+		return -EBUSY;
+	}
+
+	nss_nl_info("%p: Keepalive packet sent\n", dtls_dev);
+	dev_put(dtls_dev);
+	return 0;
+}
+
+/*
+ * nss_nlcapwap_keepalive()
+ *	Sends keepalive packet at regular interval
+ */
+static void nss_nlcapwap_keepalive(struct work_struct *work)
+{
+	struct delayed_work *dwork = (struct delayed_work *)work;
+	struct nss_nlcapwap_tunnel_keepalive *kp = container_of(dwork, struct nss_nlcapwap_tunnel_keepalive, work);
+
+	nss_nlcapwap_tx_keepalive(kp);
+	if (atomic_read(&kp->status)) {
+		   schedule_delayed_work(dwork, NSS_NLCAPWAP_KALIVE_TIMER_MSECS);
+	}
+}
+
+/*
+ * nss_nlcapwap_tun_init()
+ *	Initialize the tunnel
+ */
+static void nss_nlcapwap_tun_init(struct nss_nlcapwap_tunnel *tun, uint16_t tun_id)
+{
+	memset(tun, 0, sizeof(*tun));
+	tun->kalive.tun_id = tun_id;
+	INIT_DELAYED_WORK(&tun->kalive.work, nss_nlcapwap_keepalive);
+}
+
+/*
+ * nss_nlcapwap_tun_deinit()
+ *	Deinitializes the tunnel
+ */
+static void nss_nlcapwap_tun_deinit(struct nss_nlcapwap_tunnel *tun)
+{
+	/*
+	 * Flush the delayed work if its enabled for the tunnel
+	 */
+	if (!atomic_read(&tun->kalive.status)) {
+		return;
+	}
+
+	/*
+	 * De-initialize the keepalive context for tun_id
+	 */
+	atomic_set(&tun->kalive.status, 0);
+	cancel_delayed_work(&tun->kalive.work);
+}
+
+/*
+ * nss_nlcapwap_destroy_tun()
+ *	Destroys tunnel based on tun_id
+ */
+static int nss_nlcapwap_destroy_tun(uint16_t tun_id)
+{
+	struct net_device *capwap_dev;
+	nss_capwapmgr_status_t status;
+
+	/*
+	 * Get the capwap netdev reference
+	 */
+	capwap_dev = global_ctx.capwap_dev;
+	if (!capwap_dev) {
+		nss_nl_error("CAPWAP net_device not found\n");
+		return -ENODEV;
+	}
+
+	status = nss_capwapmgr_disable_tunnel(capwap_dev, tun_id);
+	if (status != NSS_CAPWAPMGR_SUCCESS) {
+		nss_nl_error("Unable to disable the tunnel: %d\n", tun_id);
+		return -EAGAIN;
+	}
+
+	status = nss_capwapmgr_tunnel_destroy(capwap_dev, tun_id);
+	if (status != NSS_CAPWAPMGR_SUCCESS) {
+		nss_nl_error("Unable to destroy the tunnel: %d\n", tun_id);
+		nss_capwapmgr_enable_tunnel(capwap_dev, tun_id);
+		return -ENODEV;
+	}
+
+	return 0;
 }
 
 /*
@@ -219,19 +336,56 @@ static void nss_nlcapwap_register_netdev_handler(void)
  */
 static void nss_nlcapwap_data_cb(void *app_data, struct sk_buff *skb)
 {
-	nss_nl_error("%p: RX DTLS exception packet len:%d\n", skb, skb->len);
+	struct nss_nlcapwap_app_hdr *apph;
+	struct nss_dtlsmgr_metadata *mh;
+	struct nss_nlcapwap_tunnel *tun;
+	uint32_t exp_seq;
+	uint32_t tun_id;
+
+	/*
+	 * Move the pointer to start of custom header
+	 */
+	apph = (struct nss_nlcapwap_app_hdr *)skb_pull(skb, sizeof(*mh) + 8);
+	tun_id = apph->tun_id;
+
+	/*
+	 * Aquire lock and check if the seq num in packet is what we expected as rx_seq
+	 */
+	write_lock_bh(&global_ctx.lock);
+	tun = nss_nlcapwap_get_tun_by_index(tun_id);
+	if (!tun) {
+		write_unlock_bh(&global_ctx.lock);
+		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", skb, tun_id);
+		return;
+	}
+
+	/*
+	 * Check if the received sequence number matches with the expected sequence number
+	 */
+	exp_seq = tun->kalive.rx_seq;
+	tun->stats.rx_ka_pkts++;
+	tun->kalive.rx_seq = apph->seq_num + 1;
+	tun->stats.ka_seq_fail += (apph->seq_num != exp_seq);
+	write_unlock_bh(&global_ctx.lock);
+
+	/*
+	 * TODO: If, we have exceeded ka_seq_fail threshold then destroy tunnel
+	 */
+	nss_nl_info("%p: RX DTLS pkt len:%d, tun_id:%d, seq_num:%u\n", skb, skb->len, apph->tun_id, apph->seq_num);
+	dev_kfree_skb_any(skb);
 }
 
 /*
  * nss_nlcapwap_dtls_configure()
  *	Common handler for v4 and v6 capwap-dtls configuration
  */
-static void nss_nlcapwap_dtls_configure(struct nss_dtlsmgr_config *dcfg,
-		struct nss_nlcapwap_rule *nl_rule)
+static void nss_nlcapwap_dtls_configure(struct nss_dtlsmgr_config *dcfg, struct nss_nlcapwap_rule *nl_rule)
 {
 	uint8_t algo = nl_rule->msg.dtls.encap.crypto.algo;
 
+	dcfg->flags = nl_rule->msg.dtls.flags;
 	dcfg->flags |= NSS_DTLSMGR_HDR_CAPWAP;
+
 	if (algo == NSS_DTLSMGR_ALGO_AES_GCM) {
 		dcfg->flags |= NSS_DTLSMGR_CIPHER_MODE_GCM;
 	}
@@ -242,11 +396,9 @@ static void nss_nlcapwap_dtls_configure(struct nss_dtlsmgr_config *dcfg,
 	dcfg->app_data = NULL;
 	dcfg->notify = NULL;
 	dcfg->data = nss_nlcapwap_data_cb;
-	memcpy((void *)&dcfg->encap, (void *)&nl_rule->msg.dtls.encap, sizeof(struct nss_dtlsmgr_encap_config));
-	/*
-	 * Decap configuration
-	 */
-	memcpy((void *)&dcfg->decap, (void *)&nl_rule->msg.dtls.decap, sizeof(struct nss_dtlsmgr_decap_config));
+
+	memcpy(&dcfg->encap, &nl_rule->msg.dtls.encap, sizeof(struct nss_dtlsmgr_encap_config));
+	memcpy(&dcfg->decap, &nl_rule->msg.dtls.decap, sizeof(struct nss_dtlsmgr_decap_config));
 }
 
 /*
@@ -429,26 +581,36 @@ static int nss_nlcapwap_ops_create_tun(struct sk_buff *skb, struct genl_info *in
 	struct nss_nlcapwap_rule *nl_rule;
 	struct nss_ipv4_create ipv4_rule;
 	struct nss_ipv6_create ipv6_rule;
-	struct net_device *capwap_ndev;
+	struct nss_nlcapwap_tunnel *tun;
+	struct net_device *capwap_dev;
 	struct nss_nlcmn *nl_cm;
-	int tun_id;
+	uint16_t tun_id;
 	int ret = 0;
 
 	/*
 	 * Get the tunnel_id. We only create a new tunnel if max limit is not exceeded
 	 */
-	spin_lock(&lock);
-	tun_id = find_first_zero_bit(tun_data, NSS_CAPWAPMGR_MAX_TUNNELS);
-	spin_unlock(&lock);
+	write_lock_bh(&global_ctx.lock);
+	tun_id = find_first_zero_bit(global_ctx.tun_bitmap, NSS_CAPWAPMGR_MAX_TUNNELS);
 	if (tun_id >= NSS_CAPWAPMGR_MAX_TUNNELS) {
-		nss_nl_error("Max number of tunnels limit exceeded\n");
-		return -EPERM;
+		nss_nl_error("All tunnels exhausted(%d), no free tunnel found.\n", tun_id);
+		return -ENOSPC;
 	}
+
+	tun = &global_ctx.tun[tun_id];
+	nss_nlcapwap_tun_init(tun, tun_id);
+
+	set_bit(tun_id, global_ctx.tun_bitmap);
+	write_unlock_bh(&global_ctx.lock);
 
 	/*
 	 * Get the capwap netdev reference
 	 */
-	capwap_ndev = nss_capwapmgr_get_netdev();
+	capwap_dev = global_ctx.capwap_dev;
+	if (!capwap_dev) {
+		nss_nl_error("Failed to find CAPWAP netdevice\n");
+		return -ENODEV;
+	}
 
 	/*
 	 * Extract the message payload
@@ -470,15 +632,6 @@ static int nss_nlcapwap_ops_create_tun(struct sk_buff *skb, struct genl_info *in
 	memcpy(capwap_rule.bssid, nl_rule->msg.create.rule.bssid, sizeof(capwap_rule.bssid));
 	capwap_rule.outer_sgt_value = nl_rule->msg.create.rule.outer_sgt_value;
 
-	spin_lock(&lock);
-	if (nl_rule->msg.create.wireless_qos_en) {
-		capwap_gbl_ctx.nss_nlcapwap_80211e = NSS_NLCAPWAP_80211E_ONE;
-	} else {
-		capwap_gbl_ctx.nss_nlcapwap_80211e = NSS_NLCAPWAP_80211E_ZERO;
-	}
-
-	spin_unlock(&lock);
-
 	/*
 	 * Create tunnel based on ip version
 	 */
@@ -487,95 +640,36 @@ static int nss_nlcapwap_ops_create_tun(struct sk_buff *skb, struct genl_info *in
 		/*
 		 * Create CAPWAP IPv4 tunnel
 		 */
-		ret = nss_capwapmgr_ipv4_tunnel_create(capwap_ndev, tun_id, &ipv4_rule,
-				&capwap_rule, &dtls_ipv4);
+		ret = nss_capwapmgr_ipv4_tunnel_create(capwap_dev, tun_id, &ipv4_rule, &capwap_rule, &dtls_ipv4);
 		if (ret != 0) {
-			nss_nl_error("Unable to create tunnel: %d\n", tun_id);
+			nss_nl_error("Unable to create tunnel(%d), status(%d)\n", tun_id, ret);
 			return -EAGAIN;
 		}
 
 		nss_nl_info("Created IPv4 tunnel: src:%pI4h(%d) dst:%pI4h(%d) p:%d\n\n",
-		      &ipv4_rule.src_ip, ipv4_rule.src_port, &ipv4_rule.dest_ip,
-		      ipv4_rule.dest_port, ipv4_rule.protocol);
+				&ipv4_rule.src_ip, ipv4_rule.src_port, &ipv4_rule.dest_ip,
+				ipv4_rule.dest_port, ipv4_rule.protocol);
 	} else {
 		nss_nlcapwap_create_tun_ipv6_config(nl_rule, &capwap_rule, &dtls_ipv6, &ipv6_rule);
 		/*
 		 * Create CAPWAP IPv6 tunnel
 		 */
-		ret = nss_capwapmgr_ipv6_tunnel_create(capwap_ndev, tun_id, &ipv6_rule,
-				&capwap_rule, &dtls_ipv6);
+		ret = nss_capwapmgr_ipv6_tunnel_create(capwap_dev, tun_id, &ipv6_rule, &capwap_rule, &dtls_ipv6);
 		if (ret != 0) {
 			nss_nl_error("Unable to create tunnel: %d\n", tun_id);
 			return -EAGAIN;
 		}
 
-		nss_nl_info("Created IPv6 tunnel + proto:%d\n", ipv6_rule.protocol);
-		nss_nl_info("src:%pI6(%d)\n", ipv6_rule.src_ip, ipv6_rule.src_port);
-		nss_nl_info("dst:%pI6(%d)\n\n", ipv6_rule.dest_ip, ipv6_rule.dest_port);
+		nss_nl_info("Created IPv6 tunnel: src:%pI6(%d), dst:%pI6(%d), proto:%d\n\n",
+				ipv6_rule.src_ip, ipv6_rule.src_port, ipv6_rule.dest_ip, ipv6_rule.dest_port,
+				ipv6_rule.protocol);
 	}
 
-	nss_capwapmgr_change_version(capwap_ndev, tun_id, NSS_CAPWAP_VERSION_V2);
-	nss_capwapmgr_enable_tunnel(capwap_ndev, tun_id);
+	nss_capwapmgr_change_version(capwap_dev, tun_id, NSS_CAPWAP_VERSION_V2);
+	nss_capwapmgr_enable_tunnel(capwap_dev, tun_id);
 
-	/*
-	 * Increment the tunnel_id
-	 */
-	if (!nss_nlcapwap_update_tun_status(tun_id, 1)) {
-		nss_nl_error("Unable to set the tunnel status: %d\n", tun_id);
-		return -EAGAIN;
-	}
-
-	nss_nl_info("Successfully created tunnel %d\n", tun_id + 1);
+	nss_nl_info("Successfully created tunnel %d\n", tun_id);
 	return 0;
-}
-
-/*
- * nss_nlcapwap_destroy_tun()
- *	Destroys tunnel based on tun_id
- */
-static bool nss_nlcapwap_destroy_tun(int tun_id)
-{
-	struct net_device *capwap_ndev;
-	nss_capwapmgr_status_t status;
-
-	/*
-	 * Get the capwap netdev reference
-	 */
-	capwap_ndev = nss_capwapmgr_get_netdev();
-
-	/*
-	 * Disable the tunnel and then destroy
-	 */
-	spin_lock(&lock);
-	if (!test_bit(tun_id, tun_data)) {
-		nss_nl_error("Tunnel is already disabled: %d\n", tun_id);
-		spin_unlock(&lock);
-		return false;
-	}
-
-	spin_unlock(&lock);
-	status = nss_capwapmgr_disable_tunnel(capwap_ndev, tun_id);
-	if (status != NSS_CAPWAPMGR_SUCCESS) {
-		nss_nl_error("Unable to disable the tunnel: %d\n", tun_id);
-		return false;
-	}
-
-	status = nss_capwapmgr_tunnel_destroy(capwap_ndev, tun_id);
-	if (status != NSS_CAPWAPMGR_SUCCESS) {
-		nss_nl_error("Unable to destroy the tunnel: %d\n", tun_id);
-		nss_capwapmgr_enable_tunnel(capwap_ndev, tun_id);
-		return false;
-	}
-
-	/*
-	 * Update the tunnel status in global array
-	 */
-	if (!nss_nlcapwap_update_tun_status(tun_id, 0)) {
-		nss_nl_error("Unable to set the tunnel status to 0: %d\n", tun_id);
-		return false;
-	}
-
-	return true;
 }
 
 /*
@@ -585,8 +679,10 @@ static bool nss_nlcapwap_destroy_tun(int tun_id)
 static int nss_nlcapwap_ops_destroy_tun(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nss_nlcapwap_rule *nl_rule;
+	struct nss_nlcapwap_tunnel *tun;
 	struct nss_nlcmn *nl_cm;
-	int tun_id, ret;
+	uint16_t tun_id;
+	int ret;
 
 	/*
 	 * Extract the message payload
@@ -606,14 +702,29 @@ static int nss_nlcapwap_ops_destroy_tun(struct sk_buff *skb, struct genl_info *i
 	 * Get the tunnel id
 	 */
 	tun_id = nl_rule->msg.destroy.tun_id;
-	if (tun_id < 0 || (tun_id >= NSS_CAPWAPMGR_MAX_TUNNELS)) {
+	if (tun_id >= NSS_CAPWAPMGR_MAX_TUNNELS) {
 		nss_nl_error("Not a valid tunnel_id: %d\n", tun_id);
-		return -EINVAL;
+		return -ENODEV;
 	}
 
+	write_lock_bh(&global_ctx.lock);
+	tun = nss_nlcapwap_get_tun_by_index(tun_id);
+	if (!tun) {
+		write_unlock_bh(&global_ctx.lock);
+		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		return -ENODEV;
+	}
+
+	nss_nlcapwap_tun_deinit(tun);
+	clear_bit(tun_id, global_ctx.tun_bitmap);
+	write_unlock_bh(&global_ctx.lock);
+
+	/*
+	 * Destroy the corresponding tunnel
+	 */
 	ret = nss_nlcapwap_destroy_tun(tun_id);
-	if (!ret) {
-		nss_nl_error("%p: Unable to destroy tunnel: %d\n", skb, tun_id);
+	if (ret) {
+		nss_nl_error("Unable to set the tunnel status to 0 for tun: %d\n", tun_id);
 		return -EINVAL;
 	}
 
@@ -628,15 +739,20 @@ static int nss_nlcapwap_ops_destroy_tun(struct sk_buff *skb, struct genl_info *i
 static int nss_nlcapwap_ops_update_mtu(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nss_nlcapwap_rule *nl_rule;
-	struct net_device *capwap_ndev;
+	struct net_device *capwap_dev;
 	nss_capwapmgr_status_t status;
 	struct nss_nlcmn *nl_cm;
-	int tun_id;
+	uint16_t tun_id;
+	uint32_t mtu;
 
 	/*
 	 * Get the capwap netdev reference
 	 */
-	capwap_ndev = nss_capwapmgr_get_netdev();
+	capwap_dev = global_ctx.capwap_dev;
+	if (!capwap_dev) {
+		nss_nl_error("Failed to find CAPWAP netdevice\n");
+		return -ENODEV;
+	}
 
 	/*
 	 * extract the message payload
@@ -656,17 +772,17 @@ static int nss_nlcapwap_ops_update_mtu(struct sk_buff *skb, struct genl_info *in
 	 * Update the path_mtu of the corresponding tunnel
 	 */
 	tun_id = nl_rule->msg.update_mtu.tun_id;
-	if (tun_id < 0 || (tun_id >= NSS_CAPWAPMGR_MAX_TUNNELS)) {
+	if (tun_id >= NSS_CAPWAPMGR_MAX_TUNNELS) {
 		nss_nl_error("Not a valid tunnel_id: %d\n", tun_id);
-		return -EINVAL;
+		return -ENODEV;
 	}
 
-	status = nss_capwapmgr_update_path_mtu(capwap_ndev, tun_id,
-			nl_rule->msg.update_mtu.mtu.path_mtu);
+	mtu = nl_rule->msg.update_mtu.mtu.path_mtu;
+
+	status = nss_capwapmgr_update_path_mtu(capwap_dev, tun_id, mtu);
 	if (status != NSS_CAPWAPMGR_SUCCESS) {
-		nss_nl_error("Unable to update the mtu of the %d tunnel: %d\n", tun_id,
-				nl_rule->msg.update_mtu.mtu.path_mtu);
-		return -EAGAIN;
+		nss_nl_error("Unable to update the mtu of the %d tunnel: %d\n", tun_id, mtu);
+		return -EINVAL;
 	}
 
 	nss_nl_info("Successfully updated the mtu of the %d tunnel.\n", tun_id);
@@ -681,14 +797,19 @@ static int nss_nlcapwap_ops_dtls(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nss_dtlsmgr_config dtls_config;
 	struct nss_nlcapwap_rule *nl_rule;
-	struct net_device *capwap_ndev;
+	struct net_device *capwap_dev;
 	nss_capwapmgr_status_t status;
 	struct nss_nlcmn *nl_cm;
+	uint16_t tun_id;
 
 	/*
 	 * Get the capwap netdev reference
 	 */
-	capwap_ndev = nss_capwapmgr_get_netdev();
+	capwap_dev = global_ctx.capwap_dev;
+	if (!capwap_dev) {
+		nss_nl_error("Failed to find CAPWAP netdevice\n");
+		return -ENODEV;
+	}
 
 	/*
 	 * extract the message payload
@@ -700,81 +821,70 @@ static int nss_nlcapwap_ops_dtls(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	/*
-	 * Message validation required before accepting the configuration
+	 * Disabling dtls for capwap
 	 */
 	nl_rule = container_of(nl_cm, struct nss_nlcapwap_rule, cm);
 
-	/*
-	 * Disabling dtls for capwap
-	 */
+	tun_id = nl_rule->msg.dtls.tun_id;
+	if (tun_id >= NSS_CAPWAPMGR_MAX_TUNNELS) {
+		nss_nl_error("Not a valid tunnel_id: %d\n", tun_id);
+		return -ENODEV;
+	}
+
 	if (!nl_rule->msg.dtls.enable_dtls) {
-		status = nss_capwapmgr_disable_tunnel(capwap_ndev, nl_rule->msg.dtls.tun_id);
+		status = nss_capwapmgr_disable_tunnel(capwap_dev, tun_id);
 		if (status != NSS_CAPWAPMGR_SUCCESS) {
-			nss_nl_error("Not able to disable tunnel %d\n",
-					nl_rule->msg.dtls.tun_id);
-			return -EAGAIN;
+			nss_nl_error("Not able to disable tunnel %d\n", tun_id);
+			return -EBUSY;
 		}
 
-		status = nss_capwapmgr_configure_dtls(capwap_ndev, nl_rule->msg.dtls.tun_id, 0, NULL);
+		status = nss_capwapmgr_configure_dtls(capwap_dev, tun_id, 0, NULL);
 		if (status != NSS_CAPWAPMGR_SUCCESS) {
-			nss_nl_error("Not able to disable dtls for tunnel %d\n",
-					nl_rule->msg.dtls.tun_id);
-			nss_capwapmgr_enable_tunnel(capwap_ndev, nl_rule->msg.dtls.tun_id);
-			return -EAGAIN;
+			nss_nl_error("Not able to disable dtls for tunnel(%d)\n", tun_id);
+			nss_capwapmgr_enable_tunnel(capwap_dev, tun_id);
+			return -EINVAL;
 		}
 
-		status = nss_capwapmgr_enable_tunnel(capwap_ndev, nl_rule->msg.dtls.tun_id);
+		status = nss_capwapmgr_enable_tunnel(capwap_dev, tun_id);
 		if (status != NSS_CAPWAPMGR_SUCCESS) {
-			nss_nl_error("Not able to enable tunnel %d\n",
-					nl_rule->msg.dtls.tun_id);
-			return -EAGAIN;
+			nss_nl_error("Not able to enable tunnel %d\n", tun_id);
+			return -EINVAL;
 		}
 
-		nss_nl_info("Succesfully disabled dtls for capwap tunnel %d\n",
-				nl_rule->msg.dtls.tun_id);
+		nss_nl_info("Succesfully disabled dtls for capwap tunnel %d\n", tun_id);
 		return 0;
 	}
 
-	nss_nl_info("Enabling DTLS for tunnel %d\n", nl_rule->msg.dtls.tun_id);
+	nss_nl_info("Enabling DTLS for tunnel %d\n", tun_id);
 
 	/*
-	 * Initializing the dtls message
-	 */
-	dtls_config.flags = nl_rule->msg.dtls.flags;
-
-	/*
-	 * Fill rest of DTLS data
+	 * Fill DTLS configuration data
 	 */
 	nss_nlcapwap_dtls_configure(&dtls_config, nl_rule);
 
 	/*
 	 * Enabling dtls for capwap tunnel
 	 */
-	status = nss_capwapmgr_disable_tunnel(capwap_ndev, nl_rule->msg.dtls.tun_id);
+	status = nss_capwapmgr_disable_tunnel(capwap_dev, tun_id);
 	if (status != NSS_CAPWAPMGR_SUCCESS) {
-		nss_nl_error("Not able to disable tunnel %d\n",
-				nl_rule->msg.dtls.tun_id);
-		return -EAGAIN;
+		nss_nl_error("Not able to disable tunnel %d\n", tun_id);
+		return -EBUSY;
 	}
 
-	status = nss_capwapmgr_configure_dtls(capwap_ndev, nl_rule->msg.dtls.tun_id,
-			1, &dtls_config);
+	status = nss_capwapmgr_configure_dtls(capwap_dev, tun_id, 1, &dtls_config);
 	if (status != NSS_CAPWAPMGR_SUCCESS) {
-		nss_nl_error("Not able to enable dtls for tunnel %d\n",
-				nl_rule->msg.dtls.tun_id);
-		nss_capwapmgr_enable_tunnel(capwap_ndev, nl_rule->msg.dtls.tun_id);
-		return -EAGAIN;
+		nss_nl_error("Not able to enable dtls for tunnel %d\n", tun_id);
+		nss_capwapmgr_enable_tunnel(capwap_dev, tun_id);
+		return -EINVAL;
 	}
 
-	status = nss_capwapmgr_enable_tunnel(capwap_ndev, nl_rule->msg.dtls.tun_id);
+	status = nss_capwapmgr_enable_tunnel(capwap_dev, tun_id);
 	if (status != NSS_CAPWAPMGR_SUCCESS) {
-		nss_nl_error("Not able to enable tunnel %d\n",
-				nl_rule->msg.dtls.tun_id);
-		return -EAGAIN;
+		nss_nl_error("Not able to enable tunnel %d\n", tun_id);
+		return -EINVAL;
 	}
 
-	nss_nl_info("Successfully enabled dtls for the capwap tunnel: %d\n",
-			nl_rule->msg.dtls.tun_id);
+	nss_nl_info("Successfully enabled dtls for the capwap tunnel: %d\n", tun_id);
 	return 0;
 }
 
@@ -786,6 +896,7 @@ static int nss_nlcapwap_ops_perf(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nss_nlcapwap_rule *nl_rule;
 	struct nss_nlcmn *nl_cm;
+	bool perf_en;
 
 	/*
 	 * extract the message payload
@@ -800,15 +911,10 @@ static int nss_nlcapwap_ops_perf(struct sk_buff *skb, struct genl_info *info)
 	 * Message validation required before accepting the configuration
 	 */
 	nl_rule = container_of(nl_cm, struct nss_nlcapwap_rule, cm);
+	perf_en = !!nl_rule->msg.perf.perf_en;
 
-	if (nl_rule->msg.perf.perf_en) {
-		atomic_set(&enable_perf, 1);
-		nss_nl_info("Successfully enabled performance.\n");
-		return 0;
-	}
-
-	atomic_set(&enable_perf, 0);
-	nss_nl_info("Successfully disabled performance.\n");
+	atomic_set(&global_ctx.enable_perf, perf_en);
+	nss_nl_info("Successfully %s performance\n", perf_en ? "enabled" : "disabled");
 
 	return 0;
 }
@@ -821,13 +927,17 @@ static int nss_nlcapwap_ops_ip_flow(struct sk_buff *skb, struct genl_info *info)
 {
 	nss_capwapmgr_status_t status;
 	struct nss_nlcapwap_rule *nl_rule;
-	struct net_device *capwap_ndev;
+	struct net_device *capwap_dev;
 	struct nss_nlcmn *nl_cm;
 
 	/*
 	 * Get the capwap netdev reference
 	 */
-	capwap_ndev = nss_capwapmgr_get_netdev();
+	capwap_dev = global_ctx.capwap_dev;
+	if (!capwap_dev) {
+		nss_nl_error("Failed to find CAPWAP netdevice\n");
+		return -ENODEV;
+	}
 
 	/*
 	 * extract the message payload
@@ -847,7 +957,7 @@ static int nss_nlcapwap_ops_ip_flow(struct sk_buff *skb, struct genl_info *info)
 	 * Add flow rule
 	 */
 	if (nl_rule->msg.ip_flow.ip_flow_mode == NSS_NLCAPWAP_IP_FLOW_MODE_ADD) {
-		status = nss_capwapmgr_add_flow_rule(capwap_ndev, nl_rule->msg.ip_flow.tun_id,
+		status = nss_capwapmgr_add_flow_rule(capwap_dev, nl_rule->msg.ip_flow.tun_id,
 				nl_rule->msg.ip_flow.flow.ip_version, nl_rule->msg.ip_flow.flow.protocol,
 				nl_rule->msg.ip_flow.flow.src_ip, nl_rule->msg.ip_flow.flow.dst_ip,
 				nl_rule->msg.ip_flow.flow.src_port, nl_rule->msg.ip_flow.flow.dst_port,
@@ -865,7 +975,7 @@ static int nss_nlcapwap_ops_ip_flow(struct sk_buff *skb, struct genl_info *info)
 	/*
 	 * Delete existing flow rule
 	 */
-	status = nss_capwapmgr_del_flow_rule(capwap_ndev, nl_rule->msg.ip_flow.tun_id,
+	status = nss_capwapmgr_del_flow_rule(capwap_dev, nl_rule->msg.ip_flow.tun_id,
 			nl_rule->msg.ip_flow.flow.ip_version, nl_rule->msg.ip_flow.flow.protocol,
 			nl_rule->msg.ip_flow.flow.src_ip, nl_rule->msg.ip_flow.flow.dst_ip,
 			nl_rule->msg.ip_flow.flow.src_port, nl_rule->msg.ip_flow.flow.dst_port);
@@ -879,91 +989,102 @@ static int nss_nlcapwap_ops_ip_flow(struct sk_buff *skb, struct genl_info *info)
 }
 
 /*
- * nss_nlcapwap_tx_packets_host_to_host()
+ * nss_nlcapwap_tx_packets()
  *	Handler for sending traffic from one DUT to other
  */
-static int nss_nlcapwap_tx_packets_host_to_host(struct nss_nlcapwap_rule *nl_rule)
+static int nss_nlcapwap_tx_packets(struct nss_nlcapwap_rule *nl_rule)
 {
-	struct nss_capwap_metaheader *pre;
-	struct net_device *capwap_ndev;
-	uint32_t pattern, no_pattern;
+	struct nss_capwap_metaheader *mh;
+	struct nss_nlcapwap_tunnel *tun;
+	struct net_device *capwap_dev;
 	struct sk_buff *skb;
-	uint8_t *data;
-	int i, len;
+	size_t align_offset;
+	uint16_t tun_id;
+	uint8_t mh_type;
+	size_t pkt_sz;
+	size_t skb_sz;
+
+	tun_id = nl_rule->msg.tx_packets.tun_id;
+	pkt_sz = nl_rule->msg.tx_packets.pkt_size;
 
 	/*
-	 * Get the capwap netdev reference
+	 * Get the capwap netdev reference;
+	 * TODO: We need to add the DTLS needed headroom/tailroom to it
 	 */
-	capwap_ndev = nss_capwapmgr_get_netdev();
-	skb = dev_alloc_skb(nl_rule->msg.tx_packets.pkt_size + NSS_NLCAPWAP_SKB_TAILROOM);
+	capwap_dev = global_ctx.capwap_dev;
+	if (!capwap_dev) {
+		nss_nl_error("Failed to find CAPWAP netdevice\n");
+		return -ENODEV;
+	}
+
+	skb_sz = NSS_NLCAPWAP_MAX_HEADROOM + pkt_sz + NSS_NLCAPWAP_MAX_TAILROOM + SMP_CACHE_BYTES;
+
+	skb = dev_alloc_skb(skb_sz);
 	if (!skb) {
-		nss_nl_error("Could not allocate a sk_buff\n");
-		return -1;
+		nss_nl_error("%p: Could not allocate a sk_buff of size(%zu).\n", capwap_dev, skb_sz);
+		return -ENOMEM;
 	}
 
 	/*
-	 * Reserve 2 bytes extra if meta header type is 802.3
+	 * Reserve headroom for tunnel headers CAPWAP/DTLS
 	 */
-	spin_lock(&lock);
-	if (capwap_gbl_ctx.meta_header.type == NSS_CAPWAP_PKT_TYPE_802_3) {
-		skb_reserve(skb, NSS_NLCAPWAP_SKB_RESERVE_SZ_HUNDRED);
-	} else {
-		skb_reserve(skb, NSS_NLCAPWAP_SKB_RESERVE_SZ_NINTY_EIGHT +
-				NSS_NLCAPWAP_SKB_RESERVE_SZ_TWO * capwap_gbl_ctx.nss_nlcapwap_80211e);
+	align_offset = PTR_ALIGN(skb->data, SMP_CACHE_BYTES) - skb->data;
+	skb_reserve(skb, NSS_NLCAPWAP_MAX_HEADROOM + align_offset + sizeof(uint16_t));
+
+	write_lock_bh(&global_ctx.lock);
+	tun = nss_nlcapwap_get_tun_by_index(tun_id);
+	if (!tun) {
+		write_unlock_bh(&global_ctx.lock);
+		dev_kfree_skb_any(skb);
+		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		return -ENODEV;
 	}
 
-	skb_put(skb, nl_rule->msg.tx_packets.pkt_size + sizeof(struct nss_capwap_metaheader));
+	mh = (struct nss_capwap_metaheader *)skb_put(skb, sizeof(*mh));
+	memcpy(mh, tun->mh.meta_header_blob, NSS_NLCAPWAP_META_HEADER_SZ);
+	mh_type = tun->mh.type;
+	tun->stats.tx_data_pkts++;
+	write_unlock_bh(&global_ctx.lock);
+	pkt_sz -= sizeof(*mh);
 
 	/*
-	 * Fill pattern to check for packet integrity
+	 * Set the appropriate ether_type
 	 */
-	if (!atomic_read(&enable_perf)) {
-		memset(&skb->data[sizeof(struct nss_capwap_metaheader)], NSS_NLCAPWAP_DATA,
-			nl_rule->msg.tx_packets.pkt_size);
-	}
-
-	if (capwap_gbl_ctx.meta_header.type == NSS_NLCAPWAP_META_HEADER_TYPE_ZERO) {
+	if (mh_type == NSS_NLCAPWAP_META_HEADER_TYPE_IPV4_DATA) {
 		/*
-		 * TYPE ipv4. Fill the iptype and ipheader info.
+		 * For normal ipv4 data frames.
 		 */
-		skb->data[sizeof(struct nss_capwap_metaheader) + 12] = 0x8;
-		skb->data[sizeof(struct nss_capwap_metaheader) + 13] = 0;
-		skb->data[sizeof(struct nss_capwap_metaheader) + 14] = 0x45;
-		skb->data[sizeof(struct nss_capwap_metaheader) + 15] = 0;
-	} else if (capwap_gbl_ctx.meta_header.type == NSS_NLCAPWAP_META_HEADER_TYPE_ONE) {
+		struct ethhdr *eh = (struct ethhdr *)skb_put(skb, sizeof(*eh));
+		eh->h_proto = htons(ETH_P_IP);
+		pkt_sz -= sizeof(*eh);
+	} else if (mh_type == NSS_NLCAPWAP_META_HEADER_TYPE_EAPOL) {
 		/*
-		 * Type EAPOL. Fill the iptype for ethernet header.
+		 * EAPOL type frames.
 		 */
-		skb->data[sizeof(struct nss_capwap_metaheader) + 12] = 0x88;
-		skb->data[sizeof(struct nss_capwap_metaheader) + 13] = 0x8e;
+		struct ethhdr *eh = (struct ethhdr *)skb_put(skb, sizeof(*eh));
+		eh->h_proto = htons(ETH_P_PAE);
+		pkt_sz -= sizeof(*eh);
 	} else {
 		/*
-		 * Type management. Recognized by 0x0004 after metadata.
+		 * DTLS management type frames.
 		 */
-		skb->data[sizeof(struct nss_capwap_metaheader) + 0] = 0x00;
-		skb->data[sizeof(struct nss_capwap_metaheader) + 1] = 0x04;
+		uint16_t *data = (uint16_t *)skb_put(skb, sizeof(*data));
+		*data = htons(NSS_CAPWAP_PKT_TYPE_DTLS_ENABLED);
+		pkt_sz -= sizeof(*data);
 	}
 
-	pre = (struct nss_capwap_metaheader *)skb->data;
-	memcpy(pre, &capwap_gbl_ctx.meta_header, sizeof(struct nss_capwap_metaheader));
-	spin_unlock(&lock);
-
-	if (atomic_read(&enable_perf)) {
-		goto process;
+	if (!atomic_read(&global_ctx.enable_perf)) {
+		memset(skb_put(skb, pkt_sz), NSS_NLCAPWAP_DATA, pkt_sz);
 	}
 
-	pattern = no_pattern = 0;
-	data = skb->data;
-	len = skb->len;
-	for (i = 0; i < len; i++) {
-		(data[i] == NSS_NLCAPWAP_DATA) ? pattern++ : no_pattern++;
+	BUG_ON(!IS_ALIGNED((unsigned long)skb->data, sizeof(uint16_t)));
+
+	if (capwap_dev->netdev_ops->ndo_start_xmit(skb, capwap_dev) != NETDEV_TX_OK) {
+		dev_kfree_skb_any(skb);
+		return -EBUSY;
 	}
 
-process:
-	capwap_ndev->netdev_ops->ndo_start_xmit(skb, capwap_ndev);
-	nss_nl_info("tunnel %d: TX: len:%d (%d,%d)\n", pre->tunnel_id,
-	      len, pattern, no_pattern);
-
+	nss_nl_info("Tx packet for tun(%d), skb_size(%zu) matched(%zu)\n", mh->tunnel_id, skb_sz, pkt_sz);
 	return 0;
 }
 
@@ -975,7 +1096,9 @@ static int nss_nlcapwap_ops_tx_packets(struct sk_buff *skb, struct genl_info *in
 {
 	struct nss_nlcapwap_rule *nl_rule;
 	struct nss_nlcmn *nl_cm;
-	int ret, i;
+	uint16_t num_pkts;
+	int ret;
+	int i;
 
 	/*
 	 * extract the message payload
@@ -990,12 +1113,10 @@ static int nss_nlcapwap_ops_tx_packets(struct sk_buff *skb, struct genl_info *in
 	 * Message validation required before accepting the configuration
 	 */
 	nl_rule = container_of(nl_cm, struct nss_nlcapwap_rule, cm);
+	num_pkts = nl_rule->msg.tx_packets.num_of_packets;
 
-	/*
-	 * Send traffic from host to host
-	 */
-	for (i = 0; i < nl_rule->msg.tx_packets.num_of_packets; i++) {
-		ret = nss_nlcapwap_tx_packets_host_to_host(nl_rule);
+	for (i = 0; i < num_pkts; i++) {
+		ret = nss_nlcapwap_tx_packets(nl_rule);
 		if (ret < 0) {
 			nss_nl_error("Error in transmission of skb\n");
 			return ret;
@@ -1012,9 +1133,10 @@ static int nss_nlcapwap_ops_tx_packets(struct sk_buff *skb, struct genl_info *in
  */
 static int nss_nlcapwap_ops_meta_header(struct sk_buff *skb, struct genl_info *info)
 {
-	struct nss_nlcapwap_meta_header meta_hdr;
 	struct nss_nlcapwap_rule *nl_rule;
+	struct nss_nlcapwap_tunnel *tun;
 	struct nss_nlcmn *nl_cm;
+	uint16_t tun_id;
 
 	/*
 	 * extract the message payload
@@ -1029,12 +1151,21 @@ static int nss_nlcapwap_ops_meta_header(struct sk_buff *skb, struct genl_info *i
 	 * Message validation required before accepting the configuration
 	 */
 	nl_rule = container_of(nl_cm, struct nss_nlcapwap_rule, cm);
+	tun_id = nl_rule->msg.meta_header.tun_id;
 
 	/*
 	 * Set meta header values
 	 */
-	meta_hdr = nl_rule->msg.meta_header;
-	nss_nlcapwap_set_meta_header(meta_hdr);
+	write_lock_bh(&global_ctx.lock);
+	tun = nss_nlcapwap_get_tun_by_index(tun_id);
+	if (!tun) {
+		write_unlock_bh(&global_ctx.lock);
+		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		return -EAGAIN;
+	}
+
+	tun->mh = nl_rule->msg.meta_header;
+	write_unlock_bh(&global_ctx.lock);
 	nss_nl_info("Successfully created meta header.\n");
 	return 0;
 }
@@ -1049,6 +1180,147 @@ static int nss_nlcapwap_ops_get_stats(struct sk_buff *skb, struct genl_info *inf
 }
 
 /*
+ * nss_nlcapwap_ops_keepalive()
+ *	Handler for enabling and disabling keepalive flag
+ */
+static int nss_nlcapwap_ops_keepalive(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nss_nlcapwap_rule *nl_rule;
+	struct nss_nlcapwap_tunnel *tun;
+	struct net_device *dtls_dev;
+	struct delayed_work *dwork;
+	struct nss_nlcmn *nl_cm;
+	uint32_t tun_id;
+	bool kalive;
+
+	/*
+	 * extract the message payload
+	 */
+	nl_cm = nss_nl_get_msg(&nss_nlcapwap_family, info, NSS_NLCAPWAP_CMD_TYPE_KEEPALIVE);
+	if (!nl_cm) {
+		nss_nl_error("Unable to extract meta header values.\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Message validation required before accepting the configuration
+	 */
+	nl_rule = container_of(nl_cm, struct nss_nlcapwap_rule, cm);
+
+	/*
+	 * Extract the tun_id
+	 */
+	tun_id = nl_rule->msg.kalive.tun_id;
+	dtls_dev = nss_capwapmgr_get_dtls_netdev(global_ctx.capwap_dev, tun_id);
+	if (!dtls_dev) {
+		nss_nl_error("%p: Failed to find DTLS dev for (%s)\n", &nl_rule, global_ctx.capwap_dev->name);
+		return -ENODEV;
+	}
+
+	/*
+	 * Get the local tunnel object
+	 */
+	write_lock_bh(&global_ctx.lock);
+	tun = nss_nlcapwap_get_tun_by_index(tun_id);
+	if (!tun) {
+		write_unlock_bh(&global_ctx.lock);
+		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		dev_put(dtls_dev);
+		return -EAGAIN;
+	}
+
+	dwork = &tun->kalive.work;
+	kalive = nl_rule->msg.kalive.tx_keepalive;
+	atomic_set(&tun->kalive.status, kalive);
+
+	write_unlock_bh(&global_ctx.lock);
+
+	/*
+	 * Check if dtls keepalive packets needs to be sent
+	 */
+	if (kalive) {
+		schedule_delayed_work(dwork, NSS_NLCAPWAP_KALIVE_TIMER_MSECS);
+	} else {
+		flush_delayed_work(dwork);
+	}
+
+	nss_nl_info("%p: keepalive %s for tun(%d)\n", tun, kalive ? "enabled" : "disabled", tun_id);
+	dev_put(dtls_dev);
+	return 0;
+}
+
+/*
+ * nss_nlcapwap_tunnel_stats_read()
+ *	Reads the netlink capwap stats
+ */
+static ssize_t nss_nlcapwap_tunnel_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *f_ppos)
+{
+	struct nss_nlcapwap_tunnel_stats stats = {0};
+	struct nss_nlcapwap_tunnel *tun;
+	uint32_t max_output_lines;
+	ssize_t bytes_read = 0;
+	ssize_t size_wr = 0;
+	ssize_t size_al;
+	char *lbuf;
+	int index;
+
+	/*
+	 * Header and footer for instance stats
+	 */
+	max_output_lines = 4 + (NSS_CAPWAPMGR_MAX_TUNNELS * NSS_NLCAPWAP_STATS_MAX);
+	size_al = NSS_NLCAPWAP_MAX_STR_LEN * max_output_lines;
+
+	lbuf = vzalloc(size_al);
+	if (!lbuf) {
+		nss_nl_error("%p: Could not allocate space for debug entry\n", f_ppos);
+		return 0;
+	}
+
+	/*
+	 * Session stats
+	 */
+	size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\nCapwap netlinks stats start:\n\n");
+	for (index = 0; index < NSS_CAPWAPMGR_MAX_TUNNELS; index++) {
+		/*
+		 * Copy the tunnels stats
+		 */
+		read_lock_bh(&global_ctx.lock);
+		tun = nss_nlcapwap_get_tun_by_index(index);
+		if (!tun) {
+			read_unlock_bh(&global_ctx.lock);
+			continue;
+		}
+
+		memcpy(&stats, &tun->stats, sizeof(stats));
+		read_unlock_bh(&global_ctx.lock);
+
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "----------------------------");
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n%s\t: %d", "Tunnel ID", index);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n%s\t: %d", "tx_data_pkts", stats.tx_data_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n%s\t: %d", "rx_data_pkts", stats.rx_data_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n%s\t: %d", "tx_ka_pkts", stats.tx_ka_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n%s\t: %d", "rx_ka_pkts", stats.rx_ka_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n%s\t: %d", "ka_seq_fail", stats.ka_seq_fail);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n----------------------------");
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n");
+	}
+
+	size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\nCapwap netlinks stats end.\n\n");
+	bytes_read = simple_read_from_buffer(ubuf, sz, f_ppos, lbuf, size_wr);
+
+	vfree(lbuf);
+	return bytes_read;
+}
+
+/*
+ * nss_nlcapwap_stats_ops
+ *	Defines the file operations for nlcapwap dentry
+ */
+static const struct file_operations nss_nlcapwap_stats_ops = {
+	.read = nss_nlcapwap_tunnel_stats_read,
+};
+
+/*
  * nss_nlcapwap_cmd_ops
  *	Operation table called by the generic netlink layer based on the command
  */
@@ -1061,6 +1333,7 @@ struct genl_ops nss_nlcapwap_cmd_ops[] = {
 	{.cmd = NSS_NLCAPWAP_CMD_TYPE_TX_PACKETS, .doit = nss_nlcapwap_ops_tx_packets,},
 	{.cmd = NSS_NLCAPWAP_CMD_TYPE_META_HEADER, .doit = nss_nlcapwap_ops_meta_header,},
 	{.cmd = NSS_NLCAPWAP_CMD_TYPE_IP_FLOW, .doit = nss_nlcapwap_ops_ip_flow,},
+	{.cmd = NSS_NLCAPWAP_CMD_TYPE_KEEPALIVE, .doit = nss_nlcapwap_ops_keepalive,},
 	{.cmd = NSS_STATS_EVENT_NOTIFY, .doit = nss_nlcapwap_ops_get_stats,},
 };
 
@@ -1096,14 +1369,39 @@ bool nss_nlcapwap_init(void)
 	nss_nl_info_always("Init NSS netlink capwap handler\n");
 
 	/*
+	 * Initialize atomic variable
+	 */
+	atomic_set(&global_ctx.enable_perf, 0);
+
+	/*
+	 * Register the capwap netdev rx handler
+	 */
+	global_ctx.capwap_dev = nss_capwapmgr_get_netdev();
+	if (!global_ctx.capwap_dev) {
+		nss_nl_info_always("Failed to find the CAPWAP device\n");
+	}
+
+	/*
+	 * Create a debugfs entry for netlink capwap
+	 */
+	global_ctx.dentry = debugfs_create_dir("nlcapwap", NULL);
+	if (!global_ctx.dentry) {
+		nss_nl_info_always("Cannot create nlcapwap directory\n");
+		return false;
+	}
+
+	if (!debugfs_create_file("stats", 0400, global_ctx.dentry, NULL, &nss_nlcapwap_stats_ops)) {
+		nss_nl_info_always("Cannot create nlcapwap dentry file\n");
+		return false;
+	}
+
+	/*
 	 * register NETLINK ops with the family
 	 */
-	err = genl_register_family_with_ops_groups(&nss_nlcapwap_family, nss_nlcapwap_cmd_ops,
-			nss_nlcapwap_family_mcgrp);
+	err = genl_register_family_with_ops_groups(&nss_nlcapwap_family, nss_nlcapwap_cmd_ops, nss_nlcapwap_family_mcgrp);
 	if (err) {
 		nss_nl_info_always("Error: %d unable to register capwap family\n", err);
-		genl_unregister_family(&nss_nlcapwap_family);
-		return false;
+		goto free;
 	}
 
 	/*
@@ -1112,15 +1410,35 @@ bool nss_nlcapwap_init(void)
 	err = nss_capwap_stats_register_notifier(&nss_capwap_stats_notifier_nb);
 	if (err) {
 		nss_nl_info_always("Error: %d unable to register capwap stats notifier\n", err);
-		genl_unregister_family(&nss_nlcapwap_family);
-		return false;
+		goto free_family;
+	}
+
+
+	/*
+	 * Register a netdevice rx handler
+	 */
+	rtnl_lock();
+	err = netdev_rx_handler_register(global_ctx.capwap_dev, nss_nlcapwapmgr_rx_handler, NULL);
+	rtnl_unlock();
+
+	if (err < 0) {
+		nss_nl_error("Couldn't register CAPWAP RX handler\n");
+		goto free_notify;
 	}
 
 	/*
-	 * Register the capwap netdev rx handler
+	 * Initialize the global lock
 	 */
-	nss_nlcapwap_register_netdev_handler();
+	rwlock_init(&global_ctx.lock);
 	return true;
+
+free_notify:
+	nss_capwap_stats_unregister_notifier(&nss_capwap_stats_notifier_nb);
+free_family:
+	genl_unregister_family(&nss_nlcapwap_family);
+free:
+	debugfs_remove_recursive(global_ctx.dentry);
+	return false;
 }
 
 /*
@@ -1129,33 +1447,14 @@ bool nss_nlcapwap_init(void)
  */
 bool nss_nlcapwap_exit(void)
 {
-	struct net_device *capwap_ndev;
-	int err, i;
+	struct nss_nlcapwap_tunnel *tun;
+	int err;
+	int i;
 
 	nss_nl_info_always("Exit NSS netlink capwap handler\n");
 
 	/*
-	 * Unregister the capwap netdev rx handler
-	 */
-	capwap_ndev = nss_capwapmgr_get_netdev();
-	rtnl_lock();
-	netdev_rx_handler_unregister(capwap_ndev);
-	rtnl_unlock();
-
-	/*
-	 * Destroy all the active tunnels
-	 */
-	for (i = 0; i < NSS_CAPWAPMGR_MAX_TUNNELS; i++) {
-		nss_nlcapwap_destroy_tun(i);
-	}
-
-	/*
-	 * Unregister the device callback handler for capwap
-	 */
-	nss_capwap_stats_unregister_notifier(&nss_capwap_stats_notifier_nb);
-
-	/*
-	 * unregister the ops family
+	 * unregister the ops family so that we don't receive any new requests
 	 */
 	err = genl_unregister_family(&nss_nlcapwap_family);
 	if (err) {
@@ -1163,5 +1462,47 @@ bool nss_nlcapwap_exit(void)
 		return false;
 	}
 
+	/*
+	 * Unregister the capwap netdev rx handler
+	 */
+	if (global_ctx.capwap_dev) {
+		rtnl_lock();
+		netdev_rx_handler_unregister(global_ctx.capwap_dev);
+		rtnl_unlock();
+	}
+
+	/*
+	 * Remove the debugfs entry
+	 */
+	debugfs_remove_recursive(global_ctx.dentry);
+
+	/*
+	 * Destroy all the active tunnels
+	 */
+	for (i = 0; i < NSS_CAPWAPMGR_MAX_TUNNELS; i++) {
+		write_lock_bh(&global_ctx.lock);
+		tun = nss_nlcapwap_get_tun_by_index(i);
+		if (!tun) {
+			write_unlock_bh(&global_ctx.lock);
+			continue;
+		}
+
+		nss_nlcapwap_tun_deinit(tun);
+		clear_bit(i, global_ctx.tun_bitmap);
+		write_unlock_bh(&global_ctx.lock);
+
+		/*
+		 * Destroy the corresponding tunnel
+		 */
+		if (!nss_nlcapwap_destroy_tun(i)) {
+			nss_nl_error("Unable to set the tunnel status to 0 for tun: %d\n", i);
+			continue;
+		}
+	}
+
+	/*
+	 * Unregister the device callback handler for capwap
+	 */
+	nss_capwap_stats_unregister_notifier(&nss_capwap_stats_notifier_nb);
 	return true;
 }

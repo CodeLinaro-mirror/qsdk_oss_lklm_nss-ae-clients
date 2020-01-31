@@ -400,7 +400,9 @@ static size_t nss_match_vow_table_read(struct nss_match_instance *db_instance, s
 		mask_hit_count = 0;
 	}
 
-	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "\nrule_id\t hit_count\t mask_id\t if_name\t dscp\t outer 802.1p\t inner 802.1p\t action\t priority\t nexthop\n\n");
+	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "%8s %20s  %8s  %8s  %8s  %9s  %8s  %8s  %8s  %9s\n\n",
+		"rule_id", "hit count per rule", "mask_id", "if_name", "dscp", "out_vlan", "in_vlan", "action", "prio", "nh_ifnum");
+
 	for (j = 0; j < NSS_MATCH_INSTANCE_RULE_MAX; j++) {
 		if (!db_instance->rules[j].valid_rule)
 			continue;
@@ -411,8 +413,8 @@ static size_t nss_match_vow_table_read(struct nss_match_instance *db_instance, s
 			dev_name = net_dev->name;
 		}
 
-		size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "%d\t\t %llu\t\t %d\t\t %s\t\t %d\t\t %d\t\t %d\t\t %u\t\t %d\t\t %d\n",
-				j + 1,
+		size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "%8d %20llu  %8d  %8s  %8d  %8d  %8d  %8u  %8d %8d\n",
+				j+1,
 				db_instance->stats.hit_count[j],
 				db_instance->rules[j].profile.vow.mask_id,
 				dev_name,

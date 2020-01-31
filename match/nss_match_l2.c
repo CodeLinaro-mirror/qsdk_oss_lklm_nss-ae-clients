@@ -280,12 +280,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		 * Parse ethertype of the message.
 		 */
 		if (!(strncasecmp(param, "ethertype", strlen("ethertype")))) {
-			if (type == NSS_MATCH_ADD_RULE) {
-				ret = sscanf(token, "%hu", &ethertype);
-			} else if (type == NSS_MATCH_ADD_MASK) {
-				ret = sscanf(token, "%hx", &ethertype);
-			}
-
+			ret = sscanf(token, "%hx", &ethertype);
 			if (!ret) {
 				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
@@ -451,7 +446,9 @@ static size_t nss_match_l2_table_read(struct nss_match_instance *db_instance, si
 		mask_hit_count = 0;
 	}
 
-	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "\nrule_id\t\t hit_count\t\t mask_id\t\t if_name\t\t DMAC \t\t\t SMAC \t\t\t ethertype\t\t action\t\t priority\t\t nexthop\n");
+	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "%8s  %20s  %8s  %8s  %18s  %18s  %10s  %8s  %8s  %9s\n\n",
+		                "rule_id", "hit_count_per_rule", "mask_id", "if_name", "dest_mac_addr", "src_mac_addr", "ethertype", "action", "prio", "nh_ifnum");
+
 	for (j = 0; j < NSS_MATCH_INSTANCE_RULE_MAX; j++) {
 		if (!db_instance->rules[j].valid_rule)
 			continue;
@@ -462,7 +459,7 @@ static size_t nss_match_l2_table_read(struct nss_match_instance *db_instance, si
 			dev_name = net_dev->name;
 		}
 
-		size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "%d\t\t %llu\t\t %d\t\t %s\t\t%pM  %pM\t\t %d\t\t %u\t\t %d\t\t %d\n",
+		size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "%8d  %20llu  %8d  %8s  %18pM  %18pM  %10hx  %8u  %8d  %9d\n",
 				j + 1,
 				db_instance->stats.hit_count[j],
 				db_instance->rules[j].profile.l2.mask_id,

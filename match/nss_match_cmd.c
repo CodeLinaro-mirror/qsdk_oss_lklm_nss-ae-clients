@@ -552,7 +552,7 @@ ssize_t nss_match_cmd_debugfs_set_if_nexthop(struct file *file, const char __use
  */
 static ssize_t nss_match_cmd_help(struct file *fp, char __user *ubuf, size_t sz, loff_t *ppos)
 {
-	size_t size_wr;
+	size_t size_wr = 0;
 	size_t size_al = NSS_STATS_MAX_STR_LENGTH * 24;
 	ssize_t bytes_read = 0;
 

@@ -106,5 +106,6 @@ size_t nss_match_db_table_read(uint32_t table_id, size_t buflen, char *bufp);
 bool nss_match_db_stats_get(uint32_t table_id, struct nss_match_stats *match_stats);
 void nss_match_db_init(void);
 bool nss_match_profile_ops_register(uint32_t type, struct match_profile_ops *mops);
+int nss_match_db_get_ifnum_by_table_id(uint32_t table_id);
 
 #endif /* __NSS_MATCH_DB_H */

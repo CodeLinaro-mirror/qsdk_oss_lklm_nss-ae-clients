@@ -321,10 +321,10 @@ bool nss_match_db_get_profile_type(uint32_t table_id, uint32_t *profile_type)
 }
 
 /*
- * nss_match_get_ifnum_by_table_id()
+ * nss_match_db_get_ifnum_by_table_id()
  *	Returns interface number using table ID.
  */
-int nss_match_get_ifnum_by_table_id(uint32_t table_id)
+int nss_match_db_get_ifnum_by_table_id(uint32_t table_id)
 {
 	int if_num;
 	struct nss_match_instance *db_instance;
@@ -342,7 +342,6 @@ int nss_match_get_ifnum_by_table_id(uint32_t table_id)
 	spin_unlock_bh(&match_db.db_lock);
 	return if_num;
 }
-EXPORT_SYMBOL(nss_match_get_ifnum_by_table_id);
 
 /*
  * nss_match_get_table_id_by_ifnum()

@@ -44,12 +44,12 @@ static bool nss_match_l2_rule_find(struct nss_match_instance *db_instance, struc
 		if (rule_info.valid_rule &&
 			rule_info.profile.l2.if_num == rule->profile.l2.if_num &&
 			rule_info.profile.l2.ethertype == rule->profile.l2.ethertype &&
-			rule_info.profile.l2.smac[0] == rule->profile.l2.smac[0] &&
-			rule_info.profile.l2.smac[1] == rule->profile.l2.smac[1] &&
-			rule_info.profile.l2.smac[2] == rule->profile.l2.smac[2] &&
-			rule_info.profile.l2.dmac[0] == rule->profile.l2.dmac[0] &&
-			rule_info.profile.l2.dmac[1] == rule->profile.l2.dmac[1] &&
-			rule_info.profile.l2.dmac[2] == rule->profile.l2.dmac[2] &&
+			rule_info.profile.l2.smac[0] == htons(rule->profile.l2.smac[0]) &&
+			rule_info.profile.l2.smac[1] == htons(rule->profile.l2.smac[1]) &&
+			rule_info.profile.l2.smac[2] == htons(rule->profile.l2.smac[2]) &&
+			rule_info.profile.l2.dmac[0] == htons(rule->profile.l2.dmac[0]) &&
+			rule_info.profile.l2.dmac[1] == htons(rule->profile.l2.dmac[1]) &&
+			rule_info.profile.l2.dmac[2] == htons(rule->profile.l2.dmac[2]) &&
 			rule_info.profile.l2.mask_id == rule->profile.l2.mask_id) {
 			nss_match_info("Rule matched\n");
 			return true;
@@ -78,12 +78,12 @@ static bool nss_match_l2_db_rule_add(struct nss_match_instance *db_instance, str
 	}
 
 	db_instance->rules[rule_id - 1].profile.l2.if_num =  rule->profile.l2.if_num;
-	db_instance->rules[rule_id - 1].profile.l2.smac[0] = rule->profile.l2.smac[0];
-	db_instance->rules[rule_id - 1].profile.l2.smac[1] = rule->profile.l2.smac[1];
-	db_instance->rules[rule_id - 1].profile.l2.smac[2] = rule->profile.l2.smac[2];
-	db_instance->rules[rule_id - 1].profile.l2.dmac[0] = rule->profile.l2.dmac[0];
-	db_instance->rules[rule_id - 1].profile.l2.dmac[1] = rule->profile.l2.dmac[1];
-	db_instance->rules[rule_id - 1].profile.l2.dmac[2] = rule->profile.l2.dmac[2];
+	db_instance->rules[rule_id - 1].profile.l2.smac[0] = ntohs(rule->profile.l2.smac[0]);
+	db_instance->rules[rule_id - 1].profile.l2.smac[1] = ntohs(rule->profile.l2.smac[1]);
+	db_instance->rules[rule_id - 1].profile.l2.smac[2] = ntohs(rule->profile.l2.smac[2]);
+	db_instance->rules[rule_id - 1].profile.l2.dmac[0] = ntohs(rule->profile.l2.dmac[0]);
+	db_instance->rules[rule_id - 1].profile.l2.dmac[1] = ntohs(rule->profile.l2.dmac[1]);
+	db_instance->rules[rule_id - 1].profile.l2.dmac[2] = ntohs(rule->profile.l2.dmac[2]);
 	db_instance->rules[rule_id - 1].profile.l2.ethertype = rule->profile.l2.ethertype;
 	db_instance->rules[rule_id - 1].profile.l2.mask_id = rule->profile.l2.mask_id;
 	db_instance->rules[rule_id - 1].profile.l2.action.action_flag = rule->profile.l2.action.action_flag;
@@ -108,12 +108,12 @@ static bool nss_match_l2_rule_read(struct nss_match_instance *db_instance, struc
 	}
 
 	rule->profile.l2.if_num = db_instance->rules[rule_id - 1].profile.l2.if_num;
-	rule->profile.l2.smac[0] = db_instance->rules[rule_id - 1].profile.l2.smac[0];
-	rule->profile.l2.smac[1] = db_instance->rules[rule_id - 1].profile.l2.smac[1];
-	rule->profile.l2.smac[2] = db_instance->rules[rule_id - 1].profile.l2.smac[2];
-	rule->profile.l2.dmac[0] = db_instance->rules[rule_id - 1].profile.l2.dmac[0];
-	rule->profile.l2.dmac[1] = db_instance->rules[rule_id - 1].profile.l2.dmac[1];
-	rule->profile.l2.dmac[2] = db_instance->rules[rule_id - 1].profile.l2.dmac[2];
+	rule->profile.l2.smac[0] = htons(db_instance->rules[rule_id - 1].profile.l2.smac[0]);
+	rule->profile.l2.smac[1] = htons(db_instance->rules[rule_id - 1].profile.l2.smac[1]);
+	rule->profile.l2.smac[2] = htons(db_instance->rules[rule_id - 1].profile.l2.smac[2]);
+	rule->profile.l2.dmac[0] = htons(db_instance->rules[rule_id - 1].profile.l2.dmac[0]);
+	rule->profile.l2.dmac[1] = htons(db_instance->rules[rule_id - 1].profile.l2.dmac[1]);
+	rule->profile.l2.dmac[2] = htons(db_instance->rules[rule_id - 1].profile.l2.dmac[2]);
 	rule->profile.l2.ethertype = db_instance->rules[rule_id - 1].profile.l2.ethertype;
 	rule->profile.l2.mask_id = db_instance->rules[rule_id - 1].profile.l2.mask_id;
 	rule->profile.l2.rule_id = db_instance->rules[rule_id - 1].profile.l2.rule_id;
@@ -355,7 +355,6 @@ static size_t nss_match_l2_table_read(struct nss_match_instance *db_instance, si
 	size_t size_wr = 0;
 	char *dev_name;
 
-	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "\nMatch if_num = %d\n", db_instance->if_num);
 	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "\nProfile Type = %d\n", db_instance->profile_type);
 
 	for (i = 0; i < NSS_MATCH_MASK_MAX; i++) {

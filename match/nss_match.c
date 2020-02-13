@@ -158,6 +158,21 @@ nss_match_status_t nss_match_rule_delete(struct nss_ctx_instance *nss_ctx, uint3
 EXPORT_SYMBOL(nss_match_rule_delete);
 
 /*
+ * nss_match_get_ifnum_by_table_id()
+ *	Returns interface number using table ID.
+ */
+int nss_match_get_ifnum_by_table_id(uint32_t table_id)
+{
+	if (table_id == 0 || table_id > NSS_MATCH_INSTANCE_MAX) {
+		nss_match_warn("Invalid table_id %d.\n", table_id);
+		return -1;
+	}
+
+	return nss_match_db_get_ifnum_by_table_id(table_id);
+}
+EXPORT_SYMBOL(nss_match_get_ifnum_by_table_id);
+
+/*
  * nss_match_vow_rule_add()
  * 	User API to add VoW rule.
  */

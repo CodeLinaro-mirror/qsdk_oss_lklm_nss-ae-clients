@@ -358,7 +358,6 @@ static size_t nss_match_vow_table_read(struct nss_match_instance *db_instance, s
 	size_t size_wr = 0;
 	char *dev_name;
 
-	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "Match if_num = %d\n\n", db_instance->if_num);
 	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "Profile Type = %d\n\n", db_instance->profile_type);
 
 	for (i = 0; i < NSS_MATCH_MASK_MAX; i++) {

@@ -122,6 +122,7 @@ static ssize_t nss_match_stats_table_read(struct file *fp, char __user *ubuf, si
 		+ NSS_MATCH_INSTANCE_MAX * NSS_MATCH_INSTANCE_RULE_MAX *(9)	/* for:  4 rule fields + 1 rule_id + 3 action fields + 1 hit count*/
 		+ 2;
 	int i;
+	int if_num;
 	size_t size_wr = 0, buflen = 0;
 	size_t size_al = NSS_STATS_MAX_STR_LENGTH * max_output_lines;
 	ssize_t bytes_read = 0;
@@ -133,10 +134,12 @@ static ssize_t nss_match_stats_table_read(struct file *fp, char __user *ubuf, si
 	}
 
 	for (i = 1; i <= NSS_MATCH_INSTANCE_MAX; ++i) {
-		if (!nss_match_db_table_validate(i)) {
+		if_num = nss_match_get_ifnum_by_table_id(i);
+		if (if_num < 0) {
 			continue;
 		}
 		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\nTable_id =%d\n", i);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "Match if_num = %d\n\n", if_num);
 		bufp = lbuf + size_wr;
 		buflen = size_al - size_wr;
 		size_wr += nss_match_db_table_read(i, buflen, bufp);

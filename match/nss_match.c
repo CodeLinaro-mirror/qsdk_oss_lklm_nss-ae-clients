@@ -433,13 +433,39 @@ dealloc_node:
 }
 EXPORT_SYMBOL(nss_match_instance_create);
 
+static struct dentry *match_config;
+
+/*
+ * nss_match_exit_module()
+ */
+static void __exit nss_match_exit_module(void)
+{
+	int table, status;
+
+	for (table = 1; table <= NSS_MATCH_INSTANCE_MAX; table++) {
+
+		/*
+		 * Skip invalid table ID.
+		 */
+		if (nss_match_get_ifnum_by_table_id(table) < 0) {
+			continue;
+		}
+
+		status = nss_match_instance_destroy(table);
+		if (status != NSS_MATCH_SUCCESS) {
+			nss_match_warn("NSS match client destroy failed for table ID=%d with err=%d \n", table, status);
+		}
+	}
+
+	debugfs_remove_recursive(match_config);
+	nss_match_info("NSS match client destroyed\n");
+}
+
 /*
  * nss_match_init_module()
  */
-int __init nss_match_init_module(void)
+static int __init nss_match_init_module(void)
 {
-	struct dentry *match_config;
-
 #ifdef CONFIG_OF
 	/*
 	 * If the node is not compatible, don't do anything.
@@ -486,4 +512,7 @@ int __init nss_match_init_module(void)
 	return 0;
 }
 module_init(nss_match_init_module);
+module_exit(nss_match_exit_module);
+
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_DESCRIPTION("NSS match client");

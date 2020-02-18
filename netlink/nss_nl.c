@@ -56,6 +56,22 @@
 #include "nss_nlcapwap_if.h"
 #include "nss_nldynamic_interface.h"
 #include "nss_nldynamic_interface_if.h"
+#include "nss_nln2h.h"
+#include "nss_nln2h_if.h"
+#include "nss_nlc2c_tx.h"
+#include "nss_nlc2c_tx_if.h"
+#include "nss_nlc2c_rx.h"
+#include "nss_nlc2c_rx_if.h"
+#include "nss_nlipv4_reasm.h"
+#include "nss_nlipv4_reasm_if.h"
+#include "nss_nlipv6_reasm.h"
+#include "nss_nlipv6_reasm_if.h"
+#include "nss_nlwifili.h"
+#include "nss_nlwifili_if.h"
+#include "nss_nllso_rx.h"
+#include "nss_nllso_rx_if.h"
+#include "nss_nlmap_t.h"
+#include "nss_nlmap_t_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -191,6 +207,78 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLDYNAMIC_INTERFACE_INIT,	/* init */
 		.exit = NSS_NLDYNAMIC_INTERFACE_EXIT,	/* exit */
 		.valid = CONFIG_NSS_NLDYNAMIC_INTERFACE	/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLN2H
+		 */
+		.name = NSS_NLN2H_FAMILY,		/* n2h */
+		.entry = NSS_NLN2H_INIT,		/* init */
+		.exit = NSS_NLN2H_EXIT,			/* exit */
+		.valid = CONFIG_NSS_NLN2H		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLC2C_TX
+		 */
+		.name = NSS_NLC2C_TX_FAMILY,		/* c2c_tx */
+		.entry = NSS_NLC2C_TX_INIT,		/* init */
+		.exit = NSS_NLC2C_TX_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLC2C_TX		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLC2C_RX
+		 */
+		.name = NSS_NLC2C_RX_FAMILY,		/* c2c_rx */
+		.entry = NSS_NLC2C_RX_INIT,		/* init */
+		.exit = NSS_NLC2C_RX_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLC2C_RX		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLIPV4_REASM
+		 */
+		.name = NSS_NLIPV4_REASM_FAMILY,	/* ipv4_reasm */
+		.entry = NSS_NLIPV4_REASM_INIT,		/* init */
+		.exit = NSS_NLIPV4_REASM_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLIPV4_REASM	/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLIPV6_REASM
+		 */
+		.name = NSS_NLIPV6_REASM_FAMILY,	/* ipv6_reasm */
+		.entry = NSS_NLIPV6_REASM_INIT,		/* init */
+		.exit = NSS_NLIPV6_REASM_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLIPV6_REASM	/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLWIFILI
+		 */
+		.name = NSS_NLWIFILI_FAMILY,		/* wifili */
+		.entry = NSS_NLWIFILI_INIT,		/* init */
+		.exit = NSS_NLWIFILI_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLWIFILI		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLLSO_RX
+		 */
+		.name = NSS_NLLSO_RX_FAMILY,		/* lso_rx */
+		.entry = NSS_NLLSO_RX_INIT,		/* init */
+		.exit = NSS_NLLSO_RX_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLLSO_RX		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLMAP_T
+		 */
+		.name = NSS_NLMAP_T_FAMILY,		/* map_t */
+		.entry = NSS_NLMAP_T_INIT,		/* init */
+		.exit = NSS_NLMAP_T_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLMAP_T		/* 1 or 0 */
 	},
 };
 

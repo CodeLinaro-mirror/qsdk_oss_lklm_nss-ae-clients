@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015,2018-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015,2018-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -35,6 +35,18 @@ struct nss_nlcmn {
 	uint8_t res;				/**< reserve for future use */
 	int32_t cb_owner;			/**< CB identifier */
 	uint8_t cb_data[NSS_NLCMN_CB_MAX_SZ]; 	/**< user context buffer */
+};
+
+/**
+ * @brief NSS subsystems in alphabetical order for nssinfo tool
+ */
+enum nss_nlcmn_subsys {
+	NSS_NLCMN_SUBSYS_CAPWAP,
+	NSS_NLCMN_SUBSYS_DYNAMIC_INTERFACE,
+	NSS_NLCMN_SUBSYS_EDMA,
+	NSS_NLCMN_SUBSYS_ETHRX,
+	NSS_NLCMN_SUBSYS_IPV4,
+	NSS_NLCMN_SUBSYS_MAX
 };
 
 /**

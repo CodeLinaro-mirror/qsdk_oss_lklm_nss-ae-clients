@@ -339,6 +339,7 @@ void nss_tlsmgr_ctx_rx_inner(struct net_device *dev, struct sk_buff *skb, struct
 	int rec_idx;
 
 	ctx->host_stats.rx_packets++;
+	atomic_dec(&tun->pkt_pending);
 
 	BUG_ON(nss_tlsmgr_mdata_get_magic(mdata) != NSS_TLSMGR_MDATA_MAGIC);
 	BUG_ON(nss_tlsmgr_mdata_get_ver(mdata) != NSS_TLSMGR_MDATA_VER);
@@ -407,6 +408,7 @@ void nss_tlsmgr_ctx_rx_outer(struct net_device *dev, struct sk_buff *skb, struct
 	BUG_ON(nss_tlsmgr_mdata_get_rec_cnt(mdata) > NSS_TLSMGR_MDATA_REC_MAX);
 
 	ctx->host_stats.rx_packets++;
+	atomic_dec(&tun->pkt_pending);
 
 	for (rec_idx = 0; rec_idx < mdata->rec_cnt; rec_idx++, rec_mdata++, rec++) {
 		frag_ptr = nss_tlsmgr_mdata_rec_get_in_frag(rec_mdata);
@@ -492,6 +494,8 @@ static void nss_tlsmgr_ctx_fill_mdata(struct nss_tlsmgr_ctx *ctx, struct nss_tls
 nss_tlsmgr_status_t nss_tlsmgr_ctx_tx(struct nss_tlsmgr_ctx *ctx, struct sk_buff *skb, struct nss_tlsmgr_rec *rec)
 {
 	struct nss_tlsmgr_buf *buf = (struct nss_tlsmgr_buf *)skb->head;
+	struct net_device *dev = ctx->dev;
+	struct nss_tlsmgr_tun *tun = netdev_priv(dev);
 	nss_tx_status_t status;
 
 	nss_tlsmgr_ctx_fill_mdata(ctx, rec, skb->data, buf->rec_cnt);
@@ -501,11 +505,18 @@ nss_tlsmgr_status_t nss_tlsmgr_ctx_tx(struct nss_tlsmgr_ctx *ctx, struct sk_buff
 	if (status != NSS_TX_SUCCESS) {
 		nss_tlsmgr_warn("%p: Buffer transmission to NSS FW failed, status=%d", buf, status);
 		ctx->host_stats.tx_error++;
-		return (status == NSS_TX_FAILURE_QUEUE) ? NSS_TLSMGR_FAIL_DATA_QUEUE : NSS_TLSMGR_FAIL;
+
+		/*
+		 * Reset Device state to be only UP and not RUNNING
+		 */
+		dev->flags &= ~IFF_RUNNING;
+		mod_timer(&tun->decongest.timer, jiffies + tun->decongest.ticks);
+		return (status == NSS_TX_FAILURE_QUEUE) ? NSS_TLSMGR_FAIL_QUEUE_FULL : NSS_TLSMGR_FAIL;
 	}
 
 	ctx->host_stats.tx_packets++;
 
+	atomic_inc(&buf->tun->pkt_pending);
 	return NSS_TLSMGR_OK;
 }
 

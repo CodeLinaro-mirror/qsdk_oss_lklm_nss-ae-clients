@@ -43,7 +43,7 @@ typedef enum nss_tlsmgr_status {
 	NSS_TLSMGR_INVALID_ALGO,	/**< Invalid algorithm. */
 	NSS_TLSMGR_INVALID_KEYLEN,	/**< Invalid key length for cipher/auth. */
 	NSS_TLSMGR_FAIL_REC_VERSION,	/**< Invalid TLS version. */
-	NSS_TLSMGR_FAIL_REC_LEN,		/**< Invalid Record lenght. */
+	NSS_TLSMGR_FAIL_REC_LEN,	/**< Invalid Record length. */
 	NSS_TLSMGR_FAIL_NOMEM,		/**< Failed to allocate memory. */
 	NSS_TLSMGR_FAIL_NOCRYPTO,	/**< Failed to allocate crypto resource. */
 	NSS_TLSMGR_FAIL_MESSAGE,	/**< Failed to message the NSS. */
@@ -51,7 +51,8 @@ typedef enum nss_tlsmgr_status {
 	NSS_TLSMGR_FAIL_REC_RANGE,	/**< Record Index out of range. */
 	NSS_TLSMGR_FAIL_LINEARIZE,	/**< Failed to linearize SKB. */
 	NSS_TLSMGR_FAIL_DATA_QUEUE,	/**< NSS Queue Congested. */
-	NSS_TLSMGR_FAIL_TRANSFORM,	/**< NSS Data transformation failed. */
+	NSS_TLSMGR_FAIL_QUEUE_FULL,	/**< Data Enqueue to NSS failed. */
+	NSS_TLSMGR_FAIL_TRANSFORM,	/**< Data transformation error. */
 } nss_tlsmgr_status_t;
 
 /**
@@ -103,6 +104,7 @@ struct nss_tlsmgr_rec {
  * NSS TLS manager callback
  */
 typedef void (*nss_tlsmgr_notify_callback_t)(void *app_data, struct net_device *dev, struct nss_tlsmgr_stats *stats);
+typedef void (*nss_tlsmgr_decongest_callback_t)(void *app_data, struct net_device *dev);
 typedef void (*nss_tlsmgr_data_callback_t)(void *app_data, struct nss_tlsmgr_buf *buf, nss_tlsmgr_status_t status);
 
 /**
@@ -130,17 +132,15 @@ struct nss_tlsmgr_config {
  *	Adds a new TLS tunnel.
  *
  * @datatypes
- * nss_tlsmgr_notify_callback \n
- * unsigned long \n
+ * nss_tlsmgr_decongest_callback_t \n
  *
- * @param[in]  notify_cb     Pointer to message callback.
+ * @param[in]  nss_tlsmgr_decongest_callback_t     Decongestion callback.
  * @param[in]  app_data      Pointer to Application Data.
- * @param[out] notify_msecs  Time interval to sync statistics.
  *
  * @return
  * Linux NETDEVICE or NULL.
  */
-struct net_device *nss_tlsmgr_tun_add(void);
+struct net_device *nss_tlsmgr_tun_add(nss_tlsmgr_decongest_callback_t cb, void *app_data);
 
 /**
  * nss_tlsmgr_tun_del
@@ -171,7 +171,7 @@ void nss_tlsmgr_tun_del(struct net_device *tun);
  * @param[IN] msecs     Notificaiton time in milliseconds
  *
  * @return
- * true or false
+ * true or false if it is already registered.
  */
 bool nss_tlsmgr_register_notify(struct net_device *tun, nss_tlsmgr_notify_callback_t cb, void *app_data, uint32_t msecs);
 
@@ -289,6 +289,32 @@ struct nss_tlsmgr_buf *nss_tlsmgr_buf_alloc(struct net_device *dev, void *priv);
  * Note: This does not ensure if any of the SG list is allocated by caller is freed or not.
  */
 void nss_tlsmgr_buf_free(struct nss_tlsmgr_buf *buf);
+
+/**
+ * nss_tlsmgr_buf2skb
+ *	Get a SKB pointer from buffer
+ *
+ * @datatypes
+ *
+ * @param[IN] buf TLS buffer
+ *
+ * @return
+ * SKB pointer corresponding to the buffer.
+ */
+struct sk_buff *nss_tlsmgr_buf2skb(struct nss_tlsmgr_buf *buf);
+
+/**
+ * nss_tlsmgr_skb2buf
+ *	Get a buf pointer from SKB
+ *
+ * @datatypes
+ *
+ * @param[IN] SKB sk_buff
+ *
+ * @return
+ * TLS buffer corresponding to SKB.
+ */
+struct nss_tlsmgr_buf *nss_tlsmgr_skb2buf(struct sk_buff *skb);
 
 /**
  * nss_tlsmgr_buf_get_priv

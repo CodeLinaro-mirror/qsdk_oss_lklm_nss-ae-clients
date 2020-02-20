@@ -29,6 +29,8 @@
 #define NSS_TLSMGR_MAX_HEADROOM NSS_TLSMGR_MAX_HDR_SZ
 #define NSS_TLSMGR_MAX_TAILROOM NSS_TLSMGR_MAX_TRAILER_SZ
 
+#define NSS_TLSMGR_TUN_DECONGEST_TICKS 100
+
 /*
  * Tunnel Event notification
  */
@@ -40,15 +42,27 @@ struct nss_tlsmgr_notify {
 };
 
 /*
+ * Decongestion Event notification
+ */
+struct nss_tlsmgr_decongest {
+	nss_tlsmgr_decongest_callback_t cb;	/* Callback function */
+	struct timer_list timer; 		/* Timer for invoking the callback */
+	unsigned long ticks; 			/* User programmed time interval */
+	void *app_data; 			/* Callback context */
+};
+
+/*
  * TLS tunnel object
  */
 struct nss_tlsmgr_tun  {
 	struct net_device *dev;   			/* Tunnel netdevice. */
 	rwlock_t lock;					/* Tunnel lock. */
+	atomic_t pkt_pending;				/* Packets not retured to host. */
 	struct dentry *dentry;    			/* Debugfs directory for tunnel stats. */
 	struct list_head free_list;			/* List of inactive TLS record(s). */
-	struct work_struct free_work;				/* Work scheduled for deletion. */
+	struct work_struct free_work;			/* Work scheduled for deletion. */
 	struct nss_tlsmgr_notify notify; 		/* Period notification to user */
+	struct nss_tlsmgr_decongest decongest;		/* Decongestion notification to user */
 	struct nss_tlsmgr_ctx ctx_enc;     		/* Encapsulation context. */
 	struct nss_tlsmgr_ctx ctx_dec;			/* Decapsulation context. */
 };

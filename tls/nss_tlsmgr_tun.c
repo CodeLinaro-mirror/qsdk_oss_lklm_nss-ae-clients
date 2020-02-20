@@ -192,10 +192,10 @@ static void nss_tlsmgr_tun_free_work(struct work_struct *work)
 }
 
 /*
- * nss_tlsmgr_notify_user()
+ * nss_tlsmgr_notify_event()
  *	TLS manager notification timer handler
  */
-static void nss_tlsmgr_notify_user(unsigned long data)
+static void nss_tlsmgr_notify_event(unsigned long data)
 {
 	struct nss_tlsmgr_tun *tun = (struct nss_tlsmgr_tun *)data;
 	nss_tlsmgr_notify_callback_t cb;
@@ -212,6 +212,39 @@ static void nss_tlsmgr_notify_user(unsigned long data)
 	if (cb) {
 		cb(app_data, tun->dev, &stats);
 		mod_timer(&tun->notify.timer, jiffies + tun->notify.ticks);
+	}
+}
+
+/*
+ * nss_tlsmgr_notify_decongestion()
+ *	TLS manager decongestion notification
+ */
+static void nss_tlsmgr_notify_decongestion(unsigned long data)
+{
+	struct nss_tlsmgr_tun *tun = (struct nss_tlsmgr_tun *)data;
+	nss_tlsmgr_decongest_callback_t cb;
+	void *app_data;
+
+	if (atomic_read(&tun->pkt_pending)) {
+		mod_timer(&tun->decongest.timer, jiffies + tun->decongest.ticks);
+		return;
+	}
+
+	BUG_ON(tun->dev->flags & IFF_RUNNING);
+
+	read_lock_bh(&tun->lock);
+	cb = tun->decongest.cb;
+	app_data = tun->decongest.app_data;
+	read_unlock_bh(&tun->lock);
+
+	/*
+	 * Mark device as RUNNING again before notifying the application
+	 * to start transmitting again
+	 */
+	tun->dev->flags |= IFF_RUNNING;
+
+	if (cb) {
+		cb(app_data, tun->dev);
 	}
 }
 
@@ -271,7 +304,7 @@ const struct file_operations tlsmgr_ctx_file_ops = {
  * nss_tlsmgr_tun_add()
  *	Create TLS tunnel device and dynamic interface
  */
-struct net_device *nss_tlsmgr_tun_add(void)
+struct net_device *nss_tlsmgr_tun_add(nss_tlsmgr_decongest_callback_t cb, void *app_data)
 {
 	struct nss_tlsmgr_tun *tun;
 	struct net_device *dev;
@@ -314,11 +347,22 @@ struct net_device *nss_tlsmgr_tun_add(void)
 			  tun, dev->name, tun->ctx_enc.ifnum, tun->ctx_dec.ifnum);
 
 	/*
-	 * Initialize timer
+	 * Initialize tunnel decongestion
+	 */
+	tun->decongest.ticks = msecs_to_jiffies(NSS_TLSMGR_TUN_DECONGEST_TICKS);
+	tun->decongest.app_data = app_data;
+	tun->decongest.cb = cb;
+
+	/*
+	 * Initialize Event notification and Decongestion timer
 	 */
 	init_timer(&tun->notify.timer);
-	tun->notify.timer.function = nss_tlsmgr_notify_user;
+	tun->notify.timer.function = nss_tlsmgr_notify_event;
 	tun->notify.timer.data = (unsigned long)tun;
+
+	init_timer(&tun->decongest.timer);
+	tun->decongest.timer.function = nss_tlsmgr_notify_decongestion;
+	tun->decongest.timer.data = (unsigned long)tun;
 
 	INIT_LIST_HEAD(&tun->free_list);
 	INIT_WORK(&tun->free_work, nss_tlsmgr_tun_free_work);
@@ -331,6 +375,11 @@ struct net_device *nss_tlsmgr_tun_add(void)
 		debugfs_create_file("inner", S_IRUGO, tun->dentry, &tun->ctx_enc, &tlsmgr_ctx_file_ops);
 		debugfs_create_file("outer", S_IRUGO, tun->dentry, &tun->ctx_dec, &tlsmgr_ctx_file_ops);
 	}
+
+	/*
+	 * Mark device as UP and Running
+	 */
+	dev->flags = IFF_UP | IFF_RUNNING;
 
 	return dev;
 
@@ -360,6 +409,11 @@ void nss_tlsmgr_tun_del(struct net_device *dev)
 	debugfs_remove_recursive(tun->dentry);
 
 	nss_tlsmgr_unregister_notify(dev);
+
+	del_timer_sync(&tun->decongest.timer);
+	tun->decongest.app_data = NULL;
+	tun->decongest.cb = NULL;
+	tun->decongest.ticks = 0;
 
 	nss_tlsmgr_ctx_deconfig(&tun->ctx_enc);
 	nss_tlsmgr_ctx_deconfig(&tun->ctx_dec);

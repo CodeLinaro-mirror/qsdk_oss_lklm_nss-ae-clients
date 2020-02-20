@@ -79,14 +79,12 @@ static const struct nss_tlsmgr_print tlsmgr_print_ctx_fw_stats[] = {
 	{"\trx_ccs_rec", NSS_TLSMGR_PRINT_DWORD},
 	{"\tfail_ccs", NSS_TLSMGR_PRINT_DWORD},
 	{"\teth_node_deactive", NSS_TLSMGR_PRINT_DWORD},
-	{"\tfail_dma_avail", NSS_TLSMGR_PRINT_DWORD},
 	{"\tcrypto_alloc_success", NSS_TLSMGR_PRINT_DWORD},
 	{"\tcrypto_free_req", NSS_TLSMGR_PRINT_DWORD},
 	{"\tcrypto_free_success", NSS_TLSMGR_PRINT_DWORD},
 	{"\tfail_crypto_alloc", NSS_TLSMGR_PRINT_DWORD},
 	{"\tfail_crypto_lookup", NSS_TLSMGR_PRINT_DWORD},
 	{"\tfail_req_alloc", NSS_TLSMGR_PRINT_DWORD},
-	{"\tfail_req_detach", NSS_TLSMGR_PRINT_DWORD},
 	{"\tfail_pbuf_stats", NSS_TLSMGR_PRINT_DWORD},
 	{"\tfail_ctx_active", NSS_TLSMGR_PRINT_DWORD},
 
@@ -101,6 +99,10 @@ static const struct nss_tlsmgr_print tlsmgr_print_ctx_fw_stats[] = {
 	{"\thw_auth_error", NSS_TLSMGR_PRINT_DWORD},
 	{"\thw_pad_verify_error", NSS_TLSMGR_PRINT_DWORD},
 	{"\thw_timeout_error", NSS_TLSMGR_PRINT_DWORD},
+
+	{"\tno_desc_in", NSS_TLSMGR_PRINT_DWORD},
+	{"\tno_desc_out", NSS_TLSMGR_PRINT_DWORD},
+	{"\tno_reqs", NSS_TLSMGR_PRINT_DWORD},
 };
 
 #ifdef NSS_TLSMGR_DEBUG_DUMP

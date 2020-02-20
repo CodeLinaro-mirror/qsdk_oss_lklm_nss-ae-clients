@@ -42,14 +42,12 @@ struct nss_tlsmgr_ctx_fw_stats {
 	uint64_t rx_ccs_rec;			/**< Number of change cipher spec records received. */
 	uint64_t fail_ccs;			/**< Failed to switch to new crypto. */
 	uint64_t eth_node_deactive;		/**< Ethernet node deactivated as no crypto available. */
-	uint64_t fail_dma_avail;		/**< No DMA avail. */
 	uint64_t crypto_alloc_success;		/**< Number of crypto allocation. */
 	uint64_t crypto_free_req;		/**< Number of crypto free request. */
 	uint64_t crypto_free_success;		/**< Number of crypto free success. */
 	uint64_t fail_crypto_alloc;		/**< Number of crypto allocation failed. */
 	uint64_t fail_crypto_lookup;		/**< Failed to find acive crypto session. */
 	uint64_t fail_req_alloc;		/**< Failuer to allocate request memory pool.  */
-	uint64_t fail_req_detach;		/**< Failure to get new request from pool. */
 	uint64_t fail_pbuf_stats;		/**< Failure in pbuf allocation for statistics. */
 	uint64_t fail_ctx_active;		/**< Failure in enqueue due to inactive context. */
 
@@ -67,6 +65,13 @@ struct nss_tlsmgr_ctx_fw_stats {
 	uint64_t hw_auth_error;         	/**< Hash input overflow. */
 	uint64_t hw_pad_verify_error;		/**< Pad verification error. */
 	uint64_t hw_timeout_error;              /**< Data timed-out. */
+
+	/*
+	 * Performance statistics
+	 */
+	uint64_t no_desc_in;			/**< Ingress DMA descriptor not available. */
+	uint64_t no_desc_out;			/**< Egress DMA descriptor not available. */
+	uint64_t no_reqs;			/**< Not enough requests available for records. */
 };
 
 /*

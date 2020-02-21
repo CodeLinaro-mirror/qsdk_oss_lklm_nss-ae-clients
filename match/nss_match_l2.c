@@ -105,7 +105,7 @@ static bool nss_match_l2_db_rule_add(struct nss_match_instance *db_instance, str
 static bool nss_match_l2_rule_read(struct nss_match_instance *db_instance, struct nss_match_rule_info *rule, uint16_t rule_id)
 {
 	if (!db_instance->rules[rule_id - 1].valid_rule) {
-		nss_match_warn("rule_id doesnot exist, rule_id = %d", rule_id);
+		nss_match_warn("rule_id does not exist, rule_id = %d", rule_id);
 		return false;
 	}
 
@@ -125,7 +125,7 @@ static bool nss_match_l2_rule_read(struct nss_match_instance *db_instance, struc
 
 /*
  * nss_match_l2_cmd_parse()
- *	Adds new rules to the list
+ *	Parse the L2 command
  */
 static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_msg, nss_match_cmd_t type)
 {
@@ -137,6 +137,9 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 	uint16_t smac[3] = {0}, dmac[3] = {0}, mask_id = 0, ethertype = 0;
 	char tmp[4];
 
+	/*
+	 * Parse User input.
+	 */
 	while (input_msg != NULL) {
 		token = strsep(&input_msg, " ");
 		param = strsep(&token, "=");
@@ -144,25 +147,31 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			goto fail;
 		}
 
+		/*
+		 * Parse mask ID of the message.
+		 */
 		if (!(strncasecmp(param, "mask", strlen("mask")))) {
 			if (!sscanf(token, "%hu", &mask_id)) {
-				nss_match_warn("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
 			if (mask_id > NSS_MATCH_MASK_MAX) {
-				nss_match_warn("%p: Maskset num %d, exceeds max allowed value %d\n", nss_ctx, mask_id, NSS_MATCH_MASK_MAX);
+				pr_info("%p: Maskset num %d, exceeds max allowed value %d\n", nss_ctx, mask_id, NSS_MATCH_MASK_MAX);
 				return -EINVAL;
 			}
 
 			continue;
 		}
 
+		/*
+		 * Parse interface name of the message.
+		 */
 		if (!(strncasecmp(param, "ifname", strlen("ifname")))) {
 			struct net_device *dev;
 			if (type == NSS_MATCH_ADD_MASK) {
 				if (!sscanf(token, "%x", &if_num)) {
-					nss_match_warn("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+					pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
 					return -EINVAL;
 				}
 
@@ -172,7 +181,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			if (type == NSS_MATCH_ADD_RULE) {
 				dev = dev_get_by_name(&init_net, token);
 				if (!dev) {
-					nss_match_warn("%p: Cannot find the net device\n", nss_ctx);
+					pr_info("%p: Cannot find the net device\n", nss_ctx);
 					return -ENODEV;
 				}
 
@@ -182,6 +191,9 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			}
 		}
 
+		/*
+		 * Parse soure mac address of the message.
+		 */
 		if (!(strncasecmp(param, "smac", strlen("smac")))) {
 			tmp[0] = token[0];
 			tmp[1] = token[1];
@@ -205,6 +217,9 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			continue;
 		}
 
+		/*
+		 * Parse destination mac address of the mesage.
+		 */
 		if (!(strncasecmp(param, "dmac", strlen("dmac")))) {
 			tmp[0] = token[0];
 			tmp[1] = token[1];
@@ -228,6 +243,9 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			continue;
 		}
 
+		/*
+		 * Parse ethertype of the message.
+		 */
 		if (!(strncasecmp(param, "ethertype", strlen("ethertype")))) {
 			if (type == NSS_MATCH_ADD_RULE) {
 				ret = sscanf(token, "%hu", &ethertype);
@@ -236,7 +254,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			}
 
 			if (!ret) {
-				nss_match_warn("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -248,60 +266,72 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		 */
 		if (!(strncasecmp(param, "action", strlen("action")))) {
 			if (!sscanf(token, "%u", &actions)) {
-				nss_match_warn("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
-			}
-
-			if (actions >= NSS_MATCH_ACTION_MAX ) {
-				nss_match_warn("Invalid action type: %d", actions);
-			}
-
-			if (actions == 1 || actions == 3) {
-				token = strsep(&input_msg, " ");
-				param = strsep(&token, "=");
-				if (!token || !param) {
-					goto fail;
-				}
-
-				if (!(strncasecmp(param, "priority", strlen("priority")))) {
-					if (!sscanf(token, "%u", &setprio)) {
-						nss_match_warn("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
-						return -EINVAL;
-					}
-
-					if (setprio >= NSS_MAX_NUM_PRI) {
-						nss_match_warn("Invalid priority: %d", setprio);
-						return -EINVAL;
-					}
-
-				}
-			}
-
-			if (actions == 2 || actions == 3) {
-				token = strsep(&input_msg, " ");
-				param = strsep(&token, "=");
-				if (!token || !param) {
-					goto fail;
-				}
-
-				if (!(strncasecmp(param, "nexthop", strlen("nexthop")))) {
-					if (!sscanf(token, "%u", &nexthop)) {
-						nss_match_warn("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
-						return -EINVAL;
-					}
-				}
 			}
 
 			continue;
 		}
 
-		nss_match_warn("%p: Not a valid input\n", nss_ctx);
-		return -EINVAL;
+		/*
+		 * Parsing priority for action provided by user.
+		 */
+		if (!(strncasecmp(param, "priority", strlen("priority")))) {
+			if (!sscanf(token, "%u", &setprio)) {
+				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				return -EINVAL;
+			}
+
+			continue;
+		}
+
+		/*
+		 * Parsing nexthop for action provided by user.
+		 */
+		if (!(strncasecmp(param, "nexthop", strlen("nexthop")))) {
+			if (!sscanf(token, "%u", &nexthop)) {
+				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				return -EINVAL;
+			}
+
+			continue;
+		}
+
+		pr_info("%p: Not a valid input\n", nss_ctx);
+		goto fail;
 	}
 
+	/*
+	 * Verify correctness of field combination.
+	 */
 	switch (type) {
 	case NSS_MATCH_ADD_RULE:
 		if (!mask_id || !actions) {
+			goto fail;
+		}
+
+		switch(actions) {
+		case NSS_MATCH_ACTION_SETPRIO:
+			if (nexthop || !setprio || setprio >= NSS_MAX_NUM_PRI) {
+				goto fail;
+			}
+			break;
+		case NSS_MATCH_ACTION_FORWARD:
+			if (setprio || !nexthop) {
+				goto fail;
+			}
+			break;
+		case NSS_MATCH_ACTION_SETPRIO | NSS_MATCH_ACTION_FORWARD:
+			if (!setprio || !nexthop || setprio >= NSS_MAX_NUM_PRI) {
+				goto fail;
+			}
+			break;
+		case NSS_MATCH_ACTION_DROP:
+			if (setprio || nexthop) {
+				goto fail;
+			}
+			break;
+		default:
 			goto fail;
 		}
 
@@ -319,6 +349,11 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		rule_msg->msg.l2_rule.action.forward_ifnum = nexthop;
 		break;
 	case NSS_MATCH_ADD_MASK:
+		if (!mask_id) {
+			pr_info("Missing mandatory field, Mask ID.\n");
+			goto fail;
+		}
+
 		mask_val[0] = (if_num << MATCH_L2_KEY0_IFNUM_SHIFT);
 		mask_val[0] |= (dmac[0] << MATCH_L2_KEY0_DMAC_HW0_SHIFT);
 		mask_val[1] = (dmac[1] << MATCH_L2_KEY1_DMAC_HW1_SHIFT);
@@ -335,14 +370,14 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		rule_msg->msg.configure_msg.valid_mask_flag = mask_id;
 		break;
 	default:
-		nss_match_warn("Invalid parse type: %d", type);
-		return -EINVAL;
+		pr_info("Invalid parse type: %d", type);
+		goto fail;
 	}
 
 	return 0;
 
 fail:
-	pr_warn("Invalid input, Check help: cat /sys/kernel/debug/match/help");
+	pr_warn("Invalid input, Check help: cat /proc/sys/dev/nss/match/help");
 	return -EINVAL;
 }
 

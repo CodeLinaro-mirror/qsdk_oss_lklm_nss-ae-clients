@@ -614,6 +614,27 @@ static int nss_nlipv6_verify_vlan_rule(struct nss_ipv6_rule_create_msg *msg, str
 }
 
 /*
+ * nss_nlipv6_verify_identifier()
+ *	verify and override identifier rule entries
+ */
+static int nss_nlipv6_verify_identifier(struct nss_ipv6_rule_create_msg *msg)
+{
+	struct nss_ipv6_identifier_rule *identifier = &msg->identifier;
+	const size_t rule_sz = sizeof(struct nss_ipv6_identifier_rule);
+	uint16_t valid;
+
+	/*
+	 * if identifier is not valid, set identifier rule to 0
+	 */
+	valid = msg->valid_flags & NSS_IPV6_RULE_CREATE_IDENTIFIER_VALID;
+	if (!valid) {
+		memset(identifier, 0, rule_sz);
+	}
+
+	return 0;
+}
+
+/*
  * nss_nlipv6_process_notify()
  *	process notification messages from NSS
  */
@@ -782,6 +803,15 @@ static int nss_nlipv6_ops_create_rule(struct sk_buff *skb, struct genl_info *inf
 	error = nss_nlipv6_verify_vlan_rule(&nim->msg.rule_create, flow_dev, return_dev);
 	if (error < 0) {
 		nss_nl_error("%d:invalid vlan rule information passed\n", pid);
+		goto done;
+	}
+
+	/*
+	 * check identifier
+	 */
+	error = nss_nlipv6_verify_identifier(&nim->msg.rule_create);
+	if (error < 0) {
+		nss_nl_error("%d:invalid identifier rule information passed\n", pid);
 		goto done;
 	}
 

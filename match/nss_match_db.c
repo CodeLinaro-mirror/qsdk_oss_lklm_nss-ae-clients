@@ -193,6 +193,7 @@ bool nss_match_db_rule_add(struct nss_match_rule_info *rule, uint8_t table_id)
 bool nss_match_db_rule_delete(uint32_t table_id, uint32_t rule_id)
 {
 	struct nss_match_instance *db_instance;
+	int index;
 
 	if (rule_id == 0 || rule_id > NSS_MATCH_INSTANCE_RULE_MAX) {
 		nss_match_warn("Invalid rule ID: %d\n", rule_id);
@@ -216,6 +217,10 @@ bool nss_match_db_rule_delete(uint32_t table_id, uint32_t rule_id)
 
 	db_instance->rule_count--;
 	db_instance->stats.hit_count[rule_id - 1] = 0;
+
+	for (index = 0; index < NSS_MATCH_MASK_MAX; index++) {
+		db_instance->valid_rule_mask[index][rule_id - 1] = false;
+	}
 	memset(&(db_instance->rules[rule_id - 1]), 0, sizeof(struct nss_match_rule_info));
 
 	spin_unlock_bh(&match_db.db_lock);

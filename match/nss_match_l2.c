@@ -66,6 +66,7 @@ static bool nss_match_l2_rule_find(struct nss_match_instance *db_instance, struc
 static bool nss_match_l2_db_rule_add(struct nss_match_instance *db_instance, struct nss_match_rule_info *rule)
 {
 	uint8_t rule_id = rule->profile.l2.rule_id;
+	uint8_t mask_id = rule->profile.l2.mask_id;
 
 	if (rule_id == 0 || rule_id > NSS_MATCH_INSTANCE_RULE_MAX) {
 		nss_match_warn("Invalid rule id: %d\n", rule_id);
@@ -85,12 +86,13 @@ static bool nss_match_l2_db_rule_add(struct nss_match_instance *db_instance, str
 	db_instance->rules[rule_id - 1].profile.l2.dmac[1] = ntohs(rule->profile.l2.dmac[1]);
 	db_instance->rules[rule_id - 1].profile.l2.dmac[2] = ntohs(rule->profile.l2.dmac[2]);
 	db_instance->rules[rule_id - 1].profile.l2.ethertype = rule->profile.l2.ethertype;
-	db_instance->rules[rule_id - 1].profile.l2.mask_id = rule->profile.l2.mask_id;
+	db_instance->rules[rule_id - 1].profile.l2.mask_id = mask_id;
 	db_instance->rules[rule_id - 1].profile.l2.action.action_flag = rule->profile.l2.action.action_flag;
 	db_instance->rules[rule_id - 1].profile.l2.action.setprio = rule->profile.l2.action.setprio;
 	db_instance->rules[rule_id - 1].profile.l2.action.forward_ifnum = rule->profile.l2.action.forward_ifnum;
 	db_instance->rules[rule_id - 1].valid_rule = true;
 	db_instance->rules[rule_id - 1].profile.l2.rule_id = rule_id;
+	db_instance->valid_rule_mask[mask_id - 1][rule_id - 1] = true;
 	db_instance->rule_count++;
 
 	return true;
@@ -352,6 +354,7 @@ static size_t nss_match_l2_table_read(struct nss_match_instance *db_instance, si
 	int i, j;
 	struct nss_ctx_instance *nss_ctx = nss_match_get_context();
 	struct net_device *net_dev;
+	uint64_t mask_hit_count = 0;
 	size_t size_wr = 0;
 	char *dev_name;
 
@@ -359,15 +362,24 @@ static size_t nss_match_l2_table_read(struct nss_match_instance *db_instance, si
 
 	for (i = 0; i < NSS_MATCH_MASK_MAX; i++) {
 		if (!(db_instance->valid_mask_flag & (1 << i))) {
-			size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "Mask %d = Invalid\n\n", i+1);
+			size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "Mask %d = Invalid\n", i+1);
 			continue;
 		}
 
-		size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "Mask %d =%x %x %x %x \n\n", i+1, db_instance->maskset[i][3],
-				db_instance->maskset[i][2], db_instance->maskset[i][1], db_instance->maskset[i][0]);
+		for (j = 0; j < NSS_MATCH_INSTANCE_RULE_MAX; j++) {
+			if (!db_instance->valid_rule_mask[i][j]) {
+				continue;
+			}
+
+			mask_hit_count += db_instance->stats.hit_count[j];
+		}
+
+		size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "Mask %d =%x %x %x %x\t\t Rule hits using mask %d = %llu\n\n",
+				i+1, db_instance->maskset[i][3], db_instance->maskset[i][2], db_instance->maskset[i][1], db_instance->maskset[i][0], i+1, mask_hit_count);
+		mask_hit_count = 0;
 	}
 
-	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "rule_id\t\t hit_count\t\t mask_id\t\t if_name\t\t DMAC \t\t\t SMAC \t\t\t ethertype\t\t action\t\t priority\t\t nexthop\n");
+	size_wr += scnprintf(bufp + size_wr, buflen - size_wr, "\nrule_id\t\t hit_count\t\t mask_id\t\t if_name\t\t DMAC \t\t\t SMAC \t\t\t ethertype\t\t action\t\t priority\t\t nexthop\n");
 	for (j = 0; j < NSS_MATCH_INSTANCE_RULE_MAX; j++) {
 		if (!db_instance->rules[j].valid_rule)
 			continue;

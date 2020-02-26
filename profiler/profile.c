@@ -417,9 +417,19 @@ static ssize_t profile_read(struct file *filp, char *buf, size_t count, loff_t *
 	}
 	if (pn->sw_ksp_ptr) {
 		struct debug_box *db = (struct debug_box *) pn->sw_ksp_ptr;
+
+		if ((void*)db != (void*)pn) {
+			profileWarn("%p: hwe data not ready %p\n", pn, db);
+			return -EAGAIN;
+		}
+
+		profileWarn("dbda %p: %x %x %x %x %x\n", db->data,
+			db->data[0], db->data[2], db->data[4], db->data[6], db->data[7]);
+
 		slen = (PROFILE_STS_EVENT_COUNTERS + 1) * sizeof(db->data[0]);
 		if (copy_to_user(buf, db->data, slen))
 			return -EFAULT;
+		profileInfo("%p: sw_ksp_ptr %p slen %d\n", pn, pn->sw_ksp_ptr, slen);
 		return	slen;
 	}
 
@@ -652,6 +662,7 @@ static void profiler_handle_stat_event_reply(struct nss_ctx_instance *nss_ctx,
 	 * save data for read()
 	 */
 	memcpy(pdb->data, db->data, (db->dlen + 1) * sizeof(db->data[0]));
+	pio->sw_ksp_ptr = (uint32_t *)pdb;
 }
 
 /*
@@ -692,40 +703,66 @@ static int parse_sys_stat_event_req(const char *buf, size_t count,
 	}
 
 	do {
-		int idx, event;
+		unsigned long idx;
+		int event, e5x;
+		char *kstrp;
 
 		while (isspace(*cp))
 			cp++;
-		if (kstrtoul(cp, 0, (unsigned long *)&event))
-			return -EINVAL;
-
-		cp = strchr(cp, ' ');
-		if (!cp) {
-			printk("missing index %s\n", buf);
+		kstrp = strchr(cp, ' ');
+		if (!kstrp) {
+			printk(KERN_ERR "%p missing index %p %s\n", buf, cp, cp);
 			return	-EINVAL;
 		}
-		while (isspace(*cp))
-			cp++;
-		idx = event >> 16;
-		if (idx) {
+		kstrp[0] = 0;
+
+		/*
+		 * kstrtoul bugs:
+		 *	it does not use white space for delimiter.
+		 *	it cannot use base 0, thus base 10 only.
+		 */
+		event = kstrtoul(cp, 10, &idx);
+		if (event) {
+			printk(KERN_ERR "kstrtoul %d: %s\n", event, cp);
+			return -EINVAL;
+		}
+		event = idx;
+
+		/*
+		 * Processing thread specific events, which requires hex values.
+		 * Because kstrtoul cannot use base 0, it makes this task harder
+		 * in user space. Users need to convert hex value to decimal, then
+		 * pass them in userland command event-counter.
+		 */
+		e5x = event >> 16;
+		if (e5x) {
 			if ((event & 0x1FF) < 50) {
-				printk("thr ID (%d) ignored for event %d\n",
-					idx, event & 0x1FF);
-			} else if (idx > 12) {
-				if ((idx >>= 5) > 12) {
-					printk("tID %d too big [1..12]\n", idx);
+				printk(KERN_INFO "thr ID (%d) ignored for event %d\n",
+					e5x, event & 0x1FF);
+			} else if (e5x > 12) {
+				if ((e5x >>= 5) > 12) {
+					printk(KERN_INFO "tID %d too big [1..12]\n", e5x);
 					return	-E2BIG;
 				}
 			}
 		}
 
-		if (kstrtoul(cp, 10, (unsigned long *)&idx) || idx < 0 || idx > 7) {
-			printk("index %d out of range [0..7]\n", idx);
+		cp = kstrp + 1;
+		while (isspace(*cp))
+			cp++;
+		kstrp = strchr(cp, ' ');
+		if (kstrp) {
+			kstrp[0] = 0;
+			kstrp++;
+		}
+
+		if (kstrtoul(cp, 10, &idx) || idx < 0 || idx > 7) {
+			printk(KERN_ERR "bad index %ld [0..7]\n", idx);
 			return	-ERANGE;
 		}
-		printk("%p: e %d i %d\n", db, event, idx);
+		printk(KERN_INFO "%p: e %d i %ld\n", db, event, idx);
 		db->data[idx] = event;
-		cp = strchr(cp, ' ');
+		cp = kstrp;
 	} while (cp);
 	db->hd_magic = NSS_PROFILE_HD_MAGIC | NSS_PROFILER_SET_SYS_STAT_EVENT;
 	result = nss_profiler_if_tx_buf(pio->ctx, &pio->pnc.un, sizeof(pio->pnc.un),
@@ -874,7 +911,7 @@ static ssize_t debug_if(struct file *filp,
 			/*
 			 * set flag so event-counter can read the data from FW
 			 */
-			pio->sw_ksp_ptr = (uint32_t *)db;
+			pio->sw_ksp_ptr = db->data;
 		}
 		return	result;
 	}

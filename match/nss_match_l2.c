@@ -135,6 +135,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 	uint32_t mask_val[4] = {0};
 	uint32_t actions = 0, if_num = 0, setprio = 0, nexthop = 0;
 	uint16_t smac[3] = {0}, dmac[3] = {0}, mask_id = 0, ethertype = 0;
+	uint8_t mac_addr_tmp[6];
 	char tmp[4];
 
 	/*
@@ -195,49 +196,81 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		 * Parse soure mac address of the message.
 		 */
 		if (!(strncasecmp(param, "smac", strlen("smac")))) {
-			tmp[0] = token[0];
-			tmp[1] = token[1];
-			tmp[2] = token[2];
-			tmp[3] = token[3];
-			sscanf(tmp, "%hx", &smac[0]);
 
-			tmp[0] = token[4];
-			tmp[1] = token[5];
-			tmp[2] = token[6];
-			tmp[3] = token[7];
-			sscanf(tmp, "%hx", &smac[1]);
+			/*
+			 * Parse the 48bit mask input in hex. For ex, smac=FFFF0000FFFF
+			 */
+			if (type == NSS_MATCH_ADD_MASK) {
+				tmp[0] = token[0];
+				tmp[1] = token[1];
+				tmp[2] = token[2];
+				tmp[3] = token[3];
+				sscanf(tmp, "%hx", &smac[0]);
 
-			tmp[0] = token[8];
-			tmp[1] = token[9];
-			tmp[2] = token[10];
-			tmp[3] = token[11];
-			sscanf(tmp, "%hx", &smac[2]);
+				tmp[0] = token[4];
+				tmp[1] = token[5];
+				tmp[2] = token[6];
+				tmp[3] = token[7];
+				sscanf(tmp, "%hx", &smac[1]);
+
+				tmp[0] = token[8];
+				tmp[1] = token[9];
+				tmp[2] = token[10];
+				tmp[3] = token[11];
+				sscanf(tmp, "%hx", &smac[2]);
+			}
+
+			/*
+			 * Parse the 6 byte MAC address delimited by ':'. For ex, smac=01:00:25:ff:45:a1
+			 */
+			if (type == NSS_MATCH_ADD_RULE) {
+				sscanf(token, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+		&mac_addr_tmp[0], &mac_addr_tmp[1], &mac_addr_tmp[2], &mac_addr_tmp[3], &mac_addr_tmp[4], &mac_addr_tmp[5]);
+
+				memcpy((uint8_t *)smac, mac_addr_tmp, 6);
+			}
 
 			nss_match_info("%p: src mac %x %x %x ", nss_ctx, smac[0], smac[1], smac[2]);
 			continue;
 		}
 
 		/*
-		 * Parse destination mac address of the mesage.
+		 * Parse the destination mac address of the message.
 		 */
 		if (!(strncasecmp(param, "dmac", strlen("dmac")))) {
-			tmp[0] = token[0];
-			tmp[1] = token[1];
-			tmp[2] = token[2];
-			tmp[3] = token[3];
-			sscanf(tmp, "%hx", &dmac[0]);
 
-			tmp[0] = token[4];
-			tmp[1] = token[5];
-			tmp[2] = token[6];
-			tmp[3] = token[7];
-			sscanf(tmp, "%hx", &dmac[1]);
+			/*
+			 * Parse the 48bit mask input in hex. For ex, dmac=FFFF0000FFFF
+			 */
+			if (type == NSS_MATCH_ADD_MASK) {
 
-			tmp[0] = token[8];
-			tmp[1] = token[9];
-			tmp[2] = token[10];
-			tmp[3] = token[11];
-			sscanf(tmp, "%hx", &dmac[2]);
+				tmp[0] = token[0];
+				tmp[1] = token[1];
+				tmp[2] = token[2];
+				tmp[3] = token[3];
+				sscanf(tmp, "%hx", &dmac[0]);
+
+				tmp[0] = token[4];
+				tmp[1] = token[5];
+				tmp[2] = token[6];
+				tmp[3] = token[7];
+				sscanf(tmp, "%hx", &dmac[1]);
+
+				tmp[0] = token[8];
+				tmp[1] = token[9];
+				tmp[2] = token[10];
+				tmp[3] = token[11];
+				sscanf(tmp, "%hx", &dmac[2]);
+			}
+
+			/*
+			 * Parse the 6 byte MAC address delimited by ':'. For ex, dmac=01:00:5e:ff:45:a1
+			 */
+			if (type == NSS_MATCH_ADD_RULE) {
+				sscanf(token, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+		&mac_addr_tmp[0], &mac_addr_tmp[1], &mac_addr_tmp[2], &mac_addr_tmp[3], &mac_addr_tmp[4], &mac_addr_tmp[5]);
+				memcpy((uint8_t *)dmac, mac_addr_tmp, 6);
+			}
 
 			nss_match_info("%p: dest mac %x %x %x ", nss_ctx, dmac[0], dmac[1], dmac[2]);
 			continue;
@@ -336,12 +369,16 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		}
 
 		rule_msg->msg.l2_rule.if_num = if_num;
-		rule_msg->msg.l2_rule.smac[0] = smac[0];
-		rule_msg->msg.l2_rule.smac[1] = smac[1];
-		rule_msg->msg.l2_rule.smac[2] = smac[2];
-		rule_msg->msg.l2_rule.dmac[0] = dmac[0];
-		rule_msg->msg.l2_rule.dmac[1] = dmac[1];
-		rule_msg->msg.l2_rule.dmac[2] = dmac[2];
+
+		/*
+		 * Smac, dmac are in host order, these should be converted to network order, before sending to FW.
+		 */
+		rule_msg->msg.l2_rule.smac[0] = htons(smac[0]);
+		rule_msg->msg.l2_rule.smac[1] = htons(smac[1]);
+		rule_msg->msg.l2_rule.smac[2] = htons(smac[2]);
+		rule_msg->msg.l2_rule.dmac[0] = htons(dmac[0]);
+		rule_msg->msg.l2_rule.dmac[1] = htons(dmac[1]);
+		rule_msg->msg.l2_rule.dmac[2] = htons(dmac[2]);
 		rule_msg->msg.l2_rule.ethertype = ethertype;
 		rule_msg->msg.l2_rule.mask_id = mask_id;
 		rule_msg->msg.l2_rule.action.setprio = setprio;

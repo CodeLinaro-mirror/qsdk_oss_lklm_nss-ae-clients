@@ -21,6 +21,7 @@ ccflags-y += -DCONFIG_NSS_NLWIFILI=1
 ccflags-y += -DCONFIG_NSS_NLLSO_RX=1
 ccflags-y += -DCONFIG_NSS_NLMAP_T=1
 ccflags-y += -DCONFIG_NSS_NLPPPOE=1
+ccflags-y += -DCONFIG_NSS_NLL2TPV2=1
 
 qca-nss-netlink-objs := nss_nl.o
 qca-nss-netlink-objs += nss_nlgre_redir_family.o
@@ -44,6 +45,7 @@ qca-nss-netlink-objs += nss_nlwifili.o
 qca-nss-netlink-objs += nss_nllso_rx.o
 qca-nss-netlink-objs += nss_nlmap_t.o
 qca-nss-netlink-objs += nss_nlpppoe.o
+qca-nss-netlink-objs += nss_nll2tpv2.o
 
 CAPWAP_ENABLED:=CONFIG_PACKAGE_kmod-qca-nss-drv-capwapmgr=y
 CAPWAP_CONFIG:=$(shell  grep $(CAPWAP_ENABLED) $(TOPDIR)/.config)

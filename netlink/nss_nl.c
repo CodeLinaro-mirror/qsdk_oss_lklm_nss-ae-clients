@@ -76,6 +76,8 @@
 #include "nss_nlpppoe_if.h"
 #include "nss_nll2tpv2.h"
 #include "nss_nll2tpv2_if.h"
+#include "nss_nlpptp.h"
+#include "nss_nlpptp_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
 #else
@@ -301,6 +303,15 @@ static struct nss_nl_family family_handlers[] = {
 		.entry = NSS_NLL2TPV2_INIT,		/* init */
 		.exit = NSS_NLL2TPV2_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLL2TPV2		/* 1 or 0 */
+	},
+	{
+		/*
+		 * NSS_NLPPTP
+		 */
+		.name = NSS_NLPPTP_FAMILY,		/* pptp */
+		.entry = NSS_NLPPTP_INIT,		/* init */
+		.exit = NSS_NLPPTP_EXIT,		/* exit */
+		.valid = CONFIG_NSS_NLPPTP		/* 1 or 0 */
 	},
 };
 

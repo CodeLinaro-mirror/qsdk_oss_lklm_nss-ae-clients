@@ -315,6 +315,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 
 					if (setprio >= NSS_MAX_NUM_PRI) {
 						nss_match_warn("Invalid priority: %d", setprio);
+						return -EINVAL;
 					}
 
 				}

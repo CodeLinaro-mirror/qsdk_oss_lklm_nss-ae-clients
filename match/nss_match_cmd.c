@@ -449,6 +449,68 @@ fail:
 }
 
 /*
+ * nss_match_cmd_procfs_reset_nexthop
+ * 	Reset to default nexthop of an interface
+ */
+static int nss_match_cmd_procfs_reset_nexthop(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	struct net_device *dev;
+	uint32_t if_num;
+	int ret, status;
+	char *dev_name;
+	char *cmd_buf = nss_match_data;
+	struct nss_if_msg nim;
+	struct nss_ctx_instance *nss_ctx = nss_match_get_context();
+
+	if (!nss_ctx) {
+		pr_warn("NSS context not found, reset nexthop failed\n");
+		return -ENOMEM;
+	}
+
+	ret = proc_dostring(ctl, write, buffer, lenp, ppos);
+	if (!write) {
+		pr_warn("%p: Reset nexthop failed.\n", nss_ctx);
+		return ret;
+	}
+
+	/*
+	 * Parse and read the devname from command.
+	 */
+	dev_name = strsep(&cmd_buf, "\0");
+	dev = dev_get_by_name(&init_net, dev_name);
+	if (!dev) {
+		pr_warn("%p: Cannot find the net device: %s. Reset nexthop failed.\n", nss_ctx, dev_name);
+		return -ENODEV;
+	}
+
+	if_num = nss_cmn_get_interface_number_by_dev(dev);
+	if (if_num < 0) {
+		pr_warn("%p: Invalid if_num for interface: %s. Reset nexthop failed.\n", nss_ctx, dev_name);
+		dev_put(dev);
+		return -ENODEV;
+	}
+
+	/*
+	 * Send the reset nexthop command.
+	 */
+	nss_cmn_msg_init(&nim.cm, if_num, NSS_IF_RESET_NEXTHOP, sizeof(struct nss_if_set_nexthop), NULL, NULL);
+
+	/*
+	 * TODO: Add and use synchronous API.
+	 */
+	status = nss_if_tx_msg(nss_ctx, &nim);
+        if (status != NSS_TX_SUCCESS) {
+		nss_match_warn("%p: Failed to send reset next hop message. Reset nexthop failed.\n", nss_ctx);
+		dev_put(dev);
+		return -EFAULT;
+	}
+
+	pr_info("%p: Reset nexthop successful.\n", nss_ctx);
+	dev_put(dev);
+	return 0;
+}
+
+/*
  * nss_match_cmd_procfs_set_if_nexthop
  * 	Set next hop of an interface to a match instance.
  * 	Only VAP and physical interfaces are supported as of now.
@@ -583,8 +645,9 @@ static int nss_match_cmd_procfs_read_help(struct ctl_table *ctl, int write, void
 			c. action=3 priority=<pri_value> nexthop=<nexthop_ifnum>\n\
 			d. action=4\n\
 		4. To set nexthop: \n\
-			echo <phy_ifname/VAP name> <match_ifnum> > set_nexthop\n");
-
+			echo <phy_ifname/VAP name> <match_ifnum> > set_nexthop\n\
+		5. To reset nexthop: \n\
+			echo <dev_name> > reset_nexthop\n");
 	*lenp = 0;
 	return ret;
 }
@@ -603,6 +666,13 @@ static struct ctl_table nss_match_table[] = {
 		.maxlen			= sizeof(nss_match_data),
 		.mode			= 0644,
 		.proc_handler		= &nss_match_cmd_procfs_set_if_nexthop,
+	},
+	{
+		.procname		= "reset_nexthop",
+		.data			= &nss_match_data,
+		.maxlen			= IFNAMSIZ,
+		.mode			= 0644,
+		.proc_handler		= &nss_match_cmd_procfs_reset_nexthop,
 	},
 	{
 		.procname		= "help",

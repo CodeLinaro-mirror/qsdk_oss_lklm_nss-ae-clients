@@ -125,7 +125,8 @@ void nss_tlsmgr_buf_rx(struct nss_tlsmgr_buf *buf, nss_tlsmgr_status_t status)
  */
 nss_tlsmgr_status_t nss_tlsmgr_buf_encap(struct nss_tlsmgr_buf *buf, nss_tlsmgr_data_callback_t cb, void *app_data)
 {
-	struct nss_tlsmgr_tun *tun;
+	struct nss_tlsmgr_tun *tun = buf->tun;
+	struct net_device *dev = tun->dev;
 	struct nss_tlsmgr_ctx *ctx;
 	struct sk_buff *skb;
 	struct nss_tlsmgr_rec *rec;
@@ -135,7 +136,11 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_encap(struct nss_tlsmgr_buf *buf, nss_tlsmgr_
 
 	if (unlikely(!cb)) {
 		nss_tlsmgr_error("%p: no user callback registered\n", buf);
-		return NSS_TLSMGR_FAIL_TRANSFORM;
+		return NSS_TLSMGR_FAIL_QUEUE_FULL;
+	}
+
+	if (!(dev->flags & IFF_RUNNING)) {
+		return NSS_TLSMGR_FAIL_QUEUE_FULL;
 	}
 
 	/*
@@ -156,7 +161,6 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_encap(struct nss_tlsmgr_buf *buf, nss_tlsmgr_
 	skb = buf->skb;
 	skb_pull(skb, mdata_start - skb->data);
 
-	tun = buf->tun;
 	ctx = &tun->ctx_enc;
 
 	return nss_tlsmgr_ctx_tx(ctx, skb, rec);
@@ -179,7 +183,11 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_decap(struct nss_tlsmgr_buf *buf, nss_tlsmgr_
 
 	if (unlikely(!cb)) {
 		nss_tlsmgr_error("%p: no user callback registered\n", buf);
-		return NSS_TLSMGR_FAIL_TRANSFORM;
+		return NSS_TLSMGR_FAIL_QUEUE_FULL;
+	}
+
+	if (!(tun->dev->flags & IFF_RUNNING)) {
+		return NSS_TLSMGR_FAIL_QUEUE_FULL;
 	}
 
 	/*
@@ -305,6 +313,26 @@ uint8_t nss_tlsmgr_buf_get_rec_cnt(struct nss_tlsmgr_buf *buf)
 	return buf->rec_cnt;
 }
 EXPORT_SYMBOL(nss_tlsmgr_buf_get_rec_cnt);
+
+/*
+ * nss_tlsmgr_buf2skb()
+ *	Buffer to SKB conversion.
+ */
+struct sk_buff *nss_tlsmgr_buf2skb(struct nss_tlsmgr_buf *buf)
+{
+	return buf->skb;
+}
+EXPORT_SYMBOL(nss_tlsmgr_buf2skb);
+
+/*
+ * nss_tlsmgr_skb2buf()
+ *	SKB to buffer conversion.
+ */
+struct nss_tlsmgr_buf *nss_tlsmgr_skb2buf(struct sk_buff *skb)
+{
+	return (struct nss_tlsmgr_buf *)skb->head;
+}
+EXPORT_SYMBOL(nss_tlsmgr_skb2buf);
 
 /*
  * nss_tlsmgr_buf_alloc()

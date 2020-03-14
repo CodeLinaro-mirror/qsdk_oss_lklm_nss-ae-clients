@@ -319,7 +319,7 @@ static ssize_t nss_match_cmd_debugfs_write_handler(struct file *fp, const char _
 		}
 
 		if (rule_id < 0) {
-			pr_warn("Failed to add vow rule to table %d.\n", table_id);
+			pr_warn("Failed to add rule into table %d.\n", table_id);
 			kfree(input_msg_orig);
 			return -EINVAL;
 		}

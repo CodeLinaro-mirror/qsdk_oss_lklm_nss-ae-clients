@@ -29,7 +29,6 @@
 #include <nss_cmn.h>
 #include <nss_ipsecmgr.h>
 #include <nss_nl_if.h>
-#include "nss_crypto_defines.h"
 #include "nss_nl.h"
 #include "nss_nlcapwap.h"
 #include "nss_nlcapwap_if.h"
@@ -80,7 +79,8 @@
 #include "nss_nlpptp_if.h"
 #if defined (CONFIG_NSS_NLCRYPTO)
 #include "nss_nlcrypto_if.h"
-#else
+#endif
+#if defined (CONFIG_NSS_NLCRYPTOV2)
 #include "nss_nlcryptov2_if.h"
 #endif
 
@@ -115,6 +115,7 @@ static struct nss_nl_family family_handlers[] = {
 		.valid = CONFIG_NSS_NLCRYPTO		/* 1 or 0 */
 	},
 #endif
+#if defined (CONFIG_NSS_NLCRYPTOV2)
 	{
 		/*
 		 * NSS_NLCRYPTOV2
@@ -124,6 +125,7 @@ static struct nss_nl_family family_handlers[] = {
 		.exit = NSS_NLCRYPTOV2_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLCRYPTOV2		/* 1 or 0 */
 	},
+#endif
 	{
 		/*
 		 * NSS_NLIPV4

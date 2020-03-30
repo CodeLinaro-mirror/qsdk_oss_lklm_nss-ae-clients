@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2016,2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2020 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -36,7 +36,6 @@
 #include <nss_ipsecmgr.h>
 #include <nss_nl_if.h>
 #include <nss_ipsec_cmn.h>
-#include "nss_crypto_defines.h"
 #include "nss_nl.h"
 #include "nss_nlcmn_if.h"
 #include "nss_nlipsec_if.h"

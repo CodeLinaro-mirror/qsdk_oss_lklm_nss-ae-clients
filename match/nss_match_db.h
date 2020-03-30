@@ -44,6 +44,7 @@ struct nss_match_instance {
 	struct match_profile_ops *ops;
 	uint32_t valid_mask_flag;
 	uint32_t maskset[NSS_MATCH_MASK_MAX][NSS_MATCH_MASK_WORDS_MAX];	/* Maskset. */
+	bool valid_rule_mask[NSS_MATCH_MASK_MAX][NSS_MATCH_INSTANCE_RULE_MAX];
 	uint32_t profile_type;
 	uint32_t if_num;
 	uint16_t rule_count;

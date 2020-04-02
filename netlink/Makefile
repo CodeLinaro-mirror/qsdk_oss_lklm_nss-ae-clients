@@ -69,11 +69,4 @@ IPSEC_CONFIG:=$(shell  grep $(IPSEC_ENABLED) $(TOPDIR)/.config)
 ifeq ($(IPSEC_CONFIG),$(IPSEC_ENABLED))
 qca-nss-netlink-objs += nss_nlipsec.o
 endif
-ifeq ($(SoC),$(filter $(SoC),ipq807x ipq807x_64 ipq60xx ipq60xx_64))
-ccflags-y += -DCONFIG_NSS_NLCRYPTOV2=1
-qca-nss-netlink-objs += nss_nlcryptov2.o
-else
-ccflags-y += -DCONFIG_NSS_NLCRYPTO=1
-qca-nss-netlink-objs += nss_nlcrypto.o
-endif
 obj-m += qca-nss-netlink.o

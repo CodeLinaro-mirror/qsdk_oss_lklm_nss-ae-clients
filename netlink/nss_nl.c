@@ -33,8 +33,6 @@
 #include "nss_nlcapwap.h"
 #include "nss_nlcapwap_if.h"
 #include "nss_nlcmn_if.h"
-#include "nss_nlcrypto.h"
-#include "nss_nlcryptov2.h"
 #include "nss_nldtls.h"
 #include "nss_nldtls_if.h"
 #include "nss_nlgre_redir_if.h"
@@ -77,12 +75,6 @@
 #include "nss_nll2tpv2_if.h"
 #include "nss_nlpptp.h"
 #include "nss_nlpptp_if.h"
-#if defined (CONFIG_NSS_NLCRYPTO)
-#include "nss_nlcrypto_if.h"
-#endif
-#if defined (CONFIG_NSS_NLCRYPTOV2)
-#include "nss_nlcryptov2_if.h"
-#endif
 
 /*
  * nss_nl.c
@@ -103,29 +95,6 @@ struct nss_nl_family {
  * Family handler table
  */
 static struct nss_nl_family family_handlers[] = {
-	/* crypto v1 is not generic */
-#if defined (CONFIG_NSS_NLCRYPTO)
-	{
-		/*
-		 * NSS_NLCRYPTO
-		 */
-		.name = NSS_NLCRYPTO_FAMILY,		/* crypto */
-		.entry = NSS_NLCRYPTO_INIT,		/* init */
-		.exit = NSS_NLCRYPTO_EXIT,		/* exit */
-		.valid = CONFIG_NSS_NLCRYPTO		/* 1 or 0 */
-	},
-#endif
-#if defined (CONFIG_NSS_NLCRYPTOV2)
-	{
-		/*
-		 * NSS_NLCRYPTOV2
-		 */
-		.name = NSS_NLCRYPTOV2_FAMILY,		/* crypto */
-		.entry = NSS_NLCRYPTOV2_INIT,		/* init */
-		.exit = NSS_NLCRYPTOV2_EXIT,		/* exit */
-		.valid = CONFIG_NSS_NLCRYPTOV2		/* 1 or 0 */
-	},
-#endif
 	{
 		/*
 		 * NSS_NLIPV4

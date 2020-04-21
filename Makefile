@@ -5,11 +5,9 @@ ccflags-y := -I$(obj) -I$(obj)/..
 export BUILD_ID = \"Build Id: $(shell date +'%m/%d/%y, %H:%M:%S')\"
 ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BUILD_ID)"
 
-qca-nss-tunipip6-objs := nss_connmgr_tunipip6.o
 qca-nss-tun6rd-objs := nss_connmgr_tun6rd.o
 
 ccflags-y += -DNSS_TUN6RD_DEBUG_LEVEL=0
-ccflags-y += -DNSS_TUNIPIP6_DEBUG_LEVEL=0
 ccflags-y += -Werror
 
 obj-$(bridge-mgr)+= bridge/
@@ -23,7 +21,7 @@ obj-$(map-t)+= map/map-t/
 obj-$(portifmgr)+= portifmgr/
 obj-$(pptp)+= pptp/
 obj-$(profile)+= profiler/
-obj-$(tunipip6)+= qca-nss-tunipip6.o
+obj-$(tunipip6)+= tunipip6/
 obj-$(tun6rd)+= qca-nss-tun6rd.o
 obj-$(qdisc)+= nss_qdisc/
 obj-$(vlan-mgr)+= vlan/

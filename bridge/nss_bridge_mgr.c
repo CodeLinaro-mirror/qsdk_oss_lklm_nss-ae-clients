@@ -261,7 +261,7 @@ static int nss_bridge_mgr_add_bond_slave(struct net_device *bond_master,
 	/*
 	 * Figure out the aggregation id of this slave
 	 */
-#if IS_ENABLED(CONFIG_BONDING)
+#if defined(BONDING_SUPPORT)
 	bondid = bond_get_id(bond_master);
 #endif
 	if (bondid < 0) {
@@ -344,7 +344,7 @@ static int nss_bridge_mgr_del_bond_slave(struct net_device *bond_master,
 	/*
 	 * Figure out the aggregation id of this slave
 	 */
-#if IS_ENABLED(CONFIG_BONDING)
+#if defined(BONDING_SUPPORT)
 	bondid = bond_get_id(bond_master);
 #endif
 	if (bondid < 0) {

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2018, 2020 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -736,7 +736,7 @@ static struct nss_vlan_pvt *nss_vlan_mgr_create_instance(
 				return NULL;
 			}
 		} else {
-#if IS_ENABLED(CONFIG_BONDING)
+#if defined(BONDING_SUPPORT)
 			bondid = bond_get_id(real_dev);
 #endif
 			if (bondid < 0) {
@@ -1568,7 +1568,7 @@ int nss_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 	int32_t bond_ifnum, vsi = 0, port, bondid = -1;
 	int ret;
 
-#if IS_ENABLED(CONFIG_BONDING)
+#if defined(BONDING_SUPPORT)
 	bondid = bond_get_id(bond_dev);
 #endif
 	if (bondid < 0) {

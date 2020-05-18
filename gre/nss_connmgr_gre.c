@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -74,7 +74,7 @@ static bool nss_connmgr_gre_is_gre(struct net_device *dev)
 {
 	if ((dev->type == ARPHRD_IPGRE) ||
 	      (dev->type == ARPHRD_IP6GRE) || ((dev->type == ARPHRD_ETHER) &&
-	      (dev->priv_flags & (IFF_GRE_V4_TAP | IFF_GRE_V6_TAP)))) {
+	      (dev->priv_flags_ext & (IFF_EXT_GRE_V4_TAP | IFF_EXT_GRE_V6_TAP)))) {
 		return true;
 	}
 
@@ -183,7 +183,7 @@ static int nss_connmgr_gre_dev_init(struct net_device *dev)
 		u64_stats_init(&stats->syncp);
 	}
 
-	if ((dev->priv_flags & IFF_GRE_V4_TAP) || (dev->type == ARPHRD_IPGRE)) {
+	if ((dev->priv_flags_ext & IFF_EXT_GRE_V4_TAP) || (dev->type == ARPHRD_IPGRE)) {
 		dev->needed_headroom = sizeof(struct iphdr) + sizeof(struct ethhdr) + MAX_WIFI_HEADROOM + append;
 		dev->mtu = ETH_DATA_LEN - sizeof(struct iphdr) - append;
 		dev->features |= NETIF_F_NETNS_LOCAL | NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_HIGHDMA;
@@ -487,7 +487,7 @@ static int32_t nss_connmgr_gre_prepare_config_cmd(struct net_device *dev,
 {
 	struct nss_gre_config_msg *cmsg = &req->msg.cmsg;
 
-	if ((dev->type == ARPHRD_ETHER) && (dev->priv_flags & IFF_GRE_V4_TAP)) {
+	if ((dev->type == ARPHRD_ETHER) && (dev->priv_flags_ext & IFF_EXT_GRE_V4_TAP)) {
 		cmsg->mode = NSS_GRE_MODE_TAP;
 		cmsg->ip_type = NSS_GRE_IP_IPV4;
 		if (enable_unalign) {
@@ -496,7 +496,7 @@ static int32_t nss_connmgr_gre_prepare_config_cmd(struct net_device *dev,
 		return nss_connmgr_gre_v4_get_config(dev, req, next_dev, hold);
 	}
 
-	if ((dev->type == ARPHRD_ETHER) && (dev->priv_flags & IFF_GRE_V6_TAP)) {
+	if ((dev->type == ARPHRD_ETHER) && (dev->priv_flags_ext & IFF_EXT_GRE_V6_TAP)) {
 		cmsg->mode = NSS_GRE_MODE_TAP;
 		cmsg->ip_type = NSS_GRE_IP_IPV6;
 		if (enable_unalign) {
@@ -775,10 +775,10 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 		nss_connmgr_gre_tap_setup(dev);
 
 		if (cfg->is_ipv6) {
-			dev->priv_flags |= IFF_GRE_V6_TAP;
+			dev->priv_flags_ext |= IFF_EXT_GRE_V6_TAP;
 			ret = nss_connmgr_gre_v6_set_config(dev, cfg);
 		} else {
-			dev->priv_flags |= IFF_GRE_V4_TAP;
+			dev->priv_flags_ext |= IFF_EXT_GRE_V4_TAP;
 			ret = nss_connmgr_gre_v4_set_config(dev, cfg);
 		}
 		break;

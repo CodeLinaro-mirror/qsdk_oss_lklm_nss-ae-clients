@@ -13,6 +13,6 @@ ccflags-y += -Werror
 
 ifeq ($(CONFIG_BONDING), $(filter $(CONFIG_BONDING), y m))
 ifneq ($(findstring 4.4, $(KERNELVERSION)),)
-ccflag-y += -DBONDING_SUPPORT
+ccflags-y += -DBONDING_SUPPORT
 endif
 endif

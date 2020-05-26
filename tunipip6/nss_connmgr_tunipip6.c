@@ -76,6 +76,10 @@
 #endif
 
 /*
+ * Frag Id update is disabled by default
+ */
+bool frag_id_update = false;
+/*
  * Creating custom ipip6 interface is disabled by default.
  */
 static bool enable_custom;
@@ -99,16 +103,94 @@ struct nss_tunipip6_stats {
  */
 static void nss_tunipip6_encap_exception(struct net_device *dev, struct sk_buff *skb, __attribute__((unused)) struct napi_struct *napi)
 {
-	skb->dev = dev;
-	nss_tunipip6_info("received - %d bytes name %s ver %x\n",
-			skb->len, dev->name, (skb->data[0] >> 4));
+	const struct net_device_ops *ops = dev->netdev_ops;
+	struct netdev_queue *queue;
+	struct iphdr *iph;
+	struct rtable *rt;
+	int cpu;
+
+	if (unlikely(!pskb_may_pull(skb, sizeof(struct iphdr)))) {
+		nss_tunipip6_warning("%px: skb: %px, pskb_may_pull failed to linearize iphdr, packet does not have a proper IPv4 header.", dev, skb);
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
+	skb_reset_network_header(skb);
+
+	iph = ip_hdr(skb);
+	nss_tunipip6_assert(iph->version == IPVERSION);
+
+	nss_tunipip6_info("%px: received - %d bytes name %s ver %x\n",
+			skb, skb->len, dev->name, iph->version);
+
+	rt = ip_route_output(&init_net, iph->daddr, 0, 0, 0);
+	if (unlikely(IS_ERR(rt))) {
+		nss_tunipip6_info("%px: Failed to find IPv4 route for dest %pI4 src %pI4\n", skb, &iph->daddr, &iph->saddr);
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
+	nss_tunipip6_trace("%px: Route look up successful for dest_ip: %pI4 src_ip: %pI4 dest dev:%s\n",
+			skb, &iph->daddr, &iph->saddr, rt->dst.dev->name);
+
+	/*
+	 * Send decap direction packets to stack using netif_receive_skb
+	 * NOTE: if tunnel to tunnel traffic is enabled, then this might fail.
+	 */
+	if (rt->dst.dev->type != ARPHRD_TUNNEL6) {
+		skb->dev = dev;
+		skb->protocol = htons(ETH_P_IP);
+		skb->pkt_type = PACKET_HOST;
+		skb->skb_iif = dev->ifindex;
+		skb->ip_summed = CHECKSUM_NONE;
+		netif_receive_skb(skb);
+		return;
+	}
+
+	/*
+	 * Send encap direction packets to tunnel xmit using ndo_start_xmit
+	 */
+	skb_dst_drop(skb);
+	skb_dst_set(skb, &rt->dst);
+
+	/*
+	 * Set ignore df bit to fragment the packet in kernel.
+	 */
+	if (!(iph->frag_off & htons(IP_DF))) {
+		skb->ignore_df = true;
+	}
 
 	skb->protocol = htons(ETH_P_IP);
-	skb_reset_network_header(skb);
 	skb->pkt_type = PACKET_HOST;
 	skb->skb_iif = dev->ifindex;
+	skb->dev = dev;
 	skb->ip_summed = CHECKSUM_NONE;
-	netif_receive_skb(skb);
+
+	/*
+	 * This is needed to acquire HARD_TX_LOCK.
+	 */
+	cpu = smp_processor_id();
+	queue = skb_get_tx_queue(dev, skb);
+
+	nss_tunipip6_trace("%px: skb queue mapping: %d, cpu: %d", skb, skb_get_queue_mapping(skb), cpu);
+
+	/*
+	 * Take HARD_TX_LOCK to be in sync with the kernel.
+	 */
+	HARD_TX_LOCK(dev, queue, cpu);
+
+	/*
+	 * Check if queue is alive
+	 */
+	if (unlikely(netif_xmit_frozen_or_stopped(queue))) {
+		HARD_TX_UNLOCK(dev, queue);
+		nss_tunipip6_trace("%px: Dropping the packet, as queue: %px is not alive", skb, queue);
+		skb_dst_drop(skb);
+		dev_kfree_skb_any(skb);
+		return;
+	}
+	ops->ndo_start_xmit(skb, dev);
+	HARD_TX_UNLOCK(dev, queue);
 }
 
 /*
@@ -315,6 +397,7 @@ static void nss_tunipip6_dev_parse_param(struct net_device *netdev, struct nss_c
 	nss_tunipip6_trace("%px: Tunnel param saddr: %pI6 daddr: %pI6\n", netdev, fl6->saddr.s6_addr32, fl6->daddr.s6_addr32);
 	nss_tunipip6_trace("%px: Hop limit %d\n", netdev, tunnel->parms.hop_limit);
 	nss_tunipip6_trace("%px: Tunnel param flag %x  fl6.flowlabel %x\n", netdev,  tunnel->parms.flags, fl6->flowlabel);
+	nss_tunipip6_trace("%px: Tunnel frag id update is %d\n", netdev, frag_id_update);
 
 	/*
 	 * Prepare The Tunnel configuration parameter to send to nss
@@ -331,6 +414,7 @@ static void nss_tunipip6_dev_parse_param(struct net_device *netdev, struct nss_c
 	tnlcfg->flags = ntohl(tunnel->parms.flags);
 	tnlcfg->ttl_inherit = false;
 	tnlcfg->tos_inherit = true;
+	tnlcfg->frag_id_update = frag_id_update;
 
 	/*
 	 * Flow Label In kernel is stored in big endian format.
@@ -365,7 +449,7 @@ static void nss_connmgr_tunipip6_configure_fmr(struct net_device *netdev)
 	struct __ip6_tnl_fmr *fmr;
 	uint32_t fmr_number = 0;
 	enum nss_connmgr_tunipip6_err_codes status;
-	struct nss_connmgr_tunipip6_fmr_cfg fmrcfg = {0};
+	struct nss_connmgr_tunipip6_maprule_cfg mrcfg = {0};
 
 	tunnel = (struct ip6_tnl *)netdev_priv(netdev);
 
@@ -374,27 +458,28 @@ static void nss_connmgr_tunipip6_configure_fmr(struct net_device *netdev)
 	 */
 	for (fmr = tunnel->parms.fmrs; fmr && fmr_number < NSS_TUNIPIP6_MAX_FMR_NUMBER; fmr = fmr->next, fmr_number++) {
 		/*
-		 * Prepare "fmrcfg"
+		 * Prepare "rulecfg"
 		 */
-		fmrcfg.ipv6_prefix[0] = ntohl(fmr->ip6_prefix.s6_addr32[0]);
-		fmrcfg.ipv6_prefix[1] = ntohl(fmr->ip6_prefix.s6_addr32[1]);
-		fmrcfg.ipv6_prefix[2] = ntohl(fmr->ip6_prefix.s6_addr32[2]);
-		fmrcfg.ipv6_prefix[3] = ntohl(fmr->ip6_prefix.s6_addr32[3]);
-		fmrcfg.ipv4_prefix = ntohl(fmr->ip4_prefix.s_addr);
-		fmrcfg.ipv6_prefix_len = fmr->ip6_prefix_len;
-		fmrcfg.ipv4_prefix_len = fmr->ip4_prefix_len;
-		fmrcfg.ea_len = fmr->ea_len;
-		fmrcfg.psid_offset = fmr->offset;
+		mrcfg.rule_type = NSS_CONNMGR_TUNIPIP6_RULE_FMR;
+		mrcfg.ipv6_prefix[0] = ntohl(fmr->ip6_prefix.s6_addr32[0]);
+		mrcfg.ipv6_prefix[1] = ntohl(fmr->ip6_prefix.s6_addr32[1]);
+		mrcfg.ipv6_prefix[2] = ntohl(fmr->ip6_prefix.s6_addr32[2]);
+		mrcfg.ipv6_prefix[3] = ntohl(fmr->ip6_prefix.s6_addr32[3]);
+		mrcfg.ipv4_prefix = ntohl(fmr->ip4_prefix.s_addr);
+		mrcfg.ipv6_prefix_len = fmr->ip6_prefix_len;
+		mrcfg.ipv4_prefix_len = fmr->ip4_prefix_len;
+		mrcfg.ea_len = fmr->ea_len;
+		mrcfg.psid_offset = fmr->offset;
 
 		/*
-		 * Call add FMR API.
+		 * Call add maprule API.
 		 */
-		status = nss_connmgr_tunipip6_add_fmr(netdev, &fmrcfg);
+		status = nss_connmgr_tunipip6_add_maprule(netdev, &mrcfg);
 		if (status != NSS_CONNMGR_TUNIPIP6_SUCCESS) {
 			nss_tunipip6_trace("%px: Not able to add FMR rule. IPv6 Prefix: %pI6 IPv6 Prefix Lenght: %d\n"
 					"IPv4 Prefix: %pI6 IPv4 Prefix Lenght: %d EA Length: %d PSID Offset: %d\n",
-					netdev, fmrcfg.ipv6_prefix, fmrcfg.ipv6_prefix_len,&fmrcfg.ipv4_prefix,
-					fmrcfg.ipv4_prefix_len, fmrcfg.ea_len, fmrcfg.psid_offset);
+					netdev, mrcfg.ipv6_prefix, mrcfg.ipv6_prefix_len,&mrcfg.ipv4_prefix,
+					mrcfg.ipv4_prefix_len, mrcfg.ea_len, mrcfg.psid_offset);
 		}
 	}
 }
@@ -470,6 +555,7 @@ configure_tunnel:
 	tnlcreate->flowlabel = tnlcfg->flowlabel;
 	tnlcreate->ttl_inherit = tnlcfg->ttl_inherit;
 	tnlcreate->tos_inherit = tnlcfg->tos_inherit;
+	tnlcreate->frag_id_update = tnlcfg->frag_id_update;
 
 	/*
 	 * Set "draft03" based on "tunnel_type". draft03 should be
@@ -601,18 +687,96 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_destroy_interface(struc
 EXPORT_SYMBOL(nss_connmgr_tunipip6_destroy_interface);
 
 /*
- * nss_connmgr_tunipip6_add_fmr()
- * 	Add new FMR entry.
+ * nss_connmgr_tunipip6_add_maprule()
+ * 	Add new BMR/FMR entry.
  */
-enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_add_fmr(struct net_device *netdev, struct nss_connmgr_tunipip6_fmr_cfg *fmrcfg)
+enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_add_maprule(struct net_device *netdev, struct nss_connmgr_tunipip6_maprule_cfg *rulecfg)
 {
 	struct nss_tunipip6_msg tnlmsg;
-	struct nss_tunipip6_fmr *fmr_rule_add;
+	struct nss_tunipip6_map_rule *rule_add;
 	struct nss_ctx_instance *nss_ctx;
 	nss_tx_status_t status;
 	int inner_ifnum;
+	int msg_type;
 
-	if (!netdev || !fmrcfg) {
+	if (!netdev || !rulecfg) {
+		return NSS_CONNMGR_TUNIPIP6_INVALID_PARAM;
+	}
+
+	inner_ifnum = nss_cmn_get_interface_number_by_dev_and_type(netdev, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
+	if (inner_ifnum < 0) {
+		nss_tunipip6_warning("%px: Invalid inner interface number: %d\n", netdev, inner_ifnum);
+		return NSS_CONNMGR_TUNIPIP6_NO_DEV;
+	}
+
+	switch (rulecfg->rule_type) {
+	case NSS_CONNMGR_TUNIPIP6_RULE_BMR:
+		msg_type = NSS_TUNIPIP6_BMR_RULE_ADD;
+		break;
+	case NSS_CONNMGR_TUNIPIP6_RULE_FMR:
+		msg_type = NSS_TUNIPIP6_FMR_RULE_ADD;
+		break;
+	default:
+		nss_tunipip6_warning("%p: Invalid rule type: %d", netdev, rulecfg->rule_type);
+		return NSS_CONNMGR_TUNIPIP6_INVALID_RULE_TYPE;
+	}
+
+	/*
+	 * Prepare the mapping rule parameter to send to nss
+	 */
+	memset(&tnlmsg, 0, sizeof(struct nss_tunipip6_msg));
+	rule_add = &tnlmsg.msg.map_rule;
+
+	rule_add->ip6_prefix[0] = rulecfg->ipv6_prefix[0];
+	rule_add->ip6_prefix[1] = rulecfg->ipv6_prefix[1];
+	rule_add->ip6_prefix[2] = rulecfg->ipv6_prefix[2];
+	rule_add->ip6_prefix[3] = rulecfg->ipv6_prefix[3];
+	rule_add->ip6_prefix_len = rulecfg->ipv6_prefix_len;
+
+	rule_add->ip4_prefix = rulecfg->ipv4_prefix;
+	rule_add->ip4_prefix_len = rulecfg->ipv4_prefix_len;
+
+	rule_add->ip6_suffix[0] = rulecfg->ipv6_suffix[0];
+	rule_add->ip6_suffix[1] = rulecfg->ipv6_suffix[1];
+	rule_add->ip6_suffix[2] = rulecfg->ipv6_suffix[2];
+	rule_add->ip6_suffix[3] = rulecfg->ipv6_suffix[3];
+	rule_add->ip6_suffix_len = rulecfg->ipv6_suffix_len;
+
+	rule_add->ea_len = rulecfg->ea_len;
+	rule_add->psid_offset = rulecfg->psid_offset;
+
+	/*
+	 * Send maprule add message to encap interface.
+	 */
+	nss_tunipip6_msg_init(&tnlmsg, inner_ifnum, msg_type,
+			sizeof(struct nss_tunipip6_map_rule), NULL, NULL);
+
+	nss_ctx = nss_tunipip6_get_context();
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel maprule, message type %d add command to NSS %p\n", netdev, msg_type, nss_ctx);
+	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
+	if (status != NSS_TX_SUCCESS) {
+		nss_tunipip6_warning("%px: Tunnel maprule add command error %d\n", netdev, status);
+		return NSS_CONNMGR_TUNIPIP6_MAPRULE_ADD_FAILURE;
+	}
+
+	return NSS_CONNMGR_TUNIPIP6_SUCCESS;
+}
+EXPORT_SYMBOL(nss_connmgr_tunipip6_add_maprule);
+
+/*
+ * nss_connmgr_tunipip6_del_maprule()
+ * 	Delete existing BMR/FMR entry.
+ */
+enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_del_maprule(struct net_device *netdev, struct nss_connmgr_tunipip6_maprule_cfg *rulecfg)
+{
+	struct nss_tunipip6_msg tnlmsg;
+	struct nss_tunipip6_map_rule *map_rule;
+	struct nss_ctx_instance *nss_ctx;
+	nss_tx_status_t status;
+	int inner_ifnum;
+	int msg_type;
+
+	if (!netdev || !rulecfg) {
 		return NSS_CONNMGR_TUNIPIP6_INVALID_PARAM;
 	}
 
@@ -623,110 +787,74 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_add_fmr(struct net_devi
 	}
 
 	/*
-	 * Prepare The FMR rule parameter to send to nss
+	 * Intialize tunnel message.
 	 */
 	memset(&tnlmsg, 0, sizeof(struct nss_tunipip6_msg));
-	fmr_rule_add = &tnlmsg.msg.fmr_rule;
-
-	fmr_rule_add->ip6_prefix[0] = fmrcfg->ipv6_prefix[0];
-	fmr_rule_add->ip6_prefix[1] = fmrcfg->ipv6_prefix[1];
-	fmr_rule_add->ip6_prefix[2] = fmrcfg->ipv6_prefix[2];
-	fmr_rule_add->ip6_prefix[3] = fmrcfg->ipv6_prefix[3];
-	fmr_rule_add->ip6_prefix_len = fmrcfg->ipv6_prefix_len;
-	fmr_rule_add->ip4_prefix = fmrcfg->ipv4_prefix;
-	fmr_rule_add->ip4_prefix_len = fmrcfg->ipv4_prefix_len;
-	fmr_rule_add->ip6_suffix[0] = fmrcfg->ipv6_suffix[0];
-	fmr_rule_add->ip6_suffix[1] = fmrcfg->ipv6_suffix[1];
-	fmr_rule_add->ip6_suffix[2] = fmrcfg->ipv6_suffix[2];
-	fmr_rule_add->ip6_suffix[3] = fmrcfg->ipv6_suffix[3];
-	fmr_rule_add->ip6_suffix_len = fmrcfg->ipv6_suffix_len;
-	fmr_rule_add->ea_len = fmrcfg->ea_len;
-	fmr_rule_add->psid_offset = fmrcfg->psid_offset;
 
 	/*
-	 * Send fmr rule add message to encap interface.
+	 * To delete BMR, only delete message is needed.
 	 */
-	nss_tunipip6_msg_init(&tnlmsg, inner_ifnum, NSS_TUNIPIP6_FMR_RULE_ADD,
-			sizeof(struct nss_tunipip6_fmr), NULL, NULL);
+	switch (rulecfg->rule_type) {
+	case NSS_CONNMGR_TUNIPIP6_RULE_BMR:
+		msg_type = NSS_TUNIPIP6_BMR_RULE_DEL;
 
+		/*
+		 * To delete BMR, only delete message is needed.
+		 */
+		goto del_bmr;
+	case NSS_CONNMGR_TUNIPIP6_RULE_FMR:
+		msg_type = NSS_TUNIPIP6_FMR_RULE_DEL;
+		break;
+	default:
+		nss_tunipip6_warning("%p: Invalid rule type: %d", netdev, rulecfg->rule_type);
+		return NSS_CONNMGR_TUNIPIP6_INVALID_RULE_TYPE;
+	}
+
+	/*
+	 * Prepare the maprule rule parameter to send to NSS
+	 */
+	map_rule = &tnlmsg.msg.map_rule;
+	map_rule->ip6_prefix[0] = rulecfg->ipv6_prefix[0];
+	map_rule->ip6_prefix[1] = rulecfg->ipv6_prefix[1];
+	map_rule->ip6_prefix[2] = rulecfg->ipv6_prefix[2];
+	map_rule->ip6_prefix[3] = rulecfg->ipv6_prefix[3];
+	map_rule->ip6_prefix_len = rulecfg->ipv6_prefix_len;
+
+	map_rule->ip4_prefix = rulecfg->ipv4_prefix;
+	map_rule->ip4_prefix_len = rulecfg->ipv4_prefix_len;
+
+	map_rule->ip6_suffix[0] = rulecfg->ipv6_suffix[0];
+	map_rule->ip6_suffix[1] = rulecfg->ipv6_suffix[1];
+	map_rule->ip6_suffix[2] = rulecfg->ipv6_suffix[2];
+	map_rule->ip6_suffix[3] = rulecfg->ipv6_suffix[3];
+	map_rule->ip6_suffix_len = rulecfg->ipv6_suffix_len;
+
+	map_rule->ea_len = rulecfg->ea_len;
+	map_rule->psid_offset = rulecfg->psid_offset;
+
+del_bmr:
+	/*
+	 * Send map rule delete message to encap interface.
+	 */
+	nss_tunipip6_msg_init(&tnlmsg, inner_ifnum, msg_type,
+			sizeof(struct nss_tunipip6_map_rule), NULL, NULL);
 	nss_ctx = nss_tunipip6_get_context();
-	nss_tunipip6_trace("%px: Sending IPIP6 tunnel FMR add command to NSS %px\n", netdev, nss_ctx);
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel maprule, message type %d delete command to NSS %p\n", netdev, msg_type, nss_ctx);
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%px: Tunnel FMR add command error %d\n", netdev, status);
-		return NSS_CONNMGR_TUNIPIP6_FMR_ADD_FAILURE;
+		nss_tunipip6_warning("%px: Tunnel maprule delete command error %d\n", netdev, status);
+		return NSS_CONNMGR_TUNIPIP6_MAPRULE_DEL_FAILURE;
 	}
 
 	return NSS_CONNMGR_TUNIPIP6_SUCCESS;
 }
-EXPORT_SYMBOL(nss_connmgr_tunipip6_add_fmr);
+EXPORT_SYMBOL(nss_connmgr_tunipip6_del_maprule);
 
 /*
- * nss_connmgr_tunipip6_del_fmr()
- * 	Delete existing FMR entry.
- */
-enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_del_fmr(struct net_device *netdev, struct nss_connmgr_tunipip6_fmr_cfg *fmrcfg)
-{
-	struct nss_tunipip6_msg tnlmsg;
-	struct nss_tunipip6_fmr *fmr_rule;
-	struct nss_ctx_instance *nss_ctx;
-	nss_tx_status_t status;
-	int inner_ifnum;
-
-	if (!netdev || !fmrcfg) {
-		return NSS_CONNMGR_TUNIPIP6_INVALID_PARAM;
-	}
-
-	inner_ifnum = nss_cmn_get_interface_number_by_dev_and_type(netdev, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
-	if (inner_ifnum < 0) {
-		nss_tunipip6_warning("%px: Invalid inner interface number: %d\n", netdev, inner_ifnum);
-		return NSS_CONNMGR_TUNIPIP6_NO_DEV;
-	}
-
-	/*
-	 * Prepare The FMR rule parameter to send to nss
-	 */
-	memset(&tnlmsg, 0, sizeof(struct nss_tunipip6_msg));
-	fmr_rule = &tnlmsg.msg.fmr_rule;
-
-	fmr_rule->ip6_prefix[0] = fmrcfg->ipv6_prefix[0];
-	fmr_rule->ip6_prefix[1] = fmrcfg->ipv6_prefix[1];
-	fmr_rule->ip6_prefix[2] = fmrcfg->ipv6_prefix[2];
-	fmr_rule->ip6_prefix[3] = fmrcfg->ipv6_prefix[3];
-	fmr_rule->ip6_prefix_len = fmrcfg->ipv6_prefix_len;
-	fmr_rule->ip4_prefix = fmrcfg->ipv4_prefix;
-	fmr_rule->ip4_prefix_len = fmrcfg->ipv4_prefix_len;
-	fmr_rule->ip6_suffix[0] = fmrcfg->ipv6_suffix[0];
-	fmr_rule->ip6_suffix[1] = fmrcfg->ipv6_suffix[1];
-	fmr_rule->ip6_suffix[2] = fmrcfg->ipv6_suffix[2];
-	fmr_rule->ip6_suffix[3] = fmrcfg->ipv6_suffix[3];
-	fmr_rule->ip6_suffix_len = fmrcfg->ipv6_suffix_len;
-	fmr_rule->ea_len = fmrcfg->ea_len;
-	fmr_rule->psid_offset = fmrcfg->psid_offset;
-
-	/*
-	 * Send fmr rule add message to encap interface.
-	 */
-	nss_tunipip6_msg_init(&tnlmsg, inner_ifnum, NSS_TUNIPIP6_FMR_RULE_DEL,
-			sizeof(struct nss_tunipip6_fmr), NULL, NULL);
-
-	nss_ctx = nss_tunipip6_get_context();
-	nss_tunipip6_trace("%px: Sending IPIP6 tunnel FMR delete command to NSS %px\n", netdev, nss_ctx);
-	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
-	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%px: Tunnel delete command error %d\n", netdev, status);
-		return NSS_CONNMGR_TUNIPIP6_FMR_DEL_FAILURE;
-	}
-
-	return NSS_CONNMGR_TUNIPIP6_SUCCESS;
-}
-EXPORT_SYMBOL(nss_connmgr_tunipip6_del_fmr);
-
-/*
- * nss_connmgr_tunipip6_flush_fmr()
+ * nss_connmgr_tunipip6_flush_fmr_rule()
  * 	Flush existing FMR entry.
  */
-enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_flush_fmr(struct net_device *netdev)
+enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_flush_fmr_rule(struct net_device *netdev)
 {
 	struct nss_tunipip6_msg tnlmsg;
 	struct nss_ctx_instance *nss_ctx;
@@ -750,16 +878,16 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_flush_fmr(struct net_de
 			0, NULL, NULL);
 
 	nss_ctx = nss_tunipip6_get_context();
-	nss_tunipip6_trace("%px: Sending IPIP6 tunnel FMR flush command to NSS %px\n", netdev, nss_ctx);
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel FMR rule flush command to NSS %p\n", netdev, nss_ctx);
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%px: FMR flush command error %d\n", netdev, status);
-		return NSS_CONNMGR_TUNIPIP6_FMR_FLUSH_FAILURE;
+		nss_tunipip6_warning("%px: FMR rule flush command error %d\n", netdev, status);
+		return NSS_CONNMGR_TUNIPIP6_FMR_RULE_FLUSH_FAILURE;
 	}
 
 	return NSS_CONNMGR_TUNIPIP6_SUCCESS;
 }
-EXPORT_SYMBOL(nss_connmgr_tunipip6_flush_fmr);
+EXPORT_SYMBOL(nss_connmgr_tunipip6_flush_fmr_rule);
 
 /*
  * nss_tunipip6_dev_event()
@@ -847,7 +975,7 @@ int __init nss_tunipip6_init_module(void)
 	}
 
 	/*
-	 * Register sysctl to add/delete/flush FMR rules.
+	 * Register sysctl to add/delete/flush mapping rules.
 	 */
 	nss_tunipip6_sysctl_register();
 	nss_tunipip6_trace("Sysctl registerd\n");

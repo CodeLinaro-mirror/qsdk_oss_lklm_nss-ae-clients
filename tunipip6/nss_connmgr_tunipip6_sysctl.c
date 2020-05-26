@@ -41,11 +41,14 @@
 #define NETDEV_STR_LEN 30
 #define PREFIX_STR_LEN 100
 
+extern bool frag_id_update;
+
 unsigned char nss_tunipip6_data[MAX_DATA_LEN] __read_mostly;
 enum nss_tunipip6_sysctl_mode {
-	NSS_TUNIPIP6_SYSCTL_ADD_FMR,
-	NSS_TUNIPIP6_SYSCTL_DEL_FMR,
-	NSS_TUNIPIP6_SYSCTL_FLUSH_FMR,
+	NSS_TUNIPIP6_SYSCTL_ADD_MAPRULE,
+	NSS_TUNIPIP6_SYSCTL_DEL_MAPRULE,
+	NSS_TUNIPIP6_SYSCTL_FLUSH_FMR_RULE,
+	NSS_TUNIPIP6_SYSCTL_FRAG_ID,
 };
 
 
@@ -53,10 +56,11 @@ static int nss_tunipip6_data_parser(struct ctl_table *ctl, int write, void __use
 {
 	char dev_name[NETDEV_STR_LEN] = {0}, ipv6_prefix_str[PREFIX_STR_LEN] = {0}, ipv6_suffix_str[PREFIX_STR_LEN] = {0}, ipv4_prefix_str[PREFIX_STR_LEN] = {0};
 	uint32_t ipv6_prefix[4], ipv6_prefix_len, ipv6_suffix[4], ipv6_suffix_len, ipv4_prefix, ipv4_prefix_len, ea_len, psid_offset;
+	int rule_type = 0, frag_id = 0;
 	bool ipv6_prefix_valid = false, ipv6_prefix_len_valid = false, ipv6_suffix_valid = false;
 	bool ipv4_prefix_valid = false, ipv4_prefix_len_valid = false, ipv6_suffix_len_valid = false;
-	bool ea_len_valid = false, psid_offset_valid = false, netdev_valid = false;
-	struct nss_connmgr_tunipip6_fmr_cfg fmrcfg = {0};
+	bool rule_type_valid = false, ea_len_valid = false, psid_offset_valid = false, netdev_valid = false;
+	struct nss_connmgr_tunipip6_maprule_cfg mrcfg = {0};
 	char *buf = kzalloc(MAX_PROC_SIZE, GFP_KERNEL);
 	enum nss_connmgr_tunipip6_err_codes status;
 	struct net_device *dev = NULL;
@@ -102,6 +106,32 @@ static int nss_tunipip6_data_parser(struct ctl_table *ctl, int write, void __use
 				goto fail;
 			}
 			netdev_valid = true;
+			continue;
+		}
+
+		if (!strcmp(param, "rule_type")) {
+			if (!sscanf(value, "%u", &rule_type)) {
+				kfree(pfree);
+				goto fail;
+			}
+
+			if ((rule_type !=NSS_CONNMGR_TUNIPIP6_RULE_BMR) &&
+				       (rule_type != NSS_CONNMGR_TUNIPIP6_RULE_FMR)) {
+				goto fail;
+			}
+			rule_type_valid = true;
+			continue;
+		}
+
+		if (!strcmp(param, "frag_id_update")) {
+			if (!sscanf(value, "%u", &frag_id)) {
+				kfree(pfree);
+				goto fail;
+			}
+
+			if (frag_id != 0 && frag_id != 1) {
+				goto fail;
+			}
 			continue;
 		}
 
@@ -211,62 +241,108 @@ static int nss_tunipip6_data_parser(struct ctl_table *ctl, int write, void __use
 
 	kfree(pfree);
 
-	if (!netdev_valid) {
+	/*
+	 * Netdev param is not needed only for frag_id command
+	 */
+	if (!netdev_valid && mode != NSS_TUNIPIP6_SYSCTL_FRAG_ID) {
 		goto fail;
 	}
 
 	switch(mode) {
-	case NSS_TUNIPIP6_SYSCTL_ADD_FMR:
-	case NSS_TUNIPIP6_SYSCTL_DEL_FMR:
-		if (!(ipv6_prefix_valid && ipv6_prefix_len_valid && ipv6_suffix_valid &&
+	case NSS_TUNIPIP6_SYSCTL_DEL_MAPRULE:
+		if (!rule_type_valid ) {
+			goto fail;
+		}
+
+		/*
+		 * BMR delete will follow this and FMR delete will fall through.
+		 */
+		if (rule_type == NSS_CONNMGR_TUNIPIP6_RULE_BMR) {
+			if ((ipv6_prefix_valid || ipv6_prefix_len_valid || ipv6_suffix_valid ||
+				ipv4_prefix_valid || ipv4_prefix_len_valid || ea_len_valid ||
+				psid_offset_valid)) {
+				goto fail;
+			}
+
+			mrcfg.rule_type = rule_type;
+			status = nss_connmgr_tunipip6_del_maprule(dev, &mrcfg);
+			if (status == NSS_CONNMGR_TUNIPIP6_SUCCESS) {
+				pr_info("Map Rule delete success for netdev: %s\n", dev->name);
+			} else {
+				pr_info("Map Rule delete failure for netdev: %s\n", dev->name);
+			}
+			break;
+		}
+#if __has_attribute(__fallthrough__)
+	__attribute__((__fallthrough__));
+#endif
+	case NSS_TUNIPIP6_SYSCTL_ADD_MAPRULE:
+		if (!(rule_type_valid && ipv6_prefix_valid && ipv6_prefix_len_valid && ipv6_suffix_valid &&
 			ipv4_prefix_valid && ipv4_prefix_len_valid && ea_len_valid &&
 			psid_offset_valid)) {
 			goto fail;
 		}
 
-		fmrcfg.ipv6_prefix[0] = ntohl(ipv6_prefix[0]);
-		fmrcfg.ipv6_prefix[1] = ntohl(ipv6_prefix[1]);
-		fmrcfg.ipv6_prefix[2] = ntohl(ipv6_prefix[2]);
-		fmrcfg.ipv6_prefix[3] = ntohl(ipv6_prefix[3]);
-		fmrcfg.ipv6_prefix_len = ipv6_prefix_len;
+		mrcfg.rule_type = rule_type;
+		mrcfg.ipv6_prefix[0] = ntohl(ipv6_prefix[0]);
+		mrcfg.ipv6_prefix[1] = ntohl(ipv6_prefix[1]);
+		mrcfg.ipv6_prefix[2] = ntohl(ipv6_prefix[2]);
+		mrcfg.ipv6_prefix[3] = ntohl(ipv6_prefix[3]);
+		mrcfg.ipv6_prefix_len = ipv6_prefix_len;
 
-		fmrcfg.ipv4_prefix = ntohl(ipv4_prefix);
-		fmrcfg.ipv4_prefix_len = ipv4_prefix_len;
+		mrcfg.ipv4_prefix = ntohl(ipv4_prefix);
+		mrcfg.ipv4_prefix_len = ipv4_prefix_len;
 
-		fmrcfg.ipv6_suffix[0] = ntohl(ipv6_suffix[0]);
-		fmrcfg.ipv6_suffix[1] = ntohl(ipv6_suffix[1]);
-		fmrcfg.ipv6_suffix[2] = ntohl(ipv6_suffix[2]);
-		fmrcfg.ipv6_suffix[3] = ntohl(ipv6_suffix[3]);
-		fmrcfg.ipv6_suffix_len = ipv6_suffix_len;
+		mrcfg.ipv6_suffix[0] = ntohl(ipv6_suffix[0]);
+		mrcfg.ipv6_suffix[1] = ntohl(ipv6_suffix[1]);
+		mrcfg.ipv6_suffix[2] = ntohl(ipv6_suffix[2]);
+		mrcfg.ipv6_suffix[3] = ntohl(ipv6_suffix[3]);
+		mrcfg.ipv6_suffix_len = ipv6_suffix_len;
 
-		fmrcfg.ea_len = ea_len;
-		fmrcfg.psid_offset = psid_offset;
+		mrcfg.ea_len = ea_len;
+		mrcfg.psid_offset = psid_offset;
 
-		if (mode == NSS_TUNIPIP6_SYSCTL_ADD_FMR) {
-			status = nss_connmgr_tunipip6_add_fmr(dev, &fmrcfg);
+		if (mode == NSS_TUNIPIP6_SYSCTL_ADD_MAPRULE) {
+			status = nss_connmgr_tunipip6_add_maprule(dev, &mrcfg);
 			if (status == NSS_CONNMGR_TUNIPIP6_SUCCESS) {
-				pr_info("FMR create success for netdev: %s\n", dev->name);
+				pr_info("Map Rule create success for netdev: %s\n", dev->name);
 			} else {
-				pr_info("FMR create failure for netdev: %s\n", dev->name);
+				pr_info("Map Rule create failure for netdev: %s\n", dev->name);
 			}
 		} else {
-			status = nss_connmgr_tunipip6_del_fmr(dev, &fmrcfg);
+			status = nss_connmgr_tunipip6_del_maprule(dev, &mrcfg);
 			if (status == NSS_CONNMGR_TUNIPIP6_SUCCESS) {
-				pr_info("FMR delete success for netdev: %s\n", dev->name);
+				pr_info("Map Rule delete success for netdev: %s\n", dev->name);
 			} else {
-				pr_info("FMR delete failure for netdev: %s\n", dev->name);
+				pr_info("Map Rule delete failure for netdev: %s\n", dev->name);
 			}
 		}
 		break;
 
-	case NSS_TUNIPIP6_SYSCTL_FLUSH_FMR:
-		status = nss_connmgr_tunipip6_flush_fmr(dev);
+	case NSS_TUNIPIP6_SYSCTL_FLUSH_FMR_RULE:
+		status = nss_connmgr_tunipip6_flush_fmr_rule(dev);
 		if (status == NSS_CONNMGR_TUNIPIP6_SUCCESS) {
-			pr_info("FMR flush success for netdev: %s\n", dev->name);
+			pr_info("Map Rule flush success for netdev: %s\n", dev->name);
 		} else {
-			pr_info("FMR flush failed for netdev: %s\n", dev->name);
+			pr_info("Map Rule flush failed for netdev: %s\n", dev->name);
 		}
 		break;
+
+	case NSS_TUNIPIP6_SYSCTL_FRAG_ID:
+		if ((netdev_valid || rule_type_valid || ipv6_prefix_valid || ipv6_prefix_len_valid || ipv6_suffix_valid ||
+				ipv4_prefix_valid || ipv4_prefix_len_valid || ea_len_valid ||
+				psid_offset_valid)) {
+				goto fail;
+		}
+
+		if (frag_id) {
+			frag_id_update = true;
+			pr_info("Frag Id enabled for all tunnels.\n");
+		} else {
+			frag_id_update = false;
+			pr_info("Frag Id disabled for all tunnels.\n");
+		}
+		return 0;
 	}
 
 	dev_put(dev);
@@ -281,19 +357,24 @@ fail:
 	return 0;
 }
 
-static int nss_tunipip6_cmd_procfs_add_fmr(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+static int nss_tunipip6_cmd_procfs_add_maprule(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
 {
-	return nss_tunipip6_data_parser(ctl, write, buffer, lenp, ppos, NSS_TUNIPIP6_SYSCTL_ADD_FMR);
+	return nss_tunipip6_data_parser(ctl, write, buffer, lenp, ppos, NSS_TUNIPIP6_SYSCTL_ADD_MAPRULE);
 }
 
-static int nss_tunipip6_cmd_procfs_del_fmr(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+static int nss_tunipip6_cmd_procfs_del_maprule(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
 {
-	return nss_tunipip6_data_parser(ctl, write, buffer, lenp, ppos, NSS_TUNIPIP6_SYSCTL_DEL_FMR);
+	return nss_tunipip6_data_parser(ctl, write, buffer, lenp, ppos, NSS_TUNIPIP6_SYSCTL_DEL_MAPRULE);
 }
 
-static int nss_tunipip6_cmd_procfs_flush_fmr(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+static int nss_tunipip6_cmd_procfs_flush_fmr_rule(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
 {
-	return nss_tunipip6_data_parser(ctl, write, buffer, lenp, ppos, NSS_TUNIPIP6_SYSCTL_FLUSH_FMR);
+	return nss_tunipip6_data_parser(ctl, write, buffer, lenp, ppos, NSS_TUNIPIP6_SYSCTL_FLUSH_FMR_RULE);
+}
+
+static int nss_tunipip6_cmd_procfs_enable_frag_id(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	return nss_tunipip6_data_parser(ctl, write, buffer, lenp, ppos, NSS_TUNIPIP6_SYSCTL_FRAG_ID);
 }
 
 static int nss_tunipip6_cmd_procfs_read_help(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
@@ -301,40 +382,51 @@ static int nss_tunipip6_cmd_procfs_read_help(struct ctl_table *ctl, int write, v
 	int ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
 
 	pr_info("\nHelp: (/proc/sys/dev/nss/ipip6/help) \n\
-			1. To add FMR:\n\
-			echo dev=<map-mape/MAP-E netdevice> ipv6_prefix=<XXXX::XXXX> ipv6_prefix_len=<XX> ipv4_prefix=<X.X.X.X> ipv4_prefix_len=<XX> \n\
-			ipv6_suffix=<XXXX::XXXX> ipv6_sufffix_len=<XX> ea_len=<XX> psid_offset=<XX> > add_fmr \n\
-			2. To delete FMR:\n\
-			echo dev=<map-mape/MAP-E netdevice> ipv6_prefix=<XXXX::XXXX> ipv6_prefix_len=<XX> ipv4_prefix=<X.X.X.X> ipv4_prefix_len=<XX> \n\
-			ipv6_suffix=<XXXX::XXXX> ipv6_sufffix_len=<XX> ea_len=<XX> psid_offset=<XX> > delete_fmr \n\
-			3. To flush `FMR:\n\
-			echo dev=<map-mape/MAP-E netdevice> > flush_fmr\n");
-
+			1. To add maprule(rule_type=1(BMR)/2(FMR)):\n\
+			echo dev=<map-mape/MAP-E netdevice> rule_type=<1/2> ipv6_prefix=<XXXX::XXXX> ipv6_prefix_len=<XX> ipv4_prefix=<X.X.X.X> ipv4_prefix_len=<XX> \n\
+			ipv6_suffix=<XXXX::XXXX> ipv6_sufffix_len=<XX> ea_len=<XX> psid_offset=<XX> > add_map_rule \n\
+			2. a. To delete maprule(FMR):\n\
+			echo dev=<map-mape/MAP-E netdevice> rule_type=<2> ipv6_prefix=<XXXX::XXXX> ipv6_prefix_len=<XX> ipv4_prefix=<X.X.X.X> ipv4_prefix_len=<XX> \n\
+			ipv6_suffix=<XXXX::XXXX> ipv6_sufffix_len=<XX> ea_len=<XX> psid_offset=<XX> > remove_map_rule \n\
+			b. To delete maprule(BMR):\n\
+			echo dev=<map-mape/MAP-E netdevice> rule_type=<1> > remove_map_rule\n\
+			3. To flush FMR entries:\n\
+			echo dev=<map-mape/MAP-E netdevice> > flush_fmr_rule\n\
+			4. To enable/disable frag id:\n\
+			echo frag_id_update=<0/1> > frag_id\n\
+			=====end of help=====\n");
 	*lenp = 0;
 	return ret;
 }
 
 static struct ctl_table nss_tunipip6_table[] = {
 	{
-		.procname		= "add_fmr",
+		.procname		= "add_map_rule",
 		.data			= &nss_tunipip6_data,
 		.maxlen			= sizeof(nss_tunipip6_data),
 		.mode			= 0644,
-		.proc_handler		= &nss_tunipip6_cmd_procfs_add_fmr,
+		.proc_handler		= &nss_tunipip6_cmd_procfs_add_maprule,
 	},
 	{
-		.procname		= "del_fmr",
+		.procname		= "remove_map_rule",
 		.data			= &nss_tunipip6_data,
 		.maxlen			= sizeof(nss_tunipip6_data),
 		.mode			= 0644,
-		.proc_handler		= &nss_tunipip6_cmd_procfs_del_fmr,
+		.proc_handler		= &nss_tunipip6_cmd_procfs_del_maprule,
 	},
 	{
-		.procname		= "flush_fmr",
+		.procname		= "flush_fmr_rule",
 		.data			= &nss_tunipip6_data,
 		.maxlen			= sizeof(nss_tunipip6_data),
 		.mode			= 0644,
-		.proc_handler		= &nss_tunipip6_cmd_procfs_flush_fmr,
+		.proc_handler		= &nss_tunipip6_cmd_procfs_flush_fmr_rule,
+	},
+	{
+		.procname               = "frag_id",
+		.data                   = &nss_tunipip6_data,
+		.maxlen                 = sizeof(nss_tunipip6_data),
+		.mode                   = 0644,
+		.proc_handler           = &nss_tunipip6_cmd_procfs_enable_frag_id,
 	},
 	{
 		.procname		= "help",

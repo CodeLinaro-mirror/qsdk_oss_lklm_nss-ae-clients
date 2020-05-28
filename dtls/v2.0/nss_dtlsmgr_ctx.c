@@ -565,7 +565,7 @@ static bool nss_dtlsmgr_session_switch(struct nss_dtlsmgr_ctx *ctx, struct nss_d
 struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 {
 	struct nss_dtlsmgr *drv = &g_dtls;
-	struct nss_dtlsmgr_ctx *ctx;
+	struct nss_dtlsmgr_ctx *ctx = NULL;
 	struct net_device *dev;
 	int32_t encap_ifnum;
 	int32_t decap_ifnum;

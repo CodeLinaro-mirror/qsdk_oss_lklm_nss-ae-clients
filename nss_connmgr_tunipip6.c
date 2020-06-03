@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014, 2017-2018, 2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -191,17 +191,17 @@ int nss_tunipip6_dev_up(struct net_device *netdev)
 	struct nss_tunipip6_msg tnlmsg;
 	struct nss_tunipip6_create_msg *tnlcfg;
 	struct flowi6 *fl6;
-	uint32_t fmr_number = 0;
 	int inner_ifnum, outer_ifnum;
 	uint32_t features = 0;
 	nss_tx_status_t status;
 	struct nss_ctx_instance *nss_ctx;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+#if IS_ENABLED(CONFIG_MAP_E_SUPPORT)
+	uint32_t fmr_number = 0;
 	struct __ip6_tnl_fmr *fmr;
 #endif
 
 	/*
-	 * Validate netdev for ipv6-in-ipv4  Tunnel
+	 * Validate netdev for ipv4-in-ipv6 Tunnel
 	 */
 	if (netdev->type != ARPHRD_TUNNEL6 ) {
 		return NOTIFY_DONE;
@@ -282,12 +282,13 @@ int nss_tunipip6_dev_up(struct net_device *netdev)
 	 * Flow Label In kernel is stored in big endian format.
 	 */
 	tnlcfg->flowlabel = fl6->flowlabel;
+
+#if IS_ENABLED(CONFIG_MAP_E_SUPPORT)
 	tnlcfg->draft03 = tunnel->parms.draft03;
 
 	/*
 	 * Configure FMR table up to MAX_FMR_NUMBER, the rest will be forwarded to BR
 	 */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 	for (fmr = tunnel->parms.fmrs; fmr && fmr_number < NSS_TUNIPIP6_MAX_FMR_NUMBER; fmr = fmr->next, fmr_number++) {
 		tnlcfg->fmr[fmr_number].ip6_prefix[0] = ntohl(fmr->ip6_prefix.s6_addr32[0]);
 		tnlcfg->fmr[fmr_number].ip6_prefix[1] = ntohl(fmr->ip6_prefix.s6_addr32[1]);
@@ -299,8 +300,9 @@ int nss_tunipip6_dev_up(struct net_device *netdev)
 		tnlcfg->fmr[fmr_number].ea_len = fmr->ea_len;
 		tnlcfg->fmr[fmr_number].offset = fmr->offset;
 	}
-#endif
+
 	tnlcfg->fmr_number = fmr_number;
+#endif
 
 	/*
 	 * Updating sibling_if_num for encap interface.

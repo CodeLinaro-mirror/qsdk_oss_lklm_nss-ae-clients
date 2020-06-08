@@ -16,7 +16,5 @@ ccflags-y += -DNSS_BRIDGE_MGR_PPE_SUPPORT
 endif
 
 ifneq (,$(filter $(CONFIG_BONDING),y m))
-ifneq ($(findstring 4.4, $(KERNELVERSION)),)
 ccflags-y += -DBONDING_SUPPORT
-endif
 endif

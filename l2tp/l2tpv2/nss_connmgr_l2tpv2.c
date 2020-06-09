@@ -35,6 +35,7 @@
 #include <linux/version.h>
 #include <linux/sysctl.h>
 #include <net/route.h>
+#include <linux/refcount.h>
 #include <linux/../../net/l2tp/l2tp_core.h>
 
 #include <nss_api_if.h>
@@ -244,24 +245,19 @@ static struct nss_connmgr_l2tpv2_session_data
 	 */
 	data->l2tpv2.session.session_id = session->session_id;
 	data->l2tpv2.session.peer_session_id = session->peer_session_id;
-	data->l2tpv2.session.offset = session->offset;
 	data->l2tpv2.session.hdr_len = session->hdr_len;
 	data->l2tpv2.session.reorder_timeout = session->reorder_timeout;
 	data->l2tpv2.session.recv_seq = session->recv_seq;
 	data->l2tpv2.session.send_seq = session->send_seq;
 
-	nss_connmgr_l2tpv2_info("sess %u, peer=%u nr=%u ns=%u off=%u  hdr_len=%u timeout=%x"
+	nss_connmgr_l2tpv2_info("sess %u, peer=%u nr=%u ns=%u hdr_len=%u timeout=%x"
 	       " recv_seq=%x send_seq=%x\n",
 	       session->session_id,  session->peer_session_id, session->nr,
-	       session->ns,  session->offset, session->hdr_len,
+	       session->ns, session->hdr_len,
 	       session->reorder_timeout, session->recv_seq,
 	       session->send_seq);
 
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 16, 0))
-	data->l2tpv2.tunnel.udp_csum = tunnel->sock->sk_no_check;
-#else
 	data->l2tpv2.tunnel.udp_csum = tunnel->sock->sk_no_check_tx;
-#endif
 
 	inet = inet_sk(tunnel->sock);
 
@@ -356,9 +352,6 @@ static void nss_connmgr_l2tpv2_exception(struct net_device *dev,
 {
 	const struct iphdr *iph_outer, *iph_inner;
 	struct nss_connmgr_l2tpv2_session_data *ptr;
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-	struct hlist_node *node;
-#endif
 	uint16_t *l2tp_hdr;
 	uint16_t l2tp_flags;
 	int l2tp_hdr_len = L2TP_HDR_MIN_LEN;
@@ -374,9 +367,6 @@ static void nss_connmgr_l2tpv2_exception(struct net_device *dev,
 
 	rcu_read_lock();
 	hash_for_each_possible_rcu(l2tpv2_session_data_hash_table, ptr,
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-				   node,
-#endif
 				   hash_list, dev->ifindex) {
 		if (ptr->dev == dev) {
 			tunnel_local_ip = ptr->data.ip.v4.saddr.s_addr;
@@ -596,9 +586,6 @@ static int nss_connmgr_l2tpv2_dev_down(struct net_device *dev)
 {
 	struct nss_connmgr_l2tpv2_session_data *ptr;
 	struct hlist_node *tmp;
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-	struct hlist_node *node;
-#endif
 	struct nss_l2tpv2_msg  l2tpv2msg;
 	struct nss_l2tpv2_session_destroy_msg *l2tpv2cfg;
 	int if_number;
@@ -622,9 +609,6 @@ static int nss_connmgr_l2tpv2_dev_down(struct net_device *dev)
 	}
 
 	hash_for_each_possible_safe(l2tpv2_session_data_hash_table, ptr,
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-				    node,
-#endif
 				    tmp, hash_list, dev->ifindex) {
 		if (ptr->dev == dev) {
 			dev_put(dev);
@@ -667,11 +651,7 @@ static int nss_connmgr_l2tpv2_dev_event(struct notifier_block  *nb,
 		unsigned long event, void  *dev)
 {
 	struct net_device *netdev;
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 10, 0))
-	netdev = (struct net_device *)dev;
-#else
 	netdev = netdev_notifier_info_to_dev(dev);
-#endif
 
 	switch (event) {
 	case NETDEV_UP:
@@ -694,9 +674,6 @@ static int nss_connmgr_l2tpv2_dev_event(struct notifier_block  *nb,
 int nss_connmgr_l2tpv2_get_data(struct net_device *dev, struct nss_connmgr_l2tpv2_data *data)
 {
 	struct nss_connmgr_l2tpv2_session_data *ptr;
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-	struct hlist_node  *node;
-#endif
 	if (!data) {
 		nss_connmgr_l2tpv2_info("nss_connmgr_l2tpv2_data ptr is null\n");
 		return -EINVAL;
@@ -704,9 +681,6 @@ int nss_connmgr_l2tpv2_get_data(struct net_device *dev, struct nss_connmgr_l2tpv
 
 	rcu_read_lock();
 	hash_for_each_possible_rcu(l2tpv2_session_data_hash_table, ptr,
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-				   node,
-#endif
 				   hash_list, dev->ifindex) {
 		if (ptr->dev == dev) {
 			memcpy(data, &ptr->data, sizeof(struct nss_connmgr_l2tpv2_data));
@@ -727,15 +701,9 @@ EXPORT_SYMBOL(nss_connmgr_l2tpv2_get_data);
 int nss_connmgr_l2tpv2_does_connmgr_track(const struct net_device *dev)
 {
 	struct nss_connmgr_l2tpv2_session_data *ptr;
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-	struct hlist_node  *node;
-#endif
 
 	rcu_read_lock();
 	hash_for_each_possible_rcu(l2tpv2_session_data_hash_table, ptr,
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-				   node,
-#endif
 				   hash_list, dev->ifindex) {
 		if (ptr->dev == dev) {
 			rcu_read_unlock();

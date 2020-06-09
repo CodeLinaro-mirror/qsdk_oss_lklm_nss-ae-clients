@@ -329,7 +329,7 @@ static void nss_tunipip6_dev_parse_param(struct net_device *netdev, struct nss_c
 	tnlcfg->daddr[3] = ntohl(fl6->daddr.s6_addr32[3]);
 	tnlcfg->hop_limit = tunnel->parms.hop_limit;
 	tnlcfg->flags = ntohl(tunnel->parms.flags);
-	tnlcfg->ttl_inherit = true;
+	tnlcfg->ttl_inherit = false;
 	tnlcfg->tos_inherit = true;
 
 	/*

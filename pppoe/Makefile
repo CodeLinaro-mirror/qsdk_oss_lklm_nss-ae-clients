@@ -5,7 +5,7 @@ ccflags-y += -Werror
 obj-m += qca-nss-pppoe.o
 qca-nss-pppoe-objs := nss_connmgr_pppoe.o
 
-ifeq ($(CONFIG_BONDING), $(filter $(CONFIG_BONDING), y m))
+ifneq (,$(filter $(CONFIG_BONDING),y m))
 ifneq ($(findstring 4.4, $(KERNELVERSION)),)
 ccflags-y += -DBONDING_SUPPORT
 endif

@@ -261,10 +261,10 @@ fail:
 }
 
 /*
- * nss_connmgr_gre_dev_stats64()
- *	Netdev ops function to retrieve stats.
+ * nss_connmgr_gre_get_dev_stats64()
+ *	To get the netdev stats
  */
-struct rtnl_link_stats64 *nss_connmgr_gre_dev_stats64(struct net_device *dev,
+static struct rtnl_link_stats64 *nss_connmgr_gre_get_dev_stats64(struct net_device *dev,
 						struct rtnl_link_stats64 *tot)
 {
 	uint64_t rx_packets, rx_bytes, tx_packets, tx_bytes;
@@ -300,6 +300,28 @@ struct rtnl_link_stats64 *nss_connmgr_gre_dev_stats64(struct net_device *dev,
 
 	return tot;
 }
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
+/*
+ * nss_connmgr_gre_dev_stats64()
+ *	Netdev ops function to retrieve stats for kernel version < 4.6
+ */
+static struct rtnl_link_stats64 *nss_connmgr_gre_dev_stats64(struct net_device *dev,
+						struct rtnl_link_stats64 *tot)
+{
+	return nss_connmgr_gre_get_dev_stats64(dev, tot);
+}
+#else
+/*
+ * nss_connmgr_gre_dev_stats64()
+ *	Netdev ops function to retrieve stats
+ */
+static void nss_connmgr_gre_dev_stats64(struct net_device *dev,
+						struct rtnl_link_stats64 *tot)
+{
+	nss_connmgr_gre_get_dev_stats64(dev, tot);
+}
+#endif
 
 /*
  * nss_connmgr_gre_dev_open()

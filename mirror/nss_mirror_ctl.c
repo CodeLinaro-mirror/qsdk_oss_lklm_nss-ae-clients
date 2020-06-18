@@ -211,7 +211,7 @@ static int nss_mirror_ctl_parse_set_nexthop_cmd(char *buffer)
 {
 	struct net_device *mirror_dev = NULL;
 	char *param, *value;
-	uint32_t nexthop_if_num;
+	int32_t nexthop_if_num = -1;
 	uint8_t param_num = NSS_MIRROR_SET_NEXTHOP_PARAM_NUM;
 
 	do {
@@ -248,6 +248,17 @@ static int nss_mirror_ctl_parse_set_nexthop_cmd(char *buffer)
 			return -1;
 		}
 	} while (--param_num);
+
+	if (!mirror_dev) {
+		nss_mirror_warn("Mirror device is NULL\n");
+		return -1;
+	}
+
+	if (nexthop_if_num < 0) {
+		nss_mirror_warn("Invalid nexthop interface number\n");
+		dev_put(mirror_dev);
+		return -1;
+	}
 
 	if (nss_mirror_set_nexthop(mirror_dev, nexthop_if_num)) {
 		nss_mirror_warn("Error in sending set nexthop config to mirror interface: %s\n", mirror_dev->name);
@@ -389,7 +400,7 @@ static int nss_mirror_ctl_parse_enable_ingress_pmc_cmd(char *buffer)
 	struct nss_ctx_instance *nss_ctx;
 	struct net_device *dev, *mirror_dev = NULL;
 	nss_tx_status_t status;
-	int32_t if_num, type = 0, mirror_if_num;
+	int32_t if_num = -1, type = 0, mirror_if_num = -1;
 	uint8_t param_num = NSS_MIRROR_ENABLE_INGRESS_PMC_NUM;
 
 	do {
@@ -438,6 +449,17 @@ static int nss_mirror_ctl_parse_enable_ingress_pmc_cmd(char *buffer)
 			return -1;
 		}
 	} while (--param_num);
+
+	if (!mirror_dev) {
+		nss_mirror_warn("Mirror device is NULL\n");
+		return -1;
+	}
+
+	if ((if_num < 0) || (mirror_if_num < 0)) {
+		nss_mirror_warn("Invalid interface number\n");
+		dev_put(mirror_dev);
+		return -1;
+	}
 
 	/*
 	 * Return if the mirror interface is in open state.

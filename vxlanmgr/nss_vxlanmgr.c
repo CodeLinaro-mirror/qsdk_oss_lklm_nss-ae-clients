@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -21,6 +21,7 @@
 
 #include <linux/module.h>
 #include <linux/netdevice.h>
+#include <linux/of.h>
 #include <net/vxlan.h>
 #include <nss_api_if.h>
 #include "nss_vxlanmgr.h"
@@ -39,7 +40,7 @@ static int nss_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned long ev
 {
 	struct net_device *netdev = netdev_notifier_info_to_dev(dev);
 
-	if (!is_vxlan_dev(netdev)) {
+	if (!netif_is_vxlan(netdev)) {
 		/*
 		 * Return if it's not a vxlan netdev
 		 */

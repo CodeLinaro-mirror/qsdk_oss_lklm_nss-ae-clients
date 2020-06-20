@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -19,6 +19,7 @@
 #include <linux/ip.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
+#include <linux/version.h>
 #include <net/addrconf.h>
 #include <net/dst.h>
 #include <net/flow.h>
@@ -84,6 +85,7 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_tx_msg_sync(struct nss_ctx_instance *
  * nss_vxlanmgr_tunnel_flags_parse()
  *	Function to parse vxlan flags.
  */
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 5, 7))
 static uint16_t nss_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
 {
 	uint16_t flags = 0;
@@ -104,6 +106,29 @@ static uint16_t nss_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
 
 	return (flags | NSS_VXLAN_RULE_FLAG_UDP);
 }
+#else
+static uint16_t nss_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
+{
+	uint16_t flags = 0;
+	struct vxlan_config *cfg = &priv->cfg;
+	uint32_t priv_flags = cfg->flags;
+
+	if (priv_flags & VXLAN_F_GBP)
+		flags |= NSS_VXLAN_RULE_FLAG_GBP_ENABLED;
+	if (priv_flags & VXLAN_F_IPV6)
+		flags |= NSS_VXLAN_RULE_FLAG_IPV6;
+	else if (!(priv_flags & VXLAN_F_IPV6))
+		flags |= NSS_VXLAN_RULE_FLAG_IPV4;
+	if (cfg->tos == 1)
+		flags |= NSS_VXLAN_RULE_FLAG_INHERIT_TOS;
+	if (priv_flags & VXLAN_F_UDP_ZERO_CSUM_TX)
+		flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
+	else if (!(priv_flags & VXLAN_F_UDP_ZERO_CSUM6_TX))
+		flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
+
+	return (flags | NSS_VXLAN_RULE_FLAG_UDP);
+}
+#endif
 
 /*
  * nss_vxlanmgr_tunnel_fill_src_ip()
@@ -118,8 +143,13 @@ static bool nss_vxlanmgr_tunnel_fill_src_ip(struct vxlan_dev *vxlan,
 	struct flowi4 fl4;
 	struct flowi6 fl6;
 	struct rtable *rt = NULL;
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 5, 7))
 	struct dst_entry *dst = NULL;
 	int err;
+#else
+	const struct in6_addr *final_dst = NULL;
+	struct dst_entry *dentry;
+#endif
 
 	/*
 	 * IPv4
@@ -158,9 +188,15 @@ static bool nss_vxlanmgr_tunnel_fill_src_ip(struct vxlan_dev *vxlan,
 		fl6.daddr = rem_ip->sin6.sin6_addr;
 		fl6.saddr = src_ip->sin6.sin6_addr;
 
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 5, 7))
 		err = ipv6_stub->ipv6_dst_lookup(vxlan->net,
 				vxlan->vn6_sock->sock->sk, &dst, &fl6);
 		if (err < 0) {
+#else
+		dentry = ipv6_stub->ipv6_dst_lookup_flow(vxlan->net,
+				vxlan->vn6_sock->sock->sk, &fl6, final_dst);
+		if (!dentry) {
+#endif
 			nss_vxlanmgr_warn("No route, drop packet.\n");
 			return false;
 		}
@@ -203,15 +239,15 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_del(struct nss_vxlanmgr_tun_ctx *
 	}
 
 	memset(&vxlanmsg, 0, sizeof(struct nss_vxlan_msg));
+	priv = netdev_priv(dev);
 
 	/*
 	 * Set MAC rule message
 	 */
 	mac_del_msg = &vxlanmsg.msg.mac_del;
-	mac_del_msg->vni = vfe->rdst->remote_vni;
+	mac_del_msg->vni = vxlan_get_vni(priv);
 	ether_addr_copy((uint8_t *)mac_del_msg->mac_addr, (uint8_t *)vfe->eth_addr);
 
-	priv = netdev_priv(dev);
 	cfg = &priv->cfg;
 	src_ip = &cfg->saddr;
 	remote_ip = &vfe->rdst->remote_ip;
@@ -293,15 +329,15 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_add(struct nss_vxlanmgr_tun_ctx *
 	}
 
 	memset(&vxlanmsg, 0, sizeof(struct nss_vxlan_msg));
+	priv = netdev_priv(dev);
 
 	/*
 	 * Set MAC rule message
 	 */
 	mac_add_msg = &vxlanmsg.msg.mac_add;
-	mac_add_msg->vni = vfe->rdst->remote_vni;
+	mac_add_msg->vni = vxlan_get_vni(priv);
 	ether_addr_copy((uint8_t *)mac_add_msg->mac_addr, (uint8_t *)vfe->eth_addr);
 
-	priv = netdev_priv(dev);
 	cfg = &priv->cfg;
 	src_ip = &cfg->saddr;
 	remote_ip = &vfe->rdst->remote_ip;
@@ -500,7 +536,11 @@ static void nss_vxlanmgr_tunnel_fdb_update(struct nss_vxlanmgr_tun_ctx *tun_ctx,
 	for (i = 0; i < nentries; i++) {
 		if (likely(db_stats->entry[i].hits)) {
 			mac = (uint8_t *)db_stats->entry[i].mac;
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 5, 7))
 			vxlan_fdb_update_mac(priv, mac);
+#else
+			vxlan_fdb_update_mac(priv, mac, tun_ctx->vni);
+#endif
 		}
 	}
 	dev_put(tun_ctx->dev);
@@ -949,7 +989,7 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 	vxlan_cfg = &vxlanmsg.msg.vxlan_create;
 
 	priv = netdev_priv(dev);
-	vxlan_cfg->vni = priv->cfg.vni;
+	vxlan_cfg->vni = vxlan_get_vni(priv);
 	vxlan_cfg->tunnel_flags = nss_vxlanmgr_tunnel_flags_parse(priv);
 	vxlan_cfg->src_port_min = priv->cfg.port_min;
 	vxlan_cfg->src_port_max = priv->cfg.port_max;

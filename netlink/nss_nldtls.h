@@ -53,10 +53,9 @@ struct nss_nldtls_gbl_ctx {
 	ktime_t last_tx_pkt_time;
 };
 
+#if (CONFIG_NSS_NLDTLS == 1)
 bool nss_nldtls_init(void);
 bool nss_nldtls_exit(void);
-
-#if (CONFIG_NSS_NLDTLS == 1)
 #define NSS_NLDTLS_INIT nss_nldtls_init
 #define NSS_NLDTLS_EXIT nss_nldtls_exit
 #else

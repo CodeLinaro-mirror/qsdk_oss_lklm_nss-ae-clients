@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -66,7 +66,7 @@ extern struct nss_ipsecmgr_drv *ipsecmgr_drv;
  */
 static void nss_ipsecmgr_ref_no_del(struct nss_ipsecmgr_ref *ref)
 {
-	nss_ipsecmgr_trace("%p: ref_no_del triggered\n", ref);
+	nss_ipsecmgr_trace("%px: ref_no_del triggered\n", ref);
 	return;
 }
 
@@ -76,7 +76,7 @@ static void nss_ipsecmgr_ref_no_del(struct nss_ipsecmgr_ref *ref)
  */
 static void nss_ipsecmgr_ref_no_free(struct nss_ipsecmgr_ref *ref)
 {
-	nss_ipsecmgr_trace("%p: ref_no_free triggered\n", ref);
+	nss_ipsecmgr_trace("%px: ref_no_free triggered\n", ref);
 	return;
 }
 
@@ -86,7 +86,7 @@ static void nss_ipsecmgr_ref_no_free(struct nss_ipsecmgr_ref *ref)
  */
 static ssize_t nss_ipsecmgr_ref_no_print_len(struct nss_ipsecmgr_ref *ref)
 {
-	nss_ipsecmgr_trace("%p: ref_no_free triggered\n", ref);
+	nss_ipsecmgr_trace("%px: ref_no_free triggered\n", ref);
 	return 0;
 }
 
@@ -96,7 +96,7 @@ static ssize_t nss_ipsecmgr_ref_no_print_len(struct nss_ipsecmgr_ref *ref)
  */
 static ssize_t nss_ipsecmgr_ref_no_print(struct nss_ipsecmgr_ref *ref, char *buf)
 {
-	nss_ipsecmgr_trace("%p: ref_no_free triggered\n", ref);
+	nss_ipsecmgr_trace("%px: ref_no_free triggered\n", ref);
 	return 0;
 }
 

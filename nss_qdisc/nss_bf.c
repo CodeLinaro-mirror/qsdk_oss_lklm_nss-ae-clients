@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2017, 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017, 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -58,7 +58,7 @@ static inline struct nss_bf_class_data *nss_bf_find_class(u32 classid,
 	struct Qdisc_class_common *clc;
 	clc = qdisc_class_find(&q->clhash, classid);
 	if (clc == NULL) {
-		nss_qdisc_info("Cannot find class with classid %u in qdisc %p hash table %p\n", classid, sch, &q->clhash);
+		nss_qdisc_info("Cannot find class with classid %u in qdisc %px hash table %px\n", classid, sch, &q->clhash);
 		return NULL;
 	}
 	return container_of(clc, struct nss_bf_class_data, cl_common);
@@ -102,7 +102,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 			return -EINVAL;
 		}
 
-		nss_qdisc_info("Bf class %u allocated %p\n", classid, cl);
+		nss_qdisc_info("Bf class %u allocated %px\n", classid, cl);
 		cl->cl_common.classid = classid;
 
 		/*
@@ -114,7 +114,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		atomic_set(&cl->nq.refcnt, 1);
 		*arg = (unsigned long)cl;
 
-		nss_qdisc_info("Adding classid %u to qdisc %p hash queue %p\n", classid, sch, &q->clhash);
+		nss_qdisc_info("Adding classid %u to qdisc %px hash queue %px\n", classid, sch, &q->clhash);
 
 		/*
 		 * This is where a class gets initialized. Classes do not have a init function
@@ -229,7 +229,7 @@ static void nss_bf_destroy_class(struct Qdisc *sch, struct nss_bf_class_data *cl
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
 	struct nss_if_msg nim;
 
-	nss_qdisc_info("Destroying bf class %p from qdisc %p\n", cl, sch);
+	nss_qdisc_info("Destroying bf class %px from qdisc %px\n", cl, sch);
 
 	/*
 	 * Note, this function gets called even for NSSBF and not just for NSSBF_GROUP.
@@ -238,8 +238,8 @@ static void nss_bf_destroy_class(struct Qdisc *sch, struct nss_bf_class_data *cl
 	 * only for the root qdisc.
 	 */
 	if (cl == &q->root) {
-		nss_qdisc_info("We do not destroy bf class %p here since this is "
-				"the qdisc %p\n", cl, sch);
+		nss_qdisc_info("We do not destroy bf class %px here since this is "
+				"the qdisc %px\n", cl, sch);
 		return;
 	}
 
@@ -300,7 +300,7 @@ static int nss_bf_delete_class(struct Qdisc *sch, unsigned long arg)
 	/*
 	 * The message to NSS should be sent to the parent of this class
 	 */
-	nss_qdisc_info("Detaching bf class: %p\n", cl);
+	nss_qdisc_info("Detaching bf class: %px\n", cl);
 	nim.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.bf_detach.child_qos_tag = cl->nq.qos_tag;
 	if (nss_qdisc_node_detach(&q->nq, nq_child, &nim,
@@ -314,7 +314,7 @@ static int nss_bf_delete_class(struct Qdisc *sch, unsigned long arg)
 	refcnt = atomic_sub_return(1, &cl->nq.refcnt);
 	sch_tree_unlock(sch);
 	if (!refcnt) {
-		nss_qdisc_error("Reference count should not be zero for class %p\n", cl);
+		nss_qdisc_error("Reference count should not be zero for class %px\n", cl);
 	}
 
 	return 0;
@@ -333,10 +333,10 @@ static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc
 	struct nss_if_msg nim_attach;
 	struct nss_qdisc *nq_new = qdisc_priv(new);
 
-	nss_qdisc_info("Grafting class %p\n", sch);
+	nss_qdisc_info("Grafting class %px\n", sch);
 
 	if (cl == &q->root) {
-		nss_qdisc_error("Can't graft root class %p\n", cl);
+		nss_qdisc_error("Can't graft root class %px\n", cl);
 		return -EINVAL;
 	}
 
@@ -351,10 +351,10 @@ static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc
 	 * Since we initially attached a noop qdisc as child (in Linux),
 	 * we do not perform a detach in the NSS if its a noop qdisc.
 	 */
-	nss_qdisc_info("Grafting old: %p with new: %p\n", *old, new);
+	nss_qdisc_info("Grafting old: %px with new: %px\n", *old, new);
 	if (*old != &noop_qdisc) {
 		struct nss_qdisc *nq_old = (struct nss_qdisc *)qdisc_priv(*old);
-		nss_qdisc_info("Detaching old: %p\n", *old);
+		nss_qdisc_info("Detaching old: %px\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		if (nss_qdisc_node_detach(&cl->nq, nq_old, &nim_detach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
@@ -367,7 +367,7 @@ static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc
 	 * to the NSS.
 	 */
 	if (new != &noop_qdisc) {
-		nss_qdisc_info("Attaching new: %p\n", new);
+		nss_qdisc_info("Attaching new: %px\n", new);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = cl->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.bf_group_attach.child_qos_tag = nq_new->qos_tag;
 		if (nss_qdisc_node_attach(&cl->nq, nq_new, &nim_attach,
@@ -393,7 +393,7 @@ static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc
 static struct Qdisc *nss_bf_leaf_class(struct Qdisc *sch, unsigned long arg)
 {
 	struct nss_bf_class_data *cl = (struct nss_bf_class_data *)arg;
-	nss_qdisc_info("bf class leaf %p\n", cl);
+	nss_qdisc_info("bf class leaf %px\n", cl);
 
 	/*
 	 * Since all nss_bf groups are leaf nodes, we can always
@@ -408,7 +408,7 @@ static struct Qdisc *nss_bf_leaf_class(struct Qdisc *sch, unsigned long arg)
  */
 static void nss_bf_qlen_notify(struct Qdisc *sch, unsigned long arg)
 {
-	nss_qdisc_info("bf qlen notify %p\n", sch);
+	nss_qdisc_info("bf qlen notify %px\n", sch);
 	/*
 	 * Gets called when qlen of child changes (Useful for deactivating)
 	 * Not useful for us here.
@@ -423,7 +423,7 @@ static unsigned long nss_bf_get_class(struct Qdisc *sch, u32 classid)
 {
 	struct nss_bf_class_data *cl = nss_bf_find_class(classid, sch);
 
-	nss_qdisc_info("Get bf class %p - class match = %p\n", sch, cl);
+	nss_qdisc_info("Get bf class %px - class match = %px\n", sch, cl);
 
 	if (cl != NULL)
 		atomic_add(1, &cl->nq.refcnt);
@@ -438,7 +438,7 @@ static unsigned long nss_bf_get_class(struct Qdisc *sch, u32 classid)
 static void nss_bf_put_class(struct Qdisc *sch, unsigned long arg)
 {
 	struct nss_bf_class_data *cl = (struct nss_bf_class_data *)arg;
-	nss_qdisc_info("bf put class for %p\n", cl);
+	nss_qdisc_info("bf put class for %px\n", cl);
 
 	/*
 	 * We are safe to destroy the qdisc if the reference count
@@ -460,7 +460,7 @@ static int nss_bf_dump_class(struct Qdisc *sch, unsigned long arg, struct sk_buf
 	struct nlattr *opts;
 	struct tc_nssbf_class_qopt qopt;
 
-	nss_qdisc_info("Dumping class %p of Qdisc %p\n", cl, sch);
+	nss_qdisc_info("Dumping class %px of Qdisc %px\n", cl, sch);
 
 	qopt.burst = cl->burst;
 	qopt.rate = cl->rate;
@@ -514,7 +514,7 @@ static void nss_bf_walk(struct Qdisc *sch, struct qdisc_walker *arg)
 	struct nss_bf_class_data *cl;
 	unsigned int i;
 
-	nss_qdisc_info("In bf walk %p\n", sch);
+	nss_qdisc_info("In bf walk %px\n", sch);
 	if (arg->stop)
 		return;
 
@@ -587,7 +587,7 @@ static int nss_bf_change_qdisc(struct Qdisc *sch, struct nlattr *opt)
 static void nss_bf_reset_class(struct nss_bf_class_data *cl)
 {
 	nss_qdisc_reset(cl->qdisc);
-	nss_qdisc_info("Nssbf class resetted %p\n", cl->qdisc);
+	nss_qdisc_info("Nssbf class resetted %px\n", cl->qdisc);
 }
 
 /*
@@ -607,7 +607,7 @@ static void nss_bf_reset_qdisc(struct Qdisc *sch)
 	}
 
 	nss_qdisc_reset(sch);
-	nss_qdisc_info("Nssbf qdisc resetted %p\n", sch);
+	nss_qdisc_info("Nssbf qdisc resetted %px\n", sch);
 }
 
 /*
@@ -634,8 +634,8 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
 			 * care of by the nss_bf_destroy() function.
 			 */
 			if (cl == &q->root) {
-				nss_qdisc_info("We do not detach or destroy bf class %p here since this is "
-						"the qdisc %p\n", cl, sch);
+				nss_qdisc_info("We do not detach or destroy bf class %px here since this is "
+						"the qdisc %px\n", cl, sch);
 				continue;
 			}
 
@@ -677,7 +677,7 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
 	 *	 will be taken care of by the graft call.
 	 */
 	nss_qdisc_destroy(&q->nq);
-	nss_qdisc_info("Nssbf destroyed %p\n", sch);
+	nss_qdisc_info("Nssbf destroyed %px\n", sch);
 }
 
 /*
@@ -691,7 +691,7 @@ static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	int err;
 	unsigned int accel_mode;
 
-	nss_qdisc_info("Init bf qdisc %p\n", sch);
+	nss_qdisc_info("Init bf qdisc %px\n", sch);
 
 	err = qdisc_class_hash_init(&q->clhash);
 	if (err < 0) {

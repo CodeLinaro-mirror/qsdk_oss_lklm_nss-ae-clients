@@ -73,7 +73,7 @@ EXPORT_SYMBOL(nss_tlsmgr_tun_get_tailroom);
  */
 static netdev_tx_t nss_tlsmgr_tun_tx(struct sk_buff *skb, struct net_device *dev)
 {
-	nss_tlsmgr_warn("%p: TLS device xmit function invoked", dev);
+	nss_tlsmgr_warn("%px: TLS device xmit function invoked", dev);
 	dev_kfree_skb_any(skb);
 	return NETDEV_TX_OK;
 }
@@ -258,7 +258,7 @@ bool nss_tlsmgr_register_notify(struct net_device *dev, nss_tlsmgr_notify_callba
 	struct nss_tlsmgr_tun *tun = netdev_priv(dev);
 
 	if (!cb || !msecs) {
-		nss_tlsmgr_warn("%p: NULL notification parameters %p %d\n", tun, cb, msecs);
+		nss_tlsmgr_warn("%px: NULL notification parameters %px %d\n", tun, cb, msecs);
 		return false;
 	};
 
@@ -311,13 +311,13 @@ struct net_device *nss_tlsmgr_tun_add(nss_tlsmgr_decongest_callback_t cb, void *
 	int error;
 
 	if (!atomic_read(&tlsmgr_drv->is_configured)) {
-		nss_tlsmgr_warn("%p: tls firmware not ready", tlsmgr_drv);
+		nss_tlsmgr_warn("%px: tls firmware not ready", tlsmgr_drv);
 		return NULL;
 	}
 
 	dev = alloc_netdev(sizeof(*tun), "tls%d", NET_NAME_ENUM, nss_tlsmgr_tun_setup);
 	if (!dev) {
-		nss_tlsmgr_warn("%p: unable to allocate tls device", tun);
+		nss_tlsmgr_warn("%px: unable to allocate tls device", tun);
 		return NULL;
 	}
 
@@ -327,23 +327,23 @@ struct net_device *nss_tlsmgr_tun_add(nss_tlsmgr_decongest_callback_t cb, void *
 
 	error = nss_tlsmgr_ctx_config_inner(&tun->ctx_enc, dev);
 	if (error < 0) {
-		nss_tlsmgr_warn("%p: unable to create encap context, error(%d)", tun, error);
+		nss_tlsmgr_warn("%px: unable to create encap context, error(%d)", tun, error);
 		goto free_dev;
 	}
 
 	error = nss_tlsmgr_ctx_config_outer(&tun->ctx_dec, dev);
 	if (error < 0) {
-		nss_tlsmgr_warn("%p: unable to create decap context, error(%d)", tun, error);
+		nss_tlsmgr_warn("%px: unable to create decap context, error(%d)", tun, error);
 		goto deconfig_inner;
 	}
 
 	error = rtnl_is_locked() ? register_netdevice(dev) : register_netdev(dev);
 	if (error < 0) {
-		nss_tlsmgr_warn("%p: unable register net_device(%s)", tun, dev->name);
+		nss_tlsmgr_warn("%px: unable register net_device(%s)", tun, dev->name);
 		goto deconfig_outer;
 	}
 
-	nss_tlsmgr_trace("%p: tls tunnel(%s) created, encap(%u), decap(%u)",
+	nss_tlsmgr_trace("%px: tls tunnel(%s) created, encap(%u), decap(%u)",
 			  tun, dev->name, tun->ctx_enc.ifnum, tun->ctx_dec.ifnum);
 
 	/*
@@ -403,7 +403,7 @@ void nss_tlsmgr_tun_del(struct net_device *dev)
 {
 	struct nss_tlsmgr_tun *tun = netdev_priv(dev);
 
-	nss_tlsmgr_trace("%p: destroying encap(%u) and decap(%u) context",
+	nss_tlsmgr_trace("%px: destroying encap(%u) and decap(%u) context",
 			  tun, tun->ctx_enc.ifnum, tun->ctx_dec.ifnum);
 
 	debugfs_remove_recursive(tun->dentry);

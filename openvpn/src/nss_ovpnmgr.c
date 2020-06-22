@@ -75,7 +75,7 @@ static int nss_ovpnmgr_netdevice_event(struct notifier_block *unused,
 	app = nss_ovpnmgr_app_find(app_dev);
 	if (unlikely(!app)) {
 		read_unlock_bh(&ovpnmgr_ctx.lock);
-		nss_ovpnmgr_warn("%p: Application is not registered: app_dev = %s\n", app_dev, app_dev->name);
+		nss_ovpnmgr_warn("%px: Application is not registered: app_dev = %s\n", app_dev, app_dev->name);
 		return NOTIFY_DONE;
 	}
 
@@ -90,7 +90,7 @@ static int nss_ovpnmgr_netdevice_event(struct notifier_block *unused,
 	list_for_each_entry_safe(tun, n, &app->tun_list, list) {
 		nss_dev = __dev_get_by_index(&init_net, tun->tunnel_id);
 		if (unlikely(!nss_dev)) {
-			nss_ovpnmgr_warn("%p: Couldn't find tunnel: tunnel_id = %u\n\n", tun, tun->tunnel_id);
+			nss_ovpnmgr_warn("%px: Couldn't find tunnel: tunnel_id = %u\n\n", tun, tun->tunnel_id);
 			continue;
 		}
 

@@ -175,13 +175,13 @@ struct nss_tlsmgr_crypto *nss_tlsmgr_crypto_alloc(struct nss_tlsmgr_config *cfg)
 	case NSS_TLSMGR_ALGO_NULL_SHA256_HMAC:
 		ntc->ahash = crypto_alloc_ahash(info->name, 0, 0);
 		if (IS_ERR(ntc->ahash)) {
-			nss_tlsmgr_warn("%p: failed to allocate crypto ahash context\n", ntc);
+			nss_tlsmgr_warn("%px: failed to allocate crypto ahash context\n", ntc);
 			vfree(ntc);
 			return NULL;
 		}
 
 		if (crypto_ahash_setkey(ntc->ahash, cfg->auth_key.data, cfg->auth_key.len)) {
-			nss_tlsmgr_warn("%p: failed to configure keys\n", ntc);
+			nss_tlsmgr_warn("%px: failed to configure keys\n", ntc);
 			crypto_free_ahash(ntc->ahash);
 			vfree(ntc);
 			return NULL;
@@ -192,7 +192,7 @@ struct nss_tlsmgr_crypto *nss_tlsmgr_crypto_alloc(struct nss_tlsmgr_config *cfg)
 		break;
 
 	default:
-		nss_tlsmgr_warn("%p: invalid crypto algorithm(%d)\n", ntc, cfg->algo);
+		nss_tlsmgr_warn("%px: invalid crypto algorithm(%d)\n", ntc, cfg->algo);
 		vfree(ntc);
 		return NULL;
 	}
@@ -230,7 +230,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_null(struct net_device *dev, struct
 	crypto = nss_tlsmgr_crypto_alloc(&cfg);
 	if (!crypto) {
 		nss_tlsmgr_crypto_free(crypto);
-		nss_tlsmgr_warn("%p: unable to update encap context data", ctx);
+		nss_tlsmgr_warn("%px: unable to update encap context data", ctx);
 		return NSS_TLSMGR_FAIL_NOMEM;
 	}
 
@@ -243,7 +243,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_null(struct net_device *dev, struct
 
 	status = nss_tls_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ntcu), &ntm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tlsmgr_warn("%p: Failed to configure decap, status:%d, error:%d", ctx, status, ntm.cm.error);
+		nss_tlsmgr_warn("%px: Failed to configure decap, status:%d, error:%d", ctx, status, ntm.cm.error);
 		return false;
 	}
 
@@ -254,7 +254,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_null(struct net_device *dev, struct
 	list_add_tail(&crypto->list, &ctx->crypto_active);
 	write_unlock(&tun->lock);
 
-	nss_tlsmgr_trace("%p: NULL context(0x%x) update done", ctx, ctx->ifnum & ((1 << NSS_CORE_ID_SHIFT) - 1));
+	nss_tlsmgr_trace("%px: NULL context(0x%x) update done", ctx, ctx->ifnum & ((1 << NSS_CORE_ID_SHIFT) - 1));
 
 	return NSS_TLSMGR_OK;
 }
@@ -274,7 +274,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_encap(struct net_device *dev, struc
 	nss_tx_status_t status;
 
 	if ((cfg->hdr_ver != TLSHDR_VERSION_1_1) && (cfg->hdr_ver != TLSHDR_VERSION_1_2)) {
-		nss_tlsmgr_warn("%p: Invalid TLS header version: %d", ctx, cfg->hdr_ver);
+		nss_tlsmgr_warn("%px: Invalid TLS header version: %d", ctx, cfg->hdr_ver);
 		return NSS_TLSMGR_FAIL_REC_VERSION;
 	}
 
@@ -285,7 +285,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_encap(struct net_device *dev, struc
 
 	crypto = nss_tlsmgr_crypto_alloc(cfg);
 	if (!crypto) {
-		nss_tlsmgr_warn("%p: unable to update encap context data", ctx);
+		nss_tlsmgr_warn("%px: unable to update encap context data", ctx);
 		return NSS_TLSMGR_FAIL_NOMEM;
 	}
 
@@ -298,7 +298,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_encap(struct net_device *dev, struc
 	status = nss_tls_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ntcu), &ntm);
 	if (status != NSS_TX_SUCCESS) {
 		nss_tlsmgr_crypto_free(crypto);
-		nss_tlsmgr_warn("%p: Failed to configure encap, status:%d, error:%d", ctx, status, ntm.cm.error);
+		nss_tlsmgr_warn("%px: Failed to configure encap, status:%d, error:%d", ctx, status, ntm.cm.error);
 		return NSS_TLSMGR_FAIL_MESSAGE;
 	}
 
@@ -309,7 +309,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_encap(struct net_device *dev, struc
 	list_add_tail(&crypto->list, &ctx->crypto_active);
 	write_unlock(&tun->lock);
 
-	nss_tlsmgr_trace("%p: encap context(0x%x) update done", ctx, ctx->ifnum & ((1 << NSS_CORE_ID_SHIFT) - 1));
+	nss_tlsmgr_trace("%px: encap context(0x%x) update done", ctx, ctx->ifnum & ((1 << NSS_CORE_ID_SHIFT) - 1));
 
 	return NSS_TLSMGR_OK;
 }
@@ -330,7 +330,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_decap(struct net_device *dev, struc
 	nss_tx_status_t status;
 
 	if ((cfg->hdr_ver != TLSHDR_VERSION_1_1) && (cfg->hdr_ver != TLSHDR_VERSION_1_2)) {
-		nss_tlsmgr_warn("%p: Invalid TLS header version: %d", ctx, cfg->hdr_ver);
+		nss_tlsmgr_warn("%px: Invalid TLS header version: %d", ctx, cfg->hdr_ver);
 		return NSS_TLSMGR_FAIL_REC_VERSION;
 	}
 
@@ -341,7 +341,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_decap(struct net_device *dev, struc
 
 	crypto = nss_tlsmgr_crypto_alloc(cfg);
 	if (!crypto) {
-		nss_tlsmgr_warn("%p: unable to update decap context data", ctx);
+		nss_tlsmgr_warn("%px: unable to update decap context data", ctx);
 		return NSS_TLSMGR_FAIL_NOMEM;
 	}
 
@@ -354,7 +354,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_decap(struct net_device *dev, struc
 	status = nss_tls_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ntcu), &ntm);
 	if (status != NSS_TX_SUCCESS) {
 		nss_tlsmgr_crypto_free(crypto);
-		nss_tlsmgr_warn("%p: Failed to configure decap, status:%d, error:%d", ctx, status, ntm.cm.error);
+		nss_tlsmgr_warn("%px: Failed to configure decap, status:%d, error:%d", ctx, status, ntm.cm.error);
 		return false;
 	}
 
@@ -365,7 +365,7 @@ nss_tlsmgr_status_t nss_tlsmgr_crypto_update_decap(struct net_device *dev, struc
 	list_add_tail(&crypto->list, &ctx->crypto_active);
 	write_unlock(&tun->lock);
 
-	nss_tlsmgr_trace("%p: decap context(0x%x) update done", ctx, ctx->ifnum & ((1 << NSS_CORE_ID_SHIFT) - 1));
+	nss_tlsmgr_trace("%px: decap context(0x%x) update done", ctx, ctx->ifnum & ((1 << NSS_CORE_ID_SHIFT) - 1));
 
 	return NSS_TLSMGR_OK;
 }

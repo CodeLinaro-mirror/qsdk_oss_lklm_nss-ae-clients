@@ -717,7 +717,6 @@ static int nss_ppe_l0_res_free(struct nss_qdisc *nq)
 		return -EINVAL;
 	}
 
-
 	/*
 	 * Reset Res id values in qdisc
 	 */
@@ -1252,7 +1251,7 @@ static void nss_ppe_attach_free(uint32_t port, struct nss_ppe_res *res)
 	ppe_port->res_free[res->type] = res;
 	spin_unlock_bh(&ppe_port->lock);
 
-	nss_qdisc_info("port:%d, type:%d, res:%p\n", port, res->type, res);
+	nss_qdisc_info("port:%d, type:%d, res:%px\n", port, res->type, res);
 	return;
 }
 
@@ -1319,7 +1318,7 @@ int nss_ppe_res_free(uint32_t port, uint32_t offset, nss_ppe_res_type_t type)
 
 success:
 	nss_ppe_attach_free(port, res);
-	nss_qdisc_info("port:%d, type:%d, res:%p\n", port, type, res);
+	nss_qdisc_info("port:%d, type:%d, res:%px\n", port, type, res);
 	return 0;
 }
 
@@ -1345,7 +1344,7 @@ struct nss_ppe_res *nss_ppe_res_alloc(uint32_t port, nss_ppe_res_type_t type)
 	}
 	spin_unlock_bh(&ppe_port->lock);
 
-	nss_qdisc_info("port:%d, type:%d, res:%p\n", port, type, res);
+	nss_qdisc_info("port:%d, type:%d, res:%px\n", port, type, res);
 	return res;
 }
 
@@ -1787,7 +1786,7 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 	}
 
 	if ((parent_nq) && (parent_nq->mode == NSS_QDISC_MODE_NSS)) {
-		nss_qdisc_info("HW qdisc/class %p cannot be attached to nss qdisc/class\n", nq->qdisc);
+		nss_qdisc_info("HW qdisc/class %px cannot be attached to nss qdisc/class\n", nq->qdisc);
 		return NSS_PPE_QDISC_PARENT_NOT_PPE;
 	}
 
@@ -1809,7 +1808,7 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 		 */
 		if ((parent_nq) && (parent_nq->npq.sub_type != NSS_SHAPER_CONFIG_PPE_SN_TYPE_PRIO) && (TC_H_MIN(parent))) {
 			if (!parent_qdisc) {
-				nss_qdisc_info("HW qdisc/class %p cannot be attached to non-existing class %x\n", nq->qdisc, parent);
+				nss_qdisc_info("HW qdisc/class %px cannot be attached to non-existing class %x\n", nq->qdisc, parent);
 				return NSS_PPE_QDISC_PARENT_NOT_EXISTING;
 			}
 
@@ -1817,7 +1816,7 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 
 			if (!parent_class) {
 				nq->parent = NULL;
-				nss_qdisc_info("HW qdisc/class %p cannot be attached to non-existing class %x\n", nq->qdisc, parent);
+				nss_qdisc_info("HW qdisc/class %px cannot be attached to non-existing class %x\n", nq->qdisc, parent);
 				return NSS_PPE_QDISC_PARENT_NOT_EXISTING;
 
 			}
@@ -1958,7 +1957,7 @@ void nss_ppe_all_queue_enable_hybrid(struct nss_qdisc *nq)
 		|| (nq->type == NSS_SHAPER_NODE_TYPE_WRED)) {
 		uint32_t port_num = nss_ppe_port_num_get(nq);
 		nss_ppe_all_queue_enable(port_num);
-		nss_qdisc_info("Queues in hybrid mode enabled successfully for Qdisc %p (type %d)\n", nq, nq->type);
+		nss_qdisc_info("Queues in hybrid mode enabled successfully for Qdisc %px (type %d)\n", nq, nq->type);
 	}
 }
 
@@ -1976,7 +1975,7 @@ int nss_ppe_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 	 */
 	if (nq_child->mode != NSS_QDISC_MODE_PPE) {
 		if (nss_qdisc_set_hybrid_mode(nq_child, NSS_QDISC_HYBRID_MODE_DISABLE, 0) < 0) {
-			nss_qdisc_warning("detach of old qdisc %p failed\n", nq_child->qdisc);
+			nss_qdisc_warning("detach of old qdisc %px failed\n", nq_child->qdisc);
 			return -EINVAL;
 		}
 
@@ -1985,7 +1984,7 @@ int nss_ppe_node_detach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 
 	nss_ppe_destroy(nq_child);
 
-	nss_qdisc_info("Qdisc:%p, node:%p\n", nq, nq_child);
+	nss_qdisc_info("Qdisc:%px, node:%px\n", nq, nq_child);
 	return 0;
 }
 
@@ -2077,7 +2076,7 @@ int nss_ppe_node_attach(struct nss_qdisc *nq, struct nss_qdisc *nq_child)
 
 	nq_root->hybrid_configured = true;
 
-	nss_qdisc_info("Qdisc:%p, node:%p\n", nq, nq_child);
+	nss_qdisc_info("Qdisc:%px, node:%px\n", nq, nq_child);
 	return 0;
 }
 
@@ -2325,7 +2324,7 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 		 * in qdisc that needs resource allocation in PPE. HTB qdisc on the other hand does
 		 * nothing useful and thus we don't allocate any resource".
 		 */
-		nss_qdisc_trace("Qdisc parent = %p, handle=%x\n", nq->parent,  nq->parent->qos_tag);
+		nss_qdisc_trace("Qdisc parent = %px, handle=%x\n", nq->parent,  nq->parent->qos_tag);
 		if ((nq->parent->npq.sub_type == NSS_SHAPER_CONFIG_PPE_SN_TYPE_HTB)) {
 			nq->npq.level = nq->parent->npq.level;
 		} else {
@@ -2342,7 +2341,7 @@ int nss_ppe_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t
 	nq->mode = NSS_QDISC_MODE_PPE;
 	if (alloc_scheduler) {
 		if (nss_ppe_scheduler_set(nq) < 0) {
-			nss_qdisc_warning("%p SSDK scheduler configuration failed\n", sch);
+			nss_qdisc_warning("%px SSDK scheduler configuration failed\n", sch);
 			memset(&nq->npq, 0, sizeof(struct nss_ppe_qdisc));
 			nq->mode = NSS_QDISC_MODE_NSS;
 			return -1;

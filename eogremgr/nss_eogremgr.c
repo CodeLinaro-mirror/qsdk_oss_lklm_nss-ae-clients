@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -142,7 +142,7 @@ static nss_tx_status_t nss_eogremgr_tunnel_destroy_ipv6_rule(struct nss_ctx_inst
 	struct nss_ipv6_msg nim;
 	nss_tx_status_t status;
 
-	nss_eogremgr_info("%p: ctx: Destroy IPv6: %pI6:%u, %pI6:%u, p: %d\n", nss_ctx,
+	nss_eogremgr_info("%px: ctx: Destroy IPv6: %pI6:%u, %pI6:%u, p: %d\n", nss_ctx,
 			&ni5t->flow_ip, ni5t->flow_ident, &ni5t->return_ip, ni5t->return_ident, ni5t->protocol);
 
 	nss_ipv6_msg_init(&nim, NSS_IPV6_RX_INTERFACE, NSS_IPV6_TX_DESTROY_RULE_MSG,
@@ -151,7 +151,7 @@ static nss_tx_status_t nss_eogremgr_tunnel_destroy_ipv6_rule(struct nss_ctx_inst
 	nim.msg.rule_destroy.tuple = *ni5t;
 	status = nss_ipv6_tx_sync(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
-		nss_eogremgr_warn("%p: Destroy IPv6 message failed %d\n", nss_ctx, status);
+		nss_eogremgr_warn("%px: Destroy IPv6 message failed %d\n", nss_ctx, status);
 	}
 
 	return status;
@@ -166,7 +166,7 @@ static nss_tx_status_t nss_eogremgr_tunnel_destroy_ipv4_rule(struct nss_ctx_inst
 	struct nss_ipv4_msg nim;
 	nss_tx_status_t status;
 
-	nss_eogremgr_info("%p: ctx: Destroy IPv4: %pI4h :%u, %pI4h :%u, p: %d\n", nss_ctx,
+	nss_eogremgr_info("%px: ctx: Destroy IPv4: %pI4h :%u, %pI4h :%u, p: %d\n", nss_ctx,
 			&ni5t->flow_ip, ni5t->flow_ident, &ni5t->return_ip, ni5t->return_ident, ni5t->protocol);
 
 	nss_ipv4_msg_init(&nim, NSS_IPV4_RX_INTERFACE, NSS_IPV4_TX_DESTROY_RULE_MSG,
@@ -175,7 +175,7 @@ static nss_tx_status_t nss_eogremgr_tunnel_destroy_ipv4_rule(struct nss_ctx_inst
 	nim.msg.rule_destroy.tuple = *ni5t;
 	status = nss_ipv4_tx_sync(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
-		nss_eogremgr_warn("%p: Destroy IPv4 message failed %d\n", nss_ctx, status);
+		nss_eogremgr_warn("%px: Destroy IPv4 message failed %d\n", nss_ctx, status);
 	}
 
 	return status;
@@ -196,7 +196,7 @@ static nss_tx_status_t nss_eogremgr_tunnel_create_ipv6_rule(struct nss_ctx_insta
 	nim.msg.rule_create = *nircm;
 	status = nss_ipv6_tx_sync(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
-		nss_eogremgr_warn("%p: Create IPv6 message failed %d\n", nss_ctx, status);
+		nss_eogremgr_warn("%px: Create IPv6 message failed %d\n", nss_ctx, status);
 	}
 
 	return status;
@@ -217,7 +217,7 @@ static nss_tx_status_t nss_eogremgr_tunnel_create_ipv4_rule(struct nss_ctx_insta
 	nim.msg.rule_create = *nircm;
 	status = nss_ipv4_tx_sync(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
-		nss_eogremgr_warn("%p: Create IPv4 message failed %d\n", nss_ctx, status);
+		nss_eogremgr_warn("%px: Create IPv4 message failed %d\n", nss_ctx, status);
 	}
 
 	return status;

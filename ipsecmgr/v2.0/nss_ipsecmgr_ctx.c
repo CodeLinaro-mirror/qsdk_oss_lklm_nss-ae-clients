@@ -182,7 +182,7 @@ static ssize_t nss_ipsecmgr_ctx_read(struct file *fp, char __user *ubuf, size_t 
 
 	buf = vzalloc(print_len);
 	if (!buf) {
-		nss_ipsecmgr_warn("%p: failed to allocate print buffer (req:%zd)", ctx, print_len);
+		nss_ipsecmgr_warn("%px: failed to allocate print buffer (req:%zd)", ctx, print_len);
 		return 0;
 	}
 
@@ -370,7 +370,7 @@ static void nss_ipsecmgr_ctx_free_ref(struct nss_ipsecmgr_ref *ref)
 
 	status = nss_ipsec_cmn_unregister_if(ctx->ifnum);
 	if (!status) {
-		nss_ipsecmgr_warn("%p: Failed to unregister, di_type(%u), I/F(%u)", ctx, di_type, ctx->ifnum);
+		nss_ipsecmgr_warn("%px: Failed to unregister, di_type(%u), I/F(%u)", ctx, di_type, ctx->ifnum);
 		return;
 	}
 
@@ -403,7 +403,7 @@ void nss_ipsecmgr_ctx_rx_redir(struct net_device *dev, struct sk_buff *skb,
 	ctx = nss_ipsecmgr_ctx_find(netdev_priv(dev), NSS_IPSEC_CMN_CTX_TYPE_REDIR);
 	if (!ctx) {
 		dev_kfree_skb_any(skb);
-		nss_ipsecmgr_warn("%p: ctx is NULL", dev);
+		nss_ipsecmgr_warn("%px: ctx is NULL", dev);
 		return;
 	}
 
@@ -518,7 +518,7 @@ void nss_ipsecmgr_ctx_rx_redir(struct net_device *dev, struct sk_buff *skb,
 	}
 
 	default:
-		nss_ipsecmgr_warn("%p: non IP packet received", dev);
+		nss_ipsecmgr_warn("%px: non IP packet received", dev);
 		ctx->hstats.redir_exp_drop++;
 
 		dev_kfree_skb_any(skb);
@@ -578,7 +578,7 @@ void nss_ipsecmgr_ctx_rx_outer(struct net_device *dev, struct sk_buff *skb,
 
 	ctx = nss_ipsecmgr_ctx_find(netdev_priv(dev), NSS_IPSEC_CMN_CTX_TYPE_OUTER);
 	if (!ctx) {
-		nss_ipsecmgr_warn("%p: Could not find ctx", dev);
+		nss_ipsecmgr_warn("%px: Could not find ctx", dev);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -597,7 +597,7 @@ void nss_ipsecmgr_ctx_rx_outer(struct net_device *dev, struct sk_buff *skb,
 		skb->protocol = cpu_to_be16(ETH_P_IP);
 
 		if ((iph->protocol != IPPROTO_UDP) && (iph->protocol != IPPROTO_ESP)) {
-			nss_ipsecmgr_warn("%p: Unsupported IPv4 protocol(%u)", dev, iph->protocol);
+			nss_ipsecmgr_warn("%px: Unsupported IPv4 protocol(%u)", dev, iph->protocol);
 			dev_kfree_skb_any(skb);
 
 			ctx->hstats.outer_exp_drop++;
@@ -614,7 +614,7 @@ void nss_ipsecmgr_ctx_rx_outer(struct net_device *dev, struct sk_buff *skb,
 		skb->protocol = cpu_to_be16(ETH_P_IPV6);
 
 		if (ip6h->nexthdr != IPPROTO_ESP) {
-			nss_ipsecmgr_warn("%p: unsupported ipv6 next_hdr(%u)", dev, ip6h->nexthdr);
+			nss_ipsecmgr_warn("%px: unsupported ipv6 next_hdr(%u)", dev, ip6h->nexthdr);
 			dev_kfree_skb_any(skb);
 
 			ctx->hstats.outer_exp_drop++;
@@ -627,7 +627,7 @@ void nss_ipsecmgr_ctx_rx_outer(struct net_device *dev, struct sk_buff *skb,
 	}
 
 	default:
-		nss_ipsecmgr_warn("%p: non ip packet received after decapsulation", dev);
+		nss_ipsecmgr_warn("%px: non ip packet received after decapsulation", dev);
 		ctx->hstats.outer_exp_drop++;
 
 		dev_kfree_skb_any(skb);
@@ -647,7 +647,7 @@ void nss_ipsecmgr_ctx_rx_inner(struct net_device *dev, struct sk_buff *skb,
 
 	ctx = nss_ipsecmgr_ctx_find(netdev_priv(dev), NSS_IPSEC_CMN_CTX_TYPE_INNER);
 	if (!ctx) {
-		nss_ipsecmgr_warn("%p: Could not find ctx", dev);
+		nss_ipsecmgr_warn("%px: Could not find ctx", dev);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -669,7 +669,7 @@ void nss_ipsecmgr_ctx_rx_inner(struct net_device *dev, struct sk_buff *skb,
 		break;
 
 	default:
-		nss_ipsecmgr_warn("%p: Invalid IP header received for rx_inner", tun);
+		nss_ipsecmgr_warn("%px: Invalid IP header received for rx_inner", tun);
 		dev_kfree_skb_any(skb);
 
 		ctx->hstats.inner_exp_drop++;
@@ -757,7 +757,7 @@ void nss_ipsecmgr_ctx_rx_stats(void *app_data, struct nss_cmn_msg *ncm)
 	}
 
 	default:
-		nss_ipsecmgr_info("%p: unhandled ipsec message type(%u)", nicm, nicm->cm.type);
+		nss_ipsecmgr_info("%px: unhandled ipsec message type(%u)", nicm, nicm->cm.type);
 		break;
 	}
 
@@ -841,7 +841,7 @@ struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_find_by_sa(struct nss_ipsecmgr_tunnel 
 		break;
 
 	default:
-		nss_ipsecmgr_warn("%p: Unsupported SA type(%u)", tun, sa_type);
+		nss_ipsecmgr_warn("%px: Unsupported SA type(%u)", tun, sa_type);
 		return NULL;
 	}
 
@@ -878,7 +878,7 @@ bool nss_ipsecmgr_ctx_config(struct nss_ipsecmgr_ctx *ctx)
 
 	status = nss_ipsec_cmn_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ctx_msg), &nicm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_ipsecmgr_warn("%p: Failed to configure the context (ctx_type:%u),(tx_status:%d),(error:%x)",
+		nss_ipsecmgr_warn("%px: Failed to configure the context (ctx_type:%u),(tx_status:%d),(error:%x)",
 				ctx, ctx->state.type, status, nicm.cm.error);
 		return false;
 	}
@@ -915,11 +915,11 @@ struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_alloc(struct nss_ipsecmgr_tunnel *tun,
 
 	ctx = kzalloc(sizeof(*ctx), in_atomic() ? GFP_ATOMIC : GFP_KERNEL);
 	if (!ctx) {
-		nss_ipsecmgr_warn("%p: failed to allocate context memory", tun);
+		nss_ipsecmgr_warn("%px: failed to allocate context memory", tun);
 		return NULL;
 	}
 
-	nss_ipsecmgr_trace("%p: Allocating dynamic interface type(%d)", ctx, di_type);
+	nss_ipsecmgr_trace("%px: Allocating dynamic interface type(%d)", ctx, di_type);
 
 	ctx->tun = tun;
 	ctx->state.type = ctx_type;
@@ -927,7 +927,7 @@ struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_alloc(struct nss_ipsecmgr_tunnel *tun,
 
 	ctx->ifnum = nss_dynamic_interface_alloc_node(di_type);
 	if (ctx->ifnum < 0) {
-		nss_ipsecmgr_warn("%p: failed to allocate dynamic interface(%d)", tun, di_type);
+		nss_ipsecmgr_warn("%px: failed to allocate dynamic interface(%d)", tun, di_type);
 		kfree(ctx);
 		return NULL;
 	}
@@ -940,7 +940,7 @@ struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_alloc(struct nss_ipsecmgr_tunnel *tun,
 
 	ctx->nss_ctx = nss_ipsec_cmn_register_if(ctx->ifnum, tun->dev, rx_data, rx_stats, features, di_type, ctx);
 	if (!ctx->nss_ctx) {
-		nss_ipsecmgr_warn("%p: failed to register dynamic interface(%d, %d)", ctx, di_type, ctx->ifnum);
+		nss_ipsecmgr_warn("%px: failed to register dynamic interface(%d, %d)", ctx, di_type, ctx->ifnum);
 		nss_dynamic_interface_dealloc_node(ctx->ifnum, di_type);
 		kfree(ctx);
 		return NULL;

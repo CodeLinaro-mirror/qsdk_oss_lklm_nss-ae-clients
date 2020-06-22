@@ -126,13 +126,13 @@ static void nss_tunipip6_decap_exception(struct net_device *dev, struct sk_buff 
 	int cpu;
 	int8_t ver = skb->data[0] >> 4;
 
-	nss_tunipip6_trace("%p: received - %d bytes name %s ver %x\n",
+	nss_tunipip6_trace("%px: received - %d bytes name %s ver %x\n",
 			dev, skb->len, dev->name, ver);
 
 	nss_tunipip6_assert(ver == 6);
 
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct ipv6hdr)))) {
-		nss_tunipip6_warning("%p: pskb_may_pull failed to pull ipv6 header", dev);
+		nss_tunipip6_warning("%px: pskb_may_pull failed to pull ipv6 header", dev);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -140,7 +140,7 @@ static void nss_tunipip6_decap_exception(struct net_device *dev, struct sk_buff 
 	skb_pull(skb, sizeof(struct ipv6hdr));
 
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct iphdr)))) {
-		nss_tunipip6_warning("%p: pskb_may_pull failed to linearize iphdr, packet does not have a proper IPv4 header.", dev);
+		nss_tunipip6_warning("%px: pskb_may_pull failed to linearize iphdr, packet does not have a proper IPv4 header.", dev);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -152,12 +152,12 @@ static void nss_tunipip6_decap_exception(struct net_device *dev, struct sk_buff 
 
 	rt = ip_route_output(&init_net, iph->daddr, 0, 0, 0);
 	if (unlikely(IS_ERR(rt))) {
-		nss_tunipip6_info("%p: Failed to find IPv4 route for %pI4\n", skb, &iph->daddr);
+		nss_tunipip6_info("%px: Failed to find IPv4 route for %pI4\n", skb, &iph->daddr);
 		dev_kfree_skb_any(skb);
 		return;
 	}
 
-	nss_tunipip6_trace("%p: Route look up successful for dest_ip: %pI4 src_ip: %pI4\n",
+	nss_tunipip6_trace("%px: Route look up successful for dest_ip: %pI4 src_ip: %pI4\n",
 			skb, &iph->daddr, &iph->saddr);
 
 	skb_dst_drop(skb);
@@ -184,7 +184,7 @@ static void nss_tunipip6_decap_exception(struct net_device *dev, struct sk_buff 
 	cpu = smp_processor_id();
 	queue = skb_get_tx_queue(dev, skb);
 
-	nss_tunipip6_trace("%p: skb queue mapping: %d, cpu: %d", skb, skb_get_queue_mapping(skb), cpu);
+	nss_tunipip6_trace("%px: skb queue mapping: %d, cpu: %d", skb, skb_get_queue_mapping(skb), cpu);
 
 	/*
 	 * Take HARD_TX_LOCK to be in sync with the kernel.
@@ -196,7 +196,7 @@ static void nss_tunipip6_decap_exception(struct net_device *dev, struct sk_buff 
 	 */
 	if (unlikely(netif_xmit_frozen_or_stopped(queue))) {
 		HARD_TX_UNLOCK(dev, queue);
-		nss_tunipip6_trace("%p: Dropping the packet, as queue: %p is not alive", skb, queue);
+		nss_tunipip6_trace("%px: Dropping the packet, as queue: %px is not alive", skb, queue);
 		skb_dst_drop(skb);
 		dev_kfree_skb_any(skb);
 		return;
@@ -242,7 +242,7 @@ void nss_tunipip6_event_receive(void *if_ctx, struct nss_tunipip6_msg *tnlmsg)
 		break;
 
 	default:
-		nss_tunipip6_info("%p: Unknown Event from NSS\n", netdev);
+		nss_tunipip6_info("%px: Unknown Event from NSS\n", netdev);
 		break;
 	}
 }
@@ -261,13 +261,13 @@ enum nss_connmgr_tunipip6_err_codes _nss_tunipip6_dyn_interface_destroy(struct n
 	 */
 	inner_ifnum = nss_cmn_get_interface_number_by_dev_and_type(netdev, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
 	if (inner_ifnum < 0) {
-		nss_tunipip6_warning("%p: Net device is not registered with nss inner node\n", netdev);
+		nss_tunipip6_warning("%px: Net device is not registered with nss inner node\n", netdev);
 		return NSS_CONNMGR_TUNIPIP6_NO_DEV;
 	}
 
 	status = nss_dynamic_interface_dealloc_node(inner_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Dealloc inneer node failure\n", netdev);
+		nss_tunipip6_warning("%px: Dealloc inneer node failure\n", netdev);
 		return NSS_CONNMGR_TUNIPIP6_TUN_DESTROY_FAILURE;
 	}
 
@@ -278,13 +278,13 @@ enum nss_connmgr_tunipip6_err_codes _nss_tunipip6_dyn_interface_destroy(struct n
 
 	outer_ifnum = nss_cmn_get_interface_number_by_dev_and_type(netdev, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_OUTER);
 	if (outer_ifnum < 0) {
-		nss_tunipip6_warning("%p: Net device is not registered with nss outer node\n", netdev);
+		nss_tunipip6_warning("%px: Net device is not registered with nss outer node\n", netdev);
 		return NSS_CONNMGR_TUNIPIP6_NO_DEV;
 	}
 
 	status = nss_dynamic_interface_dealloc_node(outer_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_OUTER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Dealloc outer node failure\n", netdev);
+		nss_tunipip6_warning("%px: Dealloc outer node failure\n", netdev);
 		return NSS_CONNMGR_TUNIPIP6_TUN_DESTROY_FAILURE;
 	}
 
@@ -312,9 +312,9 @@ static void nss_tunipip6_dev_parse_param(struct net_device *netdev, struct nss_c
 	 */
 	fl6 = &tunnel->fl.u.ip6;
 
-	nss_tunipip6_trace("%p: Tunnel param saddr: %pI6 daddr: %pI6\n", netdev, fl6->saddr.s6_addr32, fl6->daddr.s6_addr32);
-	nss_tunipip6_trace("%p: Hop limit %d\n", netdev, tunnel->parms.hop_limit);
-	nss_tunipip6_trace("%p: Tunnel param flag %x  fl6.flowlabel %x\n", netdev,  tunnel->parms.flags, fl6->flowlabel);
+	nss_tunipip6_trace("%px: Tunnel param saddr: %pI6 daddr: %pI6\n", netdev, fl6->saddr.s6_addr32, fl6->daddr.s6_addr32);
+	nss_tunipip6_trace("%px: Hop limit %d\n", netdev, tunnel->parms.hop_limit);
+	nss_tunipip6_trace("%px: Tunnel param flag %x  fl6.flowlabel %x\n", netdev,  tunnel->parms.flags, fl6->flowlabel);
 
 	/*
 	 * Prepare The Tunnel configuration parameter to send to nss
@@ -391,7 +391,7 @@ static void nss_connmgr_tunipip6_configure_fmr(struct net_device *netdev)
 		 */
 		status = nss_connmgr_tunipip6_add_fmr(netdev, &fmrcfg);
 		if (status != NSS_CONNMGR_TUNIPIP6_SUCCESS) {
-			nss_tunipip6_trace("%p: Not able to add FMR rule. IPv6 Prefix: %pI6 IPv6 Prefix Lenght: %d\n"
+			nss_tunipip6_trace("%px: Not able to add FMR rule. IPv6 Prefix: %pI6 IPv6 Prefix Lenght: %d\n"
 					"IPv4 Prefix: %pI6 IPv4 Prefix Lenght: %d EA Length: %d PSID Offset: %d\n",
 					netdev, fmrcfg.ipv6_prefix, fmrcfg.ipv6_prefix_len,&fmrcfg.ipv4_prefix,
 					fmrcfg.ipv4_prefix_len, fmrcfg.ea_len, fmrcfg.psid_offset);
@@ -439,7 +439,7 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_create_interface(struct
 	 * Validate netdev for ipv6-in-ipv4  Tunnel
 	 */
 	if (netdev->type != ARPHRD_TUNNEL6) {
-		nss_tunipip6_warning("%p: Invalid netdevice type: %d\n", netdev, netdev->type);
+		nss_tunipip6_warning("%px: Invalid netdevice type: %d\n", netdev, netdev->type);
 		return NSS_CONNMGR_TUNIPIP6_NETDEV_TYPE_FAILURE;
 	}
 
@@ -447,7 +447,7 @@ configure_tunnel:
 	if ((tnlcfg->tunnel_type != NSS_CONNMGR_TUNIPIP6_TUNNEL_4RD) &&
 		(tnlcfg->tunnel_type != NSS_CONNMGR_TUNIPIP6_TUNNEL_MAPE) &&
 		(tnlcfg->tunnel_type != NSS_CONNMGR_TUNIPIP6_TUNNEL_MAPE_DRAFT03)) {
-		nss_tunipip6_warning("%p: Invalid tunnel type: %d\n", netdev, tnlcfg->tunnel_type);
+		nss_tunipip6_warning("%px: Invalid tunnel type: %d\n", netdev, tnlcfg->tunnel_type);
 		return NSS_CONNMGR_TUNIPIP6_TUN_NONE;
 	}
 
@@ -482,13 +482,13 @@ configure_tunnel:
 
 	inner_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
 	if (inner_ifnum < 0) {
-		nss_tunipip6_warning("%p: Request interface number failed\n", netdev);
+		nss_tunipip6_warning("%px: Request interface number failed\n", netdev);
 		goto inner_alloc_fail;
 	}
 
 	outer_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_OUTER);
 	if (outer_ifnum < 0) {
-		nss_tunipip6_warning("%p: Request interface number failed\n", netdev);
+		nss_tunipip6_warning("%px: Request interface number failed\n", netdev);
 		goto outer_alloc_fail;
 	}
 
@@ -502,7 +502,7 @@ configure_tunnel:
 					netdev,
 					features);
 	if (!nss_ctx) {
-		nss_tunipip6_warning("%p: nss_register_tunipip6_if Failed\n", netdev);
+		nss_tunipip6_warning("%px: nss_register_tunipip6_if Failed\n", netdev);
 		goto inner_reg_fail;
 	}
 
@@ -513,18 +513,18 @@ configure_tunnel:
 					netdev,
 					features);
 	if (!nss_ctx) {
-		nss_tunipip6_warning("%p: nss_register_tunipip6_if Failed\n", netdev);
+		nss_tunipip6_warning("%px: nss_register_tunipip6_if Failed\n", netdev);
 		goto outer_reg_fail;
 	}
 
-	nss_tunipip6_trace("%p: nss_register_tunipip6_if Success\n", netdev);
+	nss_tunipip6_trace("%px: nss_register_tunipip6_if Success\n", netdev);
 
 	/*
 	 * Updating sibling_if_num for encap interface.
 	 */
 	tnlcreate->sibling_if_num = outer_ifnum;
 
-	nss_tunipip6_trace("%p: Tunnel Param srcaddr %x:%x:%x:%x  daddr %x:%x:%x:%x\n", netdev,
+	nss_tunipip6_trace("%px: Tunnel Param srcaddr %x:%x:%x:%x  daddr %x:%x:%x:%x\n", netdev,
 			tnlcreate->saddr[0], tnlcreate->saddr[1],
 			tnlcreate->saddr[2], tnlcreate->saddr[3],
 			tnlcreate->daddr[0], tnlcreate->daddr[1],
@@ -536,10 +536,10 @@ configure_tunnel:
 	nss_tunipip6_msg_init(&tnlmsg, inner_ifnum, NSS_TUNIPIP6_TX_ENCAP_IF_CREATE,
 			sizeof(struct nss_tunipip6_create_msg), NULL, NULL);
 
-	nss_tunipip6_trace("%p: Sending IPIP6 tunnel i/f up command to NSS %p\n", netdev, nss_ctx);
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel i/f up command to NSS %px\n", netdev, nss_ctx);
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Tunnel up command error %d\n", netdev, status);
+		nss_tunipip6_warning("%px: Tunnel up command error %d\n", netdev, status);
 		goto config_fail;
 	}
 
@@ -554,10 +554,10 @@ configure_tunnel:
 	nss_tunipip6_msg_init(&tnlmsg, outer_ifnum, NSS_TUNIPIP6_TX_DECAP_IF_CREATE,
 			sizeof(struct nss_tunipip6_create_msg), NULL, NULL);
 
-	nss_tunipip6_trace("%p: Sending IPIP6 tunnel i/f up command to NSS %p\n", netdev, nss_ctx);
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel i/f up command to NSS %px\n", netdev, nss_ctx);
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Tunnel up command error %d\n", netdev, status);
+		nss_tunipip6_warning("%px: Tunnel up command error %d\n", netdev, status);
 		goto config_fail;
 	}
 
@@ -570,12 +570,12 @@ outer_reg_fail:
 inner_reg_fail:
 	status = nss_dynamic_interface_dealloc_node(outer_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_OUTER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Unable to dealloc the node[%d] in the NSS fw!\n", netdev, outer_ifnum);
+		nss_tunipip6_warning("%px: Unable to dealloc the node[%d] in the NSS fw!\n", netdev, outer_ifnum);
 	}
 outer_alloc_fail:
 	status = nss_dynamic_interface_dealloc_node(inner_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Unable to dealloc the node[%d] in the NSS fw!\n", netdev, inner_ifnum);
+		nss_tunipip6_warning("%px: Unable to dealloc the node[%d] in the NSS fw!\n", netdev, inner_ifnum);
 	}
 inner_alloc_fail:
 
@@ -618,7 +618,7 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_add_fmr(struct net_devi
 
 	inner_ifnum = nss_cmn_get_interface_number_by_dev_and_type(netdev, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
 	if (inner_ifnum < 0) {
-		nss_tunipip6_warning("%p: Invalid inner interface number: %d\n", netdev, inner_ifnum);
+		nss_tunipip6_warning("%px: Invalid inner interface number: %d\n", netdev, inner_ifnum);
 		return NSS_CONNMGR_TUNIPIP6_NO_DEV;
 	}
 
@@ -650,10 +650,10 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_add_fmr(struct net_devi
 			sizeof(struct nss_tunipip6_fmr), NULL, NULL);
 
 	nss_ctx = nss_tunipip6_get_context();
-	nss_tunipip6_trace("%p: Sending IPIP6 tunnel FMR add command to NSS %p\n", netdev, nss_ctx);
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel FMR add command to NSS %px\n", netdev, nss_ctx);
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Tunnel FMR add command error %d\n", netdev, status);
+		nss_tunipip6_warning("%px: Tunnel FMR add command error %d\n", netdev, status);
 		return NSS_CONNMGR_TUNIPIP6_FMR_ADD_FAILURE;
 	}
 
@@ -679,7 +679,7 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_del_fmr(struct net_devi
 
 	inner_ifnum = nss_cmn_get_interface_number_by_dev_and_type(netdev, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
 	if (inner_ifnum < 0) {
-		nss_tunipip6_warning("%p: Invalid inner interface number: %d\n", netdev, inner_ifnum);
+		nss_tunipip6_warning("%px: Invalid inner interface number: %d\n", netdev, inner_ifnum);
 		return NSS_CONNMGR_TUNIPIP6_NO_DEV;
 	}
 
@@ -711,10 +711,10 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_del_fmr(struct net_devi
 			sizeof(struct nss_tunipip6_fmr), NULL, NULL);
 
 	nss_ctx = nss_tunipip6_get_context();
-	nss_tunipip6_trace("%p: Sending IPIP6 tunnel FMR delete command to NSS %p\n", netdev, nss_ctx);
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel FMR delete command to NSS %px\n", netdev, nss_ctx);
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: Tunnel delete command error %d\n", netdev, status);
+		nss_tunipip6_warning("%px: Tunnel delete command error %d\n", netdev, status);
 		return NSS_CONNMGR_TUNIPIP6_FMR_DEL_FAILURE;
 	}
 
@@ -742,7 +742,7 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_flush_fmr(struct net_de
 	 */
 	inner_ifnum = nss_cmn_get_interface_number_by_dev_and_type(netdev, NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER);
 	if (inner_ifnum < 0) {
-		nss_tunipip6_warning("%p: Invalid inner interface number: %d\n", netdev, inner_ifnum);
+		nss_tunipip6_warning("%px: Invalid inner interface number: %d\n", netdev, inner_ifnum);
 		return NSS_CONNMGR_TUNIPIP6_NO_DEV;
 	}
 
@@ -750,10 +750,10 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_flush_fmr(struct net_de
 			0, NULL, NULL);
 
 	nss_ctx = nss_tunipip6_get_context();
-	nss_tunipip6_trace("%p: Sending IPIP6 tunnel FMR flush command to NSS %p\n", netdev, nss_ctx);
+	nss_tunipip6_trace("%px: Sending IPIP6 tunnel FMR flush command to NSS %px\n", netdev, nss_ctx);
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tunipip6_warning("%p: FMR flush command error %d\n", netdev, status);
+		nss_tunipip6_warning("%px: FMR flush command error %d\n", netdev, status);
 		return NSS_CONNMGR_TUNIPIP6_FMR_FLUSH_FAILURE;
 	}
 
@@ -780,7 +780,7 @@ static int nss_tunipip6_dev_event(struct notifier_block  *nb,
 
 	switch (event) {
 	case NETDEV_UP:
-		nss_tunipip6_trace("%p: NETDEV_UP :event %lu name %s\n", netdev, event, netdev->name);
+		nss_tunipip6_trace("%px: NETDEV_UP :event %lu name %s\n", netdev, event, netdev->name);
 
 		/*
 		 * Create NSS interface for standard tunnel. The creation of the tunnel
@@ -791,7 +791,7 @@ static int nss_tunipip6_dev_event(struct notifier_block  *nb,
 		 */
 		nss_tunipip6_dev_parse_param(netdev, &tnlcfg);
 		if (nss_connmgr_tunipip6_create_interface(netdev, &tnlcfg) != NSS_CONNMGR_TUNIPIP6_SUCCESS) {
-			nss_tunipip6_trace("%p: Not able to create tunnel for dev: %s\n", netdev, netdev->name);
+			nss_tunipip6_trace("%px: Not able to create tunnel for dev: %s\n", netdev, netdev->name);
 			return NOTIFY_DONE;
 		}
 #if IS_ENABLED(CONFIG_MAP_E_SUPPORT)
@@ -800,12 +800,12 @@ static int nss_tunipip6_dev_event(struct notifier_block  *nb,
 		break;
 
 	case NETDEV_DOWN:
-		nss_tunipip6_trace("%p: NETDEV_DOWN :event %lu name %s\n", netdev, event, netdev->name);
+		nss_tunipip6_trace("%px: NETDEV_DOWN :event %lu name %s\n", netdev, event, netdev->name);
 		nss_connmgr_tunipip6_destroy_interface(netdev);
 		break;
 
 	default:
-		nss_tunipip6_trace("%p: Unhandled notifier dev %s event %x\n", netdev, netdev->name, (int)event);
+		nss_tunipip6_trace("%px: Unhandled notifier dev %s event %x\n", netdev, netdev->name, (int)event);
 		break;
 	}
 

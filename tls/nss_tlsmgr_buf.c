@@ -51,7 +51,6 @@
 
 #define NSS_TLSMGR_REC_MAX_SIZE	(sizeof(struct nss_tlsmgr_rec) * NSS_TLSMGR_MDATA_REC_MAX)
 
-
 /*
  * nss_tlsmgr_buf_set_rec()
  *	Reserve space for a record in a buffer.
@@ -62,14 +61,14 @@ struct nss_tlsmgr_rec *nss_tlsmgr_buf_set_rec(struct nss_tlsmgr_buf *buf, uint8_
 	uint16_t cnt;
 
 	if ((in_segs > NSS_TLSMGR_FRAG_MAX) || (out_segs > NSS_TLSMGR_FRAG_MAX)) {
-		nss_tlsmgr_warn("%p: Unsupported fragment count: in_segs(%d) out_segs(%d)", buf, in_segs, out_segs);
+		nss_tlsmgr_warn("%px: Unsupported fragment count: in_segs(%d) out_segs(%d)", buf, in_segs, out_segs);
 		return NULL;
 	}
 
 	BUG_ON(buf->magic != NSS_TLSMGR_BUF_MAGIC);
 
 	if (buf->rec_cnt >= NSS_TLSMGR_MDATA_REC_MAX) {
-		nss_tlsmgr_warn("%p: Maximum record count reached(%d)", buf, buf->rec_cnt);
+		nss_tlsmgr_warn("%px: Maximum record count reached(%d)", buf, buf->rec_cnt);
 		return NULL;
 	}
 
@@ -95,7 +94,7 @@ struct nss_tlsmgr_rec *nss_tlsmgr_buf_get_rec(struct nss_tlsmgr_buf *buf, uint8_
 	BUG_ON(buf->magic != NSS_TLSMGR_BUF_MAGIC);
 
 	if (rec_idx > NSS_TLSMGR_MDATA_REC_MAX) {
-		nss_tlsmgr_warn("%p: Invalid record index(%d)", buf, rec_idx);
+		nss_tlsmgr_warn("%px: Invalid record index(%d)", buf, rec_idx);
 		return NULL;
 	}
 
@@ -135,7 +134,7 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_encap(struct nss_tlsmgr_buf *buf, nss_tlsmgr_
 	BUG_ON(buf->magic != NSS_TLSMGR_BUF_MAGIC);
 
 	if (unlikely(!cb)) {
-		nss_tlsmgr_error("%p: no user callback registered\n", buf);
+		nss_tlsmgr_error("%px: no user callback registered\n", buf);
 		return NSS_TLSMGR_FAIL_QUEUE_FULL;
 	}
 
@@ -182,7 +181,7 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_decap(struct nss_tlsmgr_buf *buf, nss_tlsmgr_
 	BUG_ON(buf->magic != NSS_TLSMGR_BUF_MAGIC);
 
 	if (unlikely(!cb)) {
-		nss_tlsmgr_error("%p: no user callback registered\n", buf);
+		nss_tlsmgr_error("%px: no user callback registered\n", buf);
 		return NSS_TLSMGR_FAIL_QUEUE_FULL;
 	}
 
@@ -228,7 +227,7 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_decap_skb2recs(struct sk_buff *skb, struct ns
 	uint8_t *data;
 
 	if (skb_linearize(skb) < 0) {
-		nss_tlsmgr_warn("%p: Failed to linearize SKB", skb);
+		nss_tlsmgr_warn("%px: Failed to linearize SKB", skb);
 		return NSS_TLSMGR_FAIL_LINEARIZE;
 	}
 
@@ -251,17 +250,16 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_decap_skb2recs(struct sk_buff *skb, struct ns
 		 * Check if this payload is malformed or not
 		 */
 		if (payload_len < 0) {
-			nss_tlsmgr_warn("%p: Payload length shorter than record length (%d)", skb, tls_len);
+			nss_tlsmgr_warn("%px: Payload length shorter than record length (%d)", skb, tls_len);
 			return NSS_TLSMGR_FAIL_REC_LEN;
 		}
-
 
 		/*
 		 * Check if the type is supported for offload, note we only decode data and CCS.
 		 * Other types are skipped in processing
 		 */
 		if ((hdr->type != TLSHDR_REC_TYPE_DATA) && (hdr->type != TLSHDR_REC_TYPE_CCS)) {
-			nss_tlsmgr_warn("%p: Skipping TLS type (%d)", buf, hdr->type);
+			nss_tlsmgr_warn("%px: Skipping TLS type (%d)", buf, hdr->type);
 			continue;
 		}
 
@@ -270,7 +268,7 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_decap_skb2recs(struct sk_buff *skb, struct ns
 		 * decapsulation side
 		 */
 		if ((version != TLSHDR_VERSION_1_1) && (version != TLSHDR_VERSION_1_2)) {
-			nss_tlsmgr_warn("%p: bad TLS version (0x%x)", buf, version);
+			nss_tlsmgr_warn("%px: bad TLS version (0x%x)", buf, version);
 			return NSS_TLSMGR_FAIL_REC_VERSION;
 		}
 
@@ -279,7 +277,7 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_decap_skb2recs(struct sk_buff *skb, struct ns
 		 */
 		rec = nss_tlsmgr_buf_set_rec(buf, 1, 1);
 		if (unlikely(!rec)) {
-			nss_tlsmgr_warn("%p: Error setting record", buf);
+			nss_tlsmgr_warn("%px: Error setting record", buf);
 			return NSS_TLSMGR_FAIL_REC_RANGE;
 		}
 
@@ -289,7 +287,7 @@ nss_tlsmgr_status_t nss_tlsmgr_buf_decap_skb2recs(struct sk_buff *skb, struct ns
 		data += tls_len;
 	} while(payload_len);
 
-	nss_tlsmgr_info("%p: SKB decoded to recs(%d) of size( %d)", skb, buf->rec_cnt, skb->len);
+	nss_tlsmgr_info("%px: SKB decoded to recs(%d) of size( %d)", skb, buf->rec_cnt, skb->len);
 	return NSS_TLSMGR_OK;
 }
 EXPORT_SYMBOL(nss_tlsmgr_buf_decap_skb2recs);
@@ -358,7 +356,7 @@ struct nss_tlsmgr_buf *nss_tlsmgr_buf_alloc(struct net_device *dev, void *priv)
 	 */
 	skb = netdev_alloc_skb(dev, size);
 	if (unlikely(!skb)) {
-		nss_tlsmgr_warn("%p:unable to allocate SKB\n", priv);
+		nss_tlsmgr_warn("%px:unable to allocate SKB\n", priv);
 		return NULL;
 	}
 
@@ -376,7 +374,7 @@ struct nss_tlsmgr_buf *nss_tlsmgr_buf_alloc(struct net_device *dev, void *priv)
 	buf->priv = priv;
 	buf->magic = NSS_TLSMGR_BUF_MAGIC;
 
-	nss_tlsmgr_trace("%p: allocated buffer of size(%zu)", skb, size);
+	nss_tlsmgr_trace("%px: allocated buffer of size(%zu)", skb, size);
 	return buf;
 }
 EXPORT_SYMBOL(nss_tlsmgr_buf_alloc);

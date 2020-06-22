@@ -158,18 +158,18 @@ static int profile_make_data_packet(char *buf, int blen, struct profile_io *pn)
 		return -EINVAL;
 	}
 
-	profileInfo("%p stat %x cnt %d %p\n", pn->pnc.pn2h, pn->pnc.pn2h->mh.md_type, psc_hd->ps_count, pn->ccl);
+	profileInfo("%px stat %x cnt %d %px\n", pn->pnc.pn2h, pn->pnc.pn2h->mh.md_type, psc_hd->ps_count, pn->ccl);
 
 	if (pn->pnc.pn2h->mh.md_type == PINGPONG_EMPTY || psc_hd->ps_count < 1) {
 		struct nss_profile_n2h_sample_buf *nsb;
 		ns = (pn->ccl_read + 1) & (CCL_SIZE-1);
 		nsb = pn->ccl + ns;
 		if (ns == pn->ccl_write || nsb->mh.md_type != PINGPONG_FULL) {
-			profileInfo("waiting more data %x %p : ns %d rd %d wr %d\n", nsb->mh.md_type, nsb, ns, pn->ccl_read, pn->ccl_write);
+			profileInfo("waiting more data %x %px : ns %d rd %d wr %d\n", nsb->mh.md_type, nsb, ns, pn->ccl_read, pn->ccl_write);
 			return -EAGAIN;
 		}
 		pn->ccl_read = ns;
-		profileInfo("sp %p => %p rd %d %p\n", pn->pnc.samples, nsb->samples, ns, nsb);
+		profileInfo("sp %px => %px rd %d %px\n", pn->pnc.samples, nsb->samples, ns, nsb);
 		psc_hd = &nsb->psc_header;
 		pn->pnc.pn2h = nsb;
 		pn->pnc.samples = nsb->samples;
@@ -229,7 +229,7 @@ static int profile_make_data_packet(char *buf, int blen, struct profile_io *pn)
 	buf += sizeof(psc_hd->ex_hd);
 
 	blen = ns * sizeof(struct nss_profile_sample);
-	profileDebug("-profile_make_data_packet %p slen %d cur %d dcped %zd + %zd\n",
+	profileDebug("-profile_make_data_packet %px slen %d cur %d dcped %zd + %zd\n",
 		pn->pnc.samples, blen, pn->pnc.cur, sizeof(ph.pph), sizeof(psc_hd->ex_hd));
 	if (copy_to_user(buf, &pn->pnc.samples[pn->pnc.cur], blen) != 0) {
 		return -EFAULT;
@@ -250,7 +250,7 @@ static int profile_make_data_packet(char *buf, int blen, struct profile_io *pn)
 
 	pn->profile_sequence_num++;
 	blen += sizeof(ph);
-	profileDebug("+profile_make_data_packet %d phd len %zd nsp %p rd %d cnt %d\n", blen, sizeof(ph), pn->pnc.pn2h, pn->ccl_read, psc_hd->ps_count);
+	profileDebug("+profile_make_data_packet %d phd len %zd nsp %px rd %d cnt %d\n", blen, sizeof(ph), pn->pnc.pn2h, pn->ccl_read, psc_hd->ps_count);
 	return blen;
 }
 
@@ -353,7 +353,7 @@ static int profile_open(struct inode *inode, struct file *filp)
 	struct profile_io *pn;
 
 	if (filp->private_data)
-		profileWarn("%s: %p\n", filp->f_path.dentry->d_iname, filp->private_data);
+		profileWarn("%s: %px\n", filp->f_path.dentry->d_iname, filp->private_data);
 
 	n = filp->f_path.dentry->d_iname[strlen(filp->f_path.dentry->d_iname) - 1] - '0';
 	if (n < 0 || n >= NSS_MAX_CORES)
@@ -384,7 +384,7 @@ static int profile_open(struct inode *inode, struct file *filp)
 			pn->pnc.un.hd_magic = NSS_PROFILE_HD_MAGIC | NSS_PROFILER_START_MSG;
 			ret = nss_profiler_if_tx_buf(pn->ctx, &pn->pnc.un,
 				sizeof(pn->pnc.un), profiler_handle_reply, pn);
-			profileInfo("%s: %d -- %p: ccl %p sp %p\n", __func__, ret,
+			profileInfo("%s: %d -- %px: ccl %px sp %px\n", __func__, ret,
 				pn, pn->ccl, pn->pnc.samples);
 		}
 		filp->private_data = pn;
@@ -419,22 +419,22 @@ static ssize_t profile_read(struct file *filp, char *buf, size_t count, loff_t *
 		struct debug_box *db = (struct debug_box *) pn->sw_ksp_ptr;
 
 		if ((void*)db != (void*)pn) {
-			profileWarn("%p: hwe data not ready %p\n", pn, db);
+			profileWarn("%px: hwe data not ready %px\n", pn, db);
 			return -EAGAIN;
 		}
 
-		profileWarn("dbda %p: %x %x %x %x %x\n", db->data,
+		profileWarn("dbda %px: %x %x %x %x %x\n", db->data,
 			db->data[0], db->data[2], db->data[4], db->data[6], db->data[7]);
 
 		slen = (PROFILE_STS_EVENT_COUNTERS + 1) * sizeof(db->data[0]);
 		if (copy_to_user(buf, db->data, slen))
 			return -EFAULT;
-		profileInfo("%p: sw_ksp_ptr %p slen %d\n", pn, pn->sw_ksp_ptr, slen);
+		profileInfo("%px: sw_ksp_ptr %px slen %d\n", pn, pn->sw_ksp_ptr, slen);
 		return	slen;
 	}
 
 	if (!pn->pnc.samples) {
-		profileWarn("DEBUG %p: NULL samples\n", pn);
+		profileWarn("DEBUG %px: NULL samples\n", pn);
 		return -ENOMEM;
 	}
 
@@ -471,7 +471,7 @@ static ssize_t profile_read(struct file *filp, char *buf, size_t count, loff_t *
 		pn->pnc.un.hd_magic = NSS_PROFILE_HD_MAGIC | NSS_PROFILER_START_MSG;
 		ret = nss_profiler_if_tx_buf(pn->ctx, &pn->pnc.un, sizeof(pn->pnc.un),
 						profiler_handle_reply, pn);
-		profileWarn("%s: restart %d -- %p: ccl %p sp %p\n", __func__,
+		profileWarn("%s: restart %d -- %px: ccl %px sp %px\n", __func__,
 				ret, pn, pn->ccl, pn->pnc.samples);
 	}
 
@@ -496,10 +496,10 @@ static int profile_release(struct inode *inode, struct file *filp)
 		pn->pnc.un.hd_magic = NSS_PROFILE_HD_MAGIC | NSS_PROFILER_STOP_MSG;
 		ret = nss_profiler_if_tx_buf(pn->ctx, &pn->pnc.un,
 				sizeof(pn->pnc.un), profiler_handle_reply, pn);
-		profileInfo("%s: %p %d\n", __func__, pn, ret);
+		profileInfo("%s: %px %d\n", __func__, pn, ret);
 		return 0;
 	}
-	profileWarn("%s: attempt closing non-open dev %p\n", __func__, pn);
+	profileWarn("%s: attempt closing non-open dev %px\n", __func__, pn);
 	pn->profile_first_packet = 1;
 	return -EBADF;
 }
@@ -711,7 +711,7 @@ static int parse_sys_stat_event_req(const char *buf, size_t count,
 			cp++;
 		kstrp = strchr(cp, ' ');
 		if (!kstrp) {
-			printk(KERN_ERR "%p missing index %p %s\n", buf, cp, cp);
+			printk(KERN_ERR "%px missing index %px %s\n", buf, cp, cp);
 			return	-EINVAL;
 		}
 		kstrp[0] = 0;
@@ -760,14 +760,14 @@ static int parse_sys_stat_event_req(const char *buf, size_t count,
 			printk(KERN_ERR "bad index %ld [0..7]\n", idx);
 			return	-ERANGE;
 		}
-		printk(KERN_INFO "%p: e %d i %ld\n", db, event, idx);
+		printk(KERN_INFO "%px: e %d i %ld\n", db, event, idx);
 		db->data[idx] = event;
 		cp = kstrp;
 	} while (cp);
 	db->hd_magic = NSS_PROFILE_HD_MAGIC | NSS_PROFILER_SET_SYS_STAT_EVENT;
 	result = nss_profiler_if_tx_buf(pio->ctx, &pio->pnc.un, sizeof(pio->pnc.un),
 				profiler_handle_stat_event_reply, pio);
-	profileInfo("%p: %zd send cmd %x to FW ret %d\n",
+	profileInfo("%px: %zd send cmd %x to FW ret %d\n",
 			db, count, db->hd_magic, result);
 	return	count;
 }
@@ -784,7 +784,7 @@ static int parseDbgData(const char *buf, size_t count, struct debug_box *db)
 	char *cp;
 	int n;
 
-	printk("%p %p: buf (%s) cnt %zd\n", db, buf, buf, count);
+	printk("%px %px: buf (%s) cnt %zd\n", db, buf, buf, count);
 	if (sscanf(buf, "%x", (uint32_t *)&db->base_addr) != 1) {
 		printk("%s: cannot get base addr\n", __func__);
 		return	-EINVAL;
@@ -798,7 +798,7 @@ noea:		printk("%s: no enough arguments\n", __func__);
 
 	while (isspace(*cp)) cp++;
 	if (!strncmp(cp, "mio", 3) || !strncmp(cp, "moveio", 6)) {
-		printk("%p: cp (%s)\n", cp, cp);
+		printk("%px: cp (%s)\n", cp, cp);
 		cp = strchr(cp, ' ');
 		if (!cp) {
 			goto noea;
@@ -989,7 +989,7 @@ static void kxdump(void *buf, int len, const char *who)
 	int lns = len >> 5;	/* 32-B each line */
 	if (lns > 8)
 		lns = 8;
-	printk("%p: kxdump %s: len %d\n", buf, who, len);
+	printk("%px: kxdump %s: len %d\n", buf, who, len);
 	do {
 		printk("%x %x %x %x %x %x %x %x\n", ip[0], ip[1], ip[2], ip[3], ip[4], ip[5], ip[6], ip[7]);
 		ip += 8;
@@ -1035,7 +1035,7 @@ static void profile_handle_nss_data(void *arg, struct nss_profiler_msg *npm)
 	int	swap = 0;	/* only for header and info data, not samples */
 
 	if (buf_len < (sizeof(struct nss_profile_session) - sizeof(struct profile_counter) * (PROFILE_MAX_APP_COUNTERS))) {
-		profileWarn("%p: profile data packet is too small to be useful %d %x psc_hd %p\n",
+		profileWarn("%px: profile data packet is too small to be useful %d %x psc_hd %px\n",
 			npm, buf_len, npm->cm.interface, psc_hd);
 		return;
 	}
@@ -1046,7 +1046,7 @@ static void profile_handle_nss_data(void *arg, struct nss_profiler_msg *npm)
 	}
 
 	pn = (struct profile_io *)arg;
-	profileDebug("PN %p CM msg %d len %d\n", pn, npm->cm.type, buf_len);
+	profileDebug("PN %px CM msg %d len %d\n", pn, npm->cm.type, buf_len);
 	profileInfo("%s: dlen %d swap %d cmd %x - %d\n", __func__, buf_len, swap, npm->cm.type, (pn->ccl_read - pn->ccl_write) & (CCL_SIZE-1));
 	//kxdump(buf, buf_len, "process profile packet");
 
@@ -1079,7 +1079,7 @@ static void profile_handle_nss_data(void *arg, struct nss_profiler_msg *npm)
 			profileWarn("%d temp stop sampling engine %d\n", swap, ret);
 		}
 		if (swap < 3) {
-			profileWarn("w%p.%d: %d no room for new profile samples r%p.%d\n", nsb, wr, swap, pn->ccl+pn->ccl_read, pn->ccl_read);
+			profileWarn("w%px.%d: %d no room for new profile samples r%px.%d\n", nsb, wr, swap, pn->ccl+pn->ccl_read, pn->ccl_read);
 			return;	/* -EMSGSIZE */
 		}
 	}
@@ -1102,7 +1102,7 @@ static void profile_handle_nss_data(void *arg, struct nss_profiler_msg *npm)
 		if (ret == NSS_TX_FAILURE)
 			printk("req counters Cmd failed %d %d\n", ret, wr);
 	}
-	profileInfo("filled %p %p wr %d\n", nsb, nsb->samples, pn->ccl_write);
+	profileInfo("filled %px %px wr %d\n", nsb, nsb->samples, pn->ccl_write);
 }
 
 /*
@@ -1120,7 +1120,7 @@ static void profiler_dma_handler(void *arg)
 	struct nss_profile_sdma_ctrl *ctrl = nss_profile_dma_get_ctrl(pn->ctx);
 
 	if (!ctrl) {
-		profileWarn("%p: cannot get dma ctrl block\n", pn->ctx);
+		profileWarn("%px: cannot get dma ctrl block\n", pn->ctx);
 		return;
 	}
 
@@ -1131,7 +1131,7 @@ static void profiler_dma_handler(void *arg)
 	widx = ctrl->pidx[cri];
 
 	if (idx == widx) {
-		profileInfo("%p: dma[%d]%d %p sz %d no more profile data %p (%zd)\n",
+		profileInfo("%px: dma[%d]%d %px sz %d no more profile data %px (%zd)\n",
 			ctrl, cri, idx, dma, dma->buf_size,
 			cbc->ring.kp + idx * dma->buf_size, sizeof(*ctrl));
 		return;
@@ -1151,7 +1151,7 @@ static void profiler_dma_handler(void *arg)
 	} while (idx != widx);
 
 	ctrl->cidx[cri] = idx;
-	profileInfo("flush %p %p r %d w %d(%d)\n", cbc, cbc->ring.kp, idx, widx, ctrl->pidx[cri]);
+	profileInfo("flush %px %px r %d w %d(%d)\n", cbc, cbc->ring.kp, idx, widx, ctrl->pidx[cri]);
 	dmac_clean_range(ctrl->cidx + cri, ctrl->cidx + cri + 1);
 	dsb(sy);
 }
@@ -1177,7 +1177,7 @@ static void profiler_handle_reply(struct nss_ctx_instance *nss_ctx, struct nss_c
 
 			ctrl = nss_profile_dma_get_ctrl(nss_ctx);
 			if (!ctrl) {
-				profileWarn("%p: profiler can't get DMA\n", nss_ctx);
+				profileWarn("%px: profiler can't get DMA\n", nss_ctx);
 				return;
 			}
 
@@ -1192,7 +1192,7 @@ static void profiler_handle_reply(struct nss_ctx_instance *nss_ctx, struct nss_c
 			}
 		}
 
-		profileWarn("%p: profiler had error response %d\n", nss_ctx, ncm->response);
+		profileWarn("%px: profiler had error response %d\n", nss_ctx, ncm->response);
 		/*
 		 * fail through -- no plan to do anything yet
 		 */

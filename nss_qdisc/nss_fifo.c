@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014, 2016-2017, 2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -165,14 +165,14 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	struct nss_if_msg nim;
 
 	if (nss_fifo_params_validate_and_save(sch, opt) < 0) {
-		nss_qdisc_warning("nss_fifo %p params validate and save failed\n", sch);
+		nss_qdisc_warning("nss_fifo %px params validate and save failed\n", sch);
 		return -EINVAL;
 	}
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	if (nq->mode == NSS_QDISC_MODE_PPE) {
 		if (nss_fifo_ppe_change(sch, opt) < 0) {
-			nss_qdisc_warning("nss_fifo %p params validate and save failed\n", sch);
+			nss_qdisc_warning("nss_fifo %px params validate and save failed\n", sch);
 			return -EINVAL;
 		}
 		return 0;
@@ -183,7 +183,7 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.limit = q->limit;
 	nim.msg.shaper_configure.config.msg.shaper_node_config.snc.fifo_param.drop_mode = NSS_SHAPER_FIFO_DROP_MODE_TAIL;
 	if (nss_qdisc_configure(&q->nq, &nim, NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM) < 0) {
-		nss_qdisc_error("nss_fifo %p configuration failed\n", sch);
+		nss_qdisc_error("nss_fifo %px configuration failed\n", sch);
 		return -EINVAL;
 	}
 
@@ -199,7 +199,7 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	 * Set this qdisc to be the default qdisc for enqueuing packets.
 	 */
 	if (nss_qdisc_set_default(nq) < 0) {
-		nss_qdisc_error("nss_fifo %p set_default failed\n", sch);
+		nss_qdisc_error("nss_fifo %px set_default failed\n", sch);
 		return -EINVAL;
 	}
 

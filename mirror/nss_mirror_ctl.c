@@ -22,7 +22,6 @@
 #include "nss_mirror_public.h"
 #include "nss_mirror.h"
 
-
 #define NSS_MIRROR_CONFIG_PARAM_NUM 3
 #define NSS_MIRROR_SET_NEXTHOP_PARAM_NUM 2
 #define NSS_MIRROR_ENABLE_INGRESS_PMC_NUM 2
@@ -773,7 +772,7 @@ static int nss_mirror_ctl_config_handler(struct ctl_table *ctl, int write,
 
 	buffer = vzalloc(count + 1);
 	if (!buffer) {
-		nss_mirror_warn("%p: Dynamic allocation failed for input buffer\n", ctl);
+		nss_mirror_warn("%px: Dynamic allocation failed for input buffer\n", ctl);
 		return -ENOMEM;
 	}
 

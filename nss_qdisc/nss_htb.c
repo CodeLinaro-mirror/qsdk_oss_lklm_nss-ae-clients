@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2017, 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017, 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -202,7 +202,7 @@ static struct nss_htb_class_data *nss_htb_class_alloc(struct Qdisc *sch, struct 
 		return NULL;
 	}
 
-	nss_qdisc_trace("htb class %x allocated - addr %p\n", classid, cl);
+	nss_qdisc_trace("htb class %x allocated - addr %px\n", classid, cl);
 	cl->parent = parent;
 	cl->sch_common.classid = classid;
 

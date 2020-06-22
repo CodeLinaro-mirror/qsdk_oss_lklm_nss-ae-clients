@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2017, 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017, 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -301,10 +301,10 @@ static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new
 	*old = q->qdisc;
 	sch_tree_unlock(sch);
 
-	nss_qdisc_info("Grafting old: %p with new: %p\n", *old, new);
+	nss_qdisc_info("Grafting old: %px with new: %px\n", *old, new);
 	if (*old != &noop_qdisc) {
 		struct nss_qdisc *nq_old = (struct nss_qdisc *)qdisc_priv(*old);
-		nss_qdisc_info("Detaching old: %p\n", *old);
+		nss_qdisc_info("Detaching old: %px\n", *old);
 		nim_detach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		if (nss_qdisc_node_detach(&q->nq, nq_old, &nim_detach,
 				NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH) < 0) {
@@ -313,7 +313,7 @@ static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new
 	}
 
 	if (new != &noop_qdisc) {
-		nss_qdisc_info("Attaching new: %p\n", new);
+		nss_qdisc_info("Attaching new: %px\n", new);
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.qos_tag = q->nq.qos_tag;
 		nim_attach.msg.shaper_configure.config.msg.shaper_node_config.snc.tbl_attach.child_qos_tag = nq_new->qos_tag;
 		if (nss_qdisc_node_attach(&q->nq, nq_new, &nim_attach,
@@ -389,4 +389,3 @@ struct Qdisc_ops nss_tbl_qdisc_ops __read_mostly = {
 	.dump		=	nss_tbl_dump,
 	.owner		=	THIS_MODULE,
 };
-

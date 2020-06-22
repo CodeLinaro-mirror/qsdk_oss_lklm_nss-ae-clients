@@ -38,7 +38,7 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 
 	port = ovs_info->port;
 	if (!port || !port->master || !port->dev) {
-		nss_bridge_mgr_warn("%p: Invalid ovs_info\n", ovs_info);
+		nss_bridge_mgr_warn("%px: Invalid ovs_info\n", ovs_info);
 		return -EINVAL;
 	}
 
@@ -50,7 +50,7 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 	 */
 	b_pvt = nss_bridge_mgr_find_instance(master_dev);
 	if (!b_pvt) {
-		nss_bridge_mgr_warn("%p: Couldn't find bridge instance for master: %s\n", port, master_dev->name);
+		nss_bridge_mgr_warn("%px: Couldn't find bridge instance for master: %s\n", port, master_dev->name);
 		return -ENOENT;
 	}
 
@@ -58,11 +58,11 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 	 * add port to the bridge.
 	 */
 	if (event == OVSMGR_DP_PORT_ADD) {
-		nss_bridge_mgr_trace("%p: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
+		nss_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
 
 		err = nss_bridge_mgr_join_bridge(dev, b_pvt);
 		if (err) {
-			nss_bridge_mgr_warn("%p: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
+			nss_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
 			return err;
 		}
 
@@ -72,11 +72,11 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 	/*
 	 * delete port from bridge.
 	 */
-	nss_bridge_mgr_trace("%p: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
+	nss_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
 
 	err = nss_bridge_mgr_leave_bridge(dev, b_pvt);
 	if (err) {
-		nss_bridge_mgr_warn("%p: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
+		nss_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
 		return err;
 	}
 
@@ -95,7 +95,7 @@ static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *o
 
 	vlan = ovs_info->vlan;
 	if (!vlan || !vlan->master || !vlan->dev) {
-		nss_bridge_mgr_warn("%p: Invalid ovs_info\n", ovs_info);
+		nss_bridge_mgr_warn("%px: Invalid ovs_info\n", ovs_info);
 		return;
 	}
 
@@ -107,7 +107,7 @@ static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *o
 	 */
 	b_pvt = nss_bridge_mgr_find_instance(master_dev);
 	if (!b_pvt) {
-		nss_bridge_mgr_warn("%p: Couldn't find bridge instance for master: %s\n", vlan, master_dev->name);
+		nss_bridge_mgr_warn("%px: Couldn't find bridge instance for master: %s\n", vlan, master_dev->name);
 		return;
 	}
 
@@ -115,7 +115,7 @@ static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *o
 		/*
 		 * add VLAN in bridge.
 		 */
-		nss_bridge_mgr_trace("%p: VLAN = %d, add on port %s, bridge %s\n",
+		nss_bridge_mgr_trace("%px: VLAN = %d, add on port %s, bridge %s\n",
 				b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
 
 		nss_vlan_mgr_add_vlan_rule(dev, b_pvt->vsi, vlan->vh.h_vlan_TCI);
@@ -125,7 +125,7 @@ static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *o
 	/*
 	 * delete VLAN from bridge.
 	 */
-	nss_bridge_mgr_trace("%p: VLAN = %d, delete on port %s, bridge %s\n",
+	nss_bridge_mgr_trace("%px: VLAN = %d, delete on port %s, bridge %s\n",
 					b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
 	nss_vlan_mgr_del_vlan_rule(dev, b_pvt->vsi, vlan->vh.h_vlan_TCI);
 }

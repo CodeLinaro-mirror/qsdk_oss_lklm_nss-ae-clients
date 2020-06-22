@@ -344,7 +344,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 
 		sa->aead = crypto_alloc_aead(ipsecmgr_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->aead)) {
-			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context for algo=%s\n", sa,
+			nss_ipsecmgr_warn("%px: failed to allocate crypto aead context for algo=%s\n", sa,
 					  ipsecmgr_algo_name[cmn->algo]);
 			return NSS_IPSECMGR_FAIL_NOCRYPTO;
 		}
@@ -361,7 +361,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 
 		rt_keys = vzalloc(keylen);
 		if (!rt_keys) {
-			nss_ipsecmgr_warn("%p: failed to allocate key memory\n", sa);
+			nss_ipsecmgr_warn("%px: failed to allocate key memory\n", sa);
 			crypto_free_aead(sa->aead);
 			return NSS_IPSECMGR_FAIL_NOMEM;
 		}
@@ -386,7 +386,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		memcpy(p, keys->cipher_key, keys->cipher_keylen);
 
 		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
-			nss_ipsecmgr_warn("%p: failed to configure keys\n", sa);
+			nss_ipsecmgr_warn("%px: failed to configure keys\n", sa);
 			crypto_free_aead(sa->aead);
 			vfree(rt_keys);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
@@ -407,12 +407,12 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 	case NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC:
 		sa->ahash = crypto_alloc_ahash(ipsecmgr_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->ahash)) {
-			nss_ipsecmgr_warn("%p: failed to allocate crypto ahash context\n", sa);
+			nss_ipsecmgr_warn("%px: failed to allocate crypto ahash context\n", sa);
 			return NSS_IPSECMGR_FAIL_NOCRYPTO;
 		}
 
 		if (crypto_ahash_setkey(sa->ahash, keys->auth_key, keys->auth_keylen)) {
-			nss_ipsecmgr_warn("%p: failed to configure keys\n", sa);
+			nss_ipsecmgr_warn("%px: failed to configure keys\n", sa);
 			crypto_free_ahash(sa->ahash);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
 		}
@@ -431,7 +431,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 	case NSS_IPSECMGR_ALGO_AES_GCM_GMAC_RFC4106:
 		sa->aead = crypto_alloc_aead(ipsecmgr_algo_name[cmn->algo], 0, 0);
 		if (IS_ERR(sa->aead)) {
-			nss_ipsecmgr_warn("%p: failed to allocate crypto aead context\n", sa);
+			nss_ipsecmgr_warn("%px: failed to allocate crypto aead context\n", sa);
 			return NSS_IPSECMGR_FAIL_NOCRYPTO;
 		}
 
@@ -442,7 +442,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		 */
 		rt_keys = vzalloc(keylen);
 		if (!rt_keys) {
-			nss_ipsecmgr_warn("%p: failed to allocate key memory\n", sa);
+			nss_ipsecmgr_warn("%px: failed to allocate key memory\n", sa);
 			crypto_free_aead(sa->aead);
 			return NSS_IPSECMGR_FAIL_NOMEM;
 		}
@@ -451,7 +451,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		memcpy(rt_keys + keys->cipher_keylen, (uint8_t *)keys->nonce, keys->nonce_size);
 
 		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
-			nss_ipsecmgr_warn("%p: failed to configure keys\n", sa);
+			nss_ipsecmgr_warn("%px: failed to configure keys\n", sa);
 			crypto_free_aead(sa->aead);
 			vfree(rt_keys);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
@@ -467,7 +467,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		break;
 
 	default:
-		nss_ipsecmgr_warn("%p: invalid crypto algorithm\n", sa);
+		nss_ipsecmgr_warn("%px: invalid crypto algorithm\n", sa);
 		return NSS_IPSECMGR_INVALID_ALGO;
 	}
 
@@ -509,7 +509,7 @@ static void nss_ipsecmgr_sa_del_ref(struct nss_ipsecmgr_ref *ref)
 
 	dev = dev_get_by_index(&init_net, sa->tunnel_id);
 	if (!dev) {
-		nss_ipsecmgr_trace("%p: Failed to find dev for tunnel-ID(%u)", sa, sa->tunnel_id);
+		nss_ipsecmgr_trace("%px: Failed to find dev for tunnel-ID(%u)", sa, sa->tunnel_id);
 		return;
 	}
 
@@ -544,7 +544,7 @@ static void nss_ipsecmgr_sa_free_ref(struct nss_ipsecmgr_ref *ref)
 
 	status = nss_ipsec_cmn_tx_msg_sync(sa->nss_ctx, sa->ifnum, type, sizeof(nicm.msg.sa), &nicm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_ipsecmgr_warn("%p: Failed to send message(%u) to NSS(%u)", sa->nss_ctx, type, status);
+		nss_ipsecmgr_warn("%px: Failed to send message(%u) to NSS(%u)", sa->nss_ctx, type, status);
 	}
 
 	nss_ipsecmgr_sa_free(sa);
@@ -564,7 +564,7 @@ static struct nss_ipsecmgr_sa *nss_ipsecmgr_sa_alloc(struct nss_ipsecmgr_ctx *ct
 	 */
 	sa = kzalloc(sizeof(*sa), GFP_ATOMIC);
 	if (!sa) {
-		nss_ipsecmgr_warn("%p: Failed to allocate SA", ctx);
+		nss_ipsecmgr_warn("%px: Failed to allocate SA", ctx);
 		return NULL;
 	}
 
@@ -595,7 +595,7 @@ static bool nss_ipsecmgr_sa_update_db(struct nss_ipsecmgr_sa *sa)
 
 	dev = dev_get_by_index(&init_net, sa->tunnel_id);
 	if (!dev) {
-		nss_ipsecmgr_warn("%p: Failed to find tunnel(%d) between SA creation\n", sa, sa->tunnel_id);
+		nss_ipsecmgr_warn("%px: Failed to find tunnel(%d) between SA creation\n", sa, sa->tunnel_id);
 		return false;
 	}
 
@@ -605,7 +605,7 @@ static bool nss_ipsecmgr_sa_update_db(struct nss_ipsecmgr_sa *sa)
 
 	ctx = nss_ipsecmgr_ctx_find(tun, sa->type);
 	if (!ctx) {
-		nss_ipsecmgr_warn("%p: Failed to find context (%u) between SA creation\n", sa, sa->type);
+		nss_ipsecmgr_warn("%px: Failed to find context (%u) between SA creation\n", sa, sa->type);
 		write_unlock_bh(&ipsecmgr_drv->lock);
 		dev_put(dev);
 		return false;
@@ -644,18 +644,18 @@ static void nss_ipsecmgr_sa_create_resp(void *app_data, struct nss_cmn_msg *ncm)
 		if (ncm->error == NSS_IPSEC_CMN_MSG_ERROR_SA_DUP) {
 			write_lock_bh(&ipsecmgr_drv->lock);
 			if (!nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, &sa->state.tuple)) {
-				nss_ipsecmgr_trace("%p: Duplicate SA in FW not in host (%u)\n", sa, ncm->error);
+				nss_ipsecmgr_trace("%px: Duplicate SA in FW not in host (%u)\n", sa, ncm->error);
 			}
 			write_unlock_bh(&ipsecmgr_drv->lock);
 		}
 #endif
-		nss_ipsecmgr_trace("%p: NSS response error (%u)\n", sa, ncm->error);
+		nss_ipsecmgr_trace("%px: NSS response error (%u)\n", sa, ncm->error);
 		nss_ipsecmgr_sa_free(sa);
 		return;
 	}
 
 	if (!nss_ipsecmgr_sa_update_db(sa)) {
-		nss_ipsecmgr_warn("%p: Failed to update SA database", sa);
+		nss_ipsecmgr_warn("%px: Failed to update SA database", sa);
 		nss_ipsecmgr_sa_free(sa);
 		return;
 	}
@@ -694,7 +694,7 @@ static void nss_ipsecmgr_sa_init_encap(struct nss_ipsecmgr_sa *sa, struct nss_ip
 	memcpy(&sa->state.data, sa_data, sizeof(sa->state.data));
 	sa->state.tx_default = !!data->encap.tx_default;
 
-	nss_ipsecmgr_trace("%p:Encapsulation SA initialized ", sa);
+	nss_ipsecmgr_trace("%px:Encapsulation SA initialized ", sa);
 }
 
 /*
@@ -726,7 +726,7 @@ static void nss_ipsecmgr_sa_init_decap(struct nss_ipsecmgr_sa *sa, struct nss_ip
 	memcpy(&sa->state.tuple, sa_tuple, sizeof(sa->state.tuple));
 	memcpy(&sa->state.data, sa_data, sizeof(sa->state.data));
 
-	nss_ipsecmgr_trace("%p:Decapsulation SA initialized ", sa);
+	nss_ipsecmgr_trace("%px:Decapsulation SA initialized ", sa);
 }
 
 /*
@@ -846,7 +846,7 @@ void nss_ipsecmgr_sa_del(struct net_device *dev, struct nss_ipsecmgr_sa_tuple *t
 	sa = nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, &sa_tuple);
 	if (!sa) {
 		write_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: failed to find SA for deletion\n", tun);
+		nss_ipsecmgr_warn("%px: failed to find SA for deletion\n", tun);
 		return;
 	}
 
@@ -889,14 +889,14 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *dev, struct nss_ips
 	read_lock_bh(&ipsecmgr_drv->lock);
 	if (nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, msg_tuple)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_trace("%p: Duplicate SA found", dev);
+		nss_ipsecmgr_trace("%px: Duplicate SA found", dev);
 		dev_put(dev);
 		return NSS_IPSECMGR_DUPLICATE_SA;
 	}
 
 	ctx = nss_ipsecmgr_ctx_find_by_sa(tun, data->type);
 	if (!ctx) {
-		nss_ipsecmgr_warn("%p: failed to find inner context associated with tunnel", tun);
+		nss_ipsecmgr_warn("%px: failed to find inner context associated with tunnel", tun);
 		read_unlock_bh(&ipsecmgr_drv->lock);
 		dev_put(dev);
 		return NSS_IPSECMGR_FAIL;
@@ -908,7 +908,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *dev, struct nss_ips
 	sa = nss_ipsecmgr_sa_alloc(ctx);
 	if (!sa) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: Failed to allocate SA for add", ctx);
+		nss_ipsecmgr_warn("%px: Failed to allocate SA for add", ctx);
 		dev_put(dev);
 		return NSS_IPSECMGR_FAIL_NOMEM;
 	}
@@ -923,7 +923,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *dev, struct nss_ips
 	 * Allocate crypto resources
 	 */
 	if (nss_ipsecmgr_sa_crypto_alloc(sa, &data->cmn, msg_tuple, msg_data)) {
-		nss_ipsecmgr_warn("%p: Failed to allocate crypto resource for SA add", ctx);
+		nss_ipsecmgr_warn("%px: Failed to allocate crypto resource for SA add", ctx);
 		nss_ipsecmgr_sa_free(sa);
 		return NSS_IPSECMGR_FAIL_NOCRYPTO;
 	}
@@ -938,7 +938,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add(struct net_device *dev, struct nss_ips
 
 	status = nss_ipsec_cmn_tx_msg(sa->nss_ctx, &nicm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_ipsecmgr_warn("%p: Failed to send message(%u) to NSS(%u)\n", ctx, type, status);
+		nss_ipsecmgr_warn("%px: Failed to send message(%u) to NSS(%u)\n", ctx, type, status);
 		nss_ipsecmgr_sa_free(sa);
 		return NSS_IPSECMGR_FAIL_MESSAGE;
 	}
@@ -977,14 +977,14 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add_sync(struct net_device *dev, struct ns
 	read_lock_bh(&ipsecmgr_drv->lock);
 	if (nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, msg_tuple)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_trace("%p: Duplicate SA found", dev);
+		nss_ipsecmgr_trace("%px: Duplicate SA found", dev);
 		dev_put(dev);
 		return NSS_IPSECMGR_DUPLICATE_SA;
 	}
 
 	ctx = nss_ipsecmgr_ctx_find_by_sa(tun, data->type);
 	if (!ctx) {
-		nss_ipsecmgr_warn("%p: failed to find inner context associated with tunnel", tun);
+		nss_ipsecmgr_warn("%px: failed to find inner context associated with tunnel", tun);
 		read_unlock_bh(&ipsecmgr_drv->lock);
 		dev_put(dev);
 		return NSS_IPSECMGR_FAIL;
@@ -996,7 +996,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add_sync(struct net_device *dev, struct ns
 	sa = nss_ipsecmgr_sa_alloc(ctx);
 	if (!sa) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: Failed to allocate SA for add", ctx);
+		nss_ipsecmgr_warn("%px: Failed to allocate SA for add", ctx);
 		dev_put(dev);
 		return NSS_IPSECMGR_FAIL_NOMEM;
 	}
@@ -1011,7 +1011,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add_sync(struct net_device *dev, struct ns
 	 * Allocate crypto resources
 	 */
 	if (nss_ipsecmgr_sa_crypto_alloc(sa, &data->cmn, msg_tuple, msg_data)) {
-		nss_ipsecmgr_warn("%p: Failed to allocate crypto resource for SA add", ctx);
+		nss_ipsecmgr_warn("%px: Failed to allocate crypto resource for SA add", ctx);
 		nss_ipsecmgr_sa_free(sa);
 		return NSS_IPSECMGR_FAIL_NOCRYPTO;
 	}
@@ -1026,7 +1026,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add_sync(struct net_device *dev, struct ns
 
 	status = nss_ipsec_cmn_tx_msg_sync(sa->nss_ctx, sa->ifnum, type, sizeof(nicm.msg.sa), &nicm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_ipsecmgr_warn("%p: Failed to send message(%u) to NSS(%u)\n", ctx, type, status);
+		nss_ipsecmgr_warn("%px: Failed to send message(%u) to NSS(%u)\n", ctx, type, status);
 		nss_ipsecmgr_sa_free(sa);
 		return NSS_IPSECMGR_FAIL_MESSAGE;
 	}
@@ -1035,7 +1035,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_add_sync(struct net_device *dev, struct ns
 	 * Since, this is a synchronous call add it to the database directly
 	 */
 	if (!nss_ipsecmgr_sa_update_db(sa)) {
-		nss_ipsecmgr_warn("%p: Failed to update SA database", sa);
+		nss_ipsecmgr_warn("%px: Failed to update SA database", sa);
 		nss_ipsecmgr_sa_free(sa);
 		return NSS_IPSECMGR_FAIL_ADD_DB;
 	}
@@ -1099,7 +1099,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_tx_inner(struct net_device *dev, struct ns
 	sa = nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, &sa_tuple);
 	if (unlikely(!sa)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: Failed to find SA", tun);
+		nss_ipsecmgr_warn("%px: Failed to find SA", tun);
 		status = NSS_IPSECMGR_INVALID_SA;
 		goto done;
 	}
@@ -1107,7 +1107,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_tx_inner(struct net_device *dev, struct ns
 	ctx = nss_ipsecmgr_ctx_find(tun, NSS_IPSEC_CMN_CTX_TYPE_MDATA_INNER);
 	if (unlikely(!ctx)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: Failed to find context(%u)", tun, NSS_IPSEC_CMN_CTX_TYPE_MDATA_INNER);
+		nss_ipsecmgr_warn("%px: Failed to find context(%u)", tun, NSS_IPSEC_CMN_CTX_TYPE_MDATA_INNER);
 		status = NSS_IPSECMGR_INVALID_CTX;
 		goto done;
 	}
@@ -1135,7 +1135,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_tx_inner(struct net_device *dev, struct ns
 	 */
 	tx_status = nss_ipsec_cmn_tx_buf(nss_ctx, skb, ifnum);
 	if (unlikely(tx_status != NSS_TX_SUCCESS)) {
-		nss_ipsecmgr_warn("%p: Failed to send buffer to NSS; error(%u)", tun, tx_status);
+		nss_ipsecmgr_warn("%px: Failed to send buffer to NSS; error(%u)", tun, tx_status);
 		nss_ipsecmgr_tunnel_pull_mdata(skb);
 		skb_trim(skb, data_len);
 		status = NSS_IPSECMGR_FAIL;
@@ -1178,7 +1178,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_tx_outer(struct net_device *dev, struct ns
 	sa = nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, &sa_tuple);
 	if (unlikely(!sa)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: Failed to find SA", tun);
+		nss_ipsecmgr_warn("%px: Failed to find SA", tun);
 		status = NSS_IPSECMGR_INVALID_SA;
 		goto done;
 
@@ -1187,7 +1187,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_tx_outer(struct net_device *dev, struct ns
 	ctx = nss_ipsecmgr_ctx_find(tun, NSS_IPSEC_CMN_CTX_TYPE_MDATA_OUTER);
 	if (unlikely(!ctx)) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: Failed to find context(%u)", tun, NSS_IPSEC_CMN_CTX_TYPE_MDATA_OUTER);
+		nss_ipsecmgr_warn("%px: Failed to find context(%u)", tun, NSS_IPSEC_CMN_CTX_TYPE_MDATA_OUTER);
 		status = NSS_IPSECMGR_INVALID_CTX;
 		goto done;
 
@@ -1209,7 +1209,7 @@ nss_ipsecmgr_status_t nss_ipsecmgr_sa_tx_outer(struct net_device *dev, struct ns
 	 */
 	tx_status = nss_ipsec_cmn_tx_buf(nss_ctx, skb, ifnum);
 	if (unlikely(tx_status != NSS_TX_SUCCESS)) {
-		nss_ipsecmgr_warn("%p: Failed to send buffer to NSS; error(%u)", tun, tx_status);
+		nss_ipsecmgr_warn("%px: Failed to send buffer to NSS; error(%u)", tun, tx_status);
 		nss_ipsecmgr_tunnel_pull_mdata(skb);
 		status = NSS_IPSECMGR_FAIL;
 		goto done;

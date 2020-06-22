@@ -240,7 +240,7 @@ ssize_t nss_tlsmgr_ctx_read_stats(struct file *fp, char __user *ubuf, size_t sz,
 
 	buf = vzalloc(print_len);
 	if (!buf) {
-		nss_tlsmgr_warn("%p: failed to allocate print buffer (req:%zd)", ctx, print_len);
+		nss_tlsmgr_warn("%px: failed to allocate print buffer (req:%zd)", ctx, print_len);
 		return 0;
 	}
 
@@ -284,7 +284,7 @@ void nss_tlsmgr_ctx_rx_stats(void *app_data, struct nss_cmn_msg *ncm)
 	}
 
 	default:
-		nss_tlsmgr_info("%p: unhandled tls message type(%u)", ctx, ntcm->cm.type);
+		nss_tlsmgr_info("%px: unhandled tls message type(%u)", ctx, ntcm->cm.type);
 		break;
 	}
 }
@@ -500,10 +500,10 @@ nss_tlsmgr_status_t nss_tlsmgr_ctx_tx(struct nss_tlsmgr_ctx *ctx, struct sk_buff
 
 	nss_tlsmgr_ctx_fill_mdata(ctx, rec, skb->data, buf->rec_cnt);
 
-	nss_tlsmgr_trace("%p: Enqueueing buffer to ctx with interface num(%d)", ctx, ctx->ifnum);
+	nss_tlsmgr_trace("%px: Enqueueing buffer to ctx with interface num(%d)", ctx, ctx->ifnum);
 	status = nss_tls_tx_buf(skb, ctx->ifnum, ctx->nss_ctx);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tlsmgr_warn("%p: Buffer transmission to NSS FW failed, status=%d", buf, status);
+		nss_tlsmgr_warn("%px: Buffer transmission to NSS FW failed, status=%d", buf, status);
 		ctx->host_stats.tx_error++;
 
 		/*
@@ -559,7 +559,7 @@ int nss_tlsmgr_ctx_config_inner(struct nss_tlsmgr_ctx *ctx, struct net_device *d
 
 	ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_TLS_INNER);
 	if (ifnum < 0) {
-		nss_tlsmgr_warn("%p: failed to allocate encap dynamic interface(%u)", tlsmgr_drv, ifnum);
+		nss_tlsmgr_warn("%px: failed to allocate encap dynamic interface(%u)", tlsmgr_drv, ifnum);
 		return -EINVAL;
 	}
 
@@ -575,7 +575,7 @@ int nss_tlsmgr_ctx_config_inner(struct nss_tlsmgr_ctx *ctx, struct net_device *d
 					nss_tlsmgr_ctx_rx_stats, ctx->dev,
 					0, ctx->di_type, (void *)ctx);
 	if (!ctx->nss_ctx) {
-		nss_tlsmgr_warn("%p: NSS register interface(%u) failed", ctx, ctx->ifnum);
+		nss_tlsmgr_warn("%px: NSS register interface(%u) failed", ctx, ctx->ifnum);
 		goto fail_register;
 	}
 
@@ -589,7 +589,7 @@ int nss_tlsmgr_ctx_config_inner(struct nss_tlsmgr_ctx *ctx, struct net_device *d
 
 	status = nss_tls_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ctx_msg), &ntcm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tlsmgr_warn("%p: Failed to configure the context (ctx_type:%u),(tx_status:%d),(error:%x)",
+		nss_tlsmgr_warn("%px: Failed to configure the context (ctx_type:%u),(tx_status:%d),(error:%x)",
 				ctx, ctx->di_type, status, ntcm.cm.error);
 		goto fail_msg;
 	}
@@ -634,7 +634,7 @@ int nss_tlsmgr_ctx_config_outer(struct nss_tlsmgr_ctx *ctx, struct net_device *d
 
 	ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_TLS_OUTER);
 	if (ifnum < 0) {
-		nss_tlsmgr_warn("%p: failed to allocate decap dynamic interface(%u)", tlsmgr_drv, ifnum);
+		nss_tlsmgr_warn("%px: failed to allocate decap dynamic interface(%u)", tlsmgr_drv, ifnum);
 		return -EINVAL;
 	}
 
@@ -650,7 +650,7 @@ int nss_tlsmgr_ctx_config_outer(struct nss_tlsmgr_ctx *ctx, struct net_device *d
 					nss_tlsmgr_ctx_rx_stats, ctx->dev,
 					0, ctx->di_type, (void *)ctx);
 	if (!ctx->nss_ctx) {
-		nss_tlsmgr_warn("%p: NSS register interface(%u) failed", ctx, ctx->ifnum);
+		nss_tlsmgr_warn("%px: NSS register interface(%u) failed", ctx, ctx->ifnum);
 		goto fail_register;
 	}
 
@@ -664,7 +664,7 @@ int nss_tlsmgr_ctx_config_outer(struct nss_tlsmgr_ctx *ctx, struct net_device *d
 
 	status = nss_tls_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ctx_msg), &ntcm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_tlsmgr_warn("%p: Failed to configure the context (ctx_type:%u),(tx_status:%d),(error:%x)",
+		nss_tlsmgr_warn("%px: Failed to configure the context (ctx_type:%u),(tx_status:%d),(error:%x)",
 				ctx, ctx->di_type, status, ntcm.cm.error);
 		goto fail_msg;
 	}

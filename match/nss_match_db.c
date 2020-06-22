@@ -274,7 +274,6 @@ int nss_match_db_parse_cmd(uint32_t table_id, char *input_msg, struct nss_match_
 	return res;
 }
 
-
 /*
  * nss_match_db_table_validate()
  * 	Check if table is configured.
@@ -461,11 +460,10 @@ bool nss_match_db_profile_type_add(uint32_t profile_type, uint8_t table_id)
 
 	db_instance->profile_type = profile_type;
 	db_instance->ops = profile_ops[profile_type];
-	nss_match_info("Added ops %p for profile type: %d", db_instance->ops, profile_type);
+	nss_match_info("Added ops %px for profile type: %d", db_instance->ops, profile_type);
 	spin_unlock_bh(&match_db.db_lock);
 	return true;
 }
-
 
 /*
  * nss_match_db_mask_add()

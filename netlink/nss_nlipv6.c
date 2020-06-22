@@ -309,7 +309,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 	}
 
 	if ((flow_iftype >= NSS_NL_IFTYPE_MAX) || (return_iftype >= NSS_NL_IFTYPE_MAX)) {
-		nss_nl_error("%p: Invalid interface type (flow:%d, return:%d)\n", msg, flow_iftype, return_iftype);
+		nss_nl_error("%px: Invalid interface type (flow:%d, return:%d)\n", msg, flow_iftype, return_iftype);
 		return -EINVAL;
 	}
 
@@ -334,7 +334,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 		conn->flow_interface_num = nss_nlipsec_get_ifnum(flow_dev, tuple->protocol,
 								tuple->return_ident, tuple->flow_ident);
 		if (conn->flow_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get flow interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get flow interface number (dev:%s, type:%d)\n",
 					flow_dev, flow_dev->name, flow_iftype);
 			return -EINVAL;
 		}
@@ -346,7 +346,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 	case NSS_NL_IFTYPE_TUNNEL_GRE:
 		conn->flow_interface_num = nss_nlgre_redir_cmd_get_ifnum(flow_dev, tuple->protocol);
 		if (conn->flow_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get flow interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get flow interface number (dev:%s, type:%d)\n",
 			flow_dev, flow_dev->name, flow_iftype);
 			return -EINVAL;
 		}
@@ -357,7 +357,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 	case NSS_NL_IFTYPE_VLAN:
 		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(flow_dev));
 		if (conn->flow_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get flow interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get flow interface number (dev:%s, type:%d)\n",
 					flow_dev, flow_dev->name, flow_iftype);
 			return -EINVAL;
 		}
@@ -368,7 +368,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 	case NSS_NL_IFTYPE_PHYSICAL:
 		conn->flow_interface_num = nss_cmn_get_interface_number_by_dev(flow_dev);
 		if (conn->flow_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get flow interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get flow interface number (dev:%s, type:%d)\n",
 					flow_dev, flow_dev->name, flow_iftype);
 			return -EINVAL;
 		}
@@ -377,11 +377,11 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 		break;
 
 	default:
-		nss_nl_error("%p: Unsupported flow interface type (%d)\n", msg, flow_iftype);
+		nss_nl_error("%px: Unsupported flow interface type (%d)\n", msg, flow_iftype);
 		return -EINVAL;
 	}
 
-	nss_nl_info("%p: dev=%s flow_ifnum:0x%x flow_mtu=%d\n", msg, flow_dev->name,
+	nss_nl_info("%px: dev=%s flow_ifnum:0x%x flow_mtu=%d\n", msg, flow_dev->name,
 			conn->flow_interface_num, conn->flow_mtu);
 
 	/*
@@ -392,7 +392,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 		conn->return_interface_num = nss_nlipsec_get_ifnum(return_dev, tuple->protocol,
 									tuple->return_ident, tuple->flow_ident);
 		if (conn->return_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get return interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get return interface number (dev:%s, type:%d)\n",
 					return_dev, return_dev->name, return_iftype);
 			return -EINVAL;
 		}
@@ -404,7 +404,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 	case NSS_NL_IFTYPE_TUNNEL_GRE:
 		conn->return_interface_num = nss_nlgre_redir_cmd_get_ifnum(return_dev, tuple->protocol);
 		if (conn->return_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get return interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get return interface number (dev:%s, type:%d)\n",
 			return_dev, return_dev->name, return_iftype);
 			return -EINVAL;
 		}
@@ -415,7 +415,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 	case NSS_NL_IFTYPE_VLAN:
 		conn->return_interface_num = nss_cmn_get_interface_number_by_dev(vlan_dev_real_dev(return_dev));
 		if (conn->return_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get return interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get return interface number (dev:%s, type:%d)\n",
 					return_dev, return_dev->name, return_iftype);
 			return -EINVAL;
 		}
@@ -426,7 +426,7 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 	case NSS_NL_IFTYPE_PHYSICAL:
 		conn->return_interface_num = nss_cmn_get_interface_number_by_dev(return_dev);
 		if (conn->return_interface_num < 0 ) {
-			nss_nl_error("%p: Failed to get return interface number (dev:%s, type:%d)\n",
+			nss_nl_error("%px: Failed to get return interface number (dev:%s, type:%d)\n",
 					return_dev, return_dev->name, return_iftype);
 			return -EINVAL;
 		}
@@ -435,11 +435,11 @@ static int nss_nlipv6_verify_conn_rule(struct nss_ipv6_rule_create_msg *msg, str
 		break;
 
 	default:
-		nss_nl_error("%p: Unsupported return interface type (%d)\n", msg, flow_iftype);
+		nss_nl_error("%px: Unsupported return interface type (%d)\n", msg, flow_iftype);
 		return -EINVAL;
 	}
 
-	nss_nl_info("%p: dev=%s return_ifnum:0x%x return_mtu=%d\n", msg, return_dev->name,
+	nss_nl_info("%px: dev=%s return_ifnum:0x%x return_mtu=%d\n", msg, return_dev->name,
 			conn->return_interface_num, conn->return_mtu);
 
 	nexthop->flow_nexthop = conn->flow_interface_num;

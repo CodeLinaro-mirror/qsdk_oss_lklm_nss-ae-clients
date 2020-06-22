@@ -153,12 +153,12 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		 */
 		if (!(strncasecmp(param, "mask", strlen("mask")))) {
 			if (!sscanf(token, "%hu", &mask_id)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
 			if (mask_id > NSS_MATCH_MASK_MAX) {
-				pr_info("%p: Maskset num %d, exceeds max allowed value %d\n", nss_ctx, mask_id, NSS_MATCH_MASK_MAX);
+				pr_info("%px: Maskset num %d, exceeds max allowed value %d\n", nss_ctx, mask_id, NSS_MATCH_MASK_MAX);
 				return -EINVAL;
 			}
 
@@ -172,7 +172,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			struct net_device *dev;
 			if (type == NSS_MATCH_ADD_MASK) {
 				if (!sscanf(token, "%x", &if_num)) {
-					pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+					pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 					return -EINVAL;
 				}
 
@@ -182,7 +182,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 			if (type == NSS_MATCH_ADD_RULE) {
 				dev = dev_get_by_name(&init_net, token);
 				if (!dev) {
-					pr_info("%p: Cannot find the net device\n", nss_ctx);
+					pr_info("%px: Cannot find the net device\n", nss_ctx);
 					return -ENODEV;
 				}
 
@@ -230,7 +230,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 				memcpy((uint8_t *)smac, mac_addr_tmp, 6);
 			}
 
-			nss_match_info("%p: src mac %x %x %x ", nss_ctx, smac[0], smac[1], smac[2]);
+			nss_match_info("%px: src mac %x %x %x ", nss_ctx, smac[0], smac[1], smac[2]);
 			continue;
 		}
 
@@ -272,7 +272,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 				memcpy((uint8_t *)dmac, mac_addr_tmp, 6);
 			}
 
-			nss_match_info("%p: dest mac %x %x %x ", nss_ctx, dmac[0], dmac[1], dmac[2]);
+			nss_match_info("%px: dest mac %x %x %x ", nss_ctx, dmac[0], dmac[1], dmac[2]);
 			continue;
 		}
 
@@ -282,7 +282,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		if (!(strncasecmp(param, "ethertype", strlen("ethertype")))) {
 			ret = sscanf(token, "%hx", &ethertype);
 			if (!ret) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -294,7 +294,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		 */
 		if (!(strncasecmp(param, "action", strlen("action")))) {
 			if (!sscanf(token, "%u", &actions)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -306,7 +306,7 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		 */
 		if (!(strncasecmp(param, "priority", strlen("priority")))) {
 			if (!sscanf(token, "%u", &setprio)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -318,14 +318,14 @@ static int nss_match_l2_cmd_parse(char *input_msg, struct nss_match_msg *rule_ms
 		 */
 		if (!(strncasecmp(param, "nexthop", strlen("nexthop")))) {
 			if (!sscanf(token, "%u", &nexthop)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
 			continue;
 		}
 
-		pr_info("%p: Not a valid input\n", nss_ctx);
+		pr_info("%px: Not a valid input\n", nss_ctx);
 		goto fail;
 	}
 
@@ -485,7 +485,6 @@ static struct match_profile_ops match_profile_ops_l2 = {
 	nss_match_l2_table_read,
 	nss_match_l2_cmd_parse,
 };
-
 
 void nss_match_l2_init(void) {
 	/*

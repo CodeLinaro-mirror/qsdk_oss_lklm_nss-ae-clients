@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2017, 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2017, 2019-2020 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -212,7 +212,7 @@ static struct nss_connmgr_l2tpv2_session_data
 
 	tunnel = session->tunnel;
 	if (unlikely(!tunnel)) {
-		nss_connmgr_l2tpv2_info("tunnel is null for session %p\n", session);
+		nss_connmgr_l2tpv2_info("tunnel is null for session %px\n", session);
 		goto err_nss_connmgr_l2tpv2_get_data_1;
 	}
 	tunnel_hold(tunnel);
@@ -537,7 +537,7 @@ static int nss_connmgr_l2tpv2_dev_up(struct net_device *dev)
 		nss_connmgr_l2tpv2_info("nss_register_l2tpv2_if failed\n");
 		return NOTIFY_BAD;
 	}
-	nss_connmgr_l2tpv2_info("%p: nss_register_l2tpv2_if() successful\n", nss_ctx);
+	nss_connmgr_l2tpv2_info("%px: nss_register_l2tpv2_if() successful\n", nss_ctx);
 
 	data = &l2tpv2_session_data->data;
 
@@ -560,15 +560,15 @@ static int nss_connmgr_l2tpv2_dev_up(struct net_device *dev)
 	l2tpv2cfg->oip_ttl = ip_ttl_max;
 	l2tpv2cfg->udp_csum = data->l2tpv2.tunnel.udp_csum;
 
-	nss_connmgr_l2tpv2_info("%p: l2tpv2 info\n", nss_ctx);
-	nss_connmgr_l2tpv2_info("%p: tunnel_id %d peer_tunnel_id %d session_id %d peer_session_id %d\n", nss_ctx,
+	nss_connmgr_l2tpv2_info("%px: l2tpv2 info\n", nss_ctx);
+	nss_connmgr_l2tpv2_info("%px: tunnel_id %d peer_tunnel_id %d session_id %d peer_session_id %d\n", nss_ctx,
 											l2tpv2cfg->local_tunnel_id,
 											l2tpv2cfg->peer_tunnel_id,
 											l2tpv2cfg->local_session_id,
 											l2tpv2cfg->peer_session_id);
-	nss_connmgr_l2tpv2_info("%p: saddr 0x%x daddr 0x%x sport 0x%x  dport 0x%x\n", nss_ctx,
+	nss_connmgr_l2tpv2_info("%px: saddr 0x%x daddr 0x%x sport 0x%x  dport 0x%x\n", nss_ctx,
 									l2tpv2cfg->sip, l2tpv2cfg->dip, l2tpv2cfg->sport, l2tpv2cfg->dport);
-	nss_connmgr_l2tpv2_info("Sending l2tpv2 i/f up command to NSS %p\n", nss_ctx);
+	nss_connmgr_l2tpv2_info("Sending l2tpv2 i/f up command to NSS %px\n", nss_ctx);
 
 	nss_l2tpv2_msg_init(&l2tpv2msg, if_number, NSS_L2TPV2_MSG_SESSION_CREATE, sizeof(struct nss_l2tpv2_session_create_msg), NULL, NULL);
 
@@ -577,13 +577,13 @@ static int nss_connmgr_l2tpv2_dev_up(struct net_device *dev)
 		nss_unregister_l2tpv2_if(if_number);
 		status = nss_dynamic_interface_dealloc_node(if_number, NSS_DYNAMIC_INTERFACE_TYPE_L2TPV2);
 		if (status != NSS_TX_SUCCESS) {
-			nss_connmgr_l2tpv2_warning("%p: Unable to dealloc the node[%d] in the NSS fw!\n", nss_ctx, if_number);
+			nss_connmgr_l2tpv2_warning("%px: Unable to dealloc the node[%d] in the NSS fw!\n", nss_ctx, if_number);
 		}
-		nss_connmgr_l2tpv2_warning("%p: nss l2tp session creation command error %d\n", nss_ctx, status);
+		nss_connmgr_l2tpv2_warning("%px: nss l2tp session creation command error %d\n", nss_ctx, status);
 		return NOTIFY_BAD;
 	}
 
-	nss_connmgr_l2tpv2_info("%p: nss_l2tpv2_tx() successful\n", nss_ctx);
+	nss_connmgr_l2tpv2_info("%px: nss_l2tpv2_tx() successful\n", nss_ctx);
 
 	return NOTIFY_DONE;
 }
@@ -617,7 +617,7 @@ static int nss_connmgr_l2tpv2_dev_down(struct net_device *dev)
 	 */
 	if_number = nss_cmn_get_interface_number_by_dev(dev);
 	if (if_number < 0) {
-		nss_connmgr_l2tpv2_info("Net device:%p is not registered with nss\n", dev);
+		nss_connmgr_l2tpv2_info("Net device:%px is not registered with nss\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -852,7 +852,7 @@ static int nss_connmgr_l2tpv2_proc_handler(struct ctl_table *ctl,
 	l2tpv2_bind_ipsec_if->ipsec_ifnum = ipsec_ifnum;
 	status = nss_l2tpv2_tx(nss_ctx, &l2tpv2msg);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_l2tpv2_info("%p IPSec interface bind failed\n", nss_ctx);
+		nss_connmgr_l2tpv2_info("%px IPSec interface bind failed\n", nss_ctx);
 		ret = -EAGAIN;
 	}
 

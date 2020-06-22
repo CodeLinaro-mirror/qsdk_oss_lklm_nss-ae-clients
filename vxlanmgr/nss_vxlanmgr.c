@@ -49,19 +49,19 @@ static int nss_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned long ev
 
 	switch (event) {
 	case NETDEV_DOWN:
-		nss_vxlanmgr_trace("%p: NETDEV_DOWN: event %lu name %s\n", netdev, event, netdev->name);
+		nss_vxlanmgr_trace("%px: NETDEV_DOWN: event %lu name %s\n", netdev, event, netdev->name);
 		return nss_vxlanmgr_tunnel_deconfig(netdev);
 	case NETDEV_UP:
-		nss_vxlanmgr_trace("%p: NETDEV_UP: event %lu name %s\n", netdev, event, netdev->name);
+		nss_vxlanmgr_trace("%px: NETDEV_UP: event %lu name %s\n", netdev, event, netdev->name);
 		return nss_vxlanmgr_tunnel_config(netdev);
 	case NETDEV_UNREGISTER:
-		nss_vxlanmgr_trace("%p: NETDEV_UNREGISTER: event %lu name %s\n", netdev, event, netdev->name);
+		nss_vxlanmgr_trace("%px: NETDEV_UNREGISTER: event %lu name %s\n", netdev, event, netdev->name);
 		return nss_vxlanmgr_tunnel_destroy(netdev);
 	case NETDEV_REGISTER:
-		nss_vxlanmgr_trace("%p: NETDEV_REGISTER: event %lu name %s\n", netdev, event, netdev->name);
+		nss_vxlanmgr_trace("%px: NETDEV_REGISTER: event %lu name %s\n", netdev, event, netdev->name);
 		return nss_vxlanmgr_tunnel_create(netdev);
 	default:
-		nss_vxlanmgr_trace("%p: Unhandled notifier event %lu name %s\n", netdev, event, netdev->name);
+		nss_vxlanmgr_trace("%px: Unhandled notifier event %lu name %s\n", netdev, event, netdev->name);
 	}
 	return NOTIFY_DONE;
 }

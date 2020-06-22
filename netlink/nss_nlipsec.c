@@ -224,7 +224,7 @@ int nss_nlipsec_get_ifnum(struct net_device *dev, uint8_t proto, uint16_t dest_p
 
 	ifnum = nss_cmn_get_interface_number_by_dev_and_type(dev, type);
 	if (ifnum < 0) {
-		nss_nl_error("%p: Failed to find interface number (dev:%s, type:%d)\n", dev, dev->name, type);
+		nss_nl_error("%px: Failed to find interface number (dev:%s, type:%d)\n", dev, dev->name, type);
 		return -1;
 	}
 

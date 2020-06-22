@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -183,7 +183,7 @@ void nss_vxlanmgr_tun_macdb_stats_sync(struct nss_vxlanmgr_tun_ctx *tun_ctx, str
 	dev_hold(tun_ctx->dev);
 
 	if (nentries > NSS_VXLAN_MACDB_ENTRIES_PER_MSG) {
-		nss_vxlanmgr_warn("%p: No more than 20 entries allowed per message.\n", tun_ctx->dev);
+		nss_vxlanmgr_warn("%px: No more than 20 entries allowed per message.\n", tun_ctx->dev);
 		dev_put(tun_ctx->dev);
 		return;
 	}

@@ -105,7 +105,7 @@ static ssize_t nss_tlsmgr_read(struct file *fp, char __user *ubuf, size_t sz, lo
 
 	buf = vzalloc(print_len);
 	if (!buf) {
-		nss_tlsmgr_warn("%p: failed to allocate print buffer (req:%zd)", ctx, print_len);
+		nss_tlsmgr_warn("%px: failed to allocate print buffer (req:%zd)", ctx, print_len);
 		return 0;
 	}
 
@@ -137,7 +137,7 @@ static void nss_tlsmgr_node_config_done(void *app_data, struct nss_cmn_msg *ncm)
 {
 	struct nss_tlsmgr *drv = app_data;
 
-	nss_tlsmgr_info("%p: configure node(%u) response(%d) error(%d)\n", drv,
+	nss_tlsmgr_info("%px: configure node(%u) response(%d) error(%d)\n", drv,
 			 ncm->interface, ncm->response, ncm->error);
 
 	if ((ncm->response == NSS_CMN_RESPONSE_ACK) || (ncm->error == NSS_TLS_ERROR_ALREADY_CONFIGURE)) {
@@ -161,7 +161,7 @@ static void nss_tlsmgr_node_config(struct nss_tlsmgr *drv)
 
 	nss_status = nss_tls_tx_msg(drv->nss_ctx, &ntcm);
 	if (nss_status != NSS_TX_SUCCESS) {
-		nss_tlsmgr_warn("%p: unable to send node configure \n", drv);
+		nss_tlsmgr_warn("%px: unable to send node configure \n", drv);
 		return;
 	}
 }
@@ -175,7 +175,7 @@ static void nss_tlsmgr_rx_event(void *app_data, struct nss_cmn_msg *ncm)
 	struct nss_tlsmgr *drv = app_data;
 	struct nss_tls_msg *ntcm = (struct nss_tls_msg *)ncm;
 
-	nss_tlsmgr_trace("%p: received Node stats sync:%u\n", drv, ncm->interface);
+	nss_tlsmgr_trace("%px: received Node stats sync:%u\n", drv, ncm->interface);
 
 	WARN_ON(ncm->interface != NSS_TLS_INTERFACE);
 
@@ -215,7 +215,7 @@ static void nss_tlsmgr_rx_event(void *app_data, struct nss_cmn_msg *ncm)
 	}
 
 	default:
-		nss_tlsmgr_info("%p: unhandled tls message type(%u)", drv, ntcm->cm.type);
+		nss_tlsmgr_info("%px: unhandled tls message type(%u)", drv, ntcm->cm.type);
 		break;
 	}
 }
@@ -238,7 +238,7 @@ int __init nss_tlsmgr_init_module(void)
 
 	tlsmgr_drv->nss_ctx = nss_tls_notify_register(NSS_TLS_INTERFACE, nss_tlsmgr_rx_event, tlsmgr_drv);
 	if (unlikely(!tlsmgr_drv->nss_ctx)) {
-		nss_tlsmgr_warn("%p: TLS NSS context instance is NULL", tlsmgr_drv);
+		nss_tlsmgr_warn("%px: TLS NSS context instance is NULL", tlsmgr_drv);
 		return -ENODEV;
 	}
 

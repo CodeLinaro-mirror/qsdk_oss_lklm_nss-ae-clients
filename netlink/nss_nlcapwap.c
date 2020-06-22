@@ -149,7 +149,7 @@ static rx_handler_result_t nss_nlcapwapmgr_rx_handler(struct sk_buff **pskb)
 	write_lock_bh(&global_ctx.lock);
 	tun = nss_nlcapwap_get_tun_by_index(mh->tunnel_id);
 	if (!tun) {
-		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", skb, mh->tunnel_id);
+		nss_nl_error("%px: Could not find tunnel associated with index: %d\n", skb, mh->tunnel_id);
 		write_unlock_bh(&global_ctx.lock);
 		goto free;
 	}
@@ -182,7 +182,7 @@ static int nss_nlcapwap_tx_keepalive(struct nss_nlcapwap_tunnel_keepalive *kp)
 	 */
 	dtls_dev = nss_capwapmgr_get_dtls_netdev(global_ctx.capwap_dev, kp->tun_id);
 	if (!dtls_dev) {
-		nss_nl_error("%p: DTLS net_device not found for capwap_dev(%s)\n", &kp, capwap_dev->name);
+		nss_nl_error("%px: DTLS net_device not found for capwap_dev(%s)\n", &kp, capwap_dev->name);
 		return -ENODEV;
 	}
 
@@ -194,7 +194,7 @@ static int nss_nlcapwap_tx_keepalive(struct nss_nlcapwap_tunnel_keepalive *kp)
 
 	skb = dev_alloc_skb(skb_sz);
 	if (!skb) {
-		nss_nl_error("%p: Could not allocate a skb of size(%zu)\n", kp, skb_sz);
+		nss_nl_error("%px: Could not allocate a skb of size(%zu)\n", kp, skb_sz);
 		dev_put(dtls_dev);
 		return -ENOMEM;
 	}
@@ -227,7 +227,7 @@ static int nss_nlcapwap_tx_keepalive(struct nss_nlcapwap_tunnel_keepalive *kp)
 	tun = nss_nlcapwap_get_tun_by_index(kp->tun_id);
 	if (!tun) {
 		write_unlock_bh(&global_ctx.lock);
-		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", kp, kp->tun_id);
+		nss_nl_error("%px: Could not find tunnel associated with index: %d\n", kp, kp->tun_id);
 		return -ENODEV;
 	}
 
@@ -245,7 +245,7 @@ static int nss_nlcapwap_tx_keepalive(struct nss_nlcapwap_tunnel_keepalive *kp)
 		return -EBUSY;
 	}
 
-	nss_nl_info("%p: Keepalive packet sent\n", dtls_dev);
+	nss_nl_info("%px: Keepalive packet sent\n", dtls_dev);
 	dev_put(dtls_dev);
 	return 0;
 }
@@ -355,7 +355,7 @@ static void nss_nlcapwap_data_cb(void *app_data, struct sk_buff *skb)
 	tun = nss_nlcapwap_get_tun_by_index(tun_id);
 	if (!tun) {
 		write_unlock_bh(&global_ctx.lock);
-		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", skb, tun_id);
+		nss_nl_error("%px: Could not find tunnel associated with index: %d\n", skb, tun_id);
 		return;
 	}
 
@@ -371,7 +371,7 @@ static void nss_nlcapwap_data_cb(void *app_data, struct sk_buff *skb)
 	/*
 	 * TODO: If, we have exceeded ka_seq_fail threshold then destroy tunnel
 	 */
-	nss_nl_info("%p: RX DTLS pkt len:%d, tun_id:%d, seq_num:%u\n", skb, skb->len, apph->tun_id, apph->seq_num);
+	nss_nl_info("%px: RX DTLS pkt len:%d, tun_id:%d, seq_num:%u\n", skb, skb->len, apph->tun_id, apph->seq_num);
 	dev_kfree_skb_any(skb);
 }
 
@@ -711,7 +711,7 @@ static int nss_nlcapwap_ops_destroy_tun(struct sk_buff *skb, struct genl_info *i
 	tun = nss_nlcapwap_get_tun_by_index(tun_id);
 	if (!tun) {
 		write_unlock_bh(&global_ctx.lock);
-		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		nss_nl_error("%px: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
 		return -ENODEV;
 	}
 
@@ -1021,7 +1021,7 @@ static int nss_nlcapwap_tx_packets(struct nss_nlcapwap_rule *nl_rule)
 
 	skb = dev_alloc_skb(skb_sz);
 	if (!skb) {
-		nss_nl_error("%p: Could not allocate a sk_buff of size(%zu).\n", capwap_dev, skb_sz);
+		nss_nl_error("%px: Could not allocate a sk_buff of size(%zu).\n", capwap_dev, skb_sz);
 		return -ENOMEM;
 	}
 
@@ -1036,7 +1036,7 @@ static int nss_nlcapwap_tx_packets(struct nss_nlcapwap_rule *nl_rule)
 	if (!tun) {
 		write_unlock_bh(&global_ctx.lock);
 		dev_kfree_skb_any(skb);
-		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		nss_nl_error("%px: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
 		return -ENODEV;
 	}
 
@@ -1160,7 +1160,7 @@ static int nss_nlcapwap_ops_meta_header(struct sk_buff *skb, struct genl_info *i
 	tun = nss_nlcapwap_get_tun_by_index(tun_id);
 	if (!tun) {
 		write_unlock_bh(&global_ctx.lock);
-		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		nss_nl_error("%px: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
 		return -EAGAIN;
 	}
 
@@ -1213,7 +1213,7 @@ static int nss_nlcapwap_ops_keepalive(struct sk_buff *skb, struct genl_info *inf
 	tun_id = nl_rule->msg.kalive.tun_id;
 	dtls_dev = nss_capwapmgr_get_dtls_netdev(global_ctx.capwap_dev, tun_id);
 	if (!dtls_dev) {
-		nss_nl_error("%p: Failed to find DTLS dev for (%s)\n", &nl_rule, global_ctx.capwap_dev->name);
+		nss_nl_error("%px: Failed to find DTLS dev for (%s)\n", &nl_rule, global_ctx.capwap_dev->name);
 		return -ENODEV;
 	}
 
@@ -1224,7 +1224,7 @@ static int nss_nlcapwap_ops_keepalive(struct sk_buff *skb, struct genl_info *inf
 	tun = nss_nlcapwap_get_tun_by_index(tun_id);
 	if (!tun) {
 		write_unlock_bh(&global_ctx.lock);
-		nss_nl_error("%p: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
+		nss_nl_error("%px: Could not find tunnel associated with index: %d\n", nl_rule, tun_id);
 		dev_put(dtls_dev);
 		return -EAGAIN;
 	}
@@ -1244,7 +1244,7 @@ static int nss_nlcapwap_ops_keepalive(struct sk_buff *skb, struct genl_info *inf
 		flush_delayed_work(dwork);
 	}
 
-	nss_nl_info("%p: keepalive %s for tun(%d)\n", tun, kalive ? "enabled" : "disabled", tun_id);
+	nss_nl_info("%px: keepalive %s for tun(%d)\n", tun, kalive ? "enabled" : "disabled", tun_id);
 	dev_put(dtls_dev);
 	return 0;
 }
@@ -1272,7 +1272,7 @@ static ssize_t nss_nlcapwap_tunnel_stats_read(struct file *fp, char __user *ubuf
 
 	lbuf = vzalloc(size_al);
 	if (!lbuf) {
-		nss_nl_error("%p: Could not allocate space for debug entry\n", f_ppos);
+		nss_nl_error("%px: Could not allocate space for debug entry\n", f_ppos);
 		return 0;
 	}
 
@@ -1350,7 +1350,7 @@ int nss_nlcapwap_get_ifnum(struct net_device *dev, enum nss_dynamic_interface_ty
 	 */
 	ifnum = nss_cmn_get_interface_number_by_dev_and_type(dev, type);
 	if (ifnum < 0) {
-		nss_nl_error("%p: Failed to find interface number (dev:%s, type:%d)\n",
+		nss_nl_error("%px: Failed to find interface number (dev:%s, type:%d)\n",
 				dev, dev->name, type);
 		return -ENODEV;
 	}
@@ -1412,7 +1412,6 @@ bool nss_nlcapwap_init(void)
 		nss_nl_info_always("Error: %d unable to register capwap stats notifier\n", err);
 		goto free_family;
 	}
-
 
 	/*
 	 * Register a netdevice rx handler

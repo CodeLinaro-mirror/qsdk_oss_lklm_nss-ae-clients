@@ -227,7 +227,7 @@ void nss_connmgr_gre_tap_v4_outer_exception(struct net_device *dev, struct sk_bu
 	 */
 	if (unlikely(!pskb_may_pull(skb, (sizeof(struct ethhdr) + sizeof(struct iphdr)
 				+ sizeof(struct gre_base_hdr))))) {
-		nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+		nss_connmgr_gre_warning("%px: pskb_may_pull failed for skb:%px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -239,7 +239,7 @@ void nss_connmgr_gre_tap_v4_outer_exception(struct net_device *dev, struct sk_bu
 				+ sizeof(struct gre_base_hdr)));
 
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct ethhdr)))) {
-		nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+		nss_connmgr_gre_warning("%px: pskb_may_pull failed for skb:%px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -269,7 +269,7 @@ void nss_connmgr_gre_tun_v4_outer_exception(struct net_device *dev, struct sk_bu
 	 * and transmit on GRE interface.
 	 */
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct iphdr) + sizeof(struct gre_base_hdr)))) {
-		nss_connmgr_gre_warning("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+		nss_connmgr_gre_warning("%px: pskb_may_pull failed for skb:%px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -289,7 +289,7 @@ void nss_connmgr_gre_tun_v4_outer_exception(struct net_device *dev, struct sk_bu
 		skb->protocol = htons(ETH_P_IPV6);
 		break;
 	default:
-		nss_connmgr_gre_info("%p: wrong IP version in GRE encapped packet. skb: %p\n", dev, skb);
+		nss_connmgr_gre_info("%px: wrong IP version in GRE encapped packet. skb: %px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}

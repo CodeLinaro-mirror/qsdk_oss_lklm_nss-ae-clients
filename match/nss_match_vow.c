@@ -142,7 +142,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 		 */
 		if (!(strncasecmp(param, "mask", strlen("mask")))) {
 			if (!sscanf(value, "%hu", &mask_id)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -157,7 +157,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 
 			if (type == NSS_MATCH_ADD_MASK) {
 				if (!sscanf(value, "%x", &if_num)) {
-					pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+					pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 					return -EINVAL;
 				}
 				continue;
@@ -166,7 +166,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 			if (type == NSS_MATCH_ADD_RULE) {
 				dev = dev_get_by_name(&init_net, value);
 				if (!dev) {
-					pr_info("%p: Cannot find the net device\n", nss_ctx);
+					pr_info("%px: Cannot find the net device\n", nss_ctx);
 					return -ENODEV;
 				}
 
@@ -188,7 +188,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 			}
 
 			if (!ret) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -206,7 +206,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 			}
 
 			if (!ret) {
-				pr_info("%p: Cannot convert to integer. Wrong input!!\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input!!\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -225,7 +225,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 			}
 
 			if (!ret) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -237,7 +237,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 		 */
 		if (!(strncasecmp(param, "action", strlen("action")))) {
 			if (!sscanf(value, "%u", &actions)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -249,7 +249,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 		 */
 		if (!(strncasecmp(param, "priority", strlen("priority")))) {
 			if (!sscanf(value, "%u", &setprio)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
@@ -261,14 +261,14 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 		 */
 		if (!(strncasecmp(param, "nexthop", strlen("nexthop")))) {
 			if (!sscanf(value, "%u", &nexthop)) {
-				pr_info("%p: Cannot convert to integer. Wrong input\n", nss_ctx);
+				pr_info("%px: Cannot convert to integer. Wrong input\n", nss_ctx);
 				return -EINVAL;
 			}
 
 			continue;
 		}
 
-		pr_info("%p: Not a valid input\n", nss_ctx);
+		pr_info("%px: Not a valid input\n", nss_ctx);
 		return -EINVAL;
 	}
 
@@ -276,17 +276,17 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 	 * Validate user input values.
 	 */
 	if (mask_id > NSS_MATCH_MASK_MAX) {
-		pr_info("%p: Maskset num exceeds allowed value: %d\n", nss_ctx, mask_id);
+		pr_info("%px: Maskset num exceeds allowed value: %d\n", nss_ctx, mask_id);
 		return -EINVAL;
 	}
 
 	if (dscp > NSS_MATCH_MAX_DSCP) {
-		pr_info("%p: Dscp value %d cannot go beyond %d\n", nss_ctx, dscp, NSS_MATCH_MAX_DSCP);
+		pr_info("%px: Dscp value %d cannot go beyond %d\n", nss_ctx, dscp, NSS_MATCH_MAX_DSCP);
 		return -EINVAL;
 	}
 
 	if (inner_prio > NSS_MATCH_MAX_8021P || outer_prio > NSS_MATCH_MAX_8021P) {
-		pr_info("%p: Priority inner:%d outer:%d value cannot go beyond 7.\n", nss_ctx, inner_prio, outer_prio);
+		pr_info("%px: Priority inner:%d outer:%d value cannot go beyond 7.\n", nss_ctx, inner_prio, outer_prio);
 		return -EINVAL;
 	}
 

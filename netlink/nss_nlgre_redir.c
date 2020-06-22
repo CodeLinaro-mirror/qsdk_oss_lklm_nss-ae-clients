@@ -1,6 +1,6 @@
 /*
  ***************************************************************************
- * Copyright (c) 2015-2016,2018-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -104,7 +104,7 @@ int nss_nlgre_redir_map_interface(struct nss_nlgre_redir_map *map_params)
 		nexthop_nssif = NSS_ETH_RX_INTERFACE;
 		break;
 	default:
-		nss_nl_error("%p: not a valid tunnel_type\n", nss_ctx);
+		nss_nl_error("%px: not a valid tunnel_type\n", nss_ctx);
 		return -1;
 	}
 
@@ -113,7 +113,7 @@ int nss_nlgre_redir_map_interface(struct nss_nlgre_redir_map *map_params)
 	 */
 	ret = nss_nlgre_redir_cmn_map_interface(nexthop_nssif, 0, map_params);
 	if (ret == -1) {
-		nss_nl_error("%p: Unable to map nss interface\n", nss_ctx);
+		nss_nl_error("%px: Unable to map nss interface\n", nss_ctx);
 		return -1;
 	}
 
@@ -141,7 +141,7 @@ int nss_nlgre_redir_set_next_hop(struct nss_nlgre_redir_set_next *set_next_param
 	nss_ctx = nss_gre_redir_get_context();
 	next_dev = dev_get_by_name(&init_net, set_next_params->next_dev_name);
 	if (!next_dev) {
-		nss_nl_error("%p: Unable to get the reference to dev %s\n", nss_ctx, set_next_params->next_dev_name);
+		nss_nl_error("%px: Unable to get the reference to dev %s\n", nss_ctx, set_next_params->next_dev_name);
 		return -1;
 	}
 
@@ -158,17 +158,16 @@ int nss_nlgre_redir_set_next_hop(struct nss_nlgre_redir_set_next *set_next_param
 		nexthop_ifnum = NSS_ETH_RX_INTERFACE;
 		break;
 	default:
-		nss_nl_error("%p: Unknown set next mode\n", nss_ctx);
+		nss_nl_error("%px: Unknown set next mode\n", nss_ctx);
 		return -1;
 	}
 
 	ret = nss_nlgre_redir_cmn_set_next_hop(nexthop_ifnum, set_next_params);
 	if (ret == -1) {
-		nss_nl_error("%p: Unable to set the next hop\n", nss_ctx);
+		nss_nl_error("%px: Unable to set the next hop\n", nss_ctx);
 		return -1;
 	}
 
 	nss_nl_info("Successfully set the next hop\n");
 	return 0;
 }
-

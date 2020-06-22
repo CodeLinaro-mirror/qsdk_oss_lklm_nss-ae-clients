@@ -1,6 +1,6 @@
 /*
  ***************************************************************************
- * Copyright (c) 2015-2016,2018-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -121,7 +121,7 @@ static bool nss_nlgre_redir_cmn_deinit_tun_data(struct nss_nlgre_redir_cmn_tun_d
 	tun_data->outer_ifnum = -1;
 
 	if (!nss_nlgre_redir_cmn_set_tun_data(tun_data, index)) {
-		nss_nl_error("%p: Unable to set tun_data\n", nss_ctx);
+		nss_nl_error("%px: Unable to set tun_data\n", nss_ctx);
 		return false;
 	}
 
@@ -137,11 +137,11 @@ static void nss_nlgre_redir_cmn_host_data_cb(struct net_device *netdev, struct s
 	struct nss_ctx_instance *nss_ctx = nss_gre_redir_get_context();
 
 	if (!skb) {
-		nss_nl_trace("%p: SKB is NULL\n", nss_ctx);
+		nss_nl_trace("%px: SKB is NULL\n", nss_ctx);
 		return;
 	}
 
-	nss_nl_trace("%p: Exception packet on host inner:\n", skb);
+	nss_nl_trace("%px: Exception packet on host inner:\n", skb);
 	nss_nlgre_redir_cmn_print_hex_dump(skb);
 	skb->protocol = eth_type_trans(skb, netdev);
 	netif_receive_skb(skb);
@@ -156,11 +156,11 @@ static void nss_nlgre_redir_cmn_wifi_offl_data_cb(struct net_device *netdev, str
 	struct nss_ctx_instance *nss_ctx = nss_gre_redir_get_context();
 
 	if (!skb) {
-		nss_nl_warn("%p: SKB is NULL\n", nss_ctx);
+		nss_nl_warn("%px: SKB is NULL\n", nss_ctx);
 		return;
 	}
 
-	nss_nl_trace("%p: Exception packet on wifi offld inner:\n", skb);
+	nss_nl_trace("%px: Exception packet on wifi offld inner:\n", skb);
 	nss_nlgre_redir_cmn_print_hex_dump(skb);
 	skb->protocol = eth_type_trans(skb, netdev);
 	netif_receive_skb(skb);
@@ -172,7 +172,7 @@ static void nss_nlgre_redir_cmn_wifi_offl_data_cb(struct net_device *netdev, str
  */
 static void nss_nlgre_redir_cmn_sjack_data_cb(struct net_device *netdev, struct sk_buff *skb, struct napi_struct *napi)
 {
-	nss_nl_trace("%p: Exception packet on sjack inner node:\n", skb);
+	nss_nl_trace("%px: Exception packet on sjack inner node:\n", skb);
 	nss_nlgre_redir_cmn_print_hex_dump(skb);
 	dev_kfree_skb(skb);
 }
@@ -183,7 +183,7 @@ static void nss_nlgre_redir_cmn_sjack_data_cb(struct net_device *netdev, struct 
  */
 static void nss_nlgre_redir_cmn_outer_data_cb(struct net_device *netdev, struct sk_buff *skb, struct napi_struct *napi)
 {
-	nss_nl_trace("%p: Exception packet on outer node:\n", skb);
+	nss_nl_trace("%px: Exception packet on outer node:\n", skb);
 	nss_nlgre_redir_cmn_print_hex_dump(skb);
 	dev_kfree_skb(skb);
 }
@@ -195,7 +195,7 @@ static void nss_nlgre_redir_cmn_outer_data_cb(struct net_device *netdev, struct 
 static void nss_nlgre_redir_cmn_map_unmap_msg_cb(void *app_data, struct nss_cmn_msg *cmnmsg)
 {
 	struct nss_ctx_instance *nss_ctx = nss_gre_redir_get_context();
-	nss_nl_info("%p: callback gre_redir tunnel msg from NSS\n", nss_ctx);
+	nss_nl_info("%px: callback gre_redir tunnel msg from NSS\n", nss_ctx);
 }
 
 /*
@@ -209,36 +209,36 @@ static int nss_nlgre_redir_cmn_interface_alloc_and_register(struct nss_nlgre_red
 	tun_data->host_inner_ifnum = nss_gre_redir_alloc_and_register_node(dev,
 			nss_nlgre_redir_cmn_host_data_cb,
 			NULL, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_HOST_INNER, dev);
-	nss_nl_info("%p: host_inner = %d\n", nss_ctx, tun_data->host_inner_ifnum);
+	nss_nl_info("%px: host_inner = %d\n", nss_ctx, tun_data->host_inner_ifnum);
 	if (tun_data->host_inner_ifnum == -1) {
-		nss_nl_error("%p: Unable to allocate and register wifi host inner interface\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate and register wifi host inner interface\n", nss_ctx);
 		return -1;
 	}
 
 	tun_data->wifi_offl_inner_ifnum = nss_gre_redir_alloc_and_register_node(dev,
 			nss_nlgre_redir_cmn_wifi_offl_data_cb,
 			NULL, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_OFFL_INNER, dev);
-	nss_nl_info("%p: wifi_inner = %d\n", nss_ctx, tun_data->wifi_offl_inner_ifnum);
+	nss_nl_info("%px: wifi_inner = %d\n", nss_ctx, tun_data->wifi_offl_inner_ifnum);
 	if (tun_data->wifi_offl_inner_ifnum == -1) {
-		nss_nl_error("%p: Unable to allocate and register wifi offload inner interface\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate and register wifi offload inner interface\n", nss_ctx);
 		return -1;
 	}
 
 	tun_data->sjack_inner_ifnum = nss_gre_redir_alloc_and_register_node(dev,
 			nss_nlgre_redir_cmn_sjack_data_cb,
 			NULL, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_SJACK_INNER, dev);
-	nss_nl_info("%p: sjack_inner = %d\n", nss_ctx, tun_data->sjack_inner_ifnum);
+	nss_nl_info("%px: sjack_inner = %d\n", nss_ctx, tun_data->sjack_inner_ifnum);
 	if (tun_data->sjack_inner_ifnum == -1) {
-		nss_nl_error("%p: Unable to allocate and register sjack inner interface\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate and register sjack inner interface\n", nss_ctx);
 		return -1;
 	}
 
 	tun_data->outer_ifnum = nss_gre_redir_alloc_and_register_node(dev,
 			nss_nlgre_redir_cmn_outer_data_cb,
 			NULL, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_OUTER, dev);
-	nss_nl_info("%p: outer = %d\n", nss_ctx, tun_data->outer_ifnum);
+	nss_nl_info("%px: outer = %d\n", nss_ctx, tun_data->outer_ifnum);
 	if (tun_data->outer_ifnum == -1) {
-		nss_nl_error("%p: Unable to allocate and register outer interface\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate and register outer interface\n", nss_ctx);
 		return -1;
 	}
 
@@ -307,7 +307,7 @@ static netdev_tx_t nss_nlgre_redir_cmn_xmit_data(struct sk_buff *skb, struct net
 	nss_ctx = nss_gre_redir_get_context();
 	ret = nss_gre_redir_tx_buf(nss_ctx, skb, ifnum);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_nl_error("%p: Transmit failed and returned with %d\n", nss_ctx, ret);
+		nss_nl_error("%px: Transmit failed and returned with %d\n", nss_ctx, ret);
 		dev_kfree_skb_any(skb);
 	}
 
@@ -457,7 +457,7 @@ int32_t nss_nlgre_redir_cmn_get_tun_ifnum(enum nss_nlgre_redir_cmn_mode_type typ
 
 	tun_data = nss_nlgre_redir_cmn_get_tun_data(dev);
 	if (!tun_data.dev) {
-		nss_nl_error("Invalid tun_data: %p\n", tun_data.dev);
+		nss_nl_error("Invalid tun_data: %px\n", tun_data.dev);
 		return -1;
 	}
 
@@ -503,7 +503,7 @@ int nss_nlgre_redir_cmn_get_tun_data_index(struct net_device *dev)
 
 	nss_ctx = nss_gre_redir_get_context();
 	if (!dev) {
-		nss_nl_error("%p: Dev is NULL\n", nss_ctx);
+		nss_nl_error("%px: Dev is NULL\n", nss_ctx);
 		return -1;
 	}
 
@@ -533,19 +533,19 @@ bool nss_nlgre_redir_cmn_unregister_and_deallocate(struct net_device *dev, uint3
 
 	ifnum = nss_cmn_get_interface_number_by_dev_and_type(dev, type);
 	if (ifnum == -1) {
-		nss_nl_error("%p: unable to get NSS interface for net device %s of type %d\n", dev, dev->name, type);
+		nss_nl_error("%px: unable to get NSS interface for net device %s of type %d\n", dev, dev->name, type);
 		return false;
 	}
 
 	ret = nss_gre_redir_unregister_if(ifnum);
 	if (!ret) {
-		nss_nl_error("%p: Unable to unregister interface %d\n", dev, ret);
+		nss_nl_error("%px: Unable to unregister interface %d\n", dev, ret);
 		return false;
 	}
 
 	status = nss_dynamic_interface_dealloc_node(ifnum, type);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_error("%p: Unable to deallocate node %d\n", dev, status);
+		nss_nl_error("%px: Unable to deallocate node %d\n", dev, status);
 		return false;
 	}
 
@@ -564,28 +564,28 @@ void nss_nlgre_redir_cmn_interfaces_unregister_and_dealloc(struct nss_nlgre_redi
 	nss_ctx = nss_gre_redir_get_context();
 	if (tun_data->sjack_inner_ifnum != -1) {
 		if(!nss_nlgre_redir_cmn_unregister_and_deallocate(tun_data->dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_HOST_INNER)) {
-			nss_nl_error("%p: Unable to unregister and deallocate node of type %d\n", nss_ctx,
+			nss_nl_error("%px: Unable to unregister and deallocate node of type %d\n", nss_ctx,
 					NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_HOST_INNER);
 		}
 	}
 
 	if (tun_data->wifi_offl_inner_ifnum != -1) {
 		if (!nss_nlgre_redir_cmn_unregister_and_deallocate(tun_data->dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_OFFL_INNER)) {
-			nss_nl_error("%p: Unable to unregister and deallocate node of type %d\n", nss_ctx,
+			nss_nl_error("%px: Unable to unregister and deallocate node of type %d\n", nss_ctx,
 					NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_WIFI_OFFL_INNER);
 		}
 	}
 
 	if (tun_data->host_inner_ifnum != -1) {
 		if (!nss_nlgre_redir_cmn_unregister_and_deallocate(tun_data->dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_SJACK_INNER)) {
-			nss_nl_error("%p: Unable to unregister and deallocate node of type %d\n", nss_ctx,
+			nss_nl_error("%px: Unable to unregister and deallocate node of type %d\n", nss_ctx,
 					NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_SJACK_INNER);
 		}
 	}
 
 	if (tun_data->outer_ifnum != -1) {
 		if (!nss_nlgre_redir_cmn_unregister_and_deallocate(tun_data->dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_OUTER)) {
-			nss_nl_error("%p: Unable to unregister and deallocate node of type %d\n", nss_ctx,
+			nss_nl_error("%px: Unable to unregister and deallocate node of type %d\n", nss_ctx,
 					NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR_OUTER);
 		}
 	}
@@ -606,13 +606,13 @@ int nss_nlgre_redir_cmn_destroy_tun(struct net_device *dev)
 	dev_hold(dev);
 	tun_data = nss_nlgre_redir_cmn_get_tun_data(dev);
 	if (!tun_data.dev) {
-		nss_nl_error("%p: Invalid tun data\n", nss_ctx);
+		nss_nl_error("%px: Invalid tun data\n", nss_ctx);
 		return -1;
 	}
 
 	index = nss_nlgre_redir_cmn_get_tun_data_index(tun_data.dev);
 	if (index < NSS_NLGRE_REDIR_CMN_MIN_TUNNELS || index >= NSS_NLGRE_REDIR_CMN_MAX_TUNNELS) {
-		nss_nl_error("%p: index out of bound %d\n", nss_ctx, index);
+		nss_nl_error("%px: index out of bound %d\n", nss_ctx, index);
 		return -1;
 	}
 
@@ -620,7 +620,7 @@ int nss_nlgre_redir_cmn_destroy_tun(struct net_device *dev)
 	nss_nlgre_redir_cmn_deinit_tun_data(&tun_data, index);
 	dev_put(dev);
 	unregister_netdev(dev);
-	nss_nl_info("%p: Successfully destroyed gretun = gretun%d tunnel\n", dev, index);
+	nss_nl_info("%px: Successfully destroyed gretun = gretun%d tunnel\n", dev, index);
 	return index;
 }
 
@@ -666,7 +666,7 @@ struct net_device *nss_nlgre_redir_cmn_create_tun(uint32_t sip[4], uint32_t dip[
 	 */
 	ret = nss_nlgre_redir_cmn_interface_alloc_and_register(&tun_data, dev);
 	if (ret == -1) {
-		nss_nl_error("%p: Unable to allocate and register gre_redir nodes\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate and register gre_redir nodes\n", nss_ctx);
 		unregister_netdev(dev);
 		goto fail;
 	}
@@ -696,28 +696,28 @@ struct net_device *nss_nlgre_redir_cmn_create_tun(uint32_t sip[4], uint32_t dip[
 
 	status = nss_gre_redir_configure_inner_node(tun_data.host_inner_ifnum, &ngrm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_warn("%p: unable to configure host inner node %d\n", nss_ctx, tun_data.host_inner_ifnum);
+		nss_nl_warn("%px: unable to configure host inner node %d\n", nss_ctx, tun_data.host_inner_ifnum);
 		unregister_netdev(dev);
 		goto fail;
 	}
 
 	status = nss_gre_redir_configure_inner_node(tun_data.wifi_offl_inner_ifnum, &ngrm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_warn("%p: unable to configure wifi offload inner node %d\n", nss_ctx, tun_data.host_inner_ifnum);
+		nss_nl_warn("%px: unable to configure wifi offload inner node %d\n", nss_ctx, tun_data.host_inner_ifnum);
 		unregister_netdev(dev);
 		goto fail;
 	}
 
 	status = nss_gre_redir_configure_inner_node(tun_data.sjack_inner_ifnum, &ngrm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_warn("%p: unable to configure sjack inner node %d\n", nss_ctx, tun_data.sjack_inner_ifnum);
+		nss_nl_warn("%px: unable to configure sjack inner node %d\n", nss_ctx, tun_data.sjack_inner_ifnum);
 		unregister_netdev(dev);
 		goto fail;
 	}
 
 	status = nss_gre_redir_configure_outer_node(tun_data.outer_ifnum, &ngrocm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_warn("%p: unable to configure outer node %d\n", nss_ctx, tun_data.host_inner_ifnum);
+		nss_nl_warn("%px: unable to configure outer node %d\n", nss_ctx, tun_data.host_inner_ifnum);
 		unregister_netdev(dev);
 		goto fail;
 	}
@@ -725,7 +725,7 @@ struct net_device *nss_nlgre_redir_cmn_create_tun(uint32_t sip[4], uint32_t dip[
 	tun_data.enable = true;
 	tun_data.dev = dev;
 	if (!nss_nlgre_redir_cmn_set_tun_data(&tun_data, tun_idx)) {
-		nss_nl_error("%p: Unable to set tun data\n", nss_ctx);
+		nss_nl_error("%px: Unable to set tun data\n", nss_ctx);
 		unregister_netdev(dev);
 		goto fail;
 	}
@@ -783,17 +783,17 @@ int nss_nlgre_redir_cmn_map_interface(uint32_t nexthop_nssif, uint16_t lag_en, s
 	tun_type = nss_nlgre_redir_cmn_get_tun_type(map_params->tun_type);
 	vap_nss_if = nss_nlgre_redir_cmn_get_dev_ifnum(map_params->vap_nss_if);
 	if ((vap_nss_if >= NSS_DYNAMIC_IF_START+NSS_MAX_DYNAMIC_INTERFACES) || (vap_nss_if < NSS_DYNAMIC_IF_START)) {
-		nss_nl_error("%p: vap_nss_if is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
+		nss_nl_error("%px: vap_nss_if is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
 		return -1;
 	}
 
 	if (map_params->rid >= NSS_NLGRE_REDIR_CMN_RADIO_ID_MAX) {
-		nss_nl_error("%p: radio_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
+		nss_nl_error("%px: radio_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
 		return -1;
 	}
 
 	if (map_params->vid >= NSS_NLGRE_REDIR_CMN_VAP_ID_MAX) {
-		nss_nl_error("%p: vap_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
+		nss_nl_error("%px: vap_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
 		return -1;
 	}
 
@@ -810,11 +810,11 @@ int nss_nlgre_redir_cmn_map_interface(uint32_t nexthop_nssif, uint16_t lag_en, s
 
 	ret = nss_gre_redir_tx_msg_sync(nss_ctx, &ngrm);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_nl_error("%p: Tx to firmware failed\n", nss_ctx);
+		nss_nl_error("%px: Tx to firmware failed\n", nss_ctx);
 		return -1;
 	}
 
-	nss_nl_info("%p: Successfully transmitted msg to firmware\n", nss_ctx);
+	nss_nl_info("%px: Successfully transmitted msg to firmware\n", nss_ctx);
 	return 0;
 }
 
@@ -834,17 +834,17 @@ int nss_nlgre_redir_cmn_unmap_interface(struct nss_nlgre_redir_unmap *unmap_para
 	nss_ctx = nss_gre_redir_get_context();
 
 	if ((vap_nss_if >= NSS_DYNAMIC_IF_START+NSS_MAX_DYNAMIC_INTERFACES) || (vap_nss_if < NSS_DYNAMIC_IF_START)) {
-		nss_nl_error("%p: vap_nss_if is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
+		nss_nl_error("%px: vap_nss_if is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
 		return -1;
 	}
 
 	if (unmap_params->rid >= NSS_NLGRE_REDIR_CMN_RADIO_ID_MAX) {
-		nss_nl_error("%p: radio_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
+		nss_nl_error("%px: radio_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
 		return -1;
 	}
 
 	if (unmap_params->vid >= NSS_NLGRE_REDIR_CMN_VAP_ID_MAX) {
-		nss_nl_error("%p: vap_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
+		nss_nl_error("%px: vap_id is out of valid range for vap: %d\n", nss_ctx, vap_nss_if);
 		return -1;
 	}
 
@@ -856,11 +856,11 @@ int nss_nlgre_redir_cmn_unmap_interface(struct nss_nlgre_redir_unmap *unmap_para
 
 	ret = nss_gre_redir_tx_msg_sync(nss_ctx, &ngrm);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_nl_error("%p: Tx to firmware failed\n", nss_ctx);
+		nss_nl_error("%px: Tx to firmware failed\n", nss_ctx);
 		return -1;
 	}
 
-	nss_nl_info("%p: Successfully transmitted msg to firmware\n", nss_ctx);
+	nss_nl_info("%px: Successfully transmitted msg to firmware\n", nss_ctx);
 	return 0;
 }
 
@@ -878,20 +878,19 @@ int nss_nlgre_redir_cmn_set_next_hop(uint32_t next_dev_ifnum, struct nss_nlgre_r
 	nss_ctx = nss_gre_redir_get_context();
 	ifnumber = nss_nlgre_redir_cmn_get_dev_ifnum(setnext_params->dev_name);
 	if (ifnumber == -1) {
-		nss_nl_error("%p: Unable to find NSS interface for net device %s\n", nss_ctx, setnext_params->dev_name);
+		nss_nl_error("%px: Unable to find NSS interface for net device %s\n", nss_ctx, setnext_params->dev_name);
 		return -1;
 	}
 
-	nss_nl_info("%p: next hop interface number is %d\n", nss_ctx, next_dev_ifnum);
+	nss_nl_info("%px: next hop interface number is %d\n", nss_ctx, next_dev_ifnum);
 	ctx = nss_wifi_get_context();
 
 	ret = nss_wifi_vdev_set_next_hop(ctx, ifnumber, next_dev_ifnum);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_nl_error("%p: wifi drv api failed to set next hop\n", nss_ctx);
+		nss_nl_error("%px: wifi drv api failed to set next hop\n", nss_ctx);
 		return -1;
 	}
 
-	nss_nl_info("%p: Successfully set the next hop\n", nss_ctx);
+	nss_nl_info("%px: Successfully set the next hop\n", nss_ctx);
 	return 0;
 }
-

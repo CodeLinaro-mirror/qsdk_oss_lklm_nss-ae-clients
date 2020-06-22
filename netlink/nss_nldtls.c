@@ -119,7 +119,7 @@ static void __maybe_unused nss_nldtls_data_cb(void *app_data __maybe_unused, str
 			dev_put(dev);
 		}
 
-		nss_nl_info("%p: DTLS RX (%s) pkt len = %d udp_csum = %s rx_time: %llu\n", skb,
+		nss_nl_info("%px: DTLS RX (%s) pkt len = %d udp_csum = %s rx_time: %llu\n", skb,
 				skb->dev->name, skb->len, udp_lib_checksum_complete(skb) ?
 				"invalid" : "valid", duration);
 	}
@@ -152,11 +152,11 @@ static rx_handler_result_t nss_nldtls_dev_rx_handler(struct sk_buff **pskb)
 		print_hex_dump_bytes("", DUMP_PREFIX_OFFSET, skb->data, 64);
 		dev = dev_get_by_index(&init_net, skb->skb_iif);
 		if (dev) {
-			nss_nl_info("%p: in_dev = %s, out_dev = %s\n", skb, dev->name, skb->dev->name);
+			nss_nl_info("%px: in_dev = %s, out_dev = %s\n", skb, dev->name, skb->dev->name);
 			dev_put(dev);
 		}
 
-		nss_nl_info("%p: DTLS RX (%s) pkt len = %d udp_csum = %s rx_time: %llu\n", skb,
+		nss_nl_info("%px: DTLS RX (%s) pkt len = %d udp_csum = %s rx_time: %llu\n", skb,
 				skb->dev->name, skb->len, udp_lib_checksum_complete(skb) ?
 				"invalid" : "valid", duration);
 	}
@@ -178,11 +178,11 @@ static int nss_nldtls_create_ipv4_rule(struct nss_ipv4_create *unic, uint16_t ru
 
 	nss_ctx = nss_ipv4_get_mgr();
 	if (!nss_ctx) {
-		nss_nl_info("%p: Couldn't get IPv4 ctx\n", unic);
+		nss_nl_info("%px: Couldn't get IPv4 ctx\n", unic);
 		return -1;
 	}
 
-	nss_nl_info("%p: IPv4 rule: src:%pI4h:%d dst:%pI4h:%d p:%d\n",
+	nss_nl_info("%px: IPv4 rule: src:%pI4h:%d dst:%pI4h:%d p:%d\n",
 	      unic, &unic->src_ip, unic->src_port,
 	      &unic->dest_ip, unic->dest_port, unic->protocol);
 
@@ -282,7 +282,7 @@ static int nss_nldtls_create_ipv4_rule(struct nss_ipv4_create *unic, uint16_t ru
 
 	status = nss_ipv4_tx(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_info("%p: Create IPv4 message failed %d\n", nss_ctx, status);
+		nss_nl_info("%px: Create IPv4 message failed %d\n", nss_ctx, status);
 	}
 
 	return 0;
@@ -301,11 +301,11 @@ static int nss_nldtls_create_ipv6_rule(struct nss_ipv6_create *unic, uint16_t ru
 
 	nss_ctx = nss_ipv6_get_mgr();
 	if (!nss_ctx) {
-		nss_nl_info("%p: Couldn't get IPv6 ctx\n", unic);
+		nss_nl_info("%px: Couldn't get IPv6 ctx\n", unic);
 		return -1;
 	}
 
-	nss_nl_info("%p: Create IPv6 rule: %pI6:%d %pI6:%d p:%d\n",
+	nss_nl_info("%px: Create IPv6 rule: %pI6:%d %pI6:%d p:%d\n",
 	      unic, unic->src_ip, unic->src_port, unic->dest_ip,
 	      unic->dest_port, unic->protocol);
 
@@ -409,7 +409,7 @@ static int nss_nldtls_create_ipv6_rule(struct nss_ipv6_create *unic, uint16_t ru
 
 	status = nss_ipv6_tx(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_info("%p: Create IPv4 message failed %d\n", nss_ctx, status);
+		nss_nl_info("%px: Create IPv4 message failed %d\n", nss_ctx, status);
 	}
 
 	return 0;
@@ -472,7 +472,7 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 	if (err) {
 		rtnl_unlock();
 		nss_dtlsmgr_session_destroy(ndev);
-		nss_nl_error("%p: Failed to register rx handler\n", ctx);
+		nss_nl_error("%px: Failed to register rx handler\n", ctx);
 		return NULL;
 	}
 
@@ -492,7 +492,7 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 	list_add_tail(&dtls_tun_data->list, &gbl_ctx.dtls_list_head);
 	spin_unlock(&gbl_ctx.lock);
 
-	nss_nl_info("%p: Succesfully created dtls session.\n", ctx);
+	nss_nl_info("%px: Succesfully created dtls session.\n", ctx);
 	return ndev;
 }
 
@@ -647,7 +647,7 @@ static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info
 	 */
 	nl_cm = nss_nl_get_msg(&nss_nldtls_family, info, NSS_NLDTLS_CMD_TYPE_CREATE_TUN);
 	if (!nl_cm) {
-		nss_nl_error("%p: Unable to extract create tunnel data\n", skb);
+		nss_nl_error("%px: Unable to extract create tunnel data\n", skb);
 		return -EINVAL;
 	}
 
@@ -662,7 +662,7 @@ static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info
 	if (nl_rule->msg.create.ip_version == NSS_NLDTLS_IP_VERS_4) {
 		dtls_dev = nss_nldtls_create_session(nl_rule, NSS_NLDTLS_IPV4_SESSION);
 		if (!dtls_dev) {
-			nss_nl_error("%p: Unable to create dtls session for v4\n", skb);
+			nss_nl_error("%px: Unable to create dtls session for v4\n", skb);
 			return -EINVAL;
 		}
 
@@ -672,16 +672,16 @@ static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info
 		ret = nss_nldtls_create_ipv4_rule_entry(dtls_dev, nl_rule);
 		if (ret < 0) {
 			nss_nldtls_destroy_tun(dtls_dev);
-			nss_nl_error("%p Unable to add a rule entry for ipv4.\n", skb);
+			nss_nl_error("%px Unable to add a rule entry for ipv4.\n", skb);
 			return -EAGAIN;
 		}
 
 		atomic_inc(&gbl_ctx.num_tun);
-		nss_nl_info("%p: Successfully created ipv4 dtls tunnel\n", skb);
+		nss_nl_info("%px: Successfully created ipv4 dtls tunnel\n", skb);
 	} else {
 		dtls_dev = nss_nldtls_create_session(nl_rule, NSS_DTLSMGR_HDR_IPV6);
 		if (!dtls_dev) {
-			nss_nl_error("%p: Unable to create dtls session for v6\n", skb);
+			nss_nl_error("%px: Unable to create dtls session for v6\n", skb);
 			return -EINVAL;
 		}
 
@@ -691,12 +691,12 @@ static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info
 		ret = nss_nldtls_create_ipv6_rule_entry(dtls_dev, nl_rule);
 		if (ret < 0) {
 			nss_nldtls_destroy_tun(dtls_dev);
-			nss_nl_error("%p: Unable to add a rule entry for ipv6.\n", skb);
+			nss_nl_error("%px: Unable to add a rule entry for ipv6.\n", skb);
 			return -EAGAIN;
 		}
 
 		atomic_inc(&gbl_ctx.num_tun);
-		nss_nl_info("%p: Successfully created ipv6 dtls tunnel\n", skb);
+		nss_nl_info("%px: Successfully created ipv6 dtls tunnel\n", skb);
 	}
 
 	return 0;
@@ -718,7 +718,7 @@ static int nss_nldtls_ops_destroy_tun(struct sk_buff *skb, struct genl_info *inf
 	 */
 	nl_cm = nss_nl_get_msg(&nss_nldtls_family, info, NSS_NLDTLS_CMD_TYPE_DESTROY_TUN);
 	if (!nl_cm) {
-		nss_nl_error("%p: Unable to extract destroy tunnel data\n", skb);
+		nss_nl_error("%px: Unable to extract destroy tunnel data\n", skb);
 		return -EINVAL;
 	}
 
@@ -729,7 +729,7 @@ static int nss_nldtls_ops_destroy_tun(struct sk_buff *skb, struct genl_info *inf
 
 	dtls_ndev = dev_get_by_name(&init_net, nl_rule->msg.destroy.dev_name);
 	if (!dtls_ndev) {
-		nss_nl_error("%p: Unable to find dev: %s\n", skb, nl_rule->msg.destroy.dev_name);
+		nss_nl_error("%px: Unable to find dev: %s\n", skb, nl_rule->msg.destroy.dev_name);
 		return -EINVAL;
 	}
 
@@ -738,12 +738,12 @@ static int nss_nldtls_ops_destroy_tun(struct sk_buff *skb, struct genl_info *inf
 	 */
 	ret = nss_nldtls_destroy_tun(dtls_ndev);
 	if (ret < 0) {
-		nss_nl_error("%p: Unable to destroy tunnel: %s\n", skb, dtls_ndev->name);
+		nss_nl_error("%px: Unable to destroy tunnel: %s\n", skb, dtls_ndev->name);
 		return -EAGAIN;
 	}
 
 	atomic_dec(&gbl_ctx.num_tun);
-	nss_nl_info("%p: Successfully destroyed dtls session: %s\n", skb, nl_rule->msg.destroy.dev_name);
+	nss_nl_info("%px: Successfully destroyed dtls session: %s\n", skb, nl_rule->msg.destroy.dev_name);
 	return 0;
 }
 
@@ -766,7 +766,7 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 	 */
 	nl_cm = nss_nl_get_msg(&nss_nldtls_family, info, NSS_NLDTLS_CMD_TYPE_UPDATE_CONFIG);
 	if (!nl_cm) {
-		nss_nl_error("%p: Unable to extract update_config data.\n", skb);
+		nss_nl_error("%px: Unable to extract update_config data.\n", skb);
 		return -EINVAL;
 	}
 
@@ -777,14 +777,14 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 
 	dtls_ndev = dev_get_by_name(&init_net, nl_rule->msg.update_config.dev_name);
 	if (!dtls_ndev) {
-		nss_nl_error("%p: Unable to find dev: %s\n", skb, nl_rule->msg.update_config.dev_name);
+		nss_nl_error("%px: Unable to find dev: %s\n", skb, nl_rule->msg.update_config.dev_name);
 		return -EINVAL;
 	}
 
 	ctx = netdev_priv(dtls_ndev);
 	dtls_tun_data = nss_nldtls_find_dtls_tun_gbl_ctx(dtls_ndev);
 	if (!dtls_tun_data) {
-		nss_nl_error("%p: Unable to find context of the tunnel: %s\n", ctx, dtls_ndev->name);
+		nss_nl_error("%px: Unable to find context of the tunnel: %s\n", ctx, dtls_ndev->name);
 		dev_put(dtls_ndev);
 		return -EAGAIN;
 	}
@@ -804,21 +804,21 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 	if (!nl_rule->msg.update_config.dir) {
 		status = nss_dtlsmgr_session_update_encap(dtls_ndev, &dcfg);
 		if (status != NSS_DTLSMGR_OK) {
-			nss_nl_error("%p: Unable to update encap configuration\n", ctx);
+			nss_nl_error("%px: Unable to update encap configuration\n", ctx);
 			dev_put(dtls_ndev);
 			return -EINVAL;
 		}
 
-		nss_nl_info("%p: Successfully update the encap configuration\n", ctx);
+		nss_nl_info("%px: Successfully update the encap configuration\n", ctx);
 	} else {
 		status = nss_dtlsmgr_session_update_decap(dtls_ndev, &dcfg);
 		if (status != NSS_DTLSMGR_OK) {
-			nss_nl_error("%p: Unable to update decap configuration\n", ctx);
+			nss_nl_error("%px: Unable to update decap configuration\n", ctx);
 			dev_put(dtls_ndev);
 			return -EINVAL;
 		}
 
-		nss_nl_info("%p: Successfully update the decap configuration\n", ctx);
+		nss_nl_info("%px: Successfully update the decap configuration\n", ctx);
 	}
 
 	/*
@@ -893,7 +893,7 @@ static struct sk_buff *nss_nldtls_construct_ipv4_udp_header(struct net_device *d
 				      IPPROTO_UDP, uh->check);
 
 	if (nl_rule->msg.tx_pkts.log_en) {
-		nss_nl_info("%p: DTLS TX pkt len:%d udp_csum:0x%x\n", skb, skb->len, uh->check);
+		nss_nl_info("%px: DTLS TX pkt len:%d udp_csum:0x%x\n", skb, skb->len, uh->check);
 	}
 
 	return skb;
@@ -969,7 +969,7 @@ static struct sk_buff *nss_nldtls_construct_ipv6_udp_header(struct net_device *d
 	udp6_set_csum(false, skb, &ip6h->saddr, &ip6h->daddr, nl_rule->msg.tx_pkts.pkt_sz + sizeof(struct udphdr));
 
 	if (nl_rule->msg.tx_pkts.log_en) {
-		nss_nl_info("%p: DTLS TX pkt len:%d udp_csum:0x%x\n", skb, skb->len, uh->check);
+		nss_nl_info("%px: DTLS TX pkt len:%d udp_csum:0x%x\n", skb, skb->len, uh->check);
 	}
 
 	return skb;
@@ -987,7 +987,7 @@ static bool nss_nldtls_tx_ipv4_pkts_host_to_host(struct nss_nldtls_rule *nl_rule
 
 		skb = nss_nldtls_construct_ipv4_udp_header(dtls_dev, nl_rule);
 		if (!skb) {
-			nss_nl_error("%p: Unable to create ipv4 + udp packet\n", dtls_dev);
+			nss_nl_error("%px: Unable to create ipv4 + udp packet\n", dtls_dev);
 			return false;
 		}
 
@@ -1009,7 +1009,7 @@ static bool nss_nldtls_tx_ipv6_pkts_host_to_host(struct nss_nldtls_rule *nl_rule
 
 		skb = nss_nldtls_construct_ipv6_udp_header(dtls_dev, nl_rule);
 		if (!skb) {
-			nss_nl_error("%p: Unable to create ipv4 + udp packet\n", dtls_dev);
+			nss_nl_error("%px: Unable to create ipv4 + udp packet\n", dtls_dev);
 			return false;
 		}
 
@@ -1037,7 +1037,7 @@ static int nss_nldtls_ops_tx_pkts(struct sk_buff *skb, struct genl_info *info)
 	 */
 	nl_cm = nss_nl_get_msg(&nss_nldtls_family, info, NSS_NLDTLS_CMD_TYPE_TX_PKTS);
 	if (!nl_cm) {
-		nss_nl_error("%p: Unable to extract tx_pkts data\n", skb);
+		nss_nl_error("%px: Unable to extract tx_pkts data\n", skb);
 		return -EINVAL;
 	}
 
@@ -1048,13 +1048,13 @@ static int nss_nldtls_ops_tx_pkts(struct sk_buff *skb, struct genl_info *info)
 
 	dtls_ndev = dev_get_by_name(&init_net, nl_rule->msg.tx_pkts.dev_name);
 	if (!dtls_ndev) {
-		nss_nl_error("%p: Unable to find dev: %s\n", skb, nl_rule->msg.tx_pkts.dev_name);
+		nss_nl_error("%px: Unable to find dev: %s\n", skb, nl_rule->msg.tx_pkts.dev_name);
 		return -EINVAL;
 	}
 
 	dtls_tun_data = nss_nldtls_find_dtls_tun_gbl_ctx(dtls_ndev);
 	if (!dtls_tun_data) {
-		nss_nl_error("%p: Unable to find context of the tunnel: %s\n", skb, dtls_ndev->name);
+		nss_nl_error("%px: Unable to find context of the tunnel: %s\n", skb, dtls_ndev->name);
 		dev_put(dtls_ndev);
 		return -EAGAIN;
 	}
@@ -1069,12 +1069,12 @@ static int nss_nldtls_ops_tx_pkts(struct sk_buff *skb, struct genl_info *info)
 	gbl_ctx.first_tx_pkt_time = ktime_get();
 	if (nl_rule->msg.tx_pkts.ip_version == NSS_NLDTLS_IP_VERS_4) {
 		if (!nss_nldtls_tx_ipv4_pkts_host_to_host(nl_rule, dtls_ndev)) {
-			nss_nl_error("%p: Error in transmission\n", skb);
+			nss_nl_error("%px: Error in transmission\n", skb);
 			return -EAGAIN;
 		}
 	} else {
 		if (!nss_nldtls_tx_ipv6_pkts_host_to_host(nl_rule, dtls_ndev)) {
-			nss_nl_error("%p: Error in transmission\n", skb);
+			nss_nl_error("%px: Error in transmission\n", skb);
 			return -EAGAIN;
 		}
 	}
@@ -1082,8 +1082,8 @@ static int nss_nldtls_ops_tx_pkts(struct sk_buff *skb, struct genl_info *info)
 	gbl_ctx.last_tx_pkt_time = ktime_get();
 	delta = ktime_sub(gbl_ctx.last_tx_pkt_time, gbl_ctx.first_tx_pkt_time);
 	duration = (unsigned long long) ktime_to_ns(delta) >> 10;
-	nss_nl_info("%p: Packets sent in %llu usecs", dtls_ndev, duration);
-	nss_nl_info("%p: Traffic transmission successful\n", skb);
+	nss_nl_info("%px: Packets sent in %llu usecs", dtls_ndev, duration);
+	nss_nl_info("%px: Traffic transmission successful\n", skb);
 	return 0;
 }
 

@@ -123,7 +123,7 @@ static netdev_tx_t nss_ipsecmgr_tunnel_tx(struct sk_buff *skb, struct net_device
 		break;
 
 	default:
-		nss_ipsecmgr_warn("%p: Non-IP packet for encapsulation", dev);
+		nss_ipsecmgr_warn("%px: Non-IP packet for encapsulation", dev);
 		goto free;
 	}
 
@@ -155,7 +155,7 @@ static netdev_tx_t nss_ipsecmgr_tunnel_tx(struct sk_buff *skb, struct net_device
 	ctx = nss_ipsecmgr_ctx_find(tun, NSS_IPSEC_CMN_CTX_TYPE_MDATA_INNER);
 	if (!ctx) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_warn("%p: failed to find inner metdata context for TX\n", tun);
+		nss_ipsecmgr_warn("%px: failed to find inner metdata context for TX\n", tun);
 		goto free;
 	}
 
@@ -176,7 +176,7 @@ static netdev_tx_t nss_ipsecmgr_tunnel_tx(struct sk_buff *skb, struct net_device
 	flow = nss_ipsecmgr_flow_find(ipsecmgr_drv->flow_db, &f_tuple);
 	if (!flow) {
 		read_unlock_bh(&ipsecmgr_drv->lock);
-		nss_ipsecmgr_trace("%p, failed to find flow for TX", tun);
+		nss_ipsecmgr_trace("%px, failed to find flow for TX", tun);
 		goto free;
 	}
 
@@ -472,7 +472,7 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					nss_ipsecmgr_ctx_rx_stats,
 					NSS_IPSEC_CMN_FEATURE_INLINE_ACCEL);
 	if (!inner) {
-		nss_ipsecmgr_warn("%p: failed to allocate context inner\n", tun);
+		nss_ipsecmgr_warn("%px: failed to allocate context inner\n", tun);
 		goto free_dev;
 	}
 
@@ -486,7 +486,7 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					nss_ipsecmgr_ctx_rx_stats,
 					0);
 	if (!mdata_inner) {
-		nss_ipsecmgr_warn("%p: failed to allocate context metadata inner\n", tun);
+		nss_ipsecmgr_warn("%px: failed to allocate context metadata inner\n", tun);
 		goto free_inner;
 	}
 
@@ -500,7 +500,7 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					nss_ipsecmgr_ctx_rx_stats,
 					NSS_IPSEC_CMN_FEATURE_INLINE_ACCEL);
 	if (!outer) {
-		nss_ipsecmgr_warn("%p: failed to allocate context outer\n", tun);
+		nss_ipsecmgr_warn("%px: failed to allocate context outer\n", tun);
 		goto free_mdata_inner;
 	}
 
@@ -514,7 +514,7 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					nss_ipsecmgr_ctx_rx_stats,
 					0);
 	if (!mdata_outer) {
-		nss_ipsecmgr_warn("%p: failed to allocate context metadata outer\n", tun);
+		nss_ipsecmgr_warn("%px: failed to allocate context metadata outer\n", tun);
 		goto free_outer;
 	}
 
@@ -537,28 +537,28 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 	nss_ipsecmgr_ctx_set_except(mdata_outer, inner->ifnum);
 
 	if (!nss_ipsecmgr_ctx_config(inner)) {
-		nss_ipsecmgr_warn("%p: failed to configure inner context\n", tun);
+		nss_ipsecmgr_warn("%px: failed to configure inner context\n", tun);
 		goto free_mdata_outer;
 	}
 
 	if (!nss_ipsecmgr_ctx_config(mdata_inner)) {
-		nss_ipsecmgr_warn("%p: failed to configure metadata inner context\n", tun);
+		nss_ipsecmgr_warn("%px: failed to configure metadata inner context\n", tun);
 		goto free_mdata_outer;
 	}
 
 	if (!nss_ipsecmgr_ctx_config(outer)) {
-		nss_ipsecmgr_warn("%p: failed to configure outer context\n", tun);
+		nss_ipsecmgr_warn("%px: failed to configure outer context\n", tun);
 		goto free_mdata_outer;
 	}
 
 	if (!nss_ipsecmgr_ctx_config(mdata_outer)) {
-		nss_ipsecmgr_warn("%p: failed to configure metadata outer context\n", tun);
+		nss_ipsecmgr_warn("%px: failed to configure metadata outer context\n", tun);
 		goto free_mdata_outer;
 	}
 
 	status = rtnl_is_locked() ? register_netdevice(dev) : register_netdev(dev);
 	if (status < 0) {
-		nss_ipsecmgr_warn("%p: register net dev failed :%s\n", tun, dev->name);
+		nss_ipsecmgr_warn("%px: register net dev failed :%s\n", tun, dev->name);
 		goto free_mdata_outer;
 	}
 

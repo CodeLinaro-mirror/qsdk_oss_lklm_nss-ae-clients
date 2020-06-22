@@ -84,7 +84,7 @@ static void nss_match_sync_callback(void *app_data, struct nss_match_msg *nmm)
 		nss_match_stats_table_sync(nss_ctx, &nmm->msg.stats, nmm->cm.interface);
 		return;
 	default:
-		nss_match_warn("%p: Unknown Event from NSS", nmm);
+		nss_match_warn("%px: Unknown Event from NSS", nmm);
 		return;
 	}
 }
@@ -103,18 +103,18 @@ nss_match_status_t nss_match_rule_delete(struct nss_ctx_instance *nss_ctx, uint3
 	nss_tx_status_t nss_tx_status;
 
 	if ((rule_id == 0) || (rule_id > NSS_MATCH_INSTANCE_RULE_MAX)) {
-		nss_match_warn("%p: rule_id doesnot exist, rule_id = %d", nss_ctx, rule_id);
+		nss_match_warn("%px: rule_id doesnot exist, rule_id = %d", nss_ctx, rule_id);
 		return NSS_MATCH_ERROR_RULE_ID_OUTOFBOUND;
 	}
 
 	if (!nss_match_db_table_validate(table_id)) {
-		nss_match_warn("%p: Invalid table_id %d", nss_ctx, table_id);
+		nss_match_warn("%px: Invalid table_id %d", nss_ctx, table_id);
 		return NSS_MATCH_ERROR_TABLE_ID_OUTOFBOUND;
 	}
 
 	if_num = nss_match_get_ifnum_by_table_id(table_id);
 	if (if_num < 0) {
-		nss_match_warn("%p: Invalid table_id %d", nss_ctx, table_id);
+		nss_match_warn("%px: Invalid table_id %d", nss_ctx, table_id);
 		return NSS_MATCH_ERROR_TABLE_ID_OUTOFBOUND;
 	}
 
@@ -122,7 +122,7 @@ nss_match_status_t nss_match_rule_delete(struct nss_ctx_instance *nss_ctx, uint3
 	 * Read the rule information
 	 */
 	if (!nss_match_db_rule_read(&rule, table_id, rule_id)) {
-		nss_match_warn("%p: rule_id does not exist, rule_id = %d", nss_ctx, rule_id);
+		nss_match_warn("%px: rule_id does not exist, rule_id = %d", nss_ctx, rule_id);
 		return NSS_MATCH_ERROR_RULE_ID_OUTOFBOUND;
 	}
 
@@ -140,7 +140,7 @@ nss_match_status_t nss_match_rule_delete(struct nss_ctx_instance *nss_ctx, uint3
 		matchm.msg.l2_rule = rule.profile.l2;
 		break;
 	default:
-		nss_match_warn("%p: Unknown profile type: %d", nss_ctx, profile_type);
+		nss_match_warn("%px: Unknown profile type: %d", nss_ctx, profile_type);
 		return NSS_MATCH_ERROR_UNKNOWN_MSG;
 	}
 
@@ -148,7 +148,7 @@ nss_match_status_t nss_match_rule_delete(struct nss_ctx_instance *nss_ctx, uint3
 
 	nss_tx_status = nss_match_msg_tx_sync(nss_ctx, &matchm);
 	if (nss_tx_status != NSS_TX_SUCCESS) {
-		nss_match_warn("%p: Sending delete rule failed, rule_id = %d, status = %d", nss_ctx, rule_id, nss_tx_status);
+		nss_match_warn("%px: Sending delete rule failed, rule_id = %d, status = %d", nss_ctx, rule_id, nss_tx_status);
 		return NSS_MATCH_ERROR_RULE_DELETE;
 	}
 
@@ -185,26 +185,26 @@ int nss_match_vow_rule_add(struct nss_ctx_instance *nss_ctx, struct nss_match_ru
 	nss_tx_status_t nss_tx_status;
 
 	if (!nss_match_db_table_validate(table_id)) {
-		nss_match_warn("%p: Invalid table_id %d, table is not configured.\n", nss_ctx, table_id);
+		nss_match_warn("%px: Invalid table_id %d, table is not configured.\n", nss_ctx, table_id);
 		return rule_id;
 	}
 
 	if_num = nss_match_get_ifnum_by_table_id(table_id);
 	if (if_num < 0) {
-		nss_match_warn("%p: Cannot add the rule, table doesnot exist", nss_ctx);
+		nss_match_warn("%px: Cannot add the rule, table doesnot exist", nss_ctx);
 		return rule_id;
 	}
 
 	rule.profile.vow = *rule_msg;
 
 	if (nss_match_db_rule_find(&rule, table_id)) {
-		nss_match_warn("%p: Rule exists already. \n", nss_ctx);
+		nss_match_warn("%px: Rule exists already. \n", nss_ctx);
 		return -1;
 	}
 
 	rule_id = nss_match_db_generate_rule_id(table_id);
 	if (rule_id <= 0 ) {
-		nss_match_warn("%p: Reached limit, New rule can't be added. \n", nss_ctx);
+		nss_match_warn("%px: Reached limit, New rule can't be added. \n", nss_ctx);
 		return -1;
 	}
 
@@ -221,7 +221,7 @@ int nss_match_vow_rule_add(struct nss_ctx_instance *nss_ctx, struct nss_match_ru
 	 */
 	nss_tx_status = nss_match_msg_tx_sync(nss_ctx, &nmm);
 	if (nss_tx_status != NSS_TX_SUCCESS) {
-		nss_match_warn("%p:add rule failed from NSS, rule_id = %d, nss_tx_status = %d\n",
+		nss_match_warn("%px:add rule failed from NSS, rule_id = %d, nss_tx_status = %d\n",
 				nss_ctx, rule_id, nss_tx_status);
 		nss_match_db_rule_delete(table_id, rule_id);
 		return -1;
@@ -244,26 +244,26 @@ int nss_match_l2_rule_add(struct nss_ctx_instance *nss_ctx, struct nss_match_rul
 	nss_tx_status_t nss_tx_status;
 
 	if (!nss_match_db_table_validate(table_id)) {
-		nss_match_warn("%p: Cannot insert rule, table: %d is not configured. \n", nss_ctx, table_id);
+		nss_match_warn("%px: Cannot insert rule, table: %d is not configured. \n", nss_ctx, table_id);
 		return -1;
 	}
 
 	if_num = nss_match_get_ifnum_by_table_id(table_id);
 	if (if_num < 0) {
-		nss_match_warn("%p: Cannot add the rule, invalid table ID: %d", nss_ctx, table_id);
+		nss_match_warn("%px: Cannot add the rule, invalid table ID: %d", nss_ctx, table_id);
 		return rule_id;
 	}
 
 	rule.profile.l2 = *rule_msg;
 
 	if (nss_match_db_rule_find(&rule, table_id)) {
-		nss_match_warn("%p: Rule exists already \n", nss_ctx);
+		nss_match_warn("%px: Rule exists already \n", nss_ctx);
 		return -1;
 	}
 
 	rule_id = nss_match_db_generate_rule_id(table_id);
 	if (rule_id <= 0) {
-		nss_match_warn("%p: New rule can't be added, Reached limit. \n", nss_ctx);
+		nss_match_warn("%px: New rule can't be added, Reached limit. \n", nss_ctx);
 		return -1;
 	}
 
@@ -280,7 +280,7 @@ int nss_match_l2_rule_add(struct nss_ctx_instance *nss_ctx, struct nss_match_rul
 	 */
 	nss_tx_status = nss_match_msg_tx_sync(nss_ctx, &nmm);
 	if (nss_tx_status != NSS_TX_SUCCESS) {
-		nss_match_warn("%p:add rule failed from NSS, rule_id = %d, nss_tx_status = %d\n",
+		nss_match_warn("%px:add rule failed from NSS, rule_id = %d, nss_tx_status = %d\n",
 				nss_ctx, rule_id, nss_tx_status);
 		nss_match_db_rule_delete(table_id, rule_id);
 		return -1;
@@ -303,12 +303,12 @@ nss_match_status_t nss_match_profile_configure(struct nss_ctx_instance *nss_ctx,
 
 	status = nss_match_verify_config_msg(config_msg);
         if (status != NSS_MATCH_SUCCESS) {
-		nss_match_warn("%p: Invalid config message.", nss_ctx);
+		nss_match_warn("%px: Invalid config message.", nss_ctx);
 		return status;
 	}
 
 	if ((table_id == 0) || (table_id > NSS_MATCH_INSTANCE_MAX)) {
-		nss_match_warn("%p: Cannot configure table, table_id %d is not valid.\n", nss_ctx, table_id);
+		nss_match_warn("%px: Cannot configure table, table_id %d is not valid.\n", nss_ctx, table_id);
 		return NSS_MATCH_ERROR_TABLE_ID_OUTOFBOUND;
 	}
 
@@ -319,7 +319,7 @@ nss_match_status_t nss_match_profile_configure(struct nss_ctx_instance *nss_ctx,
 
 	if_num = nss_match_get_ifnum_by_table_id(table_id);
 	if (if_num < 0) {
-		nss_match_warn("%p: Invalid table ID: %d, if_num %d", nss_ctx, table_id, if_num);
+		nss_match_warn("%px: Invalid table ID: %d, if_num %d", nss_ctx, table_id, if_num);
 		return NSS_MATCH_ERROR_TABLE_ID_OUTOFBOUND;
 	}
 
@@ -336,7 +336,7 @@ nss_match_status_t nss_match_profile_configure(struct nss_ctx_instance *nss_ctx,
 
 	nss_tx_status = nss_match_msg_tx_sync(nss_ctx, &matchm);
 	if (nss_tx_status != NSS_TX_SUCCESS) {
-		nss_match_warn("%p: Profile configuration failed for table_id = %d\n, nss_tx_status = %d\n",
+		nss_match_warn("%px: Profile configuration failed for table_id = %d\n, nss_tx_status = %d\n",
 				nss_ctx, if_num, nss_tx_status);
 		nss_match_db_instance_disable(table_id);
 		return NSS_MATCH_ERROR_INSTANCE_CONFIGURED;
@@ -407,7 +407,7 @@ int32_t nss_match_instance_create(void)
 
 	nss_ctx = nss_match_register_instance(if_num, nss_match_sync_callback);
 	if (!nss_ctx) {
-		nss_match_warn("%p, Failed to register node : %d.\n", nss_ctx, if_num);
+		nss_match_warn("%px, Failed to register node : %d.\n", nss_ctx, if_num);
 		goto dealloc_node;
 	}
 
@@ -416,7 +416,7 @@ int32_t nss_match_instance_create(void)
 	 */
 	table_id = nss_match_db_table_create(if_num);
 	if (table_id < 0) {
-		nss_match_warn("%p: Memory allocation failed for match DB array\n", nss_ctx);
+		nss_match_warn("%px: Memory allocation failed for match DB array\n", nss_ctx);
 		goto unregister_node;
 	}
 

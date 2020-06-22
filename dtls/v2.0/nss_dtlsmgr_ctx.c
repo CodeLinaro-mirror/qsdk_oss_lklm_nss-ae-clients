@@ -78,14 +78,14 @@ static int nss_dtlsmgr_ctx_alloc_crypto(struct nss_dtlsmgr_ctx *ctx, struct nss_
 	uint16_t keylen;
 
 	if (crypto->algo >= ARRAY_SIZE(dtlsmgr_algo_info)) {
-		nss_dtlsmgr_warn("%p: invalid crypto algorithm", ctx);
+		nss_dtlsmgr_warn("%px: invalid crypto algorithm", ctx);
 		return -EINVAL;
 	}
 
 	info = &dtlsmgr_algo_info[crypto->algo];
 	dtls->aead = crypto_alloc_aead(info->name, 0, 0);
 	if (IS_ERR(dtls->aead)) {
-		nss_dtlsmgr_warn("%p: failed to allocate crypto aead context", ctx);
+		nss_dtlsmgr_warn("%px: failed to allocate crypto aead context", ctx);
 		return -ENOMEM;
 	}
 
@@ -102,7 +102,7 @@ static int nss_dtlsmgr_ctx_alloc_crypto(struct nss_dtlsmgr_ctx *ctx, struct nss_
 
 	keys = vzalloc(keylen);
 	if (!keys) {
-		nss_dtlsmgr_warn("%p: failed to allocate key memory", ctx);
+		nss_dtlsmgr_warn("%px: failed to allocate key memory", ctx);
 		crypto_free_aead(dtls->aead);
 		return -ENOMEM;
 	}
@@ -136,7 +136,7 @@ static int nss_dtlsmgr_ctx_alloc_crypto(struct nss_dtlsmgr_ctx *ctx, struct nss_
 setkey:
 
 	if (crypto_aead_setkey(dtls->aead, keys, keylen)) {
-		nss_dtlsmgr_warn("%p: failed to configure keys", ctx);
+		nss_dtlsmgr_warn("%px: failed to configure keys", ctx);
 		vfree(keys);
 		crypto_free_aead(dtls->aead);
 		return -ENOSPC;
@@ -162,11 +162,11 @@ static struct nss_dtlsmgr_dtls_data *nss_dtlsmgr_ctx_alloc_dtls(struct nss_dtlsm
 	struct nss_dtlsmgr_dtls_data *dtls;
 	int error;
 
-	nss_dtlsmgr_trace("%p: allocating context data(%u)", ctx, data->di_type);
+	nss_dtlsmgr_trace("%px: allocating context data(%u)", ctx, data->di_type);
 
 	dtls = vzalloc(sizeof(*dtls));
 	if (!dtls) {
-		nss_dtlsmgr_warn("%p: failed to allocate dtls data(%u) ", ctx, data->di_type);
+		nss_dtlsmgr_warn("%px: failed to allocate dtls data(%u) ", ctx, data->di_type);
 		return NULL;
 	}
 
@@ -174,12 +174,12 @@ static struct nss_dtlsmgr_dtls_data *nss_dtlsmgr_ctx_alloc_dtls(struct nss_dtlsm
 
 	error = nss_dtlsmgr_ctx_alloc_crypto(ctx, dtls, crypto);
 	if (error < 0) {
-		nss_dtlsmgr_warn("%p: unable to allocate crypto(%u) - error(%d)", ctx, data->di_type, error);
+		nss_dtlsmgr_warn("%px: unable to allocate crypto(%u) - error(%d)", ctx, data->di_type, error);
 		vfree(dtls);
 		return NULL;
 	}
 
-	nss_dtlsmgr_trace("%p: crypto_aead allocated", ctx);
+	nss_dtlsmgr_trace("%px: crypto_aead allocated", ctx);
 	return dtls;
 }
 
@@ -237,7 +237,7 @@ static bool nss_dtlsmgr_ctx_configure_hdr(struct nss_dtlsmgr_ctx_data *data)
 
 	status = nss_dtls_cmn_tx_msg_sync(data->nss_ctx, data->ifnum, type, sizeof(*cfg), &ndcm, &resp);
 	if (status != NSS_TX_SUCCESS) {
-		nss_dtlsmgr_warn("%p: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
+		nss_dtlsmgr_warn("%px: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
 				 data, data->ifnum, type, status, resp);
 		return false;
 	}
@@ -270,7 +270,7 @@ static bool nss_dtlsmgr_ctx_configure_dtls(struct nss_dtlsmgr_ctx_data *data, st
 
 	status = nss_dtls_cmn_tx_msg_sync(data->nss_ctx, data->ifnum, type, sizeof(*cfg), &ndcm, &resp);
 	if (status != NSS_TX_SUCCESS) {
-		nss_dtlsmgr_warn("%p: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
+		nss_dtlsmgr_warn("%px: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
 				data, data->ifnum, type, status, resp);
 		return false;
 	}
@@ -292,7 +292,7 @@ static bool nss_dtlsmgr_ctx_deconfigure(struct nss_dtlsmgr_ctx *ctx, struct nss_
 
 	status = nss_dtls_cmn_tx_msg_sync(data->nss_ctx, data->ifnum, type, 0, &ndcm, &resp);
 	if (status != NSS_TX_SUCCESS) {
-		nss_dtlsmgr_warn("%p: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
+		nss_dtlsmgr_warn("%px: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
 				ctx, data->ifnum, type, status, resp);
 		return false;
 	}
@@ -314,7 +314,7 @@ static bool nss_dtlsmgr_ctx_deconfigure(struct nss_dtlsmgr_ctx *ctx, struct nss_
 
 	status = nss_dynamic_interface_dealloc_node(data->ifnum, data->di_type);
 	if (status != NSS_TX_SUCCESS) {
-		nss_dtlsmgr_warn("%p: fail to deallocate dynamic(%d) interface(%u)", ctx, data->di_type, data->ifnum);
+		nss_dtlsmgr_warn("%px: fail to deallocate dynamic(%d) interface(%u)", ctx, data->di_type, data->ifnum);
 		return false;
 	}
 
@@ -336,7 +336,7 @@ static int nss_dtlsmgr_ctx_create_encap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 
 	dtls = nss_dtlsmgr_ctx_alloc_dtls(ctx, &ctx->encap, &cfg->crypto);
 	if (!dtls) {
-		nss_dtlsmgr_warn("%p: unable to allocate encap context data", ctx);
+		nss_dtlsmgr_warn("%px: unable to allocate encap context data", ctx);
 		return -ENOMEM;
 	}
 
@@ -396,7 +396,7 @@ static int nss_dtlsmgr_ctx_create_encap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 	 */
 	data->headroom += sizeof(struct udphdr);
 
-	nss_dtlsmgr_trace("%p: encap ifnum(%u), src(%u), dest(0x%x)", ctx, data->ifnum,
+	nss_dtlsmgr_trace("%px: encap ifnum(%u), src(%u), dest(0x%x)", ctx, data->ifnum,
 			  data->src_ifnum, data->dest_ifnum);
 
 	/*
@@ -410,18 +410,18 @@ static int nss_dtlsmgr_ctx_create_encap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 						data->di_type,
 						(void *)data);
 	if (!data->nss_ctx) {
-		nss_dtlsmgr_warn("%p: NSS register interface(%u) failed", ctx, data->ifnum);
+		nss_dtlsmgr_warn("%px: NSS register interface(%u) failed", ctx, data->ifnum);
 		nss_dtlsmgr_ctx_free_dtls(dtls);
 		return -ENODEV;
 	}
 
 	if (!nss_dtlsmgr_ctx_configure_hdr(data)) {
-		nss_dtlsmgr_warn("%p: unable to configure(%d) hdr", ctx, data->di_type);
+		nss_dtlsmgr_warn("%px: unable to configure(%d) hdr", ctx, data->di_type);
 		goto fail;
 	}
 
 	if (!nss_dtlsmgr_ctx_configure_dtls(data, dtls)) {
-		nss_dtlsmgr_warn("%p: unable to configure(%d) dtls", ctx, data->di_type);
+		nss_dtlsmgr_warn("%px: unable to configure(%d) dtls", ctx, data->di_type);
 		goto fail;
 	}
 
@@ -448,7 +448,7 @@ static int nss_dtlsmgr_ctx_create_decap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 
 	dtls = nss_dtlsmgr_ctx_alloc_dtls(ctx, &ctx->decap, &cfg->decap.crypto);
 	if (!dtls) {
-		nss_dtlsmgr_warn("%p: unable to allocate decap context data", ctx);
+		nss_dtlsmgr_warn("%px: unable to allocate decap context data", ctx);
 		return -ENOMEM;
 	}
 
@@ -468,7 +468,7 @@ static int nss_dtlsmgr_ctx_create_decap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 	data->tailroom = data->headroom = 0;
 	data->flags = cfg->flags & (NSS_DTLSMGR_HDR_MASK | NSS_DTLSMGR_CRYPTO_MASK | NSS_DTLSMGR_DECAP_MASK);
 
-	nss_dtlsmgr_trace("%p: decap ifnum(%u), src(%u), dest(%u)", ctx, data->ifnum,
+	nss_dtlsmgr_trace("%px: decap ifnum(%u), src(%u), dest(%u)", ctx, data->ifnum,
 			  data->src_ifnum, data->dest_ifnum);
 
 	dtls->window_size = cfg->decap.window_size;
@@ -485,18 +485,18 @@ static int nss_dtlsmgr_ctx_create_decap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 						data->di_type,
 						(void *)data);
 	if (!data->nss_ctx) {
-		nss_dtlsmgr_warn("%p: NSS register interface(%u) failed", ctx, data->ifnum);
+		nss_dtlsmgr_warn("%px: NSS register interface(%u) failed", ctx, data->ifnum);
 		nss_dtlsmgr_ctx_free_dtls(dtls);
 		return -ENODEV;
 	}
 
 	if (!nss_dtlsmgr_ctx_configure_hdr(data)) {
-		nss_dtlsmgr_warn("%p: unable to configure(%d) hdr", ctx, data->di_type);
+		nss_dtlsmgr_warn("%px: unable to configure(%d) hdr", ctx, data->di_type);
 		goto fail;
 	}
 
 	if (!nss_dtlsmgr_ctx_configure_dtls(data, dtls)) {
-		nss_dtlsmgr_warn("%p: unable to configure(%d) hdr", ctx, data->di_type);
+		nss_dtlsmgr_warn("%px: unable to configure(%d) hdr", ctx, data->di_type);
 		goto fail;
 	}
 
@@ -534,7 +534,7 @@ static bool nss_dtlsmgr_session_switch(struct nss_dtlsmgr_ctx *ctx, struct nss_d
 	 */
 	status = nss_dtls_cmn_tx_msg_sync(data->nss_ctx, data->ifnum, type, 0, &ndcm, &resp);
 	if (status != NSS_TX_SUCCESS) {
-		nss_dtlsmgr_warn("%p: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
+		nss_dtlsmgr_warn("%px: msg_sync failed, if_num(%u), status(%d), type(%d), resp(%d)",
 				ctx, data->ifnum, type, status, resp);
 		return false;
 	}
@@ -572,24 +572,24 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 	int error;
 
 	if (!atomic_read(&drv->is_configured)) {
-		nss_dtlsmgr_warn("%p: dtls firmware not ready", drv);
+		nss_dtlsmgr_warn("%px: dtls firmware not ready", drv);
 		return NULL;
 	}
 
 	if ((cfg->encap.ver != NSS_DTLSMGR_VERSION_1_0) && (cfg->encap.ver != NSS_DTLSMGR_VERSION_1_2)) {
-		nss_dtlsmgr_warn("%p: invalid encapsulation version(%d)", drv, cfg->encap.ver);
+		nss_dtlsmgr_warn("%px: invalid encapsulation version(%d)", drv, cfg->encap.ver);
 		return NULL;
 	}
 
 	encap_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_DTLS_CMN_INNER);
 	if (encap_ifnum < 0) {
-		nss_dtlsmgr_warn("%p: failed to allocate encap dynamic interface(%u)", drv, encap_ifnum);
+		nss_dtlsmgr_warn("%px: failed to allocate encap dynamic interface(%u)", drv, encap_ifnum);
 		return NULL;
 	}
 
 	decap_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_DTLS_CMN_OUTER);
 	if (decap_ifnum < 0) {
-		nss_dtlsmgr_warn("%p: failed to allocate decap dynamic interface(%u)", drv, decap_ifnum);
+		nss_dtlsmgr_warn("%px: failed to allocate decap dynamic interface(%u)", drv, decap_ifnum);
 		goto dealloc_encap_node;
 	}
 
@@ -597,7 +597,7 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 
 	dev = alloc_netdev(sizeof(*ctx), "dtls%d", NET_NAME_ENUM, nss_dtlsmgr_ctx_dev_setup);
 	if (!dev) {
-		nss_dtlsmgr_warn("%p: unable to allocate dtls device", ctx);
+		nss_dtlsmgr_warn("%px: unable to allocate dtls device", ctx);
 		goto dealloc_decap_node;
 	}
 
@@ -609,13 +609,13 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 
 	error = nss_dtlsmgr_ctx_create_encap(ctx, encap_ifnum, decap_ifnum, cfg);
 	if (error < 0) {
-		nss_dtlsmgr_warn("%p: unable to create encap context, error(%d)", ctx, error);
+		nss_dtlsmgr_warn("%px: unable to create encap context, error(%d)", ctx, error);
 		goto free_dev;
 	}
 
 	error = nss_dtlsmgr_ctx_create_decap(ctx, decap_ifnum, encap_ifnum, cfg);
 	if (error < 0) {
-		nss_dtlsmgr_warn("%p: unable to create decap context, error(%d)", ctx, error);
+		nss_dtlsmgr_warn("%px: unable to create decap context, error(%d)", ctx, error);
 		goto destroy_encap;
 	}
 
@@ -642,17 +642,17 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 
 	error = rtnl_is_locked() ? register_netdevice(dev) : register_netdev(dev);
 	if (error < 0) {
-		nss_dtlsmgr_warn("%p: unable register net_device(%s)", ctx, dev->name);
+		nss_dtlsmgr_warn("%px: unable register net_device(%s)", ctx, dev->name);
 		goto destroy_decap;
 	}
 
 	dev->mtu = dev->mtu - (ctx->encap.headroom + ctx->encap.tailroom);
 
-	nss_dtlsmgr_trace("%p: dtls session(%s) created, encap(%u), decap(%u)",
+	nss_dtlsmgr_trace("%px: dtls session(%s) created, encap(%u), decap(%u)",
 			  ctx, dev->name, ctx->encap.ifnum, ctx->decap.ifnum);
 
 	if (nss_dtlsmgr_create_debugfs(ctx)) {
-		nss_dtlsmgr_warn("Failed to create debugfs for ctx(%p)", ctx);
+		nss_dtlsmgr_warn("Failed to create debugfs for ctx(%px)", ctx);
 	}
 
 	return dev;
@@ -690,16 +690,16 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_destroy(struct net_device *dev)
 	xchg(&ctx->notify_cb, NULL);
 	xchg(&ctx->data_cb, NULL);
 
-	nss_dtlsmgr_trace("%p: destroying encap(%u) and decap(%u) sessions",
+	nss_dtlsmgr_trace("%px: destroying encap(%u) and decap(%u) sessions",
 			  ctx, ctx->encap.ifnum, ctx->decap.ifnum);
 
 	if (!nss_dtlsmgr_ctx_deconfigure(ctx, &ctx->encap)) {
-		nss_dtlsmgr_warn("%p: unable to deconfigure encap", ctx);
+		nss_dtlsmgr_warn("%px: unable to deconfigure encap", ctx);
 		return NSS_DTLSMGR_FAIL;
 	}
 
 	if (!nss_dtlsmgr_ctx_deconfigure(ctx, &ctx->decap)) {
-		nss_dtlsmgr_warn("%p: unable to deconfigure decap", ctx);
+		nss_dtlsmgr_warn("%px: unable to deconfigure decap", ctx);
 		return NSS_DTLSMGR_FAIL;
 	}
 
@@ -725,7 +725,7 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_update_encap(struct net_device *dev, st
 
 	dtls = nss_dtlsmgr_ctx_alloc_dtls(ctx, &ctx->encap, &cfg->crypto);
 	if (!dtls) {
-		nss_dtlsmgr_warn("%p: unable to update encap context data", ctx);
+		nss_dtlsmgr_warn("%px: unable to update encap context data", ctx);
 		return NSS_DTLSMGR_FAIL_NOMEM;
 	}
 
@@ -734,7 +734,7 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_update_encap(struct net_device *dev, st
 	 */
 	prev_dtls = list_first_entry_or_null(&data->dtls_active, struct nss_dtlsmgr_dtls_data, list);
 	if (!prev_dtls) {
-		nss_dtlsmgr_warn("%p: dtls list is emtpy\n", ctx);
+		nss_dtlsmgr_warn("%px: dtls list is emtpy\n", ctx);
 		return NSS_DTLSMGR_FAIL_NOCRYPTO;
 	}
 
@@ -745,13 +745,13 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_update_encap(struct net_device *dev, st
 	BUG_ON(prev_dtls->blk_len < dtls->blk_len);
 	BUG_ON(prev_dtls->hash_len < dtls->hash_len);
 
-	nss_dtlsmgr_trace("%p: encap context update allocated (%u)", ctx, ctx->encap.ifnum);
+	nss_dtlsmgr_trace("%px: encap context update allocated (%u)", ctx, ctx->encap.ifnum);
 
 	dtls->epoch = cfg->epoch;
 	dtls->window_size = cfg->window_size;
 
 	if (!nss_dtlsmgr_ctx_configure_dtls(&ctx->encap, dtls)) {
-		nss_dtlsmgr_warn("%p: unable to configure encap dtls", ctx);
+		nss_dtlsmgr_warn("%px: unable to configure encap dtls", ctx);
 		nss_dtlsmgr_ctx_free_dtls(dtls);
 		return NSS_DTLSMGR_FAIL_MESSAGE;
 	}
@@ -760,7 +760,7 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_update_encap(struct net_device *dev, st
 	list_add_tail(&dtls->list, &ctx->encap.dtls_active);
 	write_unlock(&ctx->lock);
 
-	nss_dtlsmgr_trace("%p: encap context update done", ctx);
+	nss_dtlsmgr_trace("%px: encap context update done", ctx);
 	return NSS_DTLSMGR_OK;
 }
 EXPORT_SYMBOL(nss_dtlsmgr_session_update_encap);
@@ -778,17 +778,17 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_update_decap(struct net_device *dev, st
 
 	dtls = nss_dtlsmgr_ctx_alloc_dtls(ctx, &ctx->decap, &cfg->crypto);
 	if (!dtls) {
-		nss_dtlsmgr_warn("%p: unable to update decap context data", ctx);
+		nss_dtlsmgr_warn("%px: unable to update decap context data", ctx);
 		return NSS_DTLSMGR_FAIL_NOMEM;
 	}
 
-	nss_dtlsmgr_trace("%p: decap context update allocated (%u)", ctx, ctx->decap.ifnum);
+	nss_dtlsmgr_trace("%px: decap context update allocated (%u)", ctx, ctx->decap.ifnum);
 
 	dtls->epoch = cfg->epoch;
 	dtls->window_size = cfg->window_size;
 
 	if (!nss_dtlsmgr_ctx_configure_dtls(&ctx->decap, dtls)) {
-		nss_dtlsmgr_warn("%p: unable to configure decap dtls", ctx);
+		nss_dtlsmgr_warn("%px: unable to configure decap dtls", ctx);
 		nss_dtlsmgr_ctx_free_dtls(dtls);
 		return NSS_DTLSMGR_FAIL_MESSAGE;
 	}
@@ -797,7 +797,7 @@ nss_dtlsmgr_status_t nss_dtlsmgr_session_update_decap(struct net_device *dev, st
 	list_add_tail(&dtls->list, &ctx->decap.dtls_active);
 	write_unlock(&ctx->lock);
 
-	nss_dtlsmgr_trace("%p: decap context update done", ctx);
+	nss_dtlsmgr_trace("%px: decap context update done", ctx);
 	return NSS_DTLSMGR_OK;
 }
 EXPORT_SYMBOL(nss_dtlsmgr_session_update_decap);
@@ -814,11 +814,11 @@ bool nss_dtlsmgr_session_switch_encap(struct net_device *dev)
 	NSS_DTLSMGR_VERIFY_MAGIC(ctx);
 
 	if (!nss_dtlsmgr_session_switch(ctx, data)) {
-		nss_dtlsmgr_warn("%p: failed to send encap switch_dtls(%u)", ctx, data->ifnum);
+		nss_dtlsmgr_warn("%px: failed to send encap switch_dtls(%u)", ctx, data->ifnum);
 		return false;
 	}
 
-	nss_dtlsmgr_trace("%p: encap(%u) cipher switch done", ctx, data->ifnum);
+	nss_dtlsmgr_trace("%px: encap(%u) cipher switch done", ctx, data->ifnum);
 	return true;
 }
 EXPORT_SYMBOL(nss_dtlsmgr_session_switch_encap);
@@ -835,11 +835,11 @@ bool nss_dtlsmgr_session_switch_decap(struct net_device *dev)
 	NSS_DTLSMGR_VERIFY_MAGIC(ctx);
 
 	if (!nss_dtlsmgr_session_switch(ctx, data)) {
-		nss_dtlsmgr_warn("%p: failed to send decap switch_dtls(%u)", ctx, data->ifnum);
+		nss_dtlsmgr_warn("%px: failed to send decap switch_dtls(%u)", ctx, data->ifnum);
 		return false;
 	}
 
-	nss_dtlsmgr_trace("%p: decap(%u) cipher switch done", ctx, data->ifnum);
+	nss_dtlsmgr_trace("%px: decap(%u) cipher switch done", ctx, data->ifnum);
 	return true;
 }
 EXPORT_SYMBOL(nss_dtlsmgr_session_switch_decap);
@@ -862,12 +862,12 @@ int32_t nss_dtlsmgr_get_interface(struct net_device *dev, enum nss_dtlsmgr_inter
 		break;
 
 	default:
-		nss_dtlsmgr_warn("%p: invalid interface type %d", dev, type);
+		nss_dtlsmgr_warn("%px: invalid interface type %d", dev, type);
 		return -EINVAL;
 	}
 
 	if (ifnum < 0) {
-		nss_dtlsmgr_warn("%p: couldn't find DTLS interface number (%d)", dev, ifnum);
+		nss_dtlsmgr_warn("%px: couldn't find DTLS interface number (%d)", dev, ifnum);
 		return ifnum;
 	}
 

@@ -1,6 +1,6 @@
 /*
  ***************************************************************************
- * Copyright (c) 2015-2016,2018-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -41,7 +41,7 @@ static const struct net_device_ops dummy_netdev_ops;
 static void nss_nlgre_redir_lag_msg_completion_cb(void *app_data, struct nss_cmn_msg *cmnmsg)
 {
 	struct nss_ctx_instance *nss_ctx = nss_gre_redir_get_context();
-	nss_nl_info("%p: callback gre_redir tunnel msg from NSS\n", nss_ctx);
+	nss_nl_info("%px: callback gre_redir tunnel msg from NSS\n", nss_ctx);
 }
 
 /*
@@ -79,10 +79,10 @@ static void nss_nlgre_redir_lag_us_msg_cb(void *app_data, struct nss_cmn_msg *cm
 		return;
 	}
 
-	nss_nl_trace("%p: callback_stats: count = %u index = %u\n", tunmsg,
+	nss_nl_trace("%px: callback_stats: count = %u index = %u\n", tunmsg,
 			tunmsg->msg.hash_stats.count, tunmsg->msg.hash_stats.db_entry_idx);
 	for (i = 0; i < tunmsg->msg.hash_stats.count; i++) {
-		nss_nl_trace("%p: hits = %llu smac = %pM dmac = %pM\n", tunmsg,
+		nss_nl_trace("%px: hits = %llu smac = %pM dmac = %pM\n", tunmsg,
 				tunmsg->msg.hash_stats.hstats[i].hits,
 				&(tunmsg->msg.hash_stats.hstats[i].src_mac),
 				&(tunmsg->msg.hash_stats.hstats[i].dest_mac));
@@ -101,11 +101,9 @@ static void nss_nlgre_redir_lag_ds_msg_cb(void *app_data, struct nss_cmn_msg *cm
 		return;
 	}
 
-
-	nss_nl_trace("%p: callback_stats: invalid_dest: %u, exception_cnt: %u\n", tunmsg,
+	nss_nl_trace("%px: callback_stats: invalid_dest: %u, exception_cnt: %u\n", tunmsg,
 			tunmsg->msg.ds_sync_stats.ds_stats.dst_invalid,
 			tunmsg->msg.ds_sync_stats.ds_stats.exception_cnt);
-
 
 }
 
@@ -146,7 +144,7 @@ int nss_nlgre_redir_lag_destroy_tun(struct net_device *dev)
 	int ret;
 
 	if (!dev) {
-		nss_nl_error("%p: Dev is null\n", nss_ctx);
+		nss_nl_error("%px: Dev is null\n", nss_ctx);
 		return -1;
 	}
 
@@ -158,28 +156,28 @@ int nss_nlgre_redir_lag_destroy_tun(struct net_device *dev)
 	lag_pvt_data = nss_nlgre_redir_lag_get_lag_pvt_data();
 	ret = nss_gre_redir_lag_us_unregister_and_dealloc(lag_pvt_data.inner_ifnum);
 	if (ret) {
-		nss_nl_error("%p: Unable to deallocate node %d\n", dev, lag_pvt_data.inner_ifnum);
+		nss_nl_error("%px: Unable to deallocate node %d\n", dev, lag_pvt_data.inner_ifnum);
 	}
 
 	ret = nss_gre_redir_lag_ds_unregister_and_dealloc(lag_pvt_data.outer_ifnum);
 	if (ret) {
-		nss_nl_error("%p: Unable to deallocate node %d\n", dev, lag_pvt_data.outer_ifnum);
+		nss_nl_error("%px: Unable to deallocate node %d\n", dev, lag_pvt_data.outer_ifnum);
 	}
 
 	for (tun_idx = 0; tun_idx < NSS_NLGRE_REDIR_LAG_SLAVES; tun_idx++) {
 		if (!lag_pvt_data.slaves[tun_idx]) {
-			nss_nl_error("%p: Slave tunnel index out of range\n", nss_ctx);
+			nss_nl_error("%px: Slave tunnel index out of range\n", nss_ctx);
 			ret = -1;
 			goto done;
 		}
 
 		ret = nss_nlgre_redir_cmn_destroy_tun(lag_pvt_data.slaves[tun_idx]);
 		if (ret == -1) {
-			nss_nl_error("%p: Unable to destroy tunnel associated with slave %d\n", nss_ctx, tun_idx+1);
+			nss_nl_error("%px: Unable to destroy tunnel associated with slave %d\n", nss_ctx, tun_idx+1);
 			goto done;
 		}
 
-		nss_nl_info("%p: Successfully destroyed slave tunnel %d\n", nss_ctx, tun_idx+1);
+		nss_nl_info("%px: Successfully destroyed slave tunnel %d\n", nss_ctx, tun_idx+1);
 	}
 
 done:
@@ -211,19 +209,19 @@ int nss_nlgre_redir_lag_create_tun(struct nss_nlgre_redir_create_tun *create_par
 	lag_pvt_data = nss_nlgre_redir_lag_get_lag_pvt_data();
 	lag_pvt_data.slaves[0] = nss_nlgre_redir_cmn_create_tun(create_params->sip, create_params->dip, create_params->iptype);
 	if (!lag_pvt_data.slaves[0]) {
-		nss_nl_error("%p: Unable to create tunnel for %dst slave\n", nss_ctx, 1);
+		nss_nl_error("%px: Unable to create tunnel for %dst slave\n", nss_ctx, 1);
 		goto fail0;
 	}
 
 	lag_pvt_data.slaves[1] = nss_nlgre_redir_cmn_create_tun(create_params->ssip, create_params->sdip, create_params->iptype);
 	if (!lag_pvt_data.slaves[1]) {
-		nss_nl_error("%p: Unable to create tunnel for %dnd slave\n", nss_ctx, 2);
+		nss_nl_error("%px: Unable to create tunnel for %dnd slave\n", nss_ctx, 2);
 		goto fail0;
 	}
 
 	dummy_dev = alloc_netdev(sizeof(*gr), "grelag%d", NET_NAME_UNKNOWN, ether_setup);
 	if (!dummy_dev) {
-		nss_nl_error("%p: Unable to allocate net_dev for dummy_dev\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate net_dev for dummy_dev\n", nss_ctx);
 		goto fail0;
 	}
 
@@ -233,20 +231,20 @@ int nss_nlgre_redir_lag_create_tun(struct nss_nlgre_redir_create_tun *create_par
 			nss_nlgre_redir_lag_us_data_cb, nss_nlgre_redir_lag_us_msg_cb, dummy_dev);
 
 	if (lag_pvt_data.inner_ifnum == -1) {
-		nss_nl_error("%p: Unable to allocate or register LAG US dynamic node.\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate or register LAG US dynamic node.\n", nss_ctx);
 		goto fail1;
 	}
 
-	nss_nl_info("%p: LAG US interface number = %d\n", nss_ctx, lag_pvt_data.inner_ifnum);
+	nss_nl_info("%px: LAG US interface number = %d\n", nss_ctx, lag_pvt_data.inner_ifnum);
 	lag_pvt_data.outer_ifnum = nss_gre_redir_lag_ds_alloc_and_register_node(dummy_dev,
 			nss_nlgre_redir_lag_ds_data_cb, nss_nlgre_redir_lag_ds_msg_cb, dummy_dev);
 
 	if (lag_pvt_data.outer_ifnum == -1) {
-		nss_nl_error("%p: Unable to allocate or register LAG DS dynamic node.\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate or register LAG DS dynamic node.\n", nss_ctx);
 		goto fail2;
 	}
 
-	nss_nl_info("%p: LAG DS interface number = %d\n", nss_ctx, lag_pvt_data.outer_ifnum);
+	nss_nl_info("%px: LAG DS interface number = %d\n", nss_ctx, lag_pvt_data.outer_ifnum);
 
 	config.hash_mode = create_params->hash_mode;
 	config.num_slaves = NSS_NLGRE_REDIR_LAG_SLAVES;
@@ -257,12 +255,12 @@ int nss_nlgre_redir_lag_create_tun(struct nss_nlgre_redir_create_tun *create_par
 
 	status = nss_gre_redir_lag_us_configure_node(lag_pvt_data.inner_ifnum, &config);
 	if (!status) {
-		nss_nl_info("%p: Unable to configure LAG US node.\n", nss_ctx);
+		nss_nl_info("%px: Unable to configure LAG US node.\n", nss_ctx);
 		goto fail3;
 	}
 
 	if (register_netdev(dummy_dev)) {
-		nss_nl_error("%p: Unable to register dummy_dev\n", nss_ctx);
+		nss_nl_error("%px: Unable to register dummy_dev\n", nss_ctx);
 		goto fail3;
 	}
 
@@ -305,7 +303,7 @@ int nss_nlgre_redir_lag_map_interface(struct nss_nlgre_redir_map *map_params)
 	nexthop_nssif = lag_pvt_data.outer_ifnum;
 	ret = nss_nlgre_redir_cmn_map_interface(nexthop_nssif, 1, map_params);
 	if (ret == -1) {
-		nss_nl_error("%p: Unable to map nss interface\n", nss_ctx);
+		nss_nl_error("%px: Unable to map nss interface\n", nss_ctx);
 		return -1;
 	}
 
@@ -329,7 +327,7 @@ int nss_nlgre_redir_lag_set_next_hop(struct nss_nlgre_redir_set_next *set_next_p
 	nexthop_ifnum = lag_pvt_data.inner_ifnum;
 	ret = nss_nlgre_redir_cmn_set_next_hop(nexthop_ifnum, set_next_params);
 	if (ret == -1) {
-		nss_nl_error("%p: Unable to set the next hop as lag US node's interface\n", nss_ctx);
+		nss_nl_error("%px: Unable to set the next hop as lag US node's interface\n", nss_ctx);
 		return -1;
 	}
 
@@ -359,7 +357,7 @@ int nss_nlgre_redir_lag_add_hash(struct nss_nlgre_redir_hash_ops *hash_ops)
 
 	nglm = kmalloc(sizeof(struct nss_gre_redir_lag_us_msg), GFP_KERNEL);
 	if (!nglm) {
-		nss_nl_error("%p: Unable to allocate memory to send add hash msg.\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate memory to send add hash msg.\n", nss_ctx);
 		return -1;
 	}
 
@@ -379,7 +377,7 @@ int nss_nlgre_redir_lag_add_hash(struct nss_nlgre_redir_hash_ops *hash_ops)
 	}
 
 	if (i == NSS_NLGRE_REDIR_LAG_SLAVES || nglm->msg.add_hash.if_num == -1) {
-		nss_nl_error("%p: Invalid value for index, valid slaves: [%s, %s]\n", nss_ctx,
+		nss_nl_error("%px: Invalid value for index, valid slaves: [%s, %s]\n", nss_ctx,
 				lag_pvt_data.slaves[0]->name, lag_pvt_data.slaves[1]->name);
 		return -1;
 	}
@@ -389,7 +387,7 @@ int nss_nlgre_redir_lag_add_hash(struct nss_nlgre_redir_hash_ops *hash_ops)
 	status = nss_gre_redir_lag_us_tx_msg_sync(nss_ctx, nglm);
 	kfree(nglm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_error("%p: Unable to add hash entry.\n", nss_ctx);
+		nss_nl_error("%px: Unable to add hash entry.\n", nss_ctx);
 		return -1;
 	}
 
@@ -417,7 +415,7 @@ int nss_nlgre_redir_lag_del_hash(struct nss_nlgre_redir_hash_ops *hash_ops)
 
 	nglm = kmalloc(sizeof(struct nss_gre_redir_lag_us_msg), GFP_KERNEL);
 	if (!nglm) {
-		nss_nl_error("%p: Unable to allocate memory to send del hash msg.\n", nss_ctx);
+		nss_nl_error("%px: Unable to allocate memory to send del hash msg.\n", nss_ctx);
 		return -1;
 	}
 
@@ -430,10 +428,9 @@ int nss_nlgre_redir_lag_del_hash(struct nss_nlgre_redir_hash_ops *hash_ops)
 	status = nss_gre_redir_lag_us_tx_msg_sync(nss_ctx, nglm);
 	kfree(nglm);
 	if (status != NSS_TX_SUCCESS) {
-		nss_nl_error("%p: Unable to delete hash entry.\n", nss_ctx);
+		nss_nl_error("%px: Unable to delete hash entry.\n", nss_ctx);
 		return -1;
 	}
 
 	return 0;
 }
-

@@ -129,7 +129,7 @@ static ssize_t nss_match_stats_table_read(struct file *fp, char __user *ubuf, si
 	char *lbuf = kzalloc(size_al, GFP_KERNEL);
 	char *bufp;
 	if (unlikely(lbuf == NULL)) {
-		nss_match_warn("%p: Could not allocate memory for local statistics buffer", fp);
+		nss_match_warn("%px: Could not allocate memory for local statistics buffer", fp);
 		return 0;
 	}
 

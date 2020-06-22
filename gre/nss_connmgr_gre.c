@@ -90,7 +90,7 @@ static struct nss_gre_iface_instance *nss_connmgr_gre_alloc_instance(struct net_
 	struct nss_gre_iface_instance *ngii;
 
 	if (!nss_connmgr_gre_is_gre(dev)) {
-		nss_connmgr_gre_warning("%p: dev is not a GRE interface\n", dev);
+		nss_connmgr_gre_warning("%px: dev is not a GRE interface\n", dev);
 		return NULL;
 	}
 
@@ -128,7 +128,7 @@ static struct nss_gre_iface_instance *nss_connmgr_gre_find_instance(struct net_d
 	struct nss_gre_iface_instance *ngii;
 
 	if (!nss_connmgr_gre_is_gre(dev)) {
-		nss_connmgr_gre_warning("%p: dev is not a GRE interface\n", dev);
+		nss_connmgr_gre_warning("%px: dev is not a GRE interface\n", dev);
 		return NULL;
 	}
 
@@ -227,13 +227,13 @@ static netdev_tx_t nss_connmgr_gre_dev_xmit(struct sk_buff *skb, struct net_devi
 
 	if_number = priv->nss_if_number_inner;
 	if (unlikely(if_number <= 0)) {
-		nss_connmgr_gre_info("%p: GRE dev is not registered with nss\n", dev);
+		nss_connmgr_gre_info("%px: GRE dev is not registered with nss\n", dev);
 		goto fail;
 	}
 
 	gre_ctx = nss_gre_get_context();
 	if (unlikely(!gre_ctx)) {
-		nss_connmgr_gre_info("%p: NSS GRE context not found for if_number %d\n", dev, if_number);
+		nss_connmgr_gre_info("%px: NSS GRE context not found for if_number %d\n", dev, if_number);
 		goto fail;
 	}
 
@@ -242,13 +242,13 @@ static netdev_tx_t nss_connmgr_gre_dev_xmit(struct sk_buff *skb, struct net_devi
 	 * the SKB if it is cloned.
 	 */
 	if (skb_cow_head(skb, dev->needed_headroom)) {
-		nss_connmgr_gre_info("%p: NSS GRE insufficient headroom\n", dev);
+		nss_connmgr_gre_info("%px: NSS GRE insufficient headroom\n", dev);
 		goto fail;
 	}
 
 	status = nss_gre_tx_buf(gre_ctx, if_number, skb);
 	if (unlikely(status != NSS_TX_SUCCESS)) {
-		nss_connmgr_gre_info("%p: NSS GRE could not send packet to NSS %d\n", dev, if_number);
+		nss_connmgr_gre_info("%px: NSS GRE could not send packet to NSS %d\n", dev, if_number);
 		goto fail;
 	}
 
@@ -358,7 +358,7 @@ int nss_connmgr_gre_dev_open(struct net_device *dev)
 
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: open failed for inner interface %s", dev, dev->name);
+		nss_connmgr_gre_info("%px: open failed for inner interface %s", dev, dev->name);
 		return -EFAULT;
 	}
 
@@ -370,12 +370,12 @@ int nss_connmgr_gre_dev_open(struct net_device *dev)
 
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: open failed for outer interface %s", dev, dev->name);
+		nss_connmgr_gre_info("%px: open failed for outer interface %s", dev, dev->name);
 		linkdown->if_number = inner_if;
 		nss_gre_msg_init(&req, inner_if, NSS_IF_CLOSE, sizeof(struct nss_gre_linkdown_msg), NULL, NULL);
 		status = nss_gre_tx_msg_sync(nss_ctx, &req);
 		if (status != NSS_TX_SUCCESS) {
-			nss_connmgr_gre_info("%p: close failed for inner interface %s", dev, dev->name);
+			nss_connmgr_gre_info("%px: close failed for inner interface %s", dev, dev->name);
 		}
 		return -EFAULT;
 	}
@@ -402,13 +402,13 @@ int nss_connmgr_gre_dev_close(struct net_device *dev)
 
 	inner_if = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
 	if (inner_if < 0) {
-		nss_connmgr_gre_info("%p: close failed for interface %s, inner interface: %d not valid", dev, dev->name, inner_if);
+		nss_connmgr_gre_info("%px: close failed for interface %s, inner interface: %d not valid", dev, dev->name, inner_if);
 		return -EINVAL;
 	}
 
 	outer_if = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (outer_if < 0) {
-		nss_connmgr_gre_info("%p: close failed for interface %s, outer interface: %d not valid", dev, dev->name, inner_if);
+		nss_connmgr_gre_info("%px: close failed for interface %s, outer interface: %d not valid", dev, dev->name, inner_if);
 		return -EINVAL;
 	}
 
@@ -424,7 +424,7 @@ int nss_connmgr_gre_dev_close(struct net_device *dev)
 
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: close failed for inner interface %s", dev, dev->name);
+		nss_connmgr_gre_info("%px: close failed for inner interface %s", dev, dev->name);
 		return -EFAULT;
 	}
 
@@ -436,12 +436,12 @@ int nss_connmgr_gre_dev_close(struct net_device *dev)
 
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: close failed for outer interface %s", dev, dev->name);
+		nss_connmgr_gre_info("%px: close failed for outer interface %s", dev, dev->name);
 		linkup->if_number = inner_if;
 		nss_gre_msg_init(&req, inner_if, NSS_IF_OPEN, sizeof(struct nss_gre_linkup_msg), NULL, NULL);
 		status = nss_gre_tx_msg_sync(nss_ctx, &req);
 		if (status != NSS_TX_SUCCESS) {
-			nss_connmgr_gre_info("%p: open failed for inner interface %s", dev, dev->name);
+			nss_connmgr_gre_info("%px: open failed for inner interface %s", dev, dev->name);
 		}
 		return -EFAULT;
 	}
@@ -556,7 +556,7 @@ static void nss_connmgr_gre_tap_inner_exception(struct net_device *dev, struct s
 
 	struct ethhdr *eth_hdr = (struct ethhdr *)skb->data;
 
-	nss_connmgr_gre_trace("%p: eth_hdr->h_proto: %d\n", dev, eth_hdr->h_proto);
+	nss_connmgr_gre_trace("%px: eth_hdr->h_proto: %d\n", dev, eth_hdr->h_proto);
 
 	if (likely(ntohs(eth_hdr->h_proto) >= ETH_P_802_3_MIN)) {
 		switch (ntohs(eth_hdr->h_proto)) {
@@ -596,7 +596,7 @@ static void nss_connmgr_gre_tap_outer_exception(struct net_device *dev, struct s
 	struct ethhdr *eth_hdr;
 
 	eth_hdr = (struct ethhdr *)skb->data;
-	nss_connmgr_gre_trace("%p: eth_hdr->h_proto: %d\n", dev, eth_hdr->h_proto);
+	nss_connmgr_gre_trace("%px: eth_hdr->h_proto: %d\n", dev, eth_hdr->h_proto);
 	if (likely(ntohs(eth_hdr->h_proto) >= ETH_P_802_3_MIN)) {
 		switch (ntohs(eth_hdr->h_proto)) {
 		case ETH_P_IP:
@@ -604,7 +604,7 @@ static void nss_connmgr_gre_tap_outer_exception(struct net_device *dev, struct s
 		case ETH_P_IPV6:
 			return nss_connmgr_gre_tap_v6_outer_exception(dev, skb);
 		default:
-			nss_connmgr_gre_warning("%p: invalid skb received:%p with protocol: %d. Freeing the skb.\n", dev, skb, ntohs(eth_hdr->h_proto));
+			nss_connmgr_gre_warning("%px: invalid skb received:%px with protocol: %d. Freeing the skb.\n", dev, skb, ntohs(eth_hdr->h_proto));
 			dev_kfree_skb_any(skb);
 		}
 	}
@@ -632,7 +632,7 @@ static void nss_connmgr_gre_tun_inner_exception(struct net_device *dev, struct s
 		skb->protocol = htons(ETH_P_IPV6);
 		break;
 	default:
-		nss_connmgr_gre_warning("%p: wrong IP version set to skb:%p\n", dev, skb);
+		nss_connmgr_gre_warning("%px: wrong IP version set to skb:%px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -662,7 +662,7 @@ static void nss_connmgr_gre_tun_outer_exception(struct net_device *dev, struct s
 	case 6:
 		return nss_connmgr_gre_tun_v6_outer_exception(dev, skb);
 	default:
-		nss_connmgr_gre_warning("%p: wrong IP version set to skb:%p\n", dev, skb);
+		nss_connmgr_gre_warning("%px: wrong IP version set to skb:%px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		break;
 	}
@@ -711,7 +711,7 @@ static void nss_connmgr_gre_event_receive(void *if_ctx, struct nss_gre_msg *tnlm
 		break;
 
 	default:
-		nss_connmgr_gre_info("%p: Unknown Event from NSS\n", dev);
+		nss_connmgr_gre_info("%px: Unknown Event from NSS\n", dev);
 		break;
 	}
 }
@@ -812,7 +812,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	}
 
 	if (ret) {
-		nss_connmgr_gre_warning("%p: gre interface configuration failed\n", dev);
+		nss_connmgr_gre_warning("%px: gre interface configuration failed\n", dev);
 		*err_code = ret;
 		goto release_ref;
 	}
@@ -828,7 +828,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	memset(&req, 0, sizeof(struct nss_gre_msg));
 	ret = nss_connmgr_gre_prepare_config_cmd(dev, &req, &next_dev_inner, true);
 	if (ret) {
-		nss_connmgr_gre_warning("%p: gre get config failed\n", dev);
+		nss_connmgr_gre_warning("%px: gre get config failed\n", dev);
 		*err_code = ret;
 		goto release_ref;
 	}
@@ -855,7 +855,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	 */
 	if (!is_valid_ether_addr((const u8 *)cmsg->src_mac) ||
 	    !is_valid_ether_addr((const u8 *)cmsg->dest_mac)) {
-		nss_connmgr_gre_warning("%p: Could not find MAC address for src/dest IP\n", dev);
+		nss_connmgr_gre_warning("%px: Could not find MAC address for src/dest IP\n", dev);
 		*err_code = GRE_ERR_INVALID_MAC;
 		goto release_ref;
 	}
@@ -880,7 +880,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 		next_if_num_inner = nss_cmn_get_interface_number_by_dev(cfg->next_dev);
 		next_dev_inner = cfg->next_dev;
 		if (next_if_num_inner < 0) {
-			nss_connmgr_gre_warning("%p: Next dev inner device= %s is not registered with ae engine\n",
+			nss_connmgr_gre_warning("%px: Next dev inner device= %s is not registered with ae engine\n",
 						dev, cfg->next_dev->name);
 			*err_code = GRE_ERR_NEXT_NODE_UNREG_IN_AE;
 			goto release_ref;
@@ -899,7 +899,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 		 * Verify if dynamic interface type is in range.
 		 */
 		if (cfg->outer_nss_if_type >= NSS_DYNAMIC_INTERFACE_TYPE_MAX) {
-			nss_connmgr_gre_warning("%p: invalid cfg, outer nexthop type %d is not in range\n",
+			nss_connmgr_gre_warning("%px: invalid cfg, outer nexthop type %d is not in range\n",
 				       dev, cfg->outer_nss_if_type);
 			goto release_ref;
 		}
@@ -908,7 +908,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 		next_dev_outer = cfg->next_dev_outer;
 
 		if (next_if_num_outer < 0) {
-			nss_connmgr_gre_warning("%p: Next dev outer device %s with dynamic if num %d not registered with NSS\n",
+			nss_connmgr_gre_warning("%px: Next dev outer device %s with dynamic if num %d not registered with NSS\n",
 					dev, cfg->next_dev_outer->name, next_if_num_outer);
 			*err_code = GRE_ERR_NEXT_NODE_UNREG_IN_AE;
 			goto release_ref;
@@ -928,7 +928,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 		 */
 		next_if_num_outer = nss_cmn_append_core_id(nss_ctx, next_if_num_outer);
 		if (!next_if_num_outer) {
-			nss_connmgr_gre_warning("%p: Could not get interface number with core ID for outer nexthop device %s with core ID.\n",
+			nss_connmgr_gre_warning("%px: Could not get interface number with core ID for outer nexthop device %s with core ID.\n",
 				       nss_ctx, next_dev_outer->name);
 			goto release_ref;
 		}
@@ -940,7 +940,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	 * By now, we should have a valid next node for either inner or outer
 	 */
 	if (!(cmsg->flags & NSS_GRE_CONFIG_NEXT_NODE_AVAILABLE)) {
-		nss_connmgr_gre_warning("%p: Next dev is not available\n", dev);
+		nss_connmgr_gre_warning("%px: Next dev is not available\n", dev);
 		*err_code = GRE_ERR_NO_NEXT_NETDEV;
 		goto release_ref;
 	}
@@ -967,7 +967,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	ret = register_netdevice(dev);
 	if (ret) {
 		*err_code = GRE_ERR_NETDEV_REG_FAILED;
-		nss_connmgr_gre_warning("%p: Netdevice registration failed\n", dev);
+		nss_connmgr_gre_warning("%px: Netdevice registration failed\n", dev);
 		goto release_ref;
 	}
 
@@ -976,7 +976,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	 */
 	ngii = nss_connmgr_gre_alloc_instance(dev);
 	if (!ngii) {
-		nss_connmgr_gre_warning("%p: GRE interfacen intance creation failed\n", dev);
+		nss_connmgr_gre_warning("%px: GRE interfacen intance creation failed\n", dev);
 		*err_code = GRE_ERR_ALLOC_GRE_INSTANCE;
 		goto unregister_netdev;
 	}
@@ -986,7 +986,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	 */
 	outer_if = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (outer_if < 0) {
-		nss_connmgr_gre_warning("%p: Request interface number failed\n", dev);
+		nss_connmgr_gre_warning("%px: Request interface number failed\n", dev);
 		*err_code = GRE_ERR_DYNMAIC_IFACE_CREATE;
 		goto free_gre_instance;
 	}
@@ -1000,7 +1000,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	 */
 	inner_if = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
 	if (inner_if < 0) {
-		nss_connmgr_gre_warning("%p: Request interface number failed\n", dev);
+		nss_connmgr_gre_warning("%px: Request interface number failed\n", dev);
 		*err_code = GRE_ERR_DYNMAIC_IFACE_CREATE;
 		goto free_gre_instance;
 	}
@@ -1019,7 +1019,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 				dev,
 				features);
 	if (!nss_ctx) {
-		nss_connmgr_gre_info("%p: nss_register_gre_if failed\n", dev);
+		nss_connmgr_gre_info("%px: nss_register_gre_if failed\n", dev);
 		*err_code = GRE_ERR_GRE_IFACE_REG;
 		goto dealloc_inner_node;
 	}
@@ -1034,12 +1034,12 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 				dev,
 				features);
 	if (!nss_ctx) {
-		nss_connmgr_gre_info("%p: nss_register_gre_if failed\n", dev);
+		nss_connmgr_gre_info("%px: nss_register_gre_if failed\n", dev);
 		*err_code = GRE_ERR_GRE_IFACE_REG;
 		goto dealloc_inner_node;
 	}
 
-	nss_connmgr_gre_info("%p: nss_register_gre_if() successful. nss_ctx = %p\n", dev, nss_ctx);
+	nss_connmgr_gre_info("%px: nss_register_gre_if() successful. nss_ctx = %px\n", dev, nss_ctx);
 
 	/*
 	 * Send encap config to AE
@@ -1058,7 +1058,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
 		*err_code = GRE_ERR_AE_CONFIG_FAILED;
-		nss_connmgr_gre_info("%p: Send Encap config to AE failed\n", next_dev_inner);
+		nss_connmgr_gre_info("%px: Send Encap config to AE failed\n", next_dev_inner);
 		goto unregister_nss_interface;
 	}
 
@@ -1079,7 +1079,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
 		*err_code = GRE_ERR_AE_CONFIG_FAILED;
-		nss_connmgr_gre_info("%p: Send decap config to AE failed\n", next_dev_outer);
+		nss_connmgr_gre_info("%px: Send decap config to AE failed\n", next_dev_outer);
 		goto unregister_nss_interface;
 	}
 
@@ -1090,7 +1090,7 @@ static struct net_device *__nss_connmgr_gre_create_interface(struct nss_connmgr_
 	if (cfg->next_dev) {
 		ret = nss_connmgr_gre_set_wifi_next_hop(cfg->next_dev);
 		if (ret) {
-			nss_connmgr_gre_info("%p: Setting next hop of wifi vdev failed\n", dev);
+			nss_connmgr_gre_info("%px: Setting next hop of wifi vdev failed\n", dev);
 			*err_code = ret;
 			goto unregister_nss_interface;
 		}
@@ -1120,7 +1120,7 @@ dealloc_inner_node:
 		if (++retry <= MAX_RETRY_COUNT) {
 			goto dealloc_inner_node;
 		}
-		nss_connmgr_gre_error("%p: Fatal Error, Unable to dealloc the node[%d] in the NSS FW!\n", dev, inner_if);
+		nss_connmgr_gre_error("%px: Fatal Error, Unable to dealloc the node[%d] in the NSS FW!\n", dev, inner_if);
 	}
 
 	retry = 0;
@@ -1130,7 +1130,7 @@ dealloc_outer_node:
 		if (++retry <= MAX_RETRY_COUNT) {
 			goto dealloc_outer_node;
 		}
-		nss_connmgr_gre_error("%p: Fatal Error, Unable to dealloc the node[%d] in the NSS FW!\n", dev, outer_if);
+		nss_connmgr_gre_error("%px: Fatal Error, Unable to dealloc the node[%d] in the NSS FW!\n", dev, outer_if);
 	}
 
 free_gre_instance:
@@ -1170,13 +1170,13 @@ deconfig_inner:
 	nss_gre_msg_init(&req, interface_num, NSS_GRE_MSG_ENCAP_DECONFIGURE, sizeof(struct nss_gre_deconfig_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_gre_get_context(), &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre instance deconfigure command failed, interface_num = %d\n", dev, interface_num);
+		nss_connmgr_gre_info("%px: gre instance deconfigure command failed, interface_num = %d\n", dev, interface_num);
 
 		if (++retry <= MAX_RETRY_COUNT) {
 			goto deconfig_inner;
 		}
 
-		nss_connmgr_gre_error("%p: Fatal Error, failed to send GRE deconfig command to NSS\n", dev);
+		nss_connmgr_gre_error("%px: Fatal Error, failed to send GRE deconfig command to NSS\n", dev);
 		return GRE_ERR_AE_DECONFIG_FAILED;
 	}
 	retry = 0;
@@ -1186,13 +1186,13 @@ deconfig_inner:
 dealloc_inner:
 	status = nss_dynamic_interface_dealloc_node(interface_num, NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre dealloc node failure for interface_num = %d\n", dev, interface_num);
+		nss_connmgr_gre_info("%px: gre dealloc node failure for interface_num = %d\n", dev, interface_num);
 
 		if (++retry <= MAX_RETRY_COUNT) {
 			goto dealloc_inner;
 		}
 
-		nss_connmgr_gre_error("%p: Fatal Error, failed to send GRE dealloc command to NSS\n", dev);
+		nss_connmgr_gre_error("%px: Fatal Error, failed to send GRE dealloc command to NSS\n", dev);
 		return GRE_ERR_DYNMAIC_IFACE_DESTROY;
 	}
 
@@ -1218,13 +1218,13 @@ deconfig_outer:
 	nss_gre_msg_init(&req, interface_num, NSS_GRE_MSG_DECAP_DECONFIGURE, sizeof(struct nss_gre_deconfig_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_gre_get_context(), &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre instance deconfigure command failed, interface_num = %d\n", dev, interface_num);
+		nss_connmgr_gre_info("%px: gre instance deconfigure command failed, interface_num = %d\n", dev, interface_num);
 
 		if (++retry <= MAX_RETRY_COUNT) {
 			goto deconfig_outer;
 		}
 
-		nss_connmgr_gre_error("%p: Fatal Error, failed to send GRE deconfig command to NSS\n", dev);
+		nss_connmgr_gre_error("%px: Fatal Error, failed to send GRE deconfig command to NSS\n", dev);
 		return GRE_ERR_AE_DECONFIG_FAILED;
 	}
 
@@ -1234,13 +1234,13 @@ deconfig_outer:
 dealloc_outer:
 	status = nss_dynamic_interface_dealloc_node(interface_num, NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre dealloc node failure for inner_if = %d\n", dev, interface_num);
+		nss_connmgr_gre_info("%px: gre dealloc node failure for inner_if = %d\n", dev, interface_num);
 
 		if (++retry <= MAX_RETRY_COUNT) {
 			goto dealloc_outer;
 		}
 
-		nss_connmgr_gre_error("%p: Fatal Error, failed to send GRE dealloc command to NSS\n", dev);
+		nss_connmgr_gre_error("%px: Fatal Error, failed to send GRE dealloc command to NSS\n", dev);
 		return GRE_ERR_DYNMAIC_IFACE_DESTROY;
 	}
 
@@ -1262,7 +1262,7 @@ static enum nss_connmgr_gre_err_codes __nss_connmgr_gre_destroy_interface(struct
 
 	ngii = nss_connmgr_gre_find_instance(dev);
 	if(!ngii) {
-		nss_connmgr_gre_warning("%p: GRE interface instance is not found.\n", dev);
+		nss_connmgr_gre_warning("%px: GRE interface instance is not found.\n", dev);
 		return GRE_ERR_NO_GRE_INSTANCE;
 	}
 
@@ -1280,17 +1280,17 @@ static enum nss_connmgr_gre_err_codes __nss_connmgr_gre_destroy_interface(struct
 
 	ret = nss_connmgr_gre_destroy_inner_interface(dev, ngii->inner_ifnum);
 	if (ret != GRE_SUCCESS) {
-		nss_connmgr_gre_warning("%p: failed to destroy inner interface: %d\n", dev, ngii->inner_ifnum);
+		nss_connmgr_gre_warning("%px: failed to destroy inner interface: %d\n", dev, ngii->inner_ifnum);
 		return ret;
 	}
 
 	ret = nss_connmgr_gre_destroy_outer_interface(dev, ngii->outer_ifnum);
 	if (ret != GRE_SUCCESS) {
-		nss_connmgr_gre_warning("%p: failed to destroy outer interface: %d\n", dev, ngii->outer_ifnum);
+		nss_connmgr_gre_warning("%px: failed to destroy outer interface: %d\n", dev, ngii->outer_ifnum);
 		return ret;
 	}
 
-	nss_connmgr_gre_info("%p: deleted gre instance, inner_if = %d outer_if = %d\n",
+	nss_connmgr_gre_info("%px: deleted gre instance, inner_if = %d outer_if = %d\n",
 			dev, ngii->inner_ifnum, ngii->outer_ifnum);
 
 	nss_connmgr_gre_free_instance(ngii);
@@ -1341,7 +1341,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	 * If GRE interface instance is found return, dev is Custom GRE interface type.
 	 */
 	if (nss_connmgr_gre_find_instance(dev)) {
-		nss_connmgr_gre_info("%p: Custom GRE interface is up.\n", dev);
+		nss_connmgr_gre_info("%px: Custom GRE interface is up.\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -1349,7 +1349,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	 * Create config cmd for acceleration engine
 	 */
 	if (nss_connmgr_gre_prepare_config_cmd(dev, &req, &next_dev, false)) {
-		nss_connmgr_gre_info("%p: gre tunnel get config failed\n", dev);
+		nss_connmgr_gre_info("%px: gre tunnel get config failed\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -1363,7 +1363,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	 */
 	outer_if = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (outer_if < 0) {
-		nss_connmgr_gre_warning("%p: Request interface number failed\n", dev);
+		nss_connmgr_gre_warning("%px: Request interface number failed\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -1372,7 +1372,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	 */
 	inner_if = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
 	if (inner_if < 0) {
-		nss_connmgr_gre_warning("%p: Request interface number failed\n", dev);
+		nss_connmgr_gre_warning("%px: Request interface number failed\n", dev);
 		goto dealloc_outer;
 	}
 
@@ -1391,7 +1391,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 				features);
 
 		if (!nss_ctx) {
-			nss_connmgr_gre_info("%p: nss_register_gre_if failed\n", dev);
+			nss_connmgr_gre_info("%px: nss_register_gre_if failed\n", dev);
 			goto dealloc_inner;
 		}
 
@@ -1413,7 +1413,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 				features);
 
 		if (!nss_ctx) {
-			nss_connmgr_gre_info("%p: nss_register_gre_if failed\n", dev);
+			nss_connmgr_gre_info("%px: nss_register_gre_if failed\n", dev);
 			goto dealloc_inner;
 		}
 
@@ -1426,11 +1426,11 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	}
 
 	if (!nss_ctx) {
-		nss_connmgr_gre_info("%p: nss_register_gre_if failed\n", dev);
+		nss_connmgr_gre_info("%px: nss_register_gre_if failed\n", dev);
 		goto unregister_inner;
 	}
 
-	nss_connmgr_gre_info("%p: nss_register_gre_if() successful. nss_ctx = %p. inner_if: %d, outer_if: %d\n", dev, nss_ctx, inner_if, outer_if);
+	nss_connmgr_gre_info("%px: nss_register_gre_if() successful. nss_ctx = %px. inner_if: %d, outer_if: %d\n", dev, nss_ctx, inner_if, outer_if);
 
 	/*
 	 * Send configure command for inner interface
@@ -1439,7 +1439,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	nss_gre_msg_init(&req, inner_if, NSS_GRE_MSG_ENCAP_CONFIGURE, sizeof(struct nss_gre_config_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_warning("%p: nss gre std configure command error %d\n", dev, status);
+		nss_connmgr_gre_warning("%px: nss gre std configure command error %d\n", dev, status);
 		goto unregister_outer;
 	}
 
@@ -1450,7 +1450,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	nss_gre_msg_init(&req, outer_if, NSS_GRE_MSG_DECAP_CONFIGURE, sizeof(struct nss_gre_config_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_ctx, &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_warning("%p: nss gre std configure command error %d\n", dev, status);
+		nss_connmgr_gre_warning("%px: nss gre std configure command error %d\n", dev, status);
 		goto unregister_outer;
 	}
 
@@ -1458,7 +1458,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	 * Open the netdev to accept packets
 	 */
 	if (nss_connmgr_gre_dev_open(dev)) {
-		nss_connmgr_gre_warning("%p: nss gre std device up command failed %d\n", dev, status);
+		nss_connmgr_gre_warning("%px: nss gre std device up command failed %d\n", dev, status);
 		goto unregister_outer;
 	}
 
@@ -1473,13 +1473,13 @@ unregister_inner:
 dealloc_inner:
 	status = nss_dynamic_interface_dealloc_node(inner_if, NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_warning("%p: Unable to dealloc the node[%d] in the NSS fw!\n", dev, inner_if);
+		nss_connmgr_gre_warning("%px: Unable to dealloc the node[%d] in the NSS fw!\n", dev, inner_if);
 	}
 
 dealloc_outer:
 	status = nss_dynamic_interface_dealloc_node(outer_if, NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_warning("%p: Unable to dealloc the node[%d] in the NSS fw!\n", dev, outer_if);
+		nss_connmgr_gre_warning("%px: Unable to dealloc the node[%d] in the NSS fw!\n", dev, outer_if);
 	}
 
 	return NOTIFY_DONE;
@@ -1500,7 +1500,7 @@ static int nss_connmgr_gre_dev_down(struct net_device *dev)
 	 * If GRE interface instance is found return, dev is Custom GRE interface type.
 	 */
 	if (nss_connmgr_gre_find_instance(dev)) {
-		nss_connmgr_gre_info("%p: Custom GRE interface is down.\n", dev);
+		nss_connmgr_gre_info("%px: Custom GRE interface is down.\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -1509,13 +1509,13 @@ static int nss_connmgr_gre_dev_down(struct net_device *dev)
 	 */
 	inner_if = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
 	if (inner_if < 0) {
-		nss_connmgr_gre_info("%p: Net device is not registered with nss\n", dev);
+		nss_connmgr_gre_info("%px: Net device is not registered with nss\n", dev);
 		return NOTIFY_DONE;
 	}
 
 	outer_if = nss_cmn_get_interface_number_by_dev_and_type(dev, NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (outer_if < 0) {
-		nss_connmgr_gre_info("%p: Net device is not registered with nss\n", dev);
+		nss_connmgr_gre_info("%px: Net device is not registered with nss\n", dev);
 		return NOTIFY_DONE;
 	}
 
@@ -1525,7 +1525,7 @@ static int nss_connmgr_gre_dev_down(struct net_device *dev)
 	nss_gre_msg_init(&req, inner_if, NSS_GRE_MSG_ENCAP_DECONFIGURE, sizeof(struct nss_gre_deconfig_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_gre_get_context(), &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre instance deconfigure command fo encap failed, inner_if = %d\n", dev, inner_if);
+		nss_connmgr_gre_info("%px: gre instance deconfigure command fo encap failed, inner_if = %d\n", dev, inner_if);
 		return NOTIFY_DONE;
 	}
 
@@ -1533,30 +1533,30 @@ static int nss_connmgr_gre_dev_down(struct net_device *dev)
 	nss_gre_msg_init(&req, outer_if, NSS_GRE_MSG_DECAP_DECONFIGURE, sizeof(struct nss_gre_deconfig_msg), NULL, NULL);
 	status = nss_gre_tx_msg_sync(nss_gre_get_context(), &req);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre instance deconfigure command for decap failed, inner_if = %d\n", dev, inner_if);
+		nss_connmgr_gre_info("%px: gre instance deconfigure command for decap failed, inner_if = %d\n", dev, inner_if);
 		return NOTIFY_DONE;
 	}
 
 	if (nss_connmgr_gre_dev_close(dev)) {
-		nss_connmgr_gre_info("%p: gre instance device close command failed, inner_if = %d\n", dev, inner_if);
+		nss_connmgr_gre_info("%px: gre instance device close command failed, inner_if = %d\n", dev, inner_if);
 		return NOTIFY_DONE;
 	}
 
 	nss_gre_unregister_if(inner_if);
 	status = nss_dynamic_interface_dealloc_node(inner_if, NSS_DYNAMIC_INTERFACE_TYPE_GRE_INNER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre dealloc node failure for inner_if = %d\n", dev, inner_if);
+		nss_connmgr_gre_info("%px: gre dealloc node failure for inner_if = %d\n", dev, inner_if);
 		return NOTIFY_DONE;
 	}
-	nss_connmgr_gre_info("%p: deleting gre instance, inner_if = %d\n", dev, inner_if);
+	nss_connmgr_gre_info("%px: deleting gre instance, inner_if = %d\n", dev, inner_if);
 
 	nss_gre_unregister_if(outer_if);
 	status = nss_dynamic_interface_dealloc_node(outer_if, NSS_DYNAMIC_INTERFACE_TYPE_GRE_OUTER);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: gre dealloc node failure for outer_if = %d\n", dev, outer_if);
+		nss_connmgr_gre_info("%px: gre dealloc node failure for outer_if = %d\n", dev, outer_if);
 		return NOTIFY_DONE;
 	}
-	nss_connmgr_gre_info("%p: deleted gre instance, outer_if = %d\n", dev, outer_if);
+	nss_connmgr_gre_info("%px: deleted gre instance, outer_if = %d\n", dev, outer_if);
 
 	return NOTIFY_DONE;
 }
@@ -1658,14 +1658,14 @@ int nss_connmgr_gre_set_wifi_next_hop(struct net_device *wifi_vdev)
 
 	ifnumber = nss_cmn_get_interface_number_by_dev(wifi_vdev);
 	if (ifnumber < 0) {
-		nss_connmgr_gre_info("%p: wifi interface is not recognized by NSS\n", wifi_vdev);
+		nss_connmgr_gre_info("%px: wifi interface is not recognized by NSS\n", wifi_vdev);
 		return GRE_ERR_NEXT_NODE_UNREG_IN_AE;
 	}
 
 	ctx = nss_wifi_get_context();
 	status = nss_wifi_vdev_set_next_hop(ctx, ifnumber, NSS_GRE_INTERFACE);
 	if (status != NSS_TX_SUCCESS) {
-		nss_connmgr_gre_info("%p: wifi drv api failed to set next hop\n", wifi_vdev);
+		nss_connmgr_gre_info("%px: wifi drv api failed to set next hop\n", wifi_vdev);
 		return GRE_ERR_AE_SET_NEXT_HOP;
 	}
 
@@ -1791,7 +1791,7 @@ enum nss_connmgr_gre_err_codes nss_connmgr_gre_destroy_interface(struct net_devi
 	}
 
 	if (in_interrupt()) {
-		nss_connmgr_gre_info("%p: nss_connmgr_gre_destroy_interface() called in interrupt context\n", dev);
+		nss_connmgr_gre_info("%px: nss_connmgr_gre_destroy_interface() called in interrupt context\n", dev);
 		return GRE_ERR_IN_INTERRUPT_CTX;
 	}
 

@@ -159,7 +159,7 @@ static struct rtnl_link_stats64 *nss_mirror_get_stats(struct net_device *dev, st
 	struct nss_mirror_instance_priv *mirror_priv;
 
 	if (!stats) {
-		nss_mirror_warn("%p: Invalid stats parameter.\n", dev);
+		nss_mirror_warn("%px: Invalid stats parameter.\n", dev);
 		return stats;
 	}
 
@@ -263,7 +263,7 @@ static void nss_mirror_event_cb(void *if_ctx, struct nss_cmn_msg *ncm)
 		break;
 
        default:
-		nss_mirror_warn("%p: Unknown Event from NSS\n", netdev);
+		nss_mirror_warn("%px: Unknown Event from NSS\n", netdev);
 		break;
        }
 }
@@ -631,11 +631,11 @@ nss_tx_status_t nss_mirror_reset_if_nexthop(uint32_t if_num)
 
 	status = nss_if_tx_msg(nss_ctx, &nim);
 	if (status != NSS_TX_SUCCESS) {
-		nss_mirror_warn("%p: Failed to send reset nexthop message to %d interface\n", nss_ctx, if_num);
+		nss_mirror_warn("%px: Failed to send reset nexthop message to %d interface\n", nss_ctx, if_num);
 		return status;
 	}
 
-	nss_mirror_info("%p: Reset nexthop message is sent successfully\n", nss_ctx);
+	nss_mirror_info("%px: Reset nexthop message is sent successfully\n", nss_ctx);
 	return status;
 }
 

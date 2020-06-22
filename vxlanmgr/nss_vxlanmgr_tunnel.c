@@ -254,14 +254,14 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_del(struct nss_vxlanmgr_tun_ctx *
 
 	if (remote_ip->sa.sa_family == AF_INET){
 		if (remote_ip->sin.sin_addr.s_addr == htonl(INADDR_ANY)) {
-			nss_vxlanmgr_warn("%p: MAC deletion failed for unknown remote\n", dev);
+			nss_vxlanmgr_warn("%px: MAC deletion failed for unknown remote\n", dev);
 			goto done;
 		}
 		memcpy(&mac_del_msg->encap.dest_ip, &remote_ip->sin.sin_addr, sizeof(struct in_addr));
 		memcpy(&mac_del_msg->encap.src_ip, &src_ip->sin.sin_addr, sizeof(struct in_addr));
 	} else {
 		if (ipv6_addr_any(&remote_ip->sin6.sin6_addr)) {
-			nss_vxlanmgr_warn("%p: MAC deletion failed for unknown remote\n", dev);
+			nss_vxlanmgr_warn("%px: MAC deletion failed for unknown remote\n", dev);
 			goto done;
 		}
 		memcpy(&mac_del_msg->encap.dest_ip, &remote_ip->sin6.sin6_addr, sizeof(struct in6_addr));
@@ -278,7 +278,7 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_del(struct nss_vxlanmgr_tun_ctx *
 						NSS_VXLAN_MSG_TYPE_MAC_DEL,
 						sizeof(struct nss_vxlan_mac_msg));
 	if (status != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: MAC deletion failed %d\n", dev, status);
+		nss_vxlanmgr_warn("%px: MAC deletion failed %d\n", dev, status);
 	}
 
 	spin_lock_bh(&vxlan_ctx.tun_lock);
@@ -344,23 +344,23 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_add(struct nss_vxlanmgr_tun_ctx *
 
 	if (remote_ip->sa.sa_family == AF_INET){
 		if (remote_ip->sin.sin_addr.s_addr == htonl(INADDR_ANY)) {
-			nss_vxlanmgr_warn("%p: MAC addition failed for unknown remote\n", dev);
+			nss_vxlanmgr_warn("%px: MAC addition failed for unknown remote\n", dev);
 			goto done;
 		}
 		memcpy(&mac_add_msg->encap.dest_ip[0], &remote_ip->sin.sin_addr, sizeof(struct in_addr));
 		if (!nss_vxlanmgr_tunnel_fill_src_ip(priv, src_ip, remote_ip, AF_INET, new_src_ip)) {
-			nss_vxlanmgr_warn("%p: MAC addition failed for unknown source\n", dev);
+			nss_vxlanmgr_warn("%px: MAC addition failed for unknown source\n", dev);
 			goto done;
 		}
 		mac_add_msg->encap.src_ip[0] = new_src_ip[0];
 	} else {
 		if (ipv6_addr_any(&remote_ip->sin6.sin6_addr)) {
-			nss_vxlanmgr_warn("%p: MAC addition failed for unknown remote\n", dev);
+			nss_vxlanmgr_warn("%px: MAC addition failed for unknown remote\n", dev);
 			goto done;
 		}
 		memcpy(mac_add_msg->encap.dest_ip, &remote_ip->sin6.sin6_addr, sizeof(struct in6_addr));
 		if (!nss_vxlanmgr_tunnel_fill_src_ip(priv, src_ip, remote_ip, AF_INET6, new_src_ip)) {
-			nss_vxlanmgr_warn("%p: MAC addition failed for unknown source\n", dev);
+			nss_vxlanmgr_warn("%px: MAC addition failed for unknown source\n", dev);
 			goto done;
 		}
 		memcpy(mac_add_msg->encap.src_ip, new_src_ip, sizeof(struct in6_addr));
@@ -376,7 +376,7 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_add(struct nss_vxlanmgr_tun_ctx *
 						NSS_VXLAN_MSG_TYPE_MAC_ADD,
 						sizeof(struct nss_vxlan_mac_msg));
 	if (status != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: MAC addition failed %d\n", dev, status);
+		nss_vxlanmgr_warn("%px: MAC addition failed %d\n", dev, status);
 		goto done;
 	}
 
@@ -409,7 +409,7 @@ static int nss_vxlanmgr_tunnel_fdb_event(struct notifier_block *nb, unsigned lon
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(vfe->dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Invalid tunnel context\n", vfe->dev);
+		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", vfe->dev);
 		return NOTIFY_DONE;
 	}
 	spin_unlock_bh(&vxlan_ctx.tun_lock);
@@ -528,7 +528,7 @@ static void nss_vxlanmgr_tunnel_fdb_update(struct nss_vxlanmgr_tun_ctx *tun_ctx,
 	dev_hold(tun_ctx->dev);
 
 	if (nentries > NSS_VXLAN_MACDB_ENTRIES_PER_MSG) {
-		nss_vxlanmgr_warn("%p: No more than 20 entries allowed per message.\n", tun_ctx->dev);
+		nss_vxlanmgr_warn("%px: No more than 20 entries allowed per message.\n", tun_ctx->dev);
 		dev_put(tun_ctx->dev);
 		return;
 	}
@@ -557,7 +557,7 @@ static void nss_vxlanmgr_tunnel_inner_notifier(void *app_data, struct nss_cmn_ms
 	struct nss_vxlan_msg *nvm;
 
 	if (!ncm) {
-	    nss_vxlanmgr_info("%p: NULL msg received.\n", dev);
+	    nss_vxlanmgr_info("%px: NULL msg received.\n", dev);
 	    return;
 	}
 
@@ -565,7 +565,7 @@ static void nss_vxlanmgr_tunnel_inner_notifier(void *app_data, struct nss_cmn_ms
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Invalid tunnel context\n", dev);
+		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", dev);
 		return;
 	}
 
@@ -581,7 +581,7 @@ static void nss_vxlanmgr_tunnel_inner_notifier(void *app_data, struct nss_cmn_ms
 		break;
 	default:
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_info("%p: Unknown Event from NSS", dev);
+		nss_vxlanmgr_info("%px: Unknown Event from NSS", dev);
 		return;
 	}
 	spin_unlock_bh(&vxlan_ctx.tun_lock);
@@ -598,7 +598,7 @@ static void nss_vxlanmgr_tunnel_outer_notifier(void *app_data, struct nss_cmn_ms
 	struct nss_vxlan_msg *nvm;
 
 	if (!ncm) {
-	    nss_vxlanmgr_info("%p: NULL msg received.\n", dev);
+	    nss_vxlanmgr_info("%px: NULL msg received.\n", dev);
 	    return;
 	}
 
@@ -606,7 +606,7 @@ static void nss_vxlanmgr_tunnel_outer_notifier(void *app_data, struct nss_cmn_ms
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Invalid tunnel context\n", dev);
+		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", dev);
 		return;
 	}
 
@@ -618,7 +618,7 @@ static void nss_vxlanmgr_tunnel_outer_notifier(void *app_data, struct nss_cmn_ms
 		break;
 	default:
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_info("%p: Unknown Event from NSS", dev);
+		nss_vxlanmgr_info("%px: Unknown Event from NSS", dev);
 		return;
 	}
 	spin_unlock_bh(&vxlan_ctx.tun_lock);
@@ -632,7 +632,7 @@ static void nss_vxlanmgr_tunnel_inner_recv(struct net_device *dev, struct sk_buf
 		__attribute__((unused)) struct napi_struct *napi)
 {
 	dev_hold(dev);
-	nss_vxlanmgr_info("%p: (vxlan packet) Exception packet received.\n", dev);
+	nss_vxlanmgr_info("%px: (vxlan packet) Exception packet received.\n", dev);
 
 	/*
 	 * These are decapped and exceptioned packets.
@@ -654,13 +654,13 @@ static void nss_vxlanmgr_tunnel_outer_recv(struct net_device *dev, struct sk_buf
 	size_t l3_hdr_size;
 	struct nss_vxlanmgr_tun_ctx *tun_ctx;
 
-	nss_vxlanmgr_info("%p: (vxlan packet) Exception packet received.\n", dev);
+	nss_vxlanmgr_info("%px: (vxlan packet) Exception packet received.\n", dev);
 
 	spin_lock_bh(&vxlan_ctx.tun_lock);
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Invalid tunnel context\n", dev);
+		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", dev);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -678,7 +678,7 @@ static void nss_vxlanmgr_tunnel_outer_recv(struct net_device *dev, struct sk_buf
 	default:
 		tun_ctx->stats->host_packet_drop++;
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_trace("%p: Skb received with unknown IP version: %d.\n", dev, iph->version);
+		nss_vxlanmgr_trace("%px: Skb received with unknown IP version: %d.\n", dev, iph->version);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -691,7 +691,7 @@ static void nss_vxlanmgr_tunnel_outer_recv(struct net_device *dev, struct sk_buf
 							+ sizeof(struct vxlanhdr))))) {
 		tun_ctx->stats->host_packet_drop++;
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_trace("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+		nss_vxlanmgr_trace("%px: pskb_may_pull failed for skb:%px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -704,7 +704,7 @@ static void nss_vxlanmgr_tunnel_outer_recv(struct net_device *dev, struct sk_buf
 	if (unlikely(!pskb_may_pull(skb, sizeof(struct ethhdr)))) {
 		tun_ctx->stats->host_packet_drop++;
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_trace("%p: pskb_may_pull failed for skb:%p\n", dev, skb);
+		nss_vxlanmgr_trace("%px: pskb_may_pull failed for skb:%px\n", dev, skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -735,7 +735,7 @@ int nss_vxlanmgr_tunnel_deconfig(struct net_device *dev)
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Invalid tunnel context\n", dev);
+		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", dev);
 		goto done;
 	}
 
@@ -750,7 +750,7 @@ int nss_vxlanmgr_tunnel_deconfig(struct net_device *dev)
 						inner_ifnum,
 						NSS_VXLAN_MSG_TYPE_TUN_DISABLE, 0);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to inner interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to inner interface failed: %d\n", dev, ret);
 		goto done;
 	}
 
@@ -759,7 +759,7 @@ int nss_vxlanmgr_tunnel_deconfig(struct net_device *dev)
 						outer_ifnum,
 						NSS_VXLAN_MSG_TYPE_TUN_DISABLE, 0);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to outer interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to outer interface failed: %d\n", dev, ret);
 	}
 
 done:
@@ -784,7 +784,7 @@ int nss_vxlanmgr_tunnel_config(struct net_device *dev)
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Invalid tunnel context\n", dev);
+		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", dev);
 		goto done;
 	}
 
@@ -799,7 +799,7 @@ int nss_vxlanmgr_tunnel_config(struct net_device *dev)
 						inner_ifnum,
 						NSS_VXLAN_MSG_TYPE_TUN_ENABLE, 0);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to inner interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to inner interface failed: %d\n", dev, ret);
 		goto done;
 	}
 
@@ -808,7 +808,7 @@ int nss_vxlanmgr_tunnel_config(struct net_device *dev)
 						outer_ifnum,
 						NSS_VXLAN_MSG_TYPE_TUN_ENABLE, 0);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to outer interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to outer interface failed: %d\n", dev, ret);
 		/*
 		 * Disable inner node.
 		 */
@@ -839,14 +839,14 @@ int nss_vxlanmgr_tunnel_destroy(struct net_device *dev)
 	spin_lock_bh(&vxlan_ctx.tun_lock);
 	if (!vxlan_ctx.tun_count) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: No more tunnels to destroy.\n", dev);
+		nss_vxlanmgr_warn("%px: No more tunnels to destroy.\n", dev);
 		goto done;
 	}
 
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Invalid tunnel context\n", dev);
+		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", dev);
 		goto done;
 	}
 
@@ -875,7 +875,7 @@ int nss_vxlanmgr_tunnel_destroy(struct net_device *dev)
 		 */
 		vxlan_fdb_unregister_notify(&nss_vxlanmgr_tunnel_fdb_notifier);
 	}
-	nss_vxlanmgr_info("%p: VxLAN interface count is #%d\n", dev, vxlan_ctx.tun_count);
+	nss_vxlanmgr_info("%px: VxLAN interface count is #%d\n", dev, vxlan_ctx.tun_count);
 
 	memset(&vxlanmsg, 0, sizeof(struct nss_vxlan_msg));
 	ret = nss_vxlanmgr_tunnel_tx_msg_sync(vxlan_ctx.nss_ctx,
@@ -883,16 +883,16 @@ int nss_vxlanmgr_tunnel_destroy(struct net_device *dev)
 						inner_ifnum,
 						NSS_VXLAN_MSG_TYPE_TUN_UNCONFIGURE, 0);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to inner interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to inner interface failed: %d\n", dev, ret);
 	}
 
 	if (!nss_vxlan_unregister_if(inner_ifnum)) {
-		nss_vxlanmgr_warn("%p: Inner interface not found\n", dev);
+		nss_vxlanmgr_warn("%px: Inner interface not found\n", dev);
 	}
 	ret = nss_dynamic_interface_dealloc_node(inner_ifnum,
 						NSS_DYNAMIC_INTERFACE_TYPE_VXLAN_INNER);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Failed to dealloc inner: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Failed to dealloc inner: %d\n", dev, ret);
 	}
 
 	ret = nss_vxlanmgr_tunnel_tx_msg_sync(vxlan_ctx.nss_ctx,
@@ -900,16 +900,16 @@ int nss_vxlanmgr_tunnel_destroy(struct net_device *dev)
 						outer_ifnum,
 						NSS_VXLAN_MSG_TYPE_TUN_UNCONFIGURE, 0);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to outer interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to outer interface failed: %d\n", dev, ret);
 	}
 
 	if (!nss_vxlan_unregister_if(outer_ifnum)) {
-		nss_vxlanmgr_warn("%p: Outer interface not found\n", dev);
+		nss_vxlanmgr_warn("%px: Outer interface not found\n", dev);
 	}
 	ret = nss_dynamic_interface_dealloc_node(outer_ifnum,
 						NSS_DYNAMIC_INTERFACE_TYPE_VXLAN_OUTER);
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Failed to dealloc outer: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Failed to dealloc outer: %d\n", dev, ret);
 	}
 
 done:
@@ -934,7 +934,7 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 	spin_lock_bh(&vxlan_ctx.tun_lock);
 	if (vxlan_ctx.tun_count == NSS_VXLAN_MAX_TUNNELS) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_warn("%p: Max number of vxlan interfaces supported is %d\n", dev, NSS_VXLAN_MAX_TUNNELS);
+		nss_vxlanmgr_warn("%px: Max number of vxlan interfaces supported is %d\n", dev, NSS_VXLAN_MAX_TUNNELS);
 		return NOTIFY_DONE;
 	}
 	spin_unlock_bh(&vxlan_ctx.tun_lock);
@@ -952,14 +952,14 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 
 	inner_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_VXLAN_INNER);
 	if (inner_ifnum < 0) {
-		nss_vxlanmgr_warn("%p: Inner interface allocation failed.\n", dev);
+		nss_vxlanmgr_warn("%px: Inner interface allocation failed.\n", dev);
 		goto inner_alloc_fail;
 	}
 	tun_ctx->inner_ifnum = inner_ifnum;
 
 	outer_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_VXLAN_OUTER);
 	if (outer_ifnum < 0) {
-		nss_vxlanmgr_warn("%p: Outer interface allocation failed.\n", dev);
+		nss_vxlanmgr_warn("%px: Outer interface allocation failed.\n", dev);
 		goto outer_alloc_fail;
 	}
 	tun_ctx->outer_ifnum = outer_ifnum;
@@ -971,7 +971,7 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 					nss_vxlanmgr_tunnel_inner_recv,
 					nss_vxlanmgr_tunnel_inner_notifier, dev, 0);
 	if (!nss_ctx) {
-		nss_vxlanmgr_warn("%p: Failed to register inner iface\n", dev);
+		nss_vxlanmgr_warn("%px: Failed to register inner iface\n", dev);
 		goto inner_reg_fail;
 	}
 
@@ -979,11 +979,11 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 					nss_vxlanmgr_tunnel_outer_recv,
 					nss_vxlanmgr_tunnel_outer_notifier, dev, 0);
 	if (!nss_ctx) {
-		nss_vxlanmgr_warn("%p: Failed to register outer iface\n", dev);
+		nss_vxlanmgr_warn("%px: Failed to register outer iface\n", dev);
 		goto outer_reg_fail;
 	}
 
-	nss_vxlanmgr_trace("%p: Successfully registered inner and outer iface for VxLAN\n", dev);
+	nss_vxlanmgr_trace("%px: Successfully registered inner and outer iface for VxLAN\n", dev);
 
 	memset(&vxlanmsg, 0, sizeof(struct nss_vxlan_msg));
 	vxlan_cfg = &vxlanmsg.msg.vxlan_create;
@@ -1004,7 +1004,7 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 						NSS_VXLAN_MSG_TYPE_TUN_CONFIGURE,
 						sizeof(struct nss_vxlan_rule_msg));
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to inner interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to inner interface failed: %d\n", dev, ret);
 		goto config_fail;
 	}
 
@@ -1015,17 +1015,17 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 						NSS_VXLAN_MSG_TYPE_TUN_CONFIGURE,
 						sizeof(struct nss_vxlan_rule_msg));
 	if (ret != NSS_TX_SUCCESS) {
-		nss_vxlanmgr_warn("%p: Sending configuration to outer interface failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Sending configuration to outer interface failed: %d\n", dev, ret);
 		goto config_fail;
 	}
 
 	if (!nss_vxlanmgr_tun_stats_dentry_create(tun_ctx)) {
-		nss_vxlanmgr_warn("%p: Tun stats dentry init failed\n", vxlan_ctx.nss_ctx);
+		nss_vxlanmgr_warn("%px: Tun stats dentry init failed\n", vxlan_ctx.nss_ctx);
 		goto config_fail;
 	}
 
 	if (!nss_vxlanmgr_tun_stats_init(tun_ctx)) {
-		nss_vxlanmgr_warn("%p: Tun stats init failed\n", vxlan_ctx.nss_ctx);
+		nss_vxlanmgr_warn("%px: Tun stats init failed\n", vxlan_ctx.nss_ctx);
 		goto config_fail;
 	}
 
@@ -1057,7 +1057,7 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 	 */
 	vxlan_ctx.tun_count++;
 	spin_unlock_bh(&vxlan_ctx.tun_lock);
-	nss_vxlanmgr_info("%p: VxLAN interface count is #%d\n", dev, vxlan_ctx.tun_count);
+	nss_vxlanmgr_info("%px: VxLAN interface count is #%d\n", dev, vxlan_ctx.tun_count);
 
 	dev_put(dev);
 	return NOTIFY_DONE;
@@ -1069,11 +1069,11 @@ outer_reg_fail:
 inner_reg_fail:
 	ret = nss_dynamic_interface_dealloc_node(outer_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_VXLAN_OUTER);
 	if (ret != NSS_TX_SUCCESS)
-		nss_vxlanmgr_warn("%p: Outer interface dealloc failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Outer interface dealloc failed: %d\n", dev, ret);
 outer_alloc_fail:
 	ret = nss_dynamic_interface_dealloc_node(inner_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_VXLAN_INNER);
 	if (ret != NSS_TX_SUCCESS)
-		nss_vxlanmgr_warn("%p: Inner interface dealloc failed: %d\n", dev, ret);
+		nss_vxlanmgr_warn("%px: Inner interface dealloc failed: %d\n", dev, ret);
 inner_alloc_fail:
 	kfree(tun_ctx);
 ctx_alloc_fail:

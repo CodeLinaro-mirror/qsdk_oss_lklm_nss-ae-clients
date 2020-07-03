@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -73,7 +73,7 @@ static int nss_ovpnmgr_config_crypto_key_add(struct nss_ovpnmgr_tun_ctx *tun_ctx
 
 	if (tun->tun_cfg.flags & NSS_OVPNMGR_HDR_FLAG_DATA_V2) {
 		session_id = NSS_OVPNMGR_TUN_DATA_V2 << NSS_OVPNMGR_TUN_OPCODE_SHIFT;
-		session_id |= tun_ctx->active.key_id << NSS_OVPNMGR_TUN_PEER_ID_SHIFT;
+		session_id |= tun_ctx->active.key_id << NSS_OVPNMGR_TUN_KEY_ID_SHIFT;
 		session_id |= tun->tun_cfg.peer_id & NSS_OVPNMGR_TUN_PEER_ID_MASK;
 		session_id = htonl(session_id);
 	} else {

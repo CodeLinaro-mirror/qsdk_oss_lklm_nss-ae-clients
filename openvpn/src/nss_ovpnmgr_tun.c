@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -592,8 +592,8 @@ static int nss_ovpnmgr_tun_inner_config(struct nss_ovpnmgr_tun *tun)
 	if (tun->tun_cfg.flags & NSS_OVPNMGR_HDR_FLAG_DATA_V2) {
 		uint32_t *session_id = (uint32_t *)qvpn_cfg->hdr_cfg.vpn_hdr_head;
 
-		*session_id = htonl(((NSS_OVPNMGR_TUN_DATA_V2 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) |
-					tun->inner.active.key_id) << NSS_OVPNMGR_TUN_PEER_ID_SHIFT |
+		*session_id = htonl((NSS_OVPNMGR_TUN_DATA_V2 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) |
+					(tun->inner.active.key_id << NSS_OVPNMGR_TUN_KEY_ID_SHIFT) |
 					(tun->tun_cfg.peer_id & 0xFFFFFF));
 		/*
 		 * [op+kid|peer-id|HMAC Len|IV|SNO|Inner Packet]
@@ -602,9 +602,10 @@ static int nss_ovpnmgr_tun_inner_config(struct nss_ovpnmgr_tun *tun)
 		qvpn_cfg->crypto_cfg.hmac_offset = 4;
 		qvpn_cfg->hdr_cfg.vpn_hdr_head_size = 4;
 	} else {
-		uint8_t *session_id = (uint8_t *)qvpn_cfg->hdr_cfg.vpn_hdr_head;
+		uint32_t *session_id = (uint32_t *)qvpn_cfg->hdr_cfg.vpn_hdr_head;
 
-		*session_id = (NSS_OVPNMGR_TUN_DATA_V1 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) | tun->inner.active.key_id;
+		*session_id = htonl((NSS_OVPNMGR_TUN_DATA_V1 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) |
+					(tun->inner.active.key_id << NSS_OVPNMGR_TUN_KEY_ID_SHIFT));
 		/*
 		 * [op+kid|HMAC Len|IV|SNO|Inner Packet]
 		 * [1|20-32|16-24-32]
@@ -706,8 +707,8 @@ static int nss_ovpnmgr_tun_outer_config(struct nss_ovpnmgr_tun *tun)
 
 		nss_ovpnmgr_info("Peer transmits V2 data packets\n");
 
-		*session_id = htonl(((NSS_OVPNMGR_TUN_DATA_V2 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) |
-					tun->outer.active.key_id) << NSS_OVPNMGR_TUN_PEER_ID_SHIFT |
+		*session_id = htonl((NSS_OVPNMGR_TUN_DATA_V2 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) |
+					(tun->inner.active.key_id << NSS_OVPNMGR_TUN_KEY_ID_SHIFT) |
 					(tun->tun_cfg.peer_id & 0xFFFFFF));
 		/*
 		 * [op+kid|peer-id|HMAC Len|IV|SNO|Inner Packet]
@@ -716,9 +717,10 @@ static int nss_ovpnmgr_tun_outer_config(struct nss_ovpnmgr_tun *tun)
 		qvpn_cfg->crypto_cfg.hmac_offset = 4;
 		qvpn_cfg->hdr_cfg.vpn_hdr_head_size = 4;
 	} else {
-		uint8_t *session_id = (uint8_t *)qvpn_cfg->hdr_cfg.vpn_hdr_head;
+		uint32_t *session_id = (uint32_t *)qvpn_cfg->hdr_cfg.vpn_hdr_head;
 
-		*session_id = (NSS_OVPNMGR_TUN_DATA_V1 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) | tun->outer.active.key_id;
+		*session_id = htonl((NSS_OVPNMGR_TUN_DATA_V1 << NSS_OVPNMGR_TUN_OPCODE_SHIFT) |
+					(tun->inner.active.key_id << NSS_OVPNMGR_TUN_KEY_ID_SHIFT));
 		/*
 		 * [op+kid|HMAC Len|IV|SNO|Inner Packet]
 		 * [1|20-32|16-24-32]

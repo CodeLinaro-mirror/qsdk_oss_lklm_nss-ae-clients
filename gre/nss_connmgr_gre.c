@@ -1348,6 +1348,7 @@ static int nss_connmgr_gre_dev_up(struct net_device *dev)
 	/*
 	 * Create config cmd for acceleration engine
 	 */
+	memset(&req, 0, sizeof(struct nss_gre_msg));
 	if (nss_connmgr_gre_prepare_config_cmd(dev, &req, &next_dev, false)) {
 		nss_connmgr_gre_info("%px: gre tunnel get config failed\n", dev);
 		return NOTIFY_DONE;

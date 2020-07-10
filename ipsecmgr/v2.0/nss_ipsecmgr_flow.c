@@ -215,7 +215,7 @@ static void nss_ipsecmgr_flow_del_ref(struct nss_ipsecmgr_ref *ref)
 	 * Write lock needs to be held by the caller since flow db is
 	 * getting modified.
 	 */
-	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+	nss_ipsecmgr_write_lock_is_held(&ipsecmgr_drv->lock);
 	list_del_init(&flow->list);
 }
 

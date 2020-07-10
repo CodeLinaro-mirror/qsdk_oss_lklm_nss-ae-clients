@@ -504,7 +504,7 @@ static void nss_ipsecmgr_sa_del_ref(struct nss_ipsecmgr_ref *ref)
 	 * Linux does not provide any specific API(s) to test for RW locks. The caller
 	 * being internal is assumed to hold write lock before initiating this.
 	 */
-	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+	nss_ipsecmgr_write_lock_is_held(&ipsecmgr_drv->lock);
 
 	list_del_init(&sa->list);
 
@@ -796,7 +796,7 @@ void nss_ipsecmgr_sa_sync_state(struct nss_ipsecmgr_sa *sa, struct nss_ipsec_cmn
 	 * DEBUG check to see if the lock is taken before accessing
 	 * SA entry in the database
 	 */
-	BUG_ON(write_can_lock(&ipsecmgr_drv->lock));
+	nss_ipsecmgr_write_lock_is_held(&ipsecmgr_drv->lock);
 
 	for (num = 0; num < sizeof(sa->stats)/sizeof(*sa_stats); num++) {
 		sa_stats[num] += msg_stats[num];

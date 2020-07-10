@@ -219,10 +219,10 @@ free:
 }
 
 /*
- * nss_ipsecmgr_tunnel_stats64()
+ * nss_ipsecmgr_tunnel_get_stats64()
  *	Get device statistics
  */
-static struct rtnl_link_stats64 *nss_ipsecmgr_tunnel_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+static struct rtnl_link_stats64 *nss_ipsecmgr_tunnel_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 {
 	struct nss_ipsecmgr_tunnel *tun = netdev_priv(dev);
 	struct list_head *head = &tun->ctx_db;
@@ -238,6 +238,22 @@ static struct rtnl_link_stats64 *nss_ipsecmgr_tunnel_stats64(struct net_device *
 	read_unlock_bh(&ipsecmgr_drv->lock);
 	return stats;
 }
+
+/*
+ * nss_ipsecmgr_tunnel_stats64()
+ *	Sync statistics to linux
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
+static struct rtnl_link_stats64 *nss_ipsecmgr_tunnel_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+{
+	return nss_ipsecmgr_tunnel_get_stats64(dev, stats);
+}
+#else
+static void nss_ipsecmgr_tunnel_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+{
+	nss_ipsecmgr_tunnel_get_stats64(dev, stats);
+}
+#endif
 
 /*
  * nss_ipsecmgr_tunnel_mtu_update()
@@ -313,7 +329,29 @@ static const struct net_device_ops ipsecmgr_dev_ops = {
  */
 static void nss_ipsecmgr_tunnel_free(struct net_device *dev)
 {
+	struct nss_ipsecmgr_tunnel *tun = netdev_priv(dev);
+	struct nss_ipsecmgr_ref *ref, *tmp;
+	struct list_head free_refs;
+
 	nss_ipsecmgr_info("IPsec tunnel device(%s) freed\n", dev->name);
+
+	INIT_LIST_HEAD(&free_refs);
+
+	/*
+	 * Remove context(s) from the tunnel reference tree if it has been
+	 * added
+	 */
+	write_lock_bh(&ipsecmgr_drv->lock);
+	if (!nss_ipsecmgr_ref_is_empty(&tun->ref)) {
+		nss_ipsecmgr_ref_del(&tun->ref, &free_refs);
+	}
+
+	write_unlock_bh(&ipsecmgr_drv->lock);
+
+	list_for_each_entry_safe(ref, tmp, &free_refs, node) {
+		ref->free(ref);
+	}
+
 	free_netdev(dev);
 }
 
@@ -351,13 +389,14 @@ static void nss_ipsecmgr_tunnel_free_ref(struct nss_ipsecmgr_ref *ref)
 {
 	struct nss_ipsecmgr_tunnel *tun = container_of(ref, struct nss_ipsecmgr_tunnel, ref);
 
-	nss_ipsecmgr_tunnel_mtu_update(&ipsecmgr_drv->tun_db);
-
 	/*
 	 * The unregister should start here but the expectation is that the free would
 	 * happen when the reference count goes down to '0'
 	 */
-	rtnl_is_locked() ? unregister_netdevice(tun->dev) : unregister_netdev(tun->dev);
+	if (tun->dev->reg_state == NETREG_REGISTERED) {
+		nss_ipsecmgr_tunnel_mtu_update(&ipsecmgr_drv->tun_db);
+		rtnl_is_locked() ? unregister_netdevice(tun->dev) : unregister_netdev(tun->dev);
+	}
 }
 
 /*
@@ -389,7 +428,11 @@ static void nss_ipsecmgr_tunnel_setup(struct net_device *dev)
 	dev->header_ops = NULL;
 	dev->netdev_ops = &ipsecmgr_dev_ops;
 
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 11, 8))
 	dev->destructor = nss_ipsecmgr_tunnel_free;
+#else
+	dev->priv_destructor = nss_ipsecmgr_tunnel_free;
+#endif
 
 	/*
 	 * Get the MAC address from the ethernet device
@@ -473,8 +516,10 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					NSS_IPSEC_CMN_FEATURE_INLINE_ACCEL);
 	if (!inner) {
 		nss_ipsecmgr_warn("%px: failed to allocate context inner\n", tun);
-		goto free_dev;
+		goto free;
 	}
+
+	nss_ipsecmgr_ctx_attach(&tun->ctx_db, inner);
 
 	/*
 	 * Inner Metadata context allocation
@@ -487,9 +532,10 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					0);
 	if (!mdata_inner) {
 		nss_ipsecmgr_warn("%px: failed to allocate context metadata inner\n", tun);
-		goto free_inner;
+		goto free;
 	}
 
+	nss_ipsecmgr_ctx_attach(&tun->ctx_db, mdata_inner);
 	/*
 	 * Outer context allocation
 	 */
@@ -501,9 +547,10 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					NSS_IPSEC_CMN_FEATURE_INLINE_ACCEL);
 	if (!outer) {
 		nss_ipsecmgr_warn("%px: failed to allocate context outer\n", tun);
-		goto free_mdata_inner;
+		goto free;
 	}
 
+	nss_ipsecmgr_ctx_attach(&tun->ctx_db, outer);
 	/*
 	 * Outer metadata context allocation
 	 */
@@ -515,13 +562,9 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 					0);
 	if (!mdata_outer) {
 		nss_ipsecmgr_warn("%px: failed to allocate context metadata outer\n", tun);
-		goto free_outer;
+		goto free;
 	}
 
-	nss_ipsecmgr_ctx_attach(&tun->ctx_db, inner);
-	nss_ipsecmgr_ctx_attach(&tun->ctx_db, mdata_inner);
-
-	nss_ipsecmgr_ctx_attach(&tun->ctx_db, outer);
 	nss_ipsecmgr_ctx_attach(&tun->ctx_db, mdata_outer);
 
 	/*
@@ -545,28 +588,35 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 
 	if (!nss_ipsecmgr_ctx_config(inner)) {
 		nss_ipsecmgr_warn("%px: failed to configure inner context\n", tun);
-		goto free_mdata_outer;
+		goto free;
 	}
 
 	if (!nss_ipsecmgr_ctx_config(mdata_inner)) {
 		nss_ipsecmgr_warn("%px: failed to configure metadata inner context\n", tun);
-		goto free_mdata_outer;
+		goto free;
 	}
 
 	if (!nss_ipsecmgr_ctx_config(outer)) {
 		nss_ipsecmgr_warn("%px: failed to configure outer context\n", tun);
-		goto free_mdata_outer;
+		goto free;
 	}
 
 	if (!nss_ipsecmgr_ctx_config(mdata_outer)) {
 		nss_ipsecmgr_warn("%px: failed to configure metadata outer context\n", tun);
-		goto free_mdata_outer;
+		goto free;
 	}
 
 	status = rtnl_is_locked() ? register_netdevice(dev) : register_netdev(dev);
 	if (status < 0) {
 		nss_ipsecmgr_warn("%px: register net dev failed :%s\n", tun, dev->name);
-		goto free_mdata_outer;
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 11, 8))
+		goto free;
+#else
+		/*
+		 * Later kernels invoke the destructor upon failure
+		 */
+		return NULL;
+#endif
 	}
 
 	write_lock(&ipsecmgr_drv->lock);
@@ -587,16 +637,12 @@ struct net_device *nss_ipsecmgr_tunnel_add(struct nss_ipsecmgr_callback *cb)
 	}
 
 	return dev;
-free_mdata_outer:
-	nss_ipsecmgr_ctx_free(mdata_outer);
-free_outer:
-	nss_ipsecmgr_ctx_free(outer);
-free_mdata_inner:
-	nss_ipsecmgr_ctx_free(mdata_inner);
-free_inner:
-	nss_ipsecmgr_ctx_free(inner);
-free_dev:
-	free_netdev(dev);
+free:
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 11, 8))
+	dev->destructor(dev);
+#else
+	dev->priv_destructor(dev);
+#endif
 	return NULL;
 }
 EXPORT_SYMBOL(nss_ipsecmgr_tunnel_add);

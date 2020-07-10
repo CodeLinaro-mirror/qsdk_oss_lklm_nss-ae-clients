@@ -863,13 +863,30 @@ struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_find_by_sa(struct nss_ipsecmgr_tunnel 
 }
 
 /*
+ * nss_ipsecmgr_ctx_attach()
+ *	Attach context to the database
+ */
+void nss_ipsecmgr_ctx_attach(struct list_head *db, struct nss_ipsecmgr_ctx *ctx)
+{
+	struct nss_ipsecmgr_tunnel *tun = ctx->tun;
+
+	list_add(&ctx->list, db);
+
+	/*
+	 * Add ctx->ref to tun->ref
+	 */
+	write_lock_bh(&ipsecmgr_drv->lock);
+	nss_ipsecmgr_ref_add(&ctx->ref, &tun->ref);
+	write_unlock_bh(&ipsecmgr_drv->lock);
+}
+
+/*
  * nss_ipsecmgr_ctx_config()
  * 	Configure context
  */
 bool nss_ipsecmgr_ctx_config(struct nss_ipsecmgr_ctx *ctx)
 {
 	enum nss_ipsec_cmn_msg_type msg_type = NSS_IPSEC_CMN_MSG_TYPE_CTX_CONFIG;
-	struct nss_ipsecmgr_tunnel *tun = ctx->tun;
 	struct nss_ipsec_cmn_ctx *ctx_msg;
 	struct nss_ipsec_cmn_msg nicm;
 	nss_tx_status_t status;
@@ -887,10 +904,6 @@ bool nss_ipsecmgr_ctx_config(struct nss_ipsecmgr_ctx *ctx)
 				ctx, ctx->state.type, status, nicm.cm.error);
 		return false;
 	}
-
-	write_lock_bh(&ipsecmgr_drv->lock);
-	nss_ipsecmgr_ref_add(&ctx->ref, &tun->ref);
-	write_unlock_bh(&ipsecmgr_drv->lock);
 
 	return true;
 }
@@ -917,6 +930,7 @@ struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_alloc(struct nss_ipsecmgr_tunnel *tun,
 						uint32_t features)
 {
 	struct nss_ipsecmgr_ctx *ctx;
+	int32_t ifnum;
 
 	ctx = kzalloc(sizeof(*ctx), in_atomic() ? GFP_ATOMIC : GFP_KERNEL);
 	if (!ctx) {
@@ -930,13 +944,14 @@ struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_alloc(struct nss_ipsecmgr_tunnel *tun,
 	ctx->state.type = ctx_type;
 	ctx->state.di_type = di_type;
 
-	ctx->ifnum = nss_dynamic_interface_alloc_node(di_type);
-	if (ctx->ifnum < 0) {
+	ifnum = nss_dynamic_interface_alloc_node(di_type);
+	if (ifnum < 0) {
 		nss_ipsecmgr_warn("%px: failed to allocate dynamic interface(%d)", tun, di_type);
 		kfree(ctx);
 		return NULL;
 	}
 
+	ctx->ifnum = ifnum;
 	ctx->state.stats_len = ctx->state.print_len = nss_ipsecmgr_ctx_stats_size();
 	nss_ipsecmgr_ref_init(&ctx->ref, nss_ipsecmgr_ctx_del_ref, nss_ipsecmgr_ctx_free_ref);
 	nss_ipsecmgr_ref_init_print(&ctx->ref, nss_ipsecmgr_ctx_print_len, nss_ipsecmgr_ctx_print);

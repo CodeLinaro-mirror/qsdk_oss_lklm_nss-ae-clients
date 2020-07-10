@@ -112,15 +112,6 @@ struct nss_ipsecmgr_ctx {
 };
 
 /*
- * nss_ipsecmgr_ctx_attach()
- * 	Attach context to the database
- */
-static inline void nss_ipsecmgr_ctx_attach(struct list_head *db, struct nss_ipsecmgr_ctx *ctx)
-{
-	list_add(&ctx->list, db);
-}
-
-/*
  * Set the exception interface number for context
  */
 static inline void nss_ipsecmgr_ctx_set_except(struct nss_ipsecmgr_ctx *ctx, uint32_t except_ifnum)
@@ -144,6 +135,7 @@ extern void nss_ipsecmgr_ctx_rx_redir(struct net_device *dev, struct sk_buff *sk
 extern void nss_ipsecmgr_ctx_rx_outer(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi);
 extern void nss_ipsecmgr_ctx_rx_inner(struct net_device *dev, struct sk_buff *skb, struct napi_struct *napi);
 
+extern void nss_ipsecmgr_ctx_attach(struct list_head *db, struct nss_ipsecmgr_ctx *ctx);
 extern bool nss_ipsecmgr_ctx_config(struct nss_ipsecmgr_ctx *ctx);
 extern void nss_ipsecmgr_ctx_free(struct nss_ipsecmgr_ctx *ctx);
 extern struct nss_ipsecmgr_ctx *nss_ipsecmgr_ctx_alloc(struct nss_ipsecmgr_tunnel *tun,

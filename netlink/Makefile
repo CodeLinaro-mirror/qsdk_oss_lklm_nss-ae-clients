@@ -1,3 +1,7 @@
+CAPWAP_ENABLED := $(strip $(if $(filter $(capwapmgr), y), 1 , 0))
+IPSEC_ENABLED := $(strip $(if $(filter $(ipsecmgr), y), 1 , 0))
+DTLS_ENABLED := $(strip $(if $(filter $(dtlsmgr), y), 1 , 0))
+
 ccflags-y := -Werror
 ccflags-y += -I$(obj)/include
 ccflags-y += -I$(obj)/../exports
@@ -6,7 +10,6 @@ ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BUILD_ID)"
 
 ccflags-y += -DCONFIG_NSS_NLIPV4=1
 ccflags-y += -DCONFIG_NSS_NLIPV6=1
-ccflags-y += -DCONFIG_NSS_NLIPSEC=1
 ccflags-y += -DCONFIG_NSS_NLOAM=1
 ccflags-y += -DCONFIG_NSS_NLGRE_REDIR_FAMILY=1
 ccflags-y += -DCONFIG_NSS_NLETHRX=1
@@ -23,6 +26,9 @@ ccflags-y += -DCONFIG_NSS_NLMAP_T=1
 ccflags-y += -DCONFIG_NSS_NLPPPOE=1
 ccflags-y += -DCONFIG_NSS_NLL2TPV2=1
 ccflags-y += -DCONFIG_NSS_NLPPTP=1
+ccflags-y += -DCONFIG_NSS_NLCAPWAP=${CAPWAP_ENABLED}
+ccflags-y += -DCONFIG_NSS_NLIPSEC=${IPSEC_ENABLED}
+ccflags-y += -DCONFIG_NSS_NLDTLS=${DTLS_ENABLED}
 
 qca-nss-netlink-objs := nss_nl.o
 qca-nss-netlink-objs += nss_nlgre_redir_family.o
@@ -48,25 +54,16 @@ qca-nss-netlink-objs += nss_nlpppoe.o
 qca-nss-netlink-objs += nss_nll2tpv2.o
 qca-nss-netlink-objs += nss_nlpptp.o
 
-CAPWAP_ENABLED:=CONFIG_PACKAGE_kmod-qca-nss-drv-capwapmgr=y
-CAPWAP_CONFIG:=$(shell  grep $(CAPWAP_ENABLED) $(TOPDIR)/.config)
-ifeq ($(CAPWAP_CONFIG),$(CAPWAP_ENABLED))
-ccflags-y += -DCONFIG_NSS_NLCAPWAP=1
+ifneq (,$(filter $(capwapmgr), y))
 qca-nss-netlink-objs += nss_nlcapwap.o
-else
-ccflags-y += -DCONFIG_NSS_NLCAPWAP=0
 endif
-DTLS_ENABLED:=CONFIG_PACKAGE_kmod-qca-nss-drv-dtlsmgr=y
-DTLS_CONFIG:=$(shell  grep $(DTLS_ENABLED) $(TOPDIR)/.config)
-ifeq ($(DTLS_CONFIG),$(DTLS_ENABLED))
-ccflags-y += -DCONFIG_NSS_NLDTLS=1
+
+ifneq (,$(filter $(dtlsmgr), y))
 qca-nss-netlink-objs += nss_nldtls.o
-else
-ccflags-y += -DCONFIG_NSS_NLDTLS=0
 endif
-IPSEC_ENABLED:=CONFIG_PACKAGE_kmod-qca-nss-drv-ipsecmgr=y
-IPSEC_CONFIG:=$(shell  grep $(IPSEC_ENABLED) $(TOPDIR)/.config)
-ifeq ($(IPSEC_CONFIG),$(IPSEC_ENABLED))
+
+ifneq (,$(filter $(ipsecmgr), y))
 qca-nss-netlink-objs += nss_nlipsec.o
 endif
+
 obj-m += qca-nss-netlink.o

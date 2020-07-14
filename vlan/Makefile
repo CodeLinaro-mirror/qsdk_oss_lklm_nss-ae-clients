@@ -12,7 +12,5 @@ ccflags-y += -DNSS_VLAN_MGR_DEBUG_LEVEL=0
 ccflags-y += -Werror
 
 ifneq (,$(filter $(CONFIG_BONDING),y m))
-ifneq ($(findstring 4.4, $(KERNELVERSION)),)
 ccflags-y += -DBONDING_SUPPORT
-endif
 endif

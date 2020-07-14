@@ -437,10 +437,10 @@ static void nss_dtlsmgr_ctx_dev_free(struct net_device *dev)
 }
 
 /*
- * nss_dtlsmgr_ctx_dev_stats64()
- *	Report packet statistics to Linux.
+ * nss_dtlsmgr_ctx_get_dev_stats64()
+ *	To get the netdev stats
  */
-static struct rtnl_link_stats64 *nss_dtlsmgr_ctx_dev_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+static struct rtnl_link_stats64 *nss_dtlsmgr_ctx_get_dev_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 {
 	struct nss_dtlsmgr_ctx *ctx = netdev_priv(dev);
 	struct nss_dtlsmgr_stats *encap_stats, *decap_stats;
@@ -458,6 +458,22 @@ static struct rtnl_link_stats64 *nss_dtlsmgr_ctx_dev_stats64(struct net_device *
 
 	return stats;
 }
+
+/*
+ * nss_dtlsmgr_ctx_dev_stats64()
+ *	Report packet statistics to Linux.
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
+static struct rtnl_link_stats64 *nss_dtlsmgr_ctx_dev_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+{
+	return nss_dtlsmgr_ctx_get_dev_stats64(dev, stats);
+}
+#else
+static void nss_dtlsmgr_ctx_dev_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
+{
+	nss_dtlsmgr_ctx_get_dev_stats64(dev, stats);
+}
+#endif
 
 /*
  * nss_dtlsmgr_ctx_dev_change_mtu()
@@ -496,8 +512,11 @@ void nss_dtlsmgr_ctx_dev_setup(struct net_device *dev)
 	dev->ethtool_ops = NULL;
 	dev->header_ops = NULL;
 	dev->netdev_ops = &nss_dtlsmgr_ctx_dev_ops;
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 11, 8))
 	dev->destructor = nss_dtlsmgr_ctx_dev_free;
-
+#else
+	dev->priv_destructor = nss_dtlsmgr_ctx_dev_free;
+#endif
 	memcpy(dev->dev_addr, "\xaa\xbb\xcc\xdd\xee\xff", dev->addr_len);
 	memset(dev->broadcast, 0xff, dev->addr_len);
 	memcpy(dev->perm_addr, dev->dev_addr, dev->addr_len);

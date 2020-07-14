@@ -141,7 +141,8 @@ static ssize_t nss_dtlsmgr_ctx_decap_stats_read(struct file *filep, char __user 
 {
 	struct nss_dtlsmgr_ctx *ctx = filep->private_data;
 	struct nss_dtlsmgr_stats *stats;
-	ssize_t max_buf_len, len, ret;
+	ssize_t max_buf_len, ret;
+	ssize_t len = 0;
 	char *buf;
 
 	NSS_DTLSMGR_VERIFY_MAGIC(ctx);

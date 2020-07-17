@@ -114,10 +114,11 @@ struct nss_nldtls_update_config {
  */
 struct nss_nldtls_tx_pkts {
 	uint32_t num_pkts;		/**< Number of packets to be transmitted */
+	uint32_t seq_num;		/**< starting sequence number */
 	uint16_t pkt_sz;		/**< Size of packet to be transmitted */
 	char dev_name[IFNAMSIZ];	/**< Device used for transmission */
-	uint8_t ip_version;		/**< Ip version [4 or 6] */
 	uint8_t mode;			/**< Can be end_to_end or host_to_host*/
+	uint8_t ctype;			/**< dtls content type */
 	bool log_en;			/**< Enable or disable wireless info */
 };
 

@@ -15,6 +15,7 @@
  */
 
 #include <crypto/internal/skcipher.h>
+#include <linux/debugfs.h>
 #include <linux/etherdevice.h>
 #include <linux/icmp.h>
 #include <linux/inet.h>
@@ -67,10 +68,10 @@ struct genl_family nss_nldtls_family = {
 };
 
 /*
- * nss_nldtls_find_dtls_tun_gbl_ctx()
+ * nss_nldtls_find_tun_ctx()
  *	Returns the global context object of a tunnel
  */
-static struct nss_nldtls_tun_ctx *nss_nldtls_find_dtls_tun_gbl_ctx(struct net_device *dev)
+static struct nss_nldtls_tun_ctx *nss_nldtls_find_tun_ctx(struct net_device *dev)
 {
 	struct nss_nldtls_tun_ctx *entry;
 
@@ -84,47 +85,6 @@ static struct nss_nldtls_tun_ctx *nss_nldtls_find_dtls_tun_gbl_ctx(struct net_de
 
 	spin_unlock(&gbl_ctx.lock);
 	return NULL;
-}
-
-/*
- * nss_nldtls_data_cb()
- *	Data callback function for dtls
- */
-static void __maybe_unused nss_nldtls_data_cb(void *app_data __maybe_unused, struct sk_buff *skb __maybe_unused)
-{
-	static bool first_pkt;
-	unsigned long long duration;
-	ktime_t delta;
-
-	if (unlikely(!first_pkt)) {
-		gbl_ctx.first_rx_pkt_time = ktime_get();
-		first_pkt = true;
-	}
-
-	/*
-	 * Remove meta header
-	 */
-	skb_pull(skb, sizeof(struct nss_dtlsmgr_metadata));
-	gbl_ctx.last_rx_pkt_time = ktime_get();
-
-	if (unlikely(gbl_ctx.log_en)) {
-		struct net_device *dev;
-
-		delta = ktime_sub(gbl_ctx.last_rx_pkt_time, gbl_ctx.first_rx_pkt_time);
-		duration = (unsigned long long) ktime_to_ns(delta) >> 10;
-		print_hex_dump_bytes("", DUMP_PREFIX_OFFSET, skb->data, 32);
-		dev = dev_get_by_index(&init_net, skb->skb_iif);
-		if (dev) {
-			nss_nl_error("In dev = %s, out_dev = %s\n", dev->name, skb->dev->name);
-			dev_put(dev);
-		}
-
-		nss_nl_info("%px: DTLS RX (%s) pkt len = %d udp_csum = %s rx_time: %llu\n", skb,
-				skb->dev->name, skb->len, udp_lib_checksum_complete(skb) ?
-				"invalid" : "valid", duration);
-	}
-
-	dev_kfree_skb_any(skb);
 }
 
 /*
@@ -416,6 +376,48 @@ static int nss_nldtls_create_ipv6_rule(struct nss_ipv6_create *unic, uint16_t ru
 }
 
 /*
+ * nss_nldtls_data_callback()
+ *	Data callback function for dtls
+ */
+static void nss_nldtls_data_callback(void *app_data, struct sk_buff *skb)
+{
+	struct nss_dtlsmgr_metadata *ndm;
+	struct nss_nldtls_tun_ctx *tun;
+	struct nss_nldtls_stats *stats;
+	struct net_device *dev;
+
+	dev = dev_get_by_index(&init_net, skb->skb_iif);
+	if (!dev) {
+		nss_nl_error("Unable to get net dev for skb_iif %d\n", skb->skb_iif);
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
+	ndm = (struct nss_dtlsmgr_metadata *)skb->data;
+	tun = nss_nldtls_find_tun_ctx(dev);
+	if (!tun) {
+		nss_nl_error("Unable find tunnel ctx for %s\n", dev->name);
+		dev_put(dev);
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
+	stats = &tun->stats[NSS_NLDTLS_CTYPE_TO_IDX(ndm->ctype)];
+	spin_lock(&gbl_ctx.lock);
+	stats->rx_pkts++;
+	stats->rx_bytes += skb->len - sizeof(*ndm);
+	spin_unlock(&gbl_ctx.lock);
+
+	if (unlikely(gbl_ctx.log_en)) {
+		nss_nl_hex_dump_bytes("", DUMP_PREFIX_OFFSET, skb->data, (skb->len > 64) ? 64 : skb->len);
+	}
+
+	nss_nl_trace("%px Received DTLS packet\n", skb);
+	dev_put(dev);
+	dev_kfree_skb_any(skb);
+}
+
+/*
  * nss_nldtls_create_session()
  *	Create a DTLS session through dtlsmgr driver API.
  */
@@ -436,13 +438,13 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 
 	memset(&dcfg, 0, sizeof(struct nss_dtlsmgr_config));
 	algo = nl_rule->msg.create.encap.cfg.crypto.algo;
-	dcfg.flags = flags;
+	dcfg.flags = flags | (NSS_DTLSMGR_ENCAP_METADATA | NSS_DTLSMGR_HDR_CAPWAP);
 	if (algo == NSS_DTLSMGR_ALGO_AES_GCM)
 		dcfg.flags |= NSS_DTLSMGR_CIPHER_MODE_GCM;
 
 	dcfg.app_data = NULL;
 	dcfg.notify = NULL;
-	dcfg.data = NULL;
+	dcfg.data = nss_nldtls_data_callback;
 
 	/*
 	 * Encap configuration
@@ -527,6 +529,7 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 	dtls_tun_data = (struct nss_nldtls_tun_ctx *)kmalloc(sizeof(*dtls_tun_data), GFP_KERNEL);
 	dtls_tun_data->nl_rule = nl_rule;
 	memcpy(dtls_tun_data->dev_name, ndev->name, IFNAMSIZ);
+	memset(&dtls_tun_data->stats, 0, sizeof(dtls_tun_data->stats));
 
 	/*
 	 * Adding tunnel to global list of tunnels
@@ -645,29 +648,27 @@ static int nss_nldtls_create_ipv6_rule_entry(struct net_device *dtls_dev, struct
  * nss_nldtls_destroy_tun()
  *	Common handler for tunnel destroy
  */
-static int nss_nldtls_destroy_tun(struct net_device *dtls_ndev)
+static int nss_nldtls_destroy_tun(struct net_device *dev)
 {
-	struct nss_nldtls_tun_ctx *dtls_tun_data;
+	struct nss_nldtls_tun_ctx *tun;
 
-	dtls_tun_data = nss_nldtls_find_dtls_tun_gbl_ctx(dtls_ndev);
-	if (!dtls_tun_data) {
-		nss_nl_error("Unable to find context of the tunnel: %s\n", dtls_ndev->name);
-		dev_put(dtls_ndev);
+	tun = nss_nldtls_find_tun_ctx(dev);
+	if (!tun) {
+		nss_nl_error("Unable to find context of the tunnel: %s\n", dev->name);
 		return -EAGAIN;
 	}
 
 	/*
 	 * Delete tunnel node from the list
 	 */
-	list_del_init(&dtls_tun_data->list);
-	kfree(dtls_tun_data);
-	dev_put(dtls_ndev);
+	list_del_init(&tun->list);
+	kfree(tun);
 
 	/*
 	 * Destroy the dtls session
 	 */
-	if (nss_dtlsmgr_session_destroy(dtls_ndev)) {
-		nss_nl_error("Unable to destroy the tunnel: %s\n", dtls_ndev->name);
+	if (nss_dtlsmgr_session_destroy(dev)) {
+		nss_nl_error("Unable to destroy the tunnel: %s\n", dev->name);
 		return -EAGAIN;
 	}
 
@@ -752,8 +753,8 @@ static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info
 static int nss_nldtls_ops_destroy_tun(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nss_nldtls_rule *nl_rule;
-	struct net_device *dtls_ndev;
 	struct nss_nlcmn *nl_cm;
+	struct net_device *dev;
 	int ret;
 
 	/*
@@ -770,18 +771,20 @@ static int nss_nldtls_ops_destroy_tun(struct sk_buff *skb, struct genl_info *inf
 	 */
 	nl_rule = container_of(nl_cm, struct nss_nldtls_rule, cm);
 
-	dtls_ndev = dev_get_by_name(&init_net, nl_rule->msg.destroy.dev_name);
-	if (!dtls_ndev) {
-		nss_nl_error("%px: Unable to find dev: %s\n", skb, nl_rule->msg.destroy.dev_name);
+	dev = dev_get_by_name(&init_net, nl_rule->msg.destroy.dev_name);
+	if (!dev) {
+		nss_nl_error("%px Unable to find dev: %s\n", skb, nl_rule->msg.destroy.dev_name);
 		return -EINVAL;
 	}
+
+	dev_put(dev);
 
 	/*
 	 * Common dtls handler for tunnel destroy
 	 */
-	ret = nss_nldtls_destroy_tun(dtls_ndev);
+	ret = nss_nldtls_destroy_tun(dev);
 	if (ret < 0) {
-		nss_nl_error("%px: Unable to destroy tunnel: %s\n", skb, dtls_ndev->name);
+		nss_nl_error("%px Unable to destroy tunnel: %s\n", skb, dev->name);
 		return -EAGAIN;
 	}
 
@@ -796,13 +799,13 @@ static int nss_nldtls_ops_destroy_tun(struct sk_buff *skb, struct genl_info *inf
  */
 static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *info)
 {
-	struct nss_nldtls_tun_ctx *dtls_tun_data;
 	struct nss_dtlsmgr_config_update dcfg;
 	struct nss_nldtls_rule *nl_rule;
-	struct net_device *dtls_ndev;
+	struct nss_nldtls_tun_ctx *tun;
 	struct nss_dtlsmgr_ctx *ctx;
 	nss_dtlsmgr_status_t status;
 	struct nss_nlcmn *nl_cm;
+	struct net_device *dev;
 	uint16_t key_len;
 
 	/*
@@ -819,17 +822,17 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 	 */
 	nl_rule = container_of(nl_cm, struct nss_nldtls_rule, cm);
 
-	dtls_ndev = dev_get_by_name(&init_net, nl_rule->msg.update_config.dev_name);
-	if (!dtls_ndev) {
-		nss_nl_error("%px: Unable to find dev: %s\n", skb, nl_rule->msg.update_config.dev_name);
+	dev = dev_get_by_name(&init_net, nl_rule->msg.update_config.dev_name);
+	if (!dev) {
+		nss_nl_error("%px Unable to find dev: %s\n", skb, nl_rule->msg.update_config.dev_name);
 		return -EINVAL;
 	}
 
-	ctx = netdev_priv(dtls_ndev);
-	dtls_tun_data = nss_nldtls_find_dtls_tun_gbl_ctx(dtls_ndev);
-	if (!dtls_tun_data) {
-		nss_nl_error("%px: Unable to find context of the tunnel: %s\n", ctx, dtls_ndev->name);
-		dev_put(dtls_ndev);
+	ctx = netdev_priv(dev);
+	tun = nss_nldtls_find_tun_ctx(dev);
+	if (!tun) {
+		nss_nl_error("%px Unable to find context of the tunnel: %s\n", ctx, dev->name);
+		dev_put(dev);
 		return -EAGAIN;
 	}
 
@@ -864,19 +867,19 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 	dcfg.epoch = nl_rule->msg.update_config.config_update.epoch;
 	dcfg.window_size = nl_rule->msg.update_config.config_update.window_size;
 	if (!nl_rule->msg.update_config.dir) {
-		status = nss_dtlsmgr_session_update_encap(dtls_ndev, &dcfg);
+		status = nss_dtlsmgr_session_update_encap(dev, &dcfg);
 		if (status != NSS_DTLSMGR_OK) {
-			nss_nl_error("%px: Unable to update encap configuration\n", ctx);
-			dev_put(dtls_ndev);
+			nss_nl_error("%px Unable to update encap configuration\n", ctx);
+			dev_put(dev);
 			return -EINVAL;
 		}
 
 		nss_nl_info("%px: Successfully update the encap configuration\n", ctx);
 	} else {
-		status = nss_dtlsmgr_session_update_decap(dtls_ndev, &dcfg);
+		status = nss_dtlsmgr_session_update_decap(dev, &dcfg);
 		if (status != NSS_DTLSMGR_OK) {
-			nss_nl_error("%px: Unable to update decap configuration\n", ctx);
-			dev_put(dtls_ndev);
+			nss_nl_error("%px Unable to update decap configuration\n", ctx);
+			dev_put(dev);
 			return -EINVAL;
 		}
 
@@ -886,199 +889,45 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 	/*
 	 * Update the tun data configuration
 	 */
-	dtls_tun_data->nl_rule = nl_rule;
+	tun->nl_rule = nl_rule;
+	dev_put(dev);
 	return 0;
 }
 
 /*
- * nss_nldtls_construct_ipv4_udp_header()
- *	Creates an ipv4 + udp packet
+ * nss_nldtls_alloc_pkt()
+ *	Handler for forming ctype packet
  */
-static struct sk_buff *nss_nldtls_construct_ipv4_udp_header(struct net_device *dev, struct nss_nldtls_rule *nl_rule)
+static struct sk_buff *nss_nldtls_alloc_pkt(struct nss_nldtls_rule *nl_rule,
+			struct net_device *dev, uint32_t pkt_sz, uint8_t ctype)
 {
-	struct nss_nldtls_tun_ctx *tun_data;
-	struct nss_nldtls_rule *dtls_rule;
-	uint16_t hroom, troom;
+	struct nss_dtlsmgr_metadata *ndm;
+	uint16_t hdr_len, payload_len;
 	struct sk_buff *skb;
-	struct udphdr *uh;
-	struct iphdr *iph;
 
-	/*
-	 * Get the tun data
-	 */
-	tun_data = nss_nldtls_find_dtls_tun_gbl_ctx(dev);
-	dtls_rule = tun_data->nl_rule;
-	hroom = dev->needed_headroom;
-	troom = dev->needed_tailroom;
-	skb = dev_alloc_skb(nl_rule->msg.tx_pkts.pkt_sz + hroom + troom);
+	hdr_len = dev->needed_headroom + sizeof(*ndm);
+	payload_len = hdr_len + dev->needed_tailroom + pkt_sz;
+	skb = netdev_alloc_skb(dev, payload_len);
 	if (!skb) {
-		nss_nl_info("Failed to allocate skb\n");
 		return NULL;
 	}
 
-	skb_reserve(skb, sizeof(struct udphdr) + sizeof(struct iphdr));
-	skb_put(skb, nl_rule->msg.tx_pkts.pkt_sz);
+	skb_reserve(skb, hdr_len);
 
 	/*
 	 * Fill the packet with dummy data
 	 */
-	memset(skb->data, NSS_NLDTLS_DUMMY_DATA, skb->len);
+	memset(skb_put(skb, pkt_sz), NSS_NLDTLS_DUMMY_DATA, skb->len);
 
-	/*
-	 * Fill udp header fields
-	 */
-	skb_push(skb, sizeof(struct udphdr));
-	uh = (struct udphdr *)skb->data;
-	uh->source = htons(dtls_rule->msg.create.encap.cfg.sport);
-	uh->dest = htons(dtls_rule->msg.create.encap.cfg.dport);
-	uh->len = htons(skb->len);
-	uh->check = 0;
+	ndm = nss_dtlsmgr_metadata_init(skb);
+	nss_dtlsmgr_metadata_set_seq(ndm, nl_rule->msg.tx_pkts.seq_num);
+	nss_dtlsmgr_metadata_set_ctype(ndm, ctype);
 
-	/*
-	 * Fill IP header fields
-	 */
-	skb_push(skb, sizeof(struct iphdr));
-	iph = (struct iphdr *)skb->data;
-	iph->ihl = 5;
-	iph->version = 4;
-	iph->tot_len = (nl_rule->msg.tx_pkts.pkt_sz + sizeof(struct udphdr) + sizeof(struct iphdr));
-	iph->ttl = dtls_rule->msg.create.encap.cfg.ip_ttl;
-	iph->protocol = IPPROTO_UDP;
-	iph->saddr = dtls_rule->msg.create.encap.cfg.sip[0];
-	iph->daddr = dtls_rule->msg.create.encap.cfg.dip[0];
-
-	/*
-	 * UDP checksum
-	 */
-	uh->check = udp_csum(skb);
-	uh->check = csum_tcpudp_magic(iph->saddr, iph->daddr, skb->len,
-				      IPPROTO_UDP, uh->check);
-
-	if (nl_rule->msg.tx_pkts.log_en) {
-		nss_nl_info("%px: DTLS TX pkt len:%d udp_csum:0x%x\n", skb, skb->len, uh->check);
+	if (unlikely(nl_rule->msg.tx_pkts.log_en)) {
+		nss_nl_info("%px DTLS TX pkt len:%u\n", skb, skb->len);
 	}
 
 	return skb;
-}
-
-/*
- * nss_nldtls_construct_ipv6_udp_header()
- *	Creates an ipv6 + udp packet
- */
-static struct sk_buff *nss_nldtls_construct_ipv6_udp_header(struct net_device *dev, struct nss_nldtls_rule *nl_rule)
-{
-	struct nss_nldtls_tun_ctx *tun_data;
-	struct nss_nldtls_rule *dtls_rule;
-	uint16_t hroom, troom;
-	struct sk_buff *skb;
-	struct udphdr *uh;
-	struct ipv6hdr *ip6h;
-
-	/*
-	 * Get the tun data
-	 */
-	tun_data = nss_nldtls_find_dtls_tun_gbl_ctx(dev);
-	dtls_rule = tun_data->nl_rule;
-	hroom = dev->needed_headroom;
-	troom = dev->needed_tailroom;
-	skb = dev_alloc_skb(nl_rule->msg.tx_pkts.pkt_sz + hroom + troom);
-	if (!skb) {
-		nss_nl_info("Failed to allocate skb\n");
-		return NULL;
-	}
-
-	skb_reserve(skb, sizeof(struct udphdr) + sizeof(struct iphdr));
-	skb_put(skb, nl_rule->msg.tx_pkts.pkt_sz);
-
-	/*
-	 * Fill the packet with dummy data
-	 */
-	memset(skb->data, NSS_NLDTLS_DUMMY_DATA, skb->len);
-
-	/*
-	 * Fill udp header fields
-	 */
-	skb_push(skb, sizeof(struct udphdr));
-	uh = (struct udphdr *)skb->data;
-	uh->source = htons(dtls_rule->msg.create.encap.cfg.sport);
-	uh->dest = htons(dtls_rule->msg.create.encap.cfg.dport);
-	uh->len = htons(skb->len);
-	uh->check = 0;
-
-	/*
-	 * Fill IP header fields
-	 */
-	skb_push(skb, sizeof(struct ipv6hdr));
-	ip6h = (struct ipv6hdr *)skb->data;
-	ip6h->version = 6;
-	ip6h->payload_len = htons(nl_rule->msg.tx_pkts.pkt_sz + sizeof(struct udphdr));
-	ip6h->hop_limit = 64;
-	ip6h->nexthdr = IPPROTO_UDP;
-	ip6h->saddr.in6_u.u6_addr32[0] = htonl(dtls_rule->msg.create.encap.cfg.sip[0]);
-	ip6h->saddr.in6_u.u6_addr32[1] = htonl(dtls_rule->msg.create.encap.cfg.sip[1]);
-	ip6h->saddr.in6_u.u6_addr32[2] = htonl(dtls_rule->msg.create.encap.cfg.sip[2]);
-	ip6h->saddr.in6_u.u6_addr32[3] = htonl(dtls_rule->msg.create.encap.cfg.sip[3]);
-
-	ip6h->saddr.in6_u.u6_addr32[0] = htonl(dtls_rule->msg.create.encap.cfg.dip[0]);
-	ip6h->saddr.in6_u.u6_addr32[1] = htonl(dtls_rule->msg.create.encap.cfg.dip[1]);
-	ip6h->saddr.in6_u.u6_addr32[2] = htonl(dtls_rule->msg.create.encap.cfg.dip[2]);
-	ip6h->saddr.in6_u.u6_addr32[3] = htonl(dtls_rule->msg.create.encap.cfg.dip[3]);
-
-	skb_set_transport_header(skb, sizeof(struct ipv6hdr));
-	/*
-	 * UDP checksum
-	 */
-	udp6_set_csum(false, skb, &ip6h->saddr, &ip6h->daddr, nl_rule->msg.tx_pkts.pkt_sz + sizeof(struct udphdr));
-
-	if (nl_rule->msg.tx_pkts.log_en) {
-		nss_nl_info("%px: DTLS TX pkt len:%d udp_csum:0x%x\n", skb, skb->len, uh->check);
-	}
-
-	return skb;
-}
-
-/*
- * nss_nldtls_tx_ipv4_pkts_host_to_host()
- *	Handler for sending ipv4 traffic from one host to other
- */
-static bool nss_nldtls_tx_ipv4_pkts_host_to_host(struct nss_nldtls_rule *nl_rule, struct net_device *dtls_dev)
-{
-	int i;
-	for (i = 0; i < nl_rule->msg.tx_pkts.num_pkts; i++) {
-		struct sk_buff *skb;
-
-		skb = nss_nldtls_construct_ipv4_udp_header(dtls_dev, nl_rule);
-		if (!skb) {
-			nss_nl_error("%px: Unable to create ipv4 + udp packet\n", dtls_dev);
-			return false;
-		}
-
-		dtls_dev->netdev_ops->ndo_start_xmit(skb, dtls_dev);
-	}
-
-	return true;
-}
-
-/*
- * nss_nldtls_tx_ipv6_pkts_host_to_host()
- *	Handler for sending ipv6 traffic from one host to other
- */
-static bool nss_nldtls_tx_ipv6_pkts_host_to_host(struct nss_nldtls_rule *nl_rule, struct net_device *dtls_dev)
-{
-	int i;
-	for (i = 0; i < nl_rule->msg.tx_pkts.num_pkts; i++) {
-		struct sk_buff *skb;
-
-		skb = nss_nldtls_construct_ipv6_udp_header(dtls_dev, nl_rule);
-		if (!skb) {
-			nss_nl_error("%px: Unable to create ipv4 + udp packet\n", dtls_dev);
-			return false;
-		}
-
-		dtls_dev->netdev_ops->ndo_start_xmit(skb, dtls_dev);
-	}
-
-	return true;
 }
 
 /*
@@ -1087,12 +936,18 @@ static bool nss_nldtls_tx_ipv6_pkts_host_to_host(struct nss_nldtls_rule *nl_rule
  */
 static int nss_nldtls_ops_tx_pkts(struct sk_buff *skb, struct genl_info *info)
 {
-	struct nss_nldtls_tun_ctx *dtls_tun_data;
 	struct nss_nldtls_rule *nl_rule;
-	struct net_device *dtls_ndev;
+	struct nss_nldtls_tun_ctx *tun;
+	struct nss_nldtls_stats *stats;
 	unsigned long long duration;
 	struct nss_nlcmn *nl_cm;
+	struct net_device *dev;
+	struct sk_buff *tx_skb;
+	uint32_t num_pkts;
+	uint32_t pkt_sz;
+	uint32_t count;
 	ktime_t delta;
+	uint8_t ctype;
 
 	/*
 	 * extract the message payload
@@ -1108,46 +963,150 @@ static int nss_nldtls_ops_tx_pkts(struct sk_buff *skb, struct genl_info *info)
 	 */
 	nl_rule = container_of(nl_cm, struct nss_nldtls_rule, cm);
 
-	dtls_ndev = dev_get_by_name(&init_net, nl_rule->msg.tx_pkts.dev_name);
-	if (!dtls_ndev) {
-		nss_nl_error("%px: Unable to find dev: %s\n", skb, nl_rule->msg.tx_pkts.dev_name);
+	ctype = nl_rule->msg.tx_pkts.ctype;
+	num_pkts = nl_rule->msg.tx_pkts.num_pkts;
+
+	switch (ctype) {
+	case NSS_DTLSMGR_METADATA_CTYPE_CCS:
+		pkt_sz = NSS_NLDTLS_CCS_PKT_SZ;
+		break;
+
+	case NSS_DTLSMGR_METADATA_CTYPE_ALERT:
+		pkt_sz = NSS_NLDTLS_ALERT_PKT_SZ;
+		break;
+
+	case NSS_DTLSMGR_METADATA_CTYPE_HANDSHAKE:
+		pkt_sz = NSS_NLDTLS_HANDSHAKE_PKT_SZ;
+		break;
+
+	case NSS_DTLSMGR_METADATA_CTYPE_APP:
+		pkt_sz = nl_rule->msg.tx_pkts.pkt_sz;
+		break;
+
+	default:
 		return -EINVAL;
 	}
 
-	dtls_tun_data = nss_nldtls_find_dtls_tun_gbl_ctx(dtls_ndev);
-	if (!dtls_tun_data) {
-		nss_nl_error("%px: Unable to find context of the tunnel: %s\n", skb, dtls_ndev->name);
-		dev_put(dtls_ndev);
-		return -EAGAIN;
+	dev = dev_get_by_name(&init_net, nl_rule->msg.tx_pkts.dev_name);
+	if (!dev) {
+		nss_nl_error("%px Unable to find dev: %s\n", skb, nl_rule->msg.tx_pkts.dev_name);
+		return -EINVAL;
+	}
+
+	tun = nss_nldtls_find_tun_ctx(dev);
+	if (!tun) {
+		nss_nl_error("%px Unable to find context of the tunnel: %s\n", skb, dev->name);
+		dev_put(dev);
+		return -EINVAL;
 	}
 
 	spin_lock(&gbl_ctx.lock);
 	gbl_ctx.log_en = nl_rule->msg.tx_pkts.log_en;
 	spin_unlock(&gbl_ctx.lock);
 
-	/*
-	 * Send traffic from host to host
-	 */
 	gbl_ctx.first_tx_pkt_time = ktime_get();
-	if (nl_rule->msg.tx_pkts.ip_version == NSS_NLDTLS_IP_VERS_4) {
-		if (!nss_nldtls_tx_ipv4_pkts_host_to_host(nl_rule, dtls_ndev)) {
-			nss_nl_error("%px: Error in transmission\n", skb);
-			return -EAGAIN;
+
+	for (count = 0; count < num_pkts; count++) {
+		tx_skb = nss_nldtls_alloc_pkt(nl_rule, dev, pkt_sz, ctype);
+		if (!tx_skb) {
+			nss_nl_error("%px Failed to allocate skb\n", dev);
+			break;
 		}
-	} else {
-		if (!nss_nldtls_tx_ipv6_pkts_host_to_host(nl_rule, dtls_ndev)) {
-			nss_nl_error("%px: Error in transmission\n", skb);
-			return -EAGAIN;
-		}
+
+		dev->netdev_ops->ndo_start_xmit(tx_skb, dev);
+	}
+
+	stats = &tun->stats[NSS_NLDTLS_CTYPE_TO_IDX(ctype)];
+	spin_lock(&gbl_ctx.lock);
+	stats->tx_pkts += count;
+	stats->tx_bytes += (count * pkt_sz);
+	spin_unlock(&gbl_ctx.lock);
+	dev_put(dev);
+
+	if (count != num_pkts) {
+		nss_nl_error("%px Error in transmission\n", skb);
+		return -EAGAIN;
 	}
 
 	gbl_ctx.last_tx_pkt_time = ktime_get();
 	delta = ktime_sub(gbl_ctx.last_tx_pkt_time, gbl_ctx.first_tx_pkt_time);
 	duration = (unsigned long long) ktime_to_ns(delta) >> 10;
-	nss_nl_info("%px: Packets sent in %llu usecs", dtls_ndev, duration);
-	nss_nl_info("%px: Traffic transmission successful\n", skb);
+	nss_nl_info("%px Packets sent in %llu usecs", dev, duration);
+	nss_nl_info("%px Traffic transmission successful\n", skb);
 	return 0;
 }
+
+/*
+ * nss_nldtls_tunnel_stats_read()
+ *	reads the per tunnel tx and rx packets stats for every ctypes
+ */
+static ssize_t nss_nldtls_tunnel_stats_read(struct file *fp, char __user *ubuf, size_t sz, loff_t *f_ppos)
+{
+	struct nss_nldtls_stats stats[NSS_NLDTLS_CTYPE_MAX];
+	struct nss_nldtls_tun_ctx *entry;
+	uint32_t max_output_lines;
+	char dev_name[IFNAMSIZ];
+	ssize_t bytes_read = 0;
+	ssize_t size_wr = 0;
+	ssize_t size_al;
+	char *lbuf;
+
+	max_output_lines = 2 + (NSS_NLDTLS_MAX_TUNNELS * NSS_NLDTLS_STATS_MAX_ROW);
+	size_al = NSS_NLDTLS_STATS_MAX_STR_LEN * max_output_lines;
+
+	lbuf = vzalloc(size_al);
+
+	if (!lbuf) {
+		nss_nl_error("%px Could not allocate buffer for debug entry\n", f_ppos);
+		return 0;
+	}
+
+	size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\nDTLS netlink ctype stats:\n");
+	list_for_each_entry(entry, &gbl_ctx.dtls_list_head, list) {
+		spin_lock_bh(&gbl_ctx.lock);
+		memcpy(&stats, &entry->stats, sizeof(stats));
+		strlcpy(dev_name, entry->dev_name, IFNAMSIZ);
+		spin_unlock_bh(&gbl_ctx.lock);
+
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n--------------------------------");
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n%s:\t %s", "dev", dev_name);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n change_cipher_spec");
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_pkts", stats[0].tx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_bytes", stats[0].tx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_pkts", stats[0].rx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_bytes", stats[0].rx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n alert");
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_pkts", stats[1].tx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_bytes", stats[1].tx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_pkts", stats[1].rx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_bytes", stats[1].rx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n handshake");
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_pkts", stats[2].tx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_bytes", stats[2].tx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_pkts", stats[2].rx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_bytes", stats[2].rx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n app_data");
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_pkts", stats[3].tx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "tx_bytes", stats[3].tx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_pkts", stats[3].rx_pkts);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n\t%s:\t %llu", "rx_bytes", stats[3].rx_bytes);
+		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\n--------------------------------\n");
+	}
+
+	size_wr += scnprintf(lbuf + size_wr, size_al - size_wr, "\nDTLS netlink ctype stats end\n\n");
+	bytes_read = simple_read_from_buffer(ubuf, sz, f_ppos, lbuf, size_wr);
+
+	vfree(lbuf);
+	return bytes_read;
+}
+
+/*
+ * nss_nldtls_stats_ops()
+ *	file operation handler for dentry
+ */
+static const struct file_operations nss_nldtls_stats_ops = {
+	.read = nss_nldtls_tunnel_stats_read,
+};
 
 /*
  * nss_nldtls_cmd_ops
@@ -1180,7 +1139,28 @@ bool nss_nldtls_init(void)
 		return false;
 	}
 
+	/*
+	 * Create a debugfs entry for netlink dtls
+	 */
+	gbl_ctx.dentry = debugfs_create_dir("nldtls", NULL);
+	if (!gbl_ctx.dentry) {
+		nss_nl_info_always("Cannot create nldtls directory\n");
+		goto free_family;
+	}
+
+	if (!debugfs_create_file("stats", 0400, gbl_ctx.dentry, NULL, &nss_nldtls_stats_ops)) {
+		nss_nl_info_always("Cannot create nldtls dentry file\n");
+		goto free_debugfs;
+	}
+
 	return true;
+
+free_debugfs:
+	debugfs_remove_recursive(gbl_ctx.dentry);
+free_family:
+	genl_unregister_family(&nss_nldtls_family);
+
+	return false;
 }
 
 /*
@@ -1190,7 +1170,7 @@ bool nss_nldtls_init(void)
 bool nss_nldtls_exit(void)
 {
 	struct nss_nldtls_tun_ctx *entry, *tmp;
-	struct net_device *dtls_ndev;
+	struct net_device *dev;
 	int err;
 
 	nss_nl_info_always("Exit NSS netlink dtls handler\n");
@@ -1199,9 +1179,10 @@ bool nss_nldtls_exit(void)
 	 * Destroy all active tunnel before exiting
 	 */
 	list_for_each_entry_safe(entry, tmp, &gbl_ctx.dtls_list_head, list) {
-		dtls_ndev = dev_get_by_name(&init_net, entry->dev_name);
-		if (dtls_ndev) {
-			nss_nldtls_destroy_tun(dtls_ndev);
+		dev = dev_get_by_name(&init_net, entry->dev_name);
+		if (dev) {
+			dev_put(dev);
+			nss_nldtls_destroy_tun(dev);
 		}
 	}
 

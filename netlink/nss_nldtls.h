@@ -27,6 +27,27 @@
 #define NSS_NLDTLS_VLAN_INVALID 0xFFF
 #define NSS_NLDTLS_IP_VERS_4 4
 #define NSS_NLDTLS_DUMMY_DATA 0xcc
+#define NSS_NLDTLS_STATS_MAX_ROW 23
+#define NSS_NLDTLS_STATS_MAX_STR_LEN 35
+
+#define NSS_NLDTLS_CTYPE_MAX 4
+#define NSS_NLDTLS_CTYPE_BASE	NSS_DTLSMGR_METADATA_CTYPE_CCS
+#define NSS_NLDTLS_CTYPE_TO_IDX(ctype)	((ctype) - NSS_NLDTLS_CTYPE_BASE)
+
+#define NSS_NLDTLS_CCS_PKT_SZ 1
+#define NSS_NLDTLS_ALERT_PKT_SZ 2
+#define NSS_NLDTLS_HANDSHAKE_PKT_SZ 56
+
+/*
+ * nss_dtls_stats
+ *	netlink DTLS TX and RX statistics
+ */
+struct nss_nldtls_stats {
+	uint64_t rx_pkts;
+	uint64_t rx_bytes;
+	uint64_t tx_pkts;
+	uint64_t tx_bytes;
+};
 
 /*
  * nss_nldtls_tun_ctx
@@ -36,6 +57,8 @@ struct nss_nldtls_tun_ctx {
 	struct list_head list;			/**< List for holding different tunnel info */
 	struct nss_nldtls_rule *nl_rule;	/**< Dtls rule structure */
 	char dev_name[IFNAMSIZ];		/**< Dtls session netdev */
+	struct nss_nldtls_stats stats[NSS_NLDTLS_CTYPE_MAX];
+						/**< Dtls stats */
 };
 
 /*
@@ -51,6 +74,7 @@ struct nss_nldtls_gbl_ctx {
 	ktime_t first_tx_pkt_time;
 	ktime_t last_rx_pkt_time;
 	ktime_t last_tx_pkt_time;
+	struct dentry *dentry;
 };
 
 #if (CONFIG_NSS_NLDTLS == 1)

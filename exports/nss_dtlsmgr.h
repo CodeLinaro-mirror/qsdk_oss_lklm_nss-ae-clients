@@ -60,6 +60,12 @@
 #define NSS_DTLSMGR_METADATA_FLAG_SEQ 0x0002		/**< Metadata has a valid sequence no. */
 #define NSS_DTLSMGR_METADATA_FLAG_CTYPE 0x0004		/**< Metadata has a valid DTLS content type */
 
+/*
+ * NSS DTLS manager reserved size of header
+ */
+#define NSS_DTLSMGR_NEEDED_HEADROOM_SZ 128
+#define NSS_DTLSMGR_NEEDED_TAILROOM_SZ 128
+
 /**
  * NSS DTLS manager status
  */

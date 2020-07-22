@@ -1773,7 +1773,7 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 	struct net_device *dev = qdisc_dev(sch);
 	struct nss_qdisc *parent_nq = NULL;
 	struct Qdisc *parent_qdisc = NULL;
-	unsigned long parent_class;
+	unsigned long parent_class = 0;
 
 	/*
 	 * PPE Qdisc cannot be attached to NSS Qdisc.
@@ -1812,8 +1812,11 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 				return NSS_PPE_QDISC_PARENT_NOT_EXISTING;
 			}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 			parent_class = parent_qdisc->ops->cl_ops->get(parent_qdisc, parent);
-
+#else
+			parent_class = parent_qdisc->ops->cl_ops->find(parent_qdisc, parent);
+#endif
 			if (!parent_class) {
 				nq->parent = NULL;
 				nss_qdisc_info("HW qdisc/class %px cannot be attached to non-existing class %x\n", nq->qdisc, parent);
@@ -1822,7 +1825,9 @@ int nss_ppe_set_parent(struct Qdisc *sch, struct nss_qdisc *nq, uint32_t parent)
 			}
 
 			nq->parent = (struct nss_qdisc *)parent_class;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 			parent_qdisc->ops->cl_ops->put(parent_qdisc, parent_class);
+#endif
 		}
 	}
 
@@ -2200,14 +2205,22 @@ fail:
  * nss_ppe_fallback_to_nss()
  *	Calls the initialization of NSS Qdisc when PPE initialization fails.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 int nss_ppe_fallback_to_nss(struct nss_qdisc *nq, struct nlattr *opt)
+#else
+int nss_ppe_fallback_to_nss(struct nss_qdisc *nq, struct nlattr *opt, struct netlink_ext_ack *extack)
+#endif
 {
 	nss_qdisc_destroy(nq);
 
 	memset(&nq->npq, 0, sizeof(struct nss_ppe_qdisc));
 	nq->ppe_init_failed = true;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nq->qdisc->ops->init(nq->qdisc, opt) < 0) {
+#else
+	if (nq->qdisc->ops->init(nq->qdisc, opt, extack) < 0) {
+#endif
 			nss_qdisc_warning("Fallback to NSS Qdisc failed.\n");
 			return -EINVAL;
 	}

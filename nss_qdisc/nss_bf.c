@@ -68,12 +68,18 @@ static inline struct nss_bf_class_data *nss_bf_find_class(u32 classid,
  * nss_bf_change_class()
  *	Configures a new class.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		  struct nlattr **tca, unsigned long *arg)
+#else
+static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
+		  struct nlattr **tca, unsigned long *arg, struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
 	struct nss_bf_class_data *cl = (struct nss_bf_class_data *)*arg;
 	struct nlattr *opt = tca[TCA_OPTIONS];
+	struct nlattr *tb[TCA_NSSBF_MAX + 1];
 	struct tc_nssbf_class_qopt *qopt;
 	struct nss_if_msg nim_config;
 	struct net_device *dev = qdisc_dev(sch);
@@ -84,7 +90,12 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		return -EINVAL;
 	}
 
-	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, TCA_NSSBF_MAX, TCA_NSSBF_CLASS_PARMS);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, tb, TCA_NSSBF_MAX, TCA_NSSBF_CLASS_PARMS);
+#else
+	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, tb, TCA_NSSBF_MAX, TCA_NSSBF_CLASS_PARMS, extack);
+#endif
+
 	if (!qopt) {
 		return -EINVAL;
 	}
@@ -111,7 +122,7 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * reference count should not be 0.
 		 */
 		cl->qdisc = &noop_qdisc;
-		atomic_set(&cl->nq.refcnt, 1);
+		nss_qdisc_atomic_set(&cl->nq);
 		*arg = (unsigned long)cl;
 
 		nss_qdisc_info("Adding classid %u to qdisc %px hash queue %px\n", classid, sch, &q->clhash);
@@ -260,7 +271,7 @@ static void nss_bf_destroy_class(struct Qdisc *sch, struct nss_bf_class_data *cl
 	/*
 	 * And now we destroy the child.
 	 */
-	qdisc_destroy(cl->qdisc);
+	 nss_qdisc_put(cl->qdisc);
 
 	/*
 	 * Stop the stats polling timer and free class
@@ -311,7 +322,7 @@ static int nss_bf_delete_class(struct Qdisc *sch, unsigned long arg)
 	sch_tree_lock(sch);
 	qdisc_reset(cl->qdisc);
 	qdisc_class_hash_remove(&q->clhash, &cl->cl_common);
-	refcnt = atomic_sub_return(1, &cl->nq.refcnt);
+	refcnt = nss_qdisc_atomic_sub_return(&cl->nq);
 	sch_tree_unlock(sch);
 	if (!refcnt) {
 		nss_qdisc_error("Reference count should not be zero for class %px\n", cl);
@@ -324,8 +335,13 @@ static int nss_bf_delete_class(struct Qdisc *sch, unsigned long arg)
  * nss_bf_graft_class()
  *	Replaces the qdisc attached to the provided class.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc *new,
 								 struct Qdisc **old)
+#else
+static int nss_bf_graft_class(struct Qdisc *sch, unsigned long arg, struct Qdisc *new,
+								 struct Qdisc **old, struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
 	struct nss_bf_class_data *cl = (struct nss_bf_class_data *)arg;
@@ -415,6 +431,7 @@ static void nss_bf_qlen_notify(struct Qdisc *sch, unsigned long arg)
 	 */
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 /*
  * nss_bf_get_class()
  *	Fetches the class pointer if provided the classid.
@@ -444,10 +461,24 @@ static void nss_bf_put_class(struct Qdisc *sch, unsigned long arg)
 	 * We are safe to destroy the qdisc if the reference count
 	 * goes down to 0.
 	 */
-	if (atomic_sub_return(1, &cl->nq.refcnt) == 0) {
+	if (nss_qdisc_atomic_sub_return(&cl->nq) == 0) {
 		nss_bf_destroy_class(sch, cl);
 	}
 }
+#else
+/*
+ * nss_bf_search_class()
+ *	Fetches the class pointer if provided the classid.
+ */
+static unsigned long nss_bf_search_class(struct Qdisc *sch, u32 classid)
+{
+	struct nss_bf_class_data *cl = nss_bf_find_class(classid, sch);
+
+	nss_qdisc_info("Get bf class %px - class match = %px\n", sch, cl);
+
+	return (unsigned long)cl;
+}
+#endif
 
 /*
  * nss_bf_dump_class()
@@ -475,7 +506,7 @@ static int nss_bf_dump_class(struct Qdisc *sch, unsigned long arg, struct sk_buf
 	tcm->tcm_handle = cl->cl_common.classid;
 	tcm->tcm_info = cl->qdisc->handle;
 
-	opts = nla_nest_start(skb, TCA_OPTIONS);
+	opts = nss_qdisc_nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL || nla_put(skb, TCA_NSSBF_CLASS_PARMS, sizeof(qopt), &qopt)) {
 		goto nla_put_failure;
 	}
@@ -495,7 +526,7 @@ static int nss_bf_dump_class_stats(struct Qdisc *sch, unsigned long arg, struct 
 {
 	struct nss_qdisc *nq = (struct nss_qdisc *)arg;
 
-	if (nss_qdisc_gnet_stats_copy_basic(d, &nq->bstats) < 0 ||
+	if (nss_qdisc_gnet_stats_copy_basic(sch, d, &nq->bstats) < 0 ||
 			nss_qdisc_gnet_stats_copy_queue(d, &nq->qstats) < 0) {
 		return -1;
 	}
@@ -538,9 +569,15 @@ static void nss_bf_walk(struct Qdisc *sch, struct qdisc_walker *arg)
  * nss_bf_change_qdisc()
  *	Can be used to configure a nssbf qdisc.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_bf_change_qdisc(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_bf_change_qdisc(struct Qdisc *sch, struct nlattr *opt,
+				struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
+	struct nlattr *tb[TCA_NSSBF_MAX + 1];
 	struct tc_nssbf_qopt *qopt;
 
 	/*
@@ -563,7 +600,11 @@ static int nss_bf_change_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	/*
 	 * If it is not NULL, parse to get qopt.
 	 */
-	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, tb, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS);
+#else
+	qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, tb, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS, extack);
+#endif
 	if (!qopt) {
 		return -EINVAL;
 	}
@@ -643,7 +684,7 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
 			 * Reduce refcnt by 1 before destroying. This is to
 			 * ensure that polling of stat stops properly.
 			 */
-			atomic_sub(1, &cl->nq.refcnt);
+			 nss_qdisc_atomic_sub(&cl->nq);
 
 			/*
 			 * Detach class before destroying it. We dont check for noop qdisc here
@@ -684,9 +725,15 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
  * nss_bf_init_qdisc()
  *	Initializes the nssbf qdisc.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt,
+				struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
+	struct nlattr *tb[TCA_NSSBF_MAX + 1];
 	struct tc_nssbf_qopt *qopt;
 	int err;
 	unsigned int accel_mode;
@@ -710,7 +757,11 @@ static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	if (!opt) {
 		accel_mode = TCA_NSS_ACCEL_MODE_NSS_FW;
 	} else {
-		qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+		qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, tb, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS);
+#else
+		qopt = nss_qdisc_qopt_get(opt, nss_bf_policy, tb, TCA_NSSBF_MAX, TCA_NSSBF_QDISC_PARMS, extack);
+#endif
 		if (!qopt) {
 			return -EINVAL;
 		}
@@ -729,7 +780,11 @@ static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
 	/*
 	 * Tune nss_bf parameters.
 	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nss_bf_change_qdisc(sch, opt) < 0) {
+#else
+	if (nss_bf_change_qdisc(sch, opt, extack) < 0) {
+#endif
 		nss_qdisc_destroy(&q->nq);
 		return -EINVAL;
 	}
@@ -756,7 +811,7 @@ static int nss_bf_dump_qdisc(struct Qdisc *sch, struct sk_buff *skb)
 	qopt.defcls = q->defcls;
 	qopt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
-	opts = nla_nest_start(skb, TCA_OPTIONS);
+	opts = nss_qdisc_nla_nest_start(skb, TCA_OPTIONS);
 	if (!opts || nla_put(skb, TCA_NSSBF_QDISC_PARMS, sizeof(qopt), &qopt)) {
 		goto nla_put_failure;
 	}
@@ -772,9 +827,18 @@ nla_put_failure:
  * nss_bf_enqueue()
  *	Enqueues a skb to nssbf qdisc.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 static int nss_bf_enqueue(struct sk_buff *skb, struct Qdisc *sch)
+#else
+static int nss_bf_enqueue(struct sk_buff *skb, struct Qdisc *sch,
+				struct sk_buff **to_free)
+#endif
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	return nss_qdisc_enqueue(skb, sch);
+#else
+	return nss_qdisc_enqueue(skb, sch, to_free);
+#endif
 }
 
 /*
@@ -786,6 +850,7 @@ static struct sk_buff *nss_bf_dequeue(struct Qdisc *sch)
 	return nss_qdisc_dequeue(sch);
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 /*
  * nss_bf_drop()
  *	Drops a single skb from linux queue, if not empty.
@@ -797,6 +862,7 @@ static unsigned int nss_bf_drop(struct Qdisc *sch)
 	printk("In bf drop\n");
 	return nss_qdisc_drop(sch);
 }
+#endif
 
 /*
  * Registration structure for nssbf class
@@ -807,11 +873,20 @@ const struct Qdisc_class_ops nss_bf_class_ops = {
 	.graft		= nss_bf_graft_class,
 	.leaf		= nss_bf_leaf_class,
 	.qlen_notify	= nss_bf_qlen_notify,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 	.get		= nss_bf_get_class,
 	.put		= nss_bf_put_class,
+#else
+	.find		= nss_bf_search_class,
+#endif
+/*
+ * TODO: Remove kernel version check when IGS is ported
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	.tcf_chain	= nss_qdisc_tcf_chain,
 	.bind_tcf	= nss_qdisc_tcf_bind,
 	.unbind_tcf	= nss_qdisc_tcf_unbind,
+#endif
 	.dump		= nss_bf_dump_class,
 	.dump_stats	= nss_bf_dump_class_stats,
 	.walk		= nss_bf_walk
@@ -830,7 +905,9 @@ struct Qdisc_ops nss_bf_qdisc_ops __read_mostly = {
 	.enqueue	= nss_bf_enqueue,
 	.dequeue	= nss_bf_dequeue,
 	.peek		= qdisc_peek_dequeued,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	.drop		= nss_bf_drop,
+#endif
 	.cl_ops		= &nss_bf_class_ops,
 	.priv_size	= sizeof(struct nss_bf_sched_data),
 	.owner		= THIS_MODULE

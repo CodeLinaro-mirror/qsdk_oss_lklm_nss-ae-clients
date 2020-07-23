@@ -34,9 +34,9 @@
 #define NSS_NLDTLS_DECAP_SIDE 1
 #define NSS_NLDTLS_TX_PKTS_MODE_END_TO_END 0
 #define NSS_NLDTLS_TX_PKTS_MODE_HOST_TO_HOST 1
-#define NSS_NLDTLS_CKD_MAX 32
-#define NSS_NLDTLS_AKD_MAX 32
-#define NSS_NLDTLS_ND_MAX 20
+#define NSS_NLDTLS_CIPHER_KEY_MAX 32
+#define NSS_NLDTLS_AUTH_KEY_MAX 64
+#define NSS_NLDTLS_NONCE_SIZE_MAX 4
 
 /**
  * @brief Enumeration for all command types.
@@ -51,11 +51,36 @@ enum nss_nldtls_cmd_type {
 };
 
 /**
+ * @brief Parameters for crypto keys
+ */
+struct nss_nldtls_crypto_keys {
+	uint8_t cipher[NSS_NLDTLS_CIPHER_KEY_MAX];	/**< Cipher key data */
+	uint8_t auth[NSS_NLDTLS_CIPHER_KEY_MAX];	/**< Cipher key data */
+	uint8_t nonce[NSS_NLDTLS_CIPHER_KEY_MAX];	/**< Cipher key data */
+};
+
+/**
+ * @brief Parameters for encap configuration
+ */
+struct nss_nldtls_encap_config {
+	struct nss_dtlsmgr_encap_config cfg;
+	struct nss_nldtls_crypto_keys keys;
+};
+
+/**
+ * @brief Parameter for decap configuration
+ */
+struct nss_nldtls_decap_config {
+	struct nss_dtlsmgr_decap_config cfg;
+	struct nss_nldtls_crypto_keys keys;
+};
+
+/**
  * @brief Parameters to create a tunnel.
  */
 struct nss_nldtls_create_tun {
-	struct nss_dtlsmgr_encap_config encap;	/**< Encap data. */
-	struct nss_dtlsmgr_decap_config decap;	/**< Decap data. */
+	struct nss_nldtls_encap_config encap;	/**< Encap data. */
+	struct nss_nldtls_decap_config decap;	/**< Decap data. */
 	uint32_t flags;				/**< DTLS header flags. */
 	uint32_t from_mtu;			/**< Mtu of incoming interface. */
 	uint32_t to_mtu;			/**< Mtu of outgoing interface. */
@@ -77,6 +102,7 @@ struct nss_nldtls_destroy_tun {
  */
 struct nss_nldtls_update_config {
 	struct nss_dtlsmgr_config_update config_update;		/**< Update config params */
+	struct nss_nldtls_crypto_keys keys;			/**< Crypto keys. */
 	uint16_t epoch;						/**< Dtls encap epoch. */
 	uint16_t window_sz;					/**< Dtls window size parameter. */
 	char dev_name[IFNAMSIZ];				/**< Device whose config to be updated. */

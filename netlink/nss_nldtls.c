@@ -425,6 +425,7 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 	struct nss_dtlsmgr_config dcfg;
 	struct nss_dtlsmgr_ctx *ctx;
 	struct net_device *ndev;
+	uint16_t key_len;
 	uint8_t algo;
 	int err;
 
@@ -434,7 +435,7 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 	}
 
 	memset(&dcfg, 0, sizeof(struct nss_dtlsmgr_config));
-	algo = nl_rule->msg.create.encap.crypto.algo;
+	algo = nl_rule->msg.create.encap.cfg.crypto.algo;
 	dcfg.flags = flags;
 	if (algo == NSS_DTLSMGR_ALGO_AES_GCM)
 		dcfg.flags |= NSS_DTLSMGR_CIPHER_MODE_GCM;
@@ -446,12 +447,54 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 	/*
 	 * Encap configuration
 	 */
-	memcpy((void *)&dcfg.encap, (void *)&nl_rule->msg.create.encap, sizeof(struct nss_dtlsmgr_encap_config));
+	key_len = nl_rule->msg.create.encap.cfg.crypto.cipher_key.len;
+	if (key_len > NSS_NLDTLS_CIPHER_KEY_MAX) {
+		nss_nl_error("Invalid cipher length: %u\n", key_len);
+		return NULL;
+	}
+
+	key_len = nl_rule->msg.create.encap.cfg.crypto.auth_key.len;
+	if (key_len > NSS_NLDTLS_AUTH_KEY_MAX) {
+		nss_nl_error("Invalid authentication length: %u\n", key_len);
+		return NULL;
+	}
+
+	key_len = nl_rule->msg.create.encap.cfg.crypto.nonce.len;
+	if (key_len > NSS_NLDTLS_NONCE_SIZE_MAX) {
+		nss_nl_error("Invalid nonce length: %u\n", key_len);
+		return NULL;
+	}
+
+	nl_rule->msg.create.encap.cfg.crypto.cipher_key.data = nl_rule->msg.create.encap.keys.cipher;
+	nl_rule->msg.create.encap.cfg.crypto.auth_key.data = nl_rule->msg.create.encap.keys.auth;
+	nl_rule->msg.create.encap.cfg.crypto.nonce.data = nl_rule->msg.create.encap.keys.nonce;
+	memcpy((void *)&dcfg.encap, (void *)&nl_rule->msg.create.encap.cfg, sizeof(struct nss_dtlsmgr_encap_config));
 
 	/*
 	 * Decap configuration
 	 */
-	memcpy((void *)&dcfg.decap, (void *)&nl_rule->msg.create.decap, sizeof(struct nss_dtlsmgr_decap_config));
+	key_len = nl_rule->msg.create.decap.cfg.crypto.cipher_key.len;
+	if (key_len > NSS_NLDTLS_CIPHER_KEY_MAX) {
+		nss_nl_error("Invalid cipher length: %u\n", key_len);
+		return NULL;
+	}
+
+	key_len = nl_rule->msg.create.decap.cfg.crypto.auth_key.len;
+	if (key_len > NSS_NLDTLS_AUTH_KEY_MAX) {
+		nss_nl_error("Invalid authentication length: %u\n", key_len);
+		return NULL;
+	}
+
+	key_len = nl_rule->msg.create.decap.cfg.crypto.nonce.len;
+	if (key_len > NSS_NLDTLS_NONCE_SIZE_MAX) {
+		nss_nl_error("Invalid nonce length: %u\n", key_len);
+		return NULL;
+	}
+
+	nl_rule->msg.create.decap.cfg.crypto.cipher_key.data = nl_rule->msg.create.decap.keys.cipher;
+	nl_rule->msg.create.decap.cfg.crypto.auth_key.data = nl_rule->msg.create.decap.keys.auth;
+	nl_rule->msg.create.decap.cfg.crypto.nonce.data = nl_rule->msg.create.decap.keys.nonce;
+	memcpy((void *)&dcfg.decap, (void *)&nl_rule->msg.create.decap.cfg, sizeof(struct nss_dtlsmgr_decap_config));
 	dcfg.decap.nexthop_ifnum = NSS_N2H_INTERFACE;
 
 	/*
@@ -524,15 +567,15 @@ static int nss_nldtls_create_ipv4_rule_entry(struct net_device *dtls_dev, struct
 	ipv4.src_interface_num = if_num;
 	ipv4.dest_interface_num = nss_dtlsmgr_get_interface(dtls_dev, NSS_DTLSMGR_INTERFACE_TYPE_OUTER);
 
-	ipv4.src_port = nl_rule->msg.create.encap.dport;
-	ipv4.src_port_xlate = nl_rule->msg.create.encap.dport;
-	ipv4.src_ip = nl_rule->msg.create.encap.dip[0];
-	ipv4.src_ip_xlate = nl_rule->msg.create.encap.dip[0];
+	ipv4.src_port = nl_rule->msg.create.encap.cfg.dport;
+	ipv4.src_port_xlate = nl_rule->msg.create.encap.cfg.dport;
+	ipv4.src_ip = nl_rule->msg.create.encap.cfg.dip[0];
+	ipv4.src_ip_xlate = nl_rule->msg.create.encap.cfg.dip[0];
 
-	ipv4.dest_ip = nl_rule->msg.create.encap.sip[0];
-	ipv4.dest_ip_xlate = nl_rule->msg.create.encap.sip[0];
-	ipv4.dest_port = nl_rule->msg.create.encap.sport;
-	ipv4.dest_port_xlate = nl_rule->msg.create.encap.sport;
+	ipv4.dest_ip = nl_rule->msg.create.encap.cfg.sip[0];
+	ipv4.dest_ip_xlate = nl_rule->msg.create.encap.cfg.sip[0];
+	ipv4.dest_port = nl_rule->msg.create.encap.cfg.sport;
+	ipv4.dest_port_xlate = nl_rule->msg.create.encap.cfg.sport;
 
 	ipv4.protocol = IPPROTO_UDP;
 	ipv4.in_vlan_tag[0] = NSS_NLDTLS_VLAN_INVALID;
@@ -575,14 +618,14 @@ static int nss_nldtls_create_ipv6_rule_entry(struct net_device *dtls_dev, struct
 	if_num = nss_cmn_get_interface_number_by_dev(ndev);
 	ipv6.src_interface_num = if_num;
 	ipv6.dest_interface_num = nss_dtlsmgr_get_interface(dtls_dev, NSS_DTLSMGR_INTERFACE_TYPE_OUTER);
-	ipv6.src_port = nl_rule->msg.create.encap.dport;
-	ipv6.dest_port = nl_rule->msg.create.encap.sport;
+	ipv6.src_port = nl_rule->msg.create.encap.cfg.dport;
+	ipv6.dest_port = nl_rule->msg.create.encap.cfg.sport;
 
 	/*
 	 * Configure IPv6 rule
 	 */
-	memcpy(ipv6.src_ip, nl_rule->msg.create.encap.dip, sizeof(ipv6.src_ip));
-	memcpy(ipv6.dest_ip, nl_rule->msg.create.encap.sip, sizeof(ipv6.dest_ip));
+	memcpy(ipv6.src_ip, nl_rule->msg.create.encap.cfg.dip, sizeof(ipv6.src_ip));
+	memcpy(ipv6.dest_ip, nl_rule->msg.create.encap.cfg.sip, sizeof(ipv6.dest_ip));
 	ipv6.protocol = IPPROTO_UDP;
 
 	ipv6.in_vlan_tag[0] = NSS_NLDTLS_VLAN_INVALID;
@@ -760,6 +803,7 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 	struct nss_dtlsmgr_ctx *ctx;
 	nss_dtlsmgr_status_t status;
 	struct nss_nlcmn *nl_cm;
+	uint16_t key_len;
 
 	/*
 	 * extract the message payload
@@ -793,12 +837,30 @@ static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *i
 	 * Configure the dtls configuration
 	 */
 	dcfg.crypto.algo = nl_rule->msg.update_config.config_update.crypto.algo;
-	dcfg.crypto.cipher_key.data = nl_rule->msg.update_config.config_update.crypto.cipher_key.data;
-	dcfg.crypto.cipher_key.len = nl_rule->msg.update_config.config_update.crypto.cipher_key.len;
-	dcfg.crypto.auth_key.data = nl_rule->msg.update_config.config_update.crypto.auth_key.data;
-	dcfg.crypto.auth_key.len = nl_rule->msg.update_config.config_update.crypto.auth_key.len;
-	dcfg.crypto.nonce.data = nl_rule->msg.update_config.config_update.crypto.nonce.data;
-	dcfg.crypto.nonce.len = nl_rule->msg.update_config.config_update.crypto.nonce.len;
+	dcfg.crypto.cipher_key.data = nl_rule->msg.update_config.keys.cipher;
+	dcfg.crypto.auth_key.data = nl_rule->msg.update_config.keys.auth;
+	dcfg.crypto.nonce.data = nl_rule->msg.update_config.keys.nonce;
+	key_len = nl_rule->msg.update_config.config_update.crypto.cipher_key.len;
+	if (key_len > NSS_NLDTLS_CIPHER_KEY_MAX) {
+		nss_nl_error("Invalid cipher length: %u\n", key_len);
+		return -EINVAL;
+	}
+
+	dcfg.crypto.cipher_key.len = key_len;
+	key_len = nl_rule->msg.update_config.config_update.crypto.auth_key.len;
+	if (key_len > NSS_NLDTLS_AUTH_KEY_MAX) {
+		nss_nl_error("Invalid authentication length: %u\n", key_len);
+		return -EINVAL;
+	}
+
+	dcfg.crypto.auth_key.len = key_len;
+	key_len = nl_rule->msg.update_config.config_update.crypto.nonce.len;
+	if (key_len > NSS_NLDTLS_NONCE_SIZE_MAX) {
+		nss_nl_error("Invalid nonce length: %u\n", key_len);
+		return -EINVAL;
+	}
+
+	dcfg.crypto.nonce.len = key_len;
 	dcfg.epoch = nl_rule->msg.update_config.config_update.epoch;
 	dcfg.window_size = nl_rule->msg.update_config.config_update.window_size;
 	if (!nl_rule->msg.update_config.dir) {
@@ -867,8 +929,8 @@ static struct sk_buff *nss_nldtls_construct_ipv4_udp_header(struct net_device *d
 	 */
 	skb_push(skb, sizeof(struct udphdr));
 	uh = (struct udphdr *)skb->data;
-	uh->source = htons(dtls_rule->msg.create.encap.sport);
-	uh->dest = htons(dtls_rule->msg.create.encap.dport);
+	uh->source = htons(dtls_rule->msg.create.encap.cfg.sport);
+	uh->dest = htons(dtls_rule->msg.create.encap.cfg.dport);
 	uh->len = htons(skb->len);
 	uh->check = 0;
 
@@ -880,10 +942,10 @@ static struct sk_buff *nss_nldtls_construct_ipv4_udp_header(struct net_device *d
 	iph->ihl = 5;
 	iph->version = 4;
 	iph->tot_len = (nl_rule->msg.tx_pkts.pkt_sz + sizeof(struct udphdr) + sizeof(struct iphdr));
-	iph->ttl = dtls_rule->msg.create.encap.ip_ttl;
+	iph->ttl = dtls_rule->msg.create.encap.cfg.ip_ttl;
 	iph->protocol = IPPROTO_UDP;
-	iph->saddr = dtls_rule->msg.create.encap.sip[0];
-	iph->daddr = dtls_rule->msg.create.encap.dip[0];
+	iph->saddr = dtls_rule->msg.create.encap.cfg.sip[0];
+	iph->daddr = dtls_rule->msg.create.encap.cfg.dip[0];
 
 	/*
 	 * UDP checksum
@@ -938,8 +1000,8 @@ static struct sk_buff *nss_nldtls_construct_ipv6_udp_header(struct net_device *d
 	 */
 	skb_push(skb, sizeof(struct udphdr));
 	uh = (struct udphdr *)skb->data;
-	uh->source = htons(dtls_rule->msg.create.encap.sport);
-	uh->dest = htons(dtls_rule->msg.create.encap.dport);
+	uh->source = htons(dtls_rule->msg.create.encap.cfg.sport);
+	uh->dest = htons(dtls_rule->msg.create.encap.cfg.dport);
 	uh->len = htons(skb->len);
 	uh->check = 0;
 
@@ -952,15 +1014,15 @@ static struct sk_buff *nss_nldtls_construct_ipv6_udp_header(struct net_device *d
 	ip6h->payload_len = htons(nl_rule->msg.tx_pkts.pkt_sz + sizeof(struct udphdr));
 	ip6h->hop_limit = 64;
 	ip6h->nexthdr = IPPROTO_UDP;
-	ip6h->saddr.in6_u.u6_addr32[0] = htonl(dtls_rule->msg.create.encap.sip[0]);
-	ip6h->saddr.in6_u.u6_addr32[1] = htonl(dtls_rule->msg.create.encap.sip[1]);
-	ip6h->saddr.in6_u.u6_addr32[2] = htonl(dtls_rule->msg.create.encap.sip[2]);
-	ip6h->saddr.in6_u.u6_addr32[3] = htonl(dtls_rule->msg.create.encap.sip[3]);
+	ip6h->saddr.in6_u.u6_addr32[0] = htonl(dtls_rule->msg.create.encap.cfg.sip[0]);
+	ip6h->saddr.in6_u.u6_addr32[1] = htonl(dtls_rule->msg.create.encap.cfg.sip[1]);
+	ip6h->saddr.in6_u.u6_addr32[2] = htonl(dtls_rule->msg.create.encap.cfg.sip[2]);
+	ip6h->saddr.in6_u.u6_addr32[3] = htonl(dtls_rule->msg.create.encap.cfg.sip[3]);
 
-	ip6h->saddr.in6_u.u6_addr32[0] = htonl(dtls_rule->msg.create.encap.dip[0]);
-	ip6h->saddr.in6_u.u6_addr32[1] = htonl(dtls_rule->msg.create.encap.dip[1]);
-	ip6h->saddr.in6_u.u6_addr32[2] = htonl(dtls_rule->msg.create.encap.dip[2]);
-	ip6h->saddr.in6_u.u6_addr32[3] = htonl(dtls_rule->msg.create.encap.dip[3]);
+	ip6h->saddr.in6_u.u6_addr32[0] = htonl(dtls_rule->msg.create.encap.cfg.dip[0]);
+	ip6h->saddr.in6_u.u6_addr32[1] = htonl(dtls_rule->msg.create.encap.cfg.dip[1]);
+	ip6h->saddr.in6_u.u6_addr32[2] = htonl(dtls_rule->msg.create.encap.cfg.dip[2]);
+	ip6h->saddr.in6_u.u6_addr32[3] = htonl(dtls_rule->msg.create.encap.cfg.dip[3]);
 
 	skb_set_transport_header(skb, sizeof(struct ipv6hdr));
 	/*

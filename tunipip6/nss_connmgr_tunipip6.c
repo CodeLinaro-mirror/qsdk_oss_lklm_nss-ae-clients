@@ -20,7 +20,6 @@
 #include <linux/types.h>
 #include <linux/ip.h>
 #include <linux/of.h>
-#include <linux/tcp.h>
 #include <linux/module.h>
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
@@ -29,53 +28,12 @@
 #include <linux/if.h>
 #include <net/ip_tunnels.h>
 #include <net/ip6_tunnel.h>
-#include <linux/if_arp.h>
 #include <nss_api_if.h>
 #include "nss_connmgr_tunipip6.h"
 #include "nss_connmgr_tunipip6_sysctl.h"
+#include "nss_connmgr_tunipip6_priv.h"
 
 #define NSS_TUNIPIP6_MAX_FMR 255	/* Maximum number of forward mapping rule (FMR). */
-
-/*
- * NSS tunipip6 debug macros
- */
-#if (NSS_TUNIPIP6_DEBUG_LEVEL < 1)
-#define nss_tunipip6_assert(fmt, args...)
-#else
-#define nss_tunipip6_assert(c) if (!(c)) { BUG_ON(!(c)); }
-#endif
-
-#if defined(CONFIG_DYNAMIC_DEBUG)
-
-/*
- * Compile messages for dynamic enable/disable
- */
-#define nss_tunipip6_warning(s, ...) pr_debug("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
-#define nss_tunipip6_info(s, ...) pr_debug("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
-#define nss_tunipip6_trace(s, ...) pr_debug("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
-#else
-
-/*
- * Statically compile messages at different levels
- */
-#if (NSS_TUNIPIP6_DEBUG_LEVEL < 2)
-#define nss_tunipip6_warning(s, ...)
-#else
-#define nss_tunipip6_warning(s, ...) pr_warn("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
-#endif
-
-#if (NSS_TUNIPIP6_DEBUG_LEVEL < 3)
-#define nss_tunipip6_info(s, ...)
-#else
-#define nss_tunipip6_info(s, ...)   pr_notice("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
-#endif
-
-#if (NSS_TUNIPIP6_DEBUG_LEVEL < 4)
-#define nss_tunipip6_trace(s, ...)
-#else
-#define nss_tunipip6_trace(s, ...)  pr_info("%s[%d]:" s, __func__, __LINE__, ##__VA_ARGS__)
-#endif
-#endif
 
 /*
  * Frag Id update is disabled by default
@@ -88,14 +46,105 @@ static bool enable_custom;
 module_param(enable_custom, bool, 0);
 
 /*
- *  tunipip6 stats structure
+ * tunipip6 global context.
  */
-struct nss_tunipip6_stats {
-	uint32_t rx_packets;	/* Number of received packets */
-	uint32_t rx_bytes;	/* Number of received bytes */
-	uint32_t tx_packets;	/* Number of transmitted packets */
-	uint32_t tx_bytes;	/* Number of transmitted bytes */
-};
+struct nss_tunipip6_context tunipip6_ctx;
+
+/*
+ * nss_tunipip6_alloc_instance()
+ * 	Allocate tunipip6 interface instance.
+ */
+static struct nss_tunipip6_instance *nss_tunipip6_alloc_instance(struct net_device *dev,
+					int inner_ifnum,
+					int outer_ifnum)
+{
+	struct nss_tunipip6_instance*ntii;
+
+	ntii = vzalloc(sizeof(*ntii));
+	if (!ntii) {
+		nss_tunipip6_warning("%px: Not able to allocate tunipip6 instance\n", dev);
+		return NULL;
+	}
+
+	ntii->dev = dev;
+
+	/*
+	 * Create statistics dentry.
+	 */
+	if (!nss_tunipip6_stats_dentry_create(ntii)) {
+		vfree(ntii);
+		nss_tunipip6_warning("%px: Not able to create tunipip6 statistics dentry\n", dev);
+		return NULL;
+	}
+
+	INIT_LIST_HEAD(&ntii->list);
+	ntii->inner_ifnum = inner_ifnum;
+	ntii->outer_ifnum = outer_ifnum;
+	dev_hold(dev);
+	return ntii;
+}
+
+/*
+ * nss_tunipip6_free_instance()
+ * 	Delete the tunipip6 interface instance from the list and free it.
+ *
+ * Note: tunnel list lock is expected to be held by the caller.
+ */
+static void nss_tunipip6_free_instance(struct nss_tunipip6_instance *ntii)
+{
+	if (!list_empty(&ntii->list)) {
+		list_del(&ntii->list);
+	}
+
+	vfree(ntii);
+}
+
+/*
+ * nss_tunipip6_find_instance()
+ * 	Find tunipip6 interface instance from list.
+ *
+ * Note: tunnel list lock is expected to be held by the caller.
+ */
+struct nss_tunipip6_instance *nss_tunipip6_find_instance(struct net_device *dev)
+{
+	struct nss_tunipip6_instance *ntii;
+
+	/*
+	 * Check if dev instance is in the list
+	 */
+	list_for_each_entry(ntii, &tunipip6_ctx.dev_list, list) {
+		if (ntii->dev == dev) {
+			return ntii;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * nss_tunipip6_find_and_free_instance()
+ * 	Find and free the tunipip6 instance.
+ */
+static enum nss_connmgr_tunipip6_err_codes nss_tunipip6_find_and_free_instance(struct net_device *netdev)
+{
+	struct dentry *dentry;
+	struct nss_tunipip6_instance *ntii;
+
+	spin_lock_bh(&tunipip6_ctx.lock);
+	ntii = nss_tunipip6_find_instance(netdev);
+	if (!ntii) {
+		spin_unlock_bh(&tunipip6_ctx.lock);
+		nss_tunipip6_warning("%px: Not able to find tunipip6 instance for dev:%s\n", netdev, netdev->name);
+		return NSS_CONNMGR_TUNIPIP6_CONTEXT_FAILURE;
+	}
+
+	dentry = ntii->dentry;
+	nss_tunipip6_free_instance(ntii);
+	spin_unlock_bh(&tunipip6_ctx.lock);
+	debugfs_remove(dentry);
+	dev_put(netdev);
+	return NSS_CONNMGR_TUNIPIP6_SUCCESS;
+}
 
 /*
  * nss_tunipip6_encap_exception()
@@ -327,11 +376,20 @@ static void nss_tunipip6_update_dev_stats(struct net_device *dev,
 void nss_tunipip6_event_receive(void *if_ctx, struct nss_tunipip6_msg *tnlmsg)
 {
 	struct net_device *netdev = NULL;
+
 	netdev = (struct net_device *)if_ctx;
 
 	switch (tnlmsg->cm.type) {
 	case NSS_TUNIPIP6_STATS_SYNC:
+		/*
+		 * Update netdevice statistics.
+		 */
 		nss_tunipip6_update_dev_stats(netdev, tnlmsg);
+
+		/*
+		 * Update NSS statistics for tunipip6.
+		 */
+		nss_tunipip6_stats_sync(netdev, tnlmsg);
 		break;
 
 	default:
@@ -508,6 +566,7 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_create_interface(struct
 	int inner_ifnum, outer_ifnum;
 	uint32_t features = 0;
 	nss_tx_status_t status;
+	struct nss_tunipip6_instance *ntii;
 
 #if IS_ENABLED(CONFIG_MAP_E_SUPPORT)
 #ifndef DRAFT03_SUPPORT
@@ -638,7 +697,7 @@ configure_tunnel:
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
 		nss_tunipip6_warning("%px: Tunnel up command error %d\n", netdev, status);
-		goto config_fail;
+		goto context_alloc_fail;
 	}
 
 	/*
@@ -656,12 +715,28 @@ configure_tunnel:
 	status = nss_tunipip6_tx_sync(nss_ctx, &tnlmsg);
 	if (status != NSS_TX_SUCCESS) {
 		nss_tunipip6_warning("%px: Tunnel up command error %d\n", netdev, status);
-		goto config_fail;
+		goto context_alloc_fail;
 	}
+
+	/*
+	 * Initialize tunipip6 instance.
+	 */
+	ntii = nss_tunipip6_alloc_instance(netdev, inner_ifnum, outer_ifnum);
+	if (!ntii) {
+		nss_tunipip6_warning("%px: Not able to create tunipip6 instance\n", netdev);
+		goto context_alloc_fail;
+	}
+
+	/*
+	 * Add the new tunipip6 instance to the global list.
+	 */
+	spin_lock_bh(&tunipip6_ctx.lock);
+	list_add(&ntii->list, &tunipip6_ctx.dev_list);
+	spin_unlock_bh(&tunipip6_ctx.lock);
 
 	return NSS_CONNMGR_TUNIPIP6_SUCCESS;
 
-config_fail:
+context_alloc_fail:
 	nss_unregister_tunipip6_if(outer_ifnum);
 outer_reg_fail:
 	nss_unregister_tunipip6_if(inner_ifnum);
@@ -687,6 +762,8 @@ EXPORT_SYMBOL(nss_connmgr_tunipip6_create_interface);
  */
 enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_destroy_interface(struct net_device *netdev)
 {
+	enum nss_connmgr_tunipip6_err_codes ret;
+
 	/*
 	 * Validate netdev for ipv6-in-ipv4  Tunnel
 	 */
@@ -694,7 +771,20 @@ enum nss_connmgr_tunipip6_err_codes nss_connmgr_tunipip6_destroy_interface(struc
 		return NSS_CONNMGR_TUNIPIP6_NETDEV_TYPE_FAILURE;
 	}
 
-	return _nss_tunipip6_dyn_interface_destroy(netdev);
+	/*
+	 * Destroy tunipip6 NSS context.
+	 */
+	ret = _nss_tunipip6_dyn_interface_destroy(netdev);
+	if (ret != NSS_CONNMGR_TUNIPIP6_SUCCESS) {
+		nss_tunipip6_warning("%px: Not able to destroy NSS context. Err: %d\n", netdev, ret);
+		return ret;
+	}
+
+	/*
+	 * Find and free the tunipip6 instance.
+	 */
+	ret = nss_tunipip6_find_and_free_instance(netdev);
+	return ret;
 }
 EXPORT_SYMBOL(nss_connmgr_tunipip6_destroy_interface);
 
@@ -953,6 +1043,39 @@ static int nss_tunipip6_dev_event(struct notifier_block  *nb,
 }
 
 /*
+ * nss_tunipip6_destroy_interface_all()
+ * 	Destroy NSS interfaces and free instance for all tunipip6 interfaces.
+ */
+static void nss_tunipip6_destroy_interface_all(void)
+{
+	struct net_device *netdev;
+	struct dentry *dentry;
+	struct nss_tunipip6_instance *ntii;
+
+	spin_lock_bh(&tunipip6_ctx.lock);
+	ntii = list_first_entry_or_null(&tunipip6_ctx.dev_list, struct nss_tunipip6_instance, list);
+	do {
+		if (!ntii) {
+			spin_unlock_bh(&tunipip6_ctx.lock);
+			return;
+		}
+
+		netdev = ntii->dev;
+		dentry = ntii->dentry;
+		nss_tunipip6_free_instance(ntii);
+		spin_unlock_bh(&tunipip6_ctx.lock);
+
+		dev_put(netdev);
+		debugfs_remove(dentry);
+		_nss_tunipip6_dyn_interface_destroy(netdev);
+
+		spin_lock_bh(&tunipip6_ctx.lock);
+		ntii = list_first_entry_or_null(&tunipip6_ctx.dev_list, struct nss_tunipip6_instance, list);
+	} while (ntii);
+	spin_unlock_bh(&tunipip6_ctx.lock);
+}
+
+/*
  * Linux Net device Notifier
  */
 struct notifier_block nss_tunipip6_notifier = {
@@ -975,6 +1098,20 @@ int __init nss_tunipip6_init_module(void)
 #endif
 	nss_tunipip6_info("module (platform - IPQ806x , %s) loaded\n",
 			  NSS_CLIENT_BUILD_ID);
+
+	/*
+	 * Initialize lock and dev list.
+	 */
+	INIT_LIST_HEAD(&tunipip6_ctx.dev_list);
+	spin_lock_init(&tunipip6_ctx.lock);
+
+	/*
+	 * Create the debugfs directory for statistics.
+	 */
+	if (!nss_tunipip6_stats_dentry_init()) {
+		nss_tunipip6_trace("Failed to initialize debugfs\n");
+		return -1;
+	}
 
 	/*
 	 * Do not register net device notification for
@@ -1010,6 +1147,16 @@ void __exit nss_tunipip6_exit_module(void)
 		return;
 	}
 #endif
+
+	/*
+	 * Free Host and NSS tunipip6 instances.
+	 */
+	nss_tunipip6_destroy_interface_all();
+
+	/*
+	 * De-initialize debugfs.
+	 */
+	nss_tunipip6_stats_dentry_deinit();
 
 	/*
 	 * Unregister net device notification for standard tunnel.

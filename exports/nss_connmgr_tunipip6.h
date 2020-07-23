@@ -28,12 +28,13 @@ enum nss_connmgr_tunipip6_err_codes {
 	NSS_CONNMGR_TUNIPIP6_TUN_DESTROY_FAILURE,	/**< Tunnel destroy failure. */
 	NSS_CONNMGR_TUNIPIP6_TUN_NONE,			/**< Invalid tunnel type */
 	NSS_CONNMGR_TUNIPIP6_NETDEV_TYPE_FAILURE,	/**< Netdevice is not of type ipv6-in-ipv4. */
-	NSS_CONNMGR_TUNIPIP6_MAPRULE_ADD_FAILURE,		/**< BMR/FMR addition failure. */
-	NSS_CONNMGR_TUNIPIP6_MAPRULE_DEL_FAILURE,		/**< BMR/FMR deletion failure. */
-	NSS_CONNMGR_TUNIPIP6_FMR_RULE_FLUSH_FAILURE,		/**< FMR flush failure. */
+	NSS_CONNMGR_TUNIPIP6_MAPRULE_ADD_FAILURE,	/**< BMR/FMR addition failure. */
+	NSS_CONNMGR_TUNIPIP6_MAPRULE_DEL_FAILURE,	/**< BMR/FMR deletion failure. */
+	NSS_CONNMGR_TUNIPIP6_FMR_RULE_FLUSH_FAILURE,	/**< FMR flush failure. */
 	NSS_CONNMGR_TUNIPIP6_NO_DEV,			/**< No NSS node found. */
 	NSS_CONNMGR_TUNIPIP6_INVALID_PARAM,		/**< Invalid tunnel parameters. */
 	NSS_CONNMGR_TUNIPIP6_INVALID_RULE_TYPE,		/**< Invalid maprule type. */
+	NSS_CONNMGR_TUNIPIP6_CONTEXT_FAILURE,		/**< Tunnel host context not found. */
 };
 
 /*

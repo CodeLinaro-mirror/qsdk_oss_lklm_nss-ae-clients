@@ -1171,7 +1171,7 @@ static int nss_bridge_mgr_changemtu_event(struct netdev_notifier_info *info)
 
 	if (nss_bridge_tx_set_mtu_msg(b_pvt->ifnum, dev->mtu) != NSS_TX_SUCCESS) {
 		nss_bridge_mgr_warn("%px: Failed to send change MTU message to NSS\n", b_pvt);
-		return NOTIFY_BAD;
+		return NOTIFY_DONE;
 	}
 
 	spin_lock(&br_mgr_ctx.lock);
@@ -1205,7 +1205,7 @@ static int nss_bridge_mgr_changeaddr_event(struct netdev_notifier_info *info)
 
 	if (nss_bridge_tx_set_mac_addr_msg(b_pvt->ifnum, dev->dev_addr) != NSS_TX_SUCCESS) {
 		nss_bridge_mgr_warn("%px: Failed to send change MAC address message to NSS\n", b_pvt);
-		return NOTIFY_BAD;
+		return NOTIFY_DONE;
 	}
 
 	spin_lock(&br_mgr_ctx.lock);
@@ -1265,7 +1265,6 @@ static int nss_bridge_mgr_changeupper_event(struct netdev_notifier_info *info)
 		nss_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
 		if (nss_bridge_mgr_join_bridge(dev, b_pvt)) {
 			nss_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
-			return NOTIFY_BAD;
 		}
 
 		return NOTIFY_DONE;
@@ -1274,7 +1273,6 @@ static int nss_bridge_mgr_changeupper_event(struct netdev_notifier_info *info)
 	nss_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
 	if (nss_bridge_mgr_leave_bridge(dev, b_pvt)) {
 		nss_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
-		return NOTIFY_BAD;
 	}
 
 	return NOTIFY_DONE;

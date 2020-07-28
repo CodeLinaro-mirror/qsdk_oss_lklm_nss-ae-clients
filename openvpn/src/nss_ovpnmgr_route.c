@@ -80,7 +80,7 @@ int nss_ovpnmgr_route_set_active(struct list_head *rt_list, struct nss_ovpnmgr_r
 	/*
 	 * This API should be called under lock.
 	 */
-	BUG_ON(write_can_lock(&ovpnmgr_ctx.lock));
+	lockdep_assert_held(&ovpnmgr_ctx.lock);
 
 	/*
 	 * Search for route entry with from_addr.

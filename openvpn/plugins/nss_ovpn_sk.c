@@ -19,6 +19,7 @@
  *	Socket implementation for OVPN.
  */
 
+#include <linux/version.h>
 #include <linux/net.h>
 #include <linux/socket.h>
 #include <net/sock.h>
@@ -263,7 +264,12 @@ static int nss_ovpn_sk_update_ipv6_tuple(struct nss_ovpn_sk_pinfo *pinfo, struct
 	struct rt6_info *rt6;
 	int addr_type;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
 	rt6 = rt6_lookup(dev_net(pinfo->dev), (struct in6_addr *)tun_data->tun_hdr.dst_ip, NULL, 0, 0);
+#else
+	rt6 = rt6_lookup(dev_net(pinfo->dev), (struct in6_addr *)tun_data->tun_hdr.dst_ip, NULL, 0, 0, 0);
+#endif
+
 	if (!rt6) {
 		nss_ovpn_sk_warn("%px: Failed to find IPv6 route.\n", pinfo);
 		return -EINVAL;
@@ -405,7 +411,11 @@ static int nss_ovpn_sk_tun_add(struct socket *sock, unsigned long argp)
 	 * Bring up tunnel device.
 	 */
 	rtnl_lock();
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0))
 	err = dev_open(tun_dev);
+#else
+	err = dev_open(tun_dev, NULL);
+#endif
 	rtnl_unlock();
 
 	if (err) {
@@ -840,7 +850,12 @@ int nss_ovpn_sk_send(struct sk_buff *skb, void *app_data)
 	 * for indefinite time.
 	 */
 	skb_orphan(skb);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	nf_reset(skb);
+#else
+	nf_reset_ct(skb);
+#endif
 
 	/* Enqueue packet */
 	if (sock_queue_rcv_skb(sk, skb) < 0) {

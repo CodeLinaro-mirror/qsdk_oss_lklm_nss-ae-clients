@@ -96,12 +96,9 @@ static void nss_ipsecmgr_rx_notify(void *app_data, struct nss_cmn_msg *ncm)
 static void nss_ipsecmgr_configure(struct work_struct *work)
 {
 	enum nss_ipsec_cmn_msg_type type = NSS_IPSEC_CMN_MSG_TYPE_NODE_CONFIG;
-	struct nss_ipsecmgr_tunnel *tun = netdev_priv(ipsecmgr_drv->dev);
 	uint32_t ifnum = ipsecmgr_drv->ifnum;
 	struct nss_ipsec_cmn_msg nicm = {0};
-	struct nss_ipsecmgr_ctx *redir;
 	nss_tx_status_t status;
-	uint32_t vsi_num = 0;
 
 	/*
 	 * By making sure that cryptoapi is registered,
@@ -139,6 +136,10 @@ static void nss_ipsecmgr_configure(struct work_struct *work)
 	if (ipsecmgr_drv->ipsec_inline) {
 
 #ifdef NSS_IPSECMGR_PPE_SUPPORT
+		struct nss_ipsecmgr_tunnel *tun = netdev_priv(ipsecmgr_drv->dev);
+		struct nss_ipsecmgr_ctx *redir;
+		uint32_t vsi_num = 0;
+
 		redir = nss_ipsecmgr_ctx_alloc(tun,
 						NSS_IPSEC_CMN_CTX_TYPE_REDIR,
 						NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_REDIRECT,

@@ -642,11 +642,11 @@ static int nss_ovpn_sk_sendmsg(struct socket *sock, struct msghdr *msg, size_t l
  */
 static int nss_ovpn_sk_recvmsg(struct socket *sock, struct msghdr *msg, size_t size, int flags)
 {
-	struct nss_ovpn_sk_pkt_info *pkt_info_data;
+	struct nss_ovpn_sk_pkt_info *pkt_info_data, pkt_data;
 	struct nss_ovpnmgr_metadata pkt_info;
 	int copied, ret;
 	struct sk_buff *skb;
-	struct cmsghdr *cmsg;
+	struct cmsghdr *cmsg, k_cmsg;
 	struct sock *sk = sock->sk;
 
 	if (flags & ~(MSG_PEEK | MSG_DONTWAIT | MSG_TRUNC | MSG_CMSG_COMPAT)) {
@@ -665,6 +665,13 @@ static int nss_ovpn_sk_recvmsg(struct socket *sock, struct msghdr *msg, size_t s
 		nss_ovpn_sk_warn("%px: Control message is invalid\n", sock);
 		return -EINVAL;
 	}
+
+	if (copy_from_user(&k_cmsg, cmsg, sizeof(struct cmsghdr))) {
+		nss_ovpn_sk_warn("Copy from user failed\n");
+		return -EINVAL;
+	}
+
+	cmsg = &k_cmsg;
 
 	if (!CMSG_OK(msg, cmsg)) {
 		nss_ovpn_sk_warn("%px: Incorrect message format\n", sock);
@@ -693,8 +700,15 @@ static int nss_ovpn_sk_recvmsg(struct socket *sock, struct msghdr *msg, size_t s
 	 * Send control information to application.
 	 */
 	memcpy(&pkt_info, skb->cb, sizeof(pkt_info));
-	pkt_info_data->tunnel_id = pkt_info.tunnel_id;
-	pkt_info_data->flags = pkt_info.flags;
+
+	pkt_data.tunnel_id = pkt_info.tunnel_id;
+	pkt_data.flags = pkt_info.flags;
+
+	if (copy_to_user(pkt_info_data, &pkt_data, sizeof(pkt_data))) {
+		nss_ovpn_sk_warn("Copy from user failed\n");
+		return -EINVAL;
+	}
+
 	put_cmsg(msg, SOL_IP, IP_PKTINFO, sizeof(*pkt_info_data), pkt_info_data);
 
 	copied = skb->len;

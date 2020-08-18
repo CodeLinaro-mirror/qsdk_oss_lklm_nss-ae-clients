@@ -71,20 +71,6 @@ static int nss_nlipv4_ops_destroy_rule(struct sk_buff *skb, struct genl_info *in
 static int nss_nlipv4_process_notify(struct notifier_block *nb, unsigned long val, void *data);
 
 /*
- * IPv4 family definition
- */
-static struct genl_family nss_nlipv4_family = {
-	.id = GENL_ID_GENERATE,				/* Auto generate ID */
-	.name = NSS_NLIPV4_FAMILY,			/* family name string */
-	.hdrsize = sizeof(struct nss_nlipv4_rule),	/* NSS NETLINK IPv4 rule */
-	.version = NSS_NL_VER,				/* Set it to NSS_NLIPv4 version */
-	.maxattr = NSS_IPV4_MAX_MSG_TYPES,		/* maximum commands supported */
-	.netnsok = true,
-	.pre_doit = NULL,
-	.post_doit = NULL,
-};
-
-/*
  * multicast group for sending message status & events
  */
 static const struct genl_multicast_group nss_nlipv4_mcgrp[] = {
@@ -97,6 +83,26 @@ static const struct genl_multicast_group nss_nlipv4_mcgrp[] = {
 static struct genl_ops nss_nlipv4_ops[] = {
 	{.cmd = NSS_IPV4_TX_CREATE_RULE_MSG, .doit = nss_nlipv4_ops_create_rule,},	/* rule create */
 	{.cmd = NSS_IPV4_TX_DESTROY_RULE_MSG, .doit = nss_nlipv4_ops_destroy_rule,},	/* rule destroy */
+};
+
+/*
+ * IPv4 family definition
+ */
+static struct genl_family nss_nlipv4_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
+	.id = GENL_ID_GENERATE,				/* Auto generate ID */
+#endif
+	.name = NSS_NLIPV4_FAMILY,			/* family name string */
+	.hdrsize = sizeof(struct nss_nlipv4_rule),	/* NSS NETLINK IPv4 rule */
+	.version = NSS_NL_VER,				/* Set it to NSS_NLIPv4 version */
+	.maxattr = NSS_IPV4_MAX_MSG_TYPES,		/* maximum commands supported */
+	.netnsok = true,
+	.pre_doit = NULL,
+	.post_doit = NULL,
+	.ops = nss_nlipv4_ops,
+	.n_ops = ARRAY_SIZE(nss_nlipv4_ops),
+	.mcgrps = nss_nlipv4_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nlipv4_mcgrp)
 };
 
 /*
@@ -915,7 +921,7 @@ bool nss_nlipv4_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	error = genl_register_family_with_ops_groups(&nss_nlipv4_family, nss_nlipv4_ops, nss_nlipv4_mcgrp);
+	error = genl_register_family(&nss_nlipv4_family);
 	if (error != 0) {
 		nss_nl_info_always("Error: unable to register IPv4 family\n");
 		return false;

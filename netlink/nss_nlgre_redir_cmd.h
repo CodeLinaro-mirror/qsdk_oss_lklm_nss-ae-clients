@@ -38,11 +38,6 @@ enum nss_nlgre_redir_cmd_deploy_mode {
 extern struct genl_family nss_nlgre_redir_cmd_family;
 
 /*
- * Gre_redir generic netlink operations
- */
-extern struct genl_ops nss_nlgre_redir_cmd_ops[NSS_NLGRE_REDIR_CMD_MAX];
-
-/*
  * nss_nlgre_redir_cmd_get_ifnum()
  * 	Get the interface number corresponding to netdev
  */

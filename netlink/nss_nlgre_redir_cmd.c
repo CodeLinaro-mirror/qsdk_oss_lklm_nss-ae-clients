@@ -43,11 +43,46 @@ static DEFINE_SPINLOCK(lock);
 static enum nss_nlgre_redir_cmd_deploy_mode deploy_mode;
 
 /*
+ * prototypes
+ */
+static int nss_nlgre_redir_cmd_ops_tun_create(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlgre_redir_cmd_ops_tun_destroy(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlgre_redir_cmd_ops_map(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlgre_redir_cmd_ops_unmap(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlgre_redir_cmd_ops_set_next(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlgre_redir_cmd_ops_add_hash(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlgre_redir_cmd_ops_del_hash(struct sk_buff *skb, struct genl_info *info);
+
+/*
+ * nss_nlgre_redir_cmd_mcgrp
+ *	Multicast group for sending message status & events
+ */
+static const struct genl_multicast_group nss_nlgre_redir_family_mcgrp[] = {
+         {.name = NSS_NLGRE_REDIR_MCAST_GRP},
+};
+
+/*
+ * nss_nlgre_redir_ops
+ * 	Operation table called by the generic netlink layer based on the command
+ */
+static struct genl_ops nss_nlgre_redir_ops[] = {
+	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_CREATE_TUN, .doit = nss_nlgre_redir_cmd_ops_tun_create,},
+	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_DESTROY_TUN, .doit = nss_nlgre_redir_cmd_ops_tun_destroy,},
+	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_MAP, .doit = nss_nlgre_redir_cmd_ops_map,},
+	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_UNMAP, .doit = nss_nlgre_redir_cmd_ops_unmap,},
+	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_SET_NEXT_HOP, .doit = nss_nlgre_redir_cmd_ops_set_next,},
+	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_ADD_HASH, .doit = nss_nlgre_redir_cmd_ops_add_hash,},
+	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_DEL_HASH, .doit = nss_nlgre_redir_cmd_ops_del_hash,},
+};
+
+/*
  * nss_nlgre_redir_cmd_family
  * 	Gre_redir family definition
  */
 struct genl_family nss_nlgre_redir_cmd_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
 	.id = GENL_ID_GENERATE,				/* Auto generate ID */
+#endif
 	.name = NSS_NLGRE_REDIR_FAMILY,			/* family name string */
 	.hdrsize = sizeof(struct nss_nlgre_redir_rule),	/* NSS NETLINK gre_redir rule */
 	.version = NSS_NL_VER,				/* Set it to NSS_NLGRE_REDIR version */
@@ -55,6 +90,10 @@ struct genl_family nss_nlgre_redir_cmd_family = {
 	.netnsok = true,
 	.pre_doit = NULL,
 	.post_doit = NULL,
+	.ops = nss_nlgre_redir_ops,
+	.n_ops = ARRAY_SIZE(nss_nlgre_redir_ops),
+	.mcgrps = nss_nlgre_redir_family_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nlgre_redir_family_mcgrp)
 };
 
 /*
@@ -134,7 +173,7 @@ done:
 }
 
 /*
- * nss_nlgre_redir_cmd_ops_destroy_tun()
+ * nss_nlgre_redir_cmd_ops_tun_destroy()
  * 	Handler to destroy tunnel
  */
 static int nss_nlgre_redir_cmd_ops_tun_destroy(struct sk_buff *skb, struct genl_info *info)
@@ -287,7 +326,7 @@ static int nss_nlgre_redir_cmd_ops_unmap(struct sk_buff *skb, struct genl_info *
 }
 
 /*
- * nss_nlgre_redir_cmd_set_next()
+ * nss_nlgre_redir_cmd_ops_set_next()
  * 	Handler for set_next command
  */
 static int nss_nlgre_redir_cmd_ops_set_next(struct sk_buff *skb, struct genl_info *info)
@@ -340,7 +379,7 @@ done:
 }
 
 /*
- * nss_nlgre_redir_cmd_add_hash()
+ * nss_nlgre_redir_cmd_ops_add_hash()
  * 	Handler for adding hash a value
  */
 static int nss_nlgre_redir_cmd_ops_add_hash(struct sk_buff *skb, struct genl_info *info)
@@ -373,7 +412,7 @@ static int nss_nlgre_redir_cmd_ops_add_hash(struct sk_buff *skb, struct genl_inf
 }
 
 /*
- * nss_nlgre_redir_cmd_del_hash()
+ * nss_nlgre_redir_cmd_ops_del_hash()
  * 	Handler for deleting a hash value
  */
 static int nss_nlgre_redir_cmd_ops_del_hash(struct sk_buff *skb, struct genl_info *info)
@@ -408,20 +447,6 @@ static int nss_nlgre_redir_cmd_ops_del_hash(struct sk_buff *skb, struct genl_inf
 	nss_nl_info("Successfully deleted the hash entry.\n");
 	return 0;
 }
-
-/*
- * nss_nlgre_redir_cmd_ops
- * 	Operation table called by the generic netlink layer based on the command
- */
-struct genl_ops nss_nlgre_redir_cmd_ops[] = {
-	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_CREATE_TUN, .doit = nss_nlgre_redir_cmd_ops_tun_create,},
-	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_DESTROY_TUN, .doit = nss_nlgre_redir_cmd_ops_tun_destroy,},
-	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_MAP, .doit = nss_nlgre_redir_cmd_ops_map,},
-	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_UNMAP, .doit = nss_nlgre_redir_cmd_ops_unmap,},
-	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_SET_NEXT_HOP, .doit = nss_nlgre_redir_cmd_ops_set_next,},
-	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_ADD_HASH, .doit = nss_nlgre_redir_cmd_ops_add_hash,},
-	{.cmd = NSS_NLGRE_REDIR_CMD_TYPE_DEL_HASH, .doit = nss_nlgre_redir_cmd_ops_del_hash,},
-};
 
 /*
  * nss_nlgre_redir_cmd_get_ifnum()

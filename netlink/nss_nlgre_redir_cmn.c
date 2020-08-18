@@ -354,6 +354,24 @@ static struct rtnl_link_stats64 *nss_nlgre_redir_cmn_get_stats64(struct net_devi
 }
 
 /*
+ * nss_nlgre_redir_cmn_dev_stats64
+ *	Report packet statistics to linux
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
+static struct rtnl_link_stats64 *nss_nlgre_redir_cmn_dev_stats64(struct net_device *dev,
+		struct rtnl_link_stats64 *stats)
+{
+	return nss_nlgre_redir_cmn_get_stats64(dev, stats);
+}
+#else
+static void nss_nlgre_redir_cmn_dev_stats64(struct net_device *dev,
+		struct rtnl_link_stats64 *stats)
+{
+	nss_nlgre_redir_cmn_get_stats64(dev, stats);
+}
+#endif
+
+/*
  * nss_nlgre_redir_cmn_set_mac_address()
  * 	Sets the mac address of netdev
  */
@@ -389,7 +407,11 @@ static void nss_nlgre_redir_cmn_dev_setup(struct net_device *dev)
 	ether_setup(dev);
 	dev->needed_headroom = NSS_NLGRE_REDIR_CMN_NEEDED_HEADROOM;
 	dev->netdev_ops = &gre_redir_netdev_ops;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0))
 	dev->destructor = nss_nlgre_redir_cmn_netdev_destructor;
+#else
+	dev->priv_destructor = nss_nlgre_redir_cmn_netdev_destructor;
+#endif
 	eth_hw_addr_random(dev);
 }
 
@@ -401,7 +423,7 @@ static const struct net_device_ops gre_redir_netdev_ops = {
 	.ndo_open = nss_nlgre_redir_cmn_open_interface,
 	.ndo_stop = nss_nlgre_redir_cmn_close_interface,
 	.ndo_start_xmit = nss_nlgre_redir_cmn_xmit_data,
-	.ndo_get_stats64 = nss_nlgre_redir_cmn_get_stats64,
+	.ndo_get_stats64 = nss_nlgre_redir_cmn_dev_stats64,
 	.ndo_set_mac_address = nss_nlgre_redir_cmn_set_mac_address,
 };
 

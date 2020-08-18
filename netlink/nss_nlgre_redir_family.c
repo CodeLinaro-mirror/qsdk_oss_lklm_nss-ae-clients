@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2016,2018-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2020, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -28,14 +28,6 @@
 #include "nss_nlgre_redir_cmd.h"
 
 /*
- * nss_nlgre_redir_cmd_mcgrp
- * 	Multicast group for sending message status & events
- */
-static const struct genl_multicast_group nss_nlgre_redir_family_mcgrp[] = {
-	{.name = NSS_NLGRE_REDIR_MCAST_GRP},
-};
-
-/*
  * nss_nlgre_redir_family_init()
  * 	handler init
  */
@@ -47,7 +39,7 @@ bool nss_nlgre_redir_family_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	err = genl_register_family_with_ops_groups(&nss_nlgre_redir_cmd_family, nss_nlgre_redir_cmd_ops, nss_nlgre_redir_family_mcgrp);
+	err = genl_register_family(&nss_nlgre_redir_cmd_family);
 	if (err) {
 		nss_nl_info_always("Error: %d unable to register gre_redir family\n", err);
 		return false;

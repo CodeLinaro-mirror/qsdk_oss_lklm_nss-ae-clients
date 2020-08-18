@@ -35,6 +35,14 @@
 #include "nss_nldtls_if.h"
 
 /*
+ * prototypes
+ */
+static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info);
+static int nss_nldtls_ops_destroy_tun(struct sk_buff *skb, struct genl_info *info);
+static int nss_nldtls_ops_update_config(struct sk_buff *skb, struct genl_info *info);
+static int nss_nldtls_ops_tx_pkts(struct sk_buff *skb, struct genl_info *info);
+
+/*
  * Initializing the global variables
  */
 static struct nss_nldtls_gbl_ctx gbl_ctx = {
@@ -53,11 +61,24 @@ static const struct genl_multicast_group nss_nldtls_family_mcgrp[] = {
 };
 
 /*
+ * nss_nldtls_ops
+ *	Operation table called by the generic netlink layer based on the command
+ */
+static struct genl_ops nss_nldtls_ops[] = {
+	{.cmd = NSS_NLDTLS_CMD_TYPE_CREATE_TUN, .doit = nss_nldtls_ops_create_tun,},
+	{.cmd = NSS_NLDTLS_CMD_TYPE_DESTROY_TUN, .doit = nss_nldtls_ops_destroy_tun,},
+	{.cmd = NSS_NLDTLS_CMD_TYPE_UPDATE_CONFIG, .doit = nss_nldtls_ops_update_config,},
+	{.cmd = NSS_NLDTLS_CMD_TYPE_TX_PKTS, .doit = nss_nldtls_ops_tx_pkts,},
+};
+
+/*
  * nss_nldtls_family
  *	Dtls family definition
  */
 struct genl_family nss_nldtls_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
 	.id = GENL_ID_GENERATE,				/* Auto generate ID */
+#endif
 	.name = NSS_NLDTLS_FAMILY,			/* family name string */
 	.hdrsize = sizeof(struct nss_nldtls_rule),	/* NSS NETLINK dtls rule */
 	.version = NSS_NL_VER,				/* Set it to NSS_NLDTLS version */
@@ -65,6 +86,10 @@ struct genl_family nss_nldtls_family = {
 	.netnsok = true,
 	.pre_doit = NULL,
 	.post_doit = NULL,
+	.ops = nss_nldtls_ops,
+	.n_ops = ARRAY_SIZE(nss_nldtls_ops),
+	.mcgrps = nss_nldtls_family_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nldtls_family_mcgrp)
 };
 
 /*
@@ -1109,17 +1134,6 @@ static const struct file_operations nss_nldtls_stats_ops = {
 };
 
 /*
- * nss_nldtls_cmd_ops
- *	Operation table called by the generic netlink layer based on the command
- */
-struct genl_ops nss_nldtls_cmd_ops[] = {
-	{.cmd = NSS_NLDTLS_CMD_TYPE_CREATE_TUN, .doit = nss_nldtls_ops_create_tun,},
-	{.cmd = NSS_NLDTLS_CMD_TYPE_DESTROY_TUN, .doit = nss_nldtls_ops_destroy_tun,},
-	{.cmd = NSS_NLDTLS_CMD_TYPE_UPDATE_CONFIG, .doit = nss_nldtls_ops_update_config,},
-	{.cmd = NSS_NLDTLS_CMD_TYPE_TX_PKTS, .doit = nss_nldtls_ops_tx_pkts,},
-};
-
-/*
  * nss_nldtls_init()
  *	Init handler for dtls
  */
@@ -1132,7 +1146,7 @@ bool nss_nldtls_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	err = genl_register_family_with_ops_groups(&nss_nldtls_family, nss_nldtls_cmd_ops, nss_nldtls_family_mcgrp);
+	err = genl_register_family(&nss_nldtls_family);
 	if (err) {
 		nss_nl_info_always("Error: %d unable to register gre_redir family\n", err);
 		genl_unregister_family(&nss_nldtls_family);

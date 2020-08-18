@@ -46,20 +46,6 @@ static int nss_nln2h_ops_get_stats(struct sk_buff *skb, struct genl_info *info);
 static int nss_nln2h_process_notify(struct notifier_block *nb,  unsigned long val, void *data);
 
 /*
- * n2h family definition
- */
-static struct genl_family nss_nln2h_family = {
-	.id = GENL_ID_GENERATE,					/* Auto generate ID */
-	.name = NSS_NLN2H_FAMILY,				/* family name string */
-	.hdrsize = sizeof(struct nss_n2h_stats_notification),	/* NSS NETLINK n2h stats */
-	.version = NSS_NL_VER,					/* Set it to NSS_NLN2H version */
-	.maxattr = NSS_STATS_EVENT_MAX,				/* maximum commands supported */
-	.netnsok = true,
-	.pre_doit = NULL,
-	.post_doit = NULL,
-};
-
-/*
  * multicast group for sending message status & events
  */
 static const struct genl_multicast_group nss_nln2h_mcgrp[] = {
@@ -71,6 +57,26 @@ static const struct genl_multicast_group nss_nln2h_mcgrp[] = {
  */
 static struct genl_ops nss_nln2h_ops[] = {
 	{.cmd = NSS_STATS_EVENT_NOTIFY, .doit = nss_nln2h_ops_get_stats},
+};
+
+/*
+ * n2h family definition
+ */
+static struct genl_family nss_nln2h_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
+	.id = GENL_ID_GENERATE,					/* Auto generate ID */
+#endif
+	.name = NSS_NLN2H_FAMILY,				/* family name string */
+	.hdrsize = sizeof(struct nss_n2h_stats_notification),	/* NSS NETLINK n2h stats */
+	.version = NSS_NL_VER,					/* Set it to NSS_NLN2H version */
+	.maxattr = NSS_STATS_EVENT_MAX,				/* maximum commands supported */
+	.netnsok = true,
+	.pre_doit = NULL,
+	.post_doit = NULL,
+	.ops = nss_nln2h_ops,
+	.n_ops = ARRAY_SIZE(nss_nln2h_ops),
+	.mcgrps = nss_nln2h_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nln2h_mcgrp)
 };
 
 /*
@@ -125,7 +131,7 @@ bool nss_nln2h_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	error = genl_register_family_with_ops_groups(&nss_nln2h_family, nss_nln2h_ops, nss_nln2h_mcgrp);
+	error = genl_register_family(&nss_nln2h_family);
 	if (error) {
 		nss_nl_info_always("Error: unable to register n2h family\n");
 		return false;

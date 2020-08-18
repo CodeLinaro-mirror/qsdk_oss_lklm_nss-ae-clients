@@ -45,20 +45,6 @@ static int nss_nledma_ops_get_stats(struct sk_buff *skb, struct genl_info *info)
 static int nss_nledma_process_notify(struct notifier_block *nb, unsigned long val, void *data);
 
 /*
- * Edma family definition
- */
-static struct genl_family nss_nledma_family = {
-	.id = GENL_ID_GENERATE,				/* Auto generate ID */
-	.name = NSS_NLEDMA_FAMILY,			/* family name string */
-	.hdrsize = sizeof(struct nss_nledma_stats),	/* NSS NETLINK Edma stats */
-	.version = NSS_NL_VER,				/* Set it to NSS_NLEDMA version */
-	.maxattr = NSS_STATS_EVENT_MAX,			/* maximum commands supported */
-	.netnsok = true,
-	.pre_doit = NULL,
-	.post_doit = NULL,
-};
-
-/*
  * multicast group for sending message status & events
  */
 static const struct genl_multicast_group nss_nledma_mcgrp[] = {
@@ -70,6 +56,26 @@ static const struct genl_multicast_group nss_nledma_mcgrp[] = {
  */
 static struct genl_ops nss_nledma_ops[] = {
 	{.cmd = NSS_STATS_EVENT_NOTIFY, .doit = nss_nledma_ops_get_stats,},
+};
+
+/*
+ * Edma family definition
+ */
+static struct genl_family nss_nledma_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
+	.id = GENL_ID_GENERATE,				/* Auto generate ID */
+#endif
+	.name = NSS_NLEDMA_FAMILY,			/* family name string */
+	.hdrsize = sizeof(struct nss_nledma_stats),	/* NSS NETLINK Edma stats */
+	.version = NSS_NL_VER,				/* Set it to NSS_NLEDMA version */
+	.maxattr = NSS_STATS_EVENT_MAX,			/* maximum commands supported */
+	.netnsok = true,
+	.pre_doit = NULL,
+	.post_doit = NULL,
+	.ops = nss_nledma_ops,
+	.n_ops = ARRAY_SIZE(nss_nledma_ops),
+	.mcgrps = nss_nledma_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nledma_mcgrp)
 };
 
 /*
@@ -130,7 +136,7 @@ bool nss_nledma_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	error = genl_register_family_with_ops_groups(&nss_nledma_family, nss_nledma_ops, nss_nledma_mcgrp);
+	error = genl_register_family(&nss_nledma_family);
 	if (error) {
 		nss_nl_info_always("Error: unable to register Edma family\n");
 		return false;

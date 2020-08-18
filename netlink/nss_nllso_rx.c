@@ -47,20 +47,6 @@ static int nss_nllso_rx_ops_get_stats(struct sk_buff *skb, struct genl_info *inf
 static int nss_nllso_rx_process_notify(struct notifier_block *nb, unsigned long val, void *data);
 
 /*
- * lso_rx family definition
- */
-static struct genl_family nss_nllso_rx_family = {
-	.id = GENL_ID_GENERATE,						/* Auto generate ID */
-	.name = NSS_NLLSO_RX_FAMILY,					/* family name string */
-	.hdrsize = sizeof(struct nss_lso_rx_stats_notification),	/* NSS NETLINK lso_rx stats */
-	.version = NSS_NL_VER,						/* Set it to NSS_NLLSO_RX version */
-	.maxattr = NSS_STATS_EVENT_MAX,					/* maximum commands supported */
-	.netnsok = true,
-	.pre_doit = NULL,
-	.post_doit = NULL,
-};
-
-/*
  * multicast group for sending message status & events
  */
 static const struct genl_multicast_group nss_nllso_rx_mcgrp[] = {
@@ -72,6 +58,26 @@ static const struct genl_multicast_group nss_nllso_rx_mcgrp[] = {
  */
 static struct genl_ops nss_nllso_rx_ops[] = {
 	{.cmd = NSS_STATS_EVENT_NOTIFY, .doit = nss_nllso_rx_ops_get_stats},
+};
+
+/*
+ * lso_rx family definition
+ */
+static struct genl_family nss_nllso_rx_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
+	.id = GENL_ID_GENERATE,						/* Auto generate ID */
+#endif
+	.name = NSS_NLLSO_RX_FAMILY,					/* family name string */
+	.hdrsize = sizeof(struct nss_lso_rx_stats_notification),	/* NSS NETLINK lso_rx stats */
+	.version = NSS_NL_VER,						/* Set it to NSS_NLLSO_RX version */
+	.maxattr = NSS_STATS_EVENT_MAX,					/* maximum commands supported */
+	.netnsok = true,
+	.pre_doit = NULL,
+	.post_doit = NULL,
+	.ops = nss_nllso_rx_ops,
+	.n_ops = ARRAY_SIZE(nss_nllso_rx_ops),
+	.mcgrps = nss_nllso_rx_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nllso_rx_mcgrp)
 };
 
 /*
@@ -126,7 +132,7 @@ bool nss_nllso_rx_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	error = genl_register_family_with_ops_groups(&nss_nllso_rx_family, nss_nllso_rx_ops, nss_nllso_rx_mcgrp);
+	error = genl_register_family(&nss_nllso_rx_family);
 	if (error) {
 		nss_nl_info_always("Error: unable to register lso_rx family\n");
 		return false;

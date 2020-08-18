@@ -46,20 +46,6 @@ static int nss_nldynamic_interface_ops_get_stats(struct sk_buff *skb, struct gen
 static int nss_nldynamic_interface_process_notify(struct notifier_block *nb, unsigned long val, void *data);
 
 /*
- * dynamic interface family definition
- */
-static struct genl_family nss_nldynamic_interface_family = {
-	.id = GENL_ID_GENERATE,					/* Auto generate ID */
-	.name = NSS_NLDYNAMIC_INTERFACE_FAMILY,			/* family name string */
-	.hdrsize = sizeof(struct nss_dynamic_interface_notification),	/* NSS NETLINK dynamic interface information */
-	.version = NSS_NL_VER,					/* Set it to NSS_NLDYNAMIC_INTERFACE version */
-	.maxattr = NSS_STATS_EVENT_MAX,				/* maximum commands supported */
-	.netnsok = true,
-	.pre_doit = NULL,
-	.post_doit = NULL,
-};
-
-/*
  * multicast group for sending message status & events
  */
 static const struct genl_multicast_group nss_nldynamic_interface_mcgrp[] = {
@@ -71,6 +57,26 @@ static const struct genl_multicast_group nss_nldynamic_interface_mcgrp[] = {
  */
 static struct genl_ops nss_nldynamic_interface_ops[] = {
 	{.cmd = NSS_STATS_EVENT_NOTIFY, .doit = nss_nldynamic_interface_ops_get_stats},
+};
+
+/*
+ * dynamic interface family definition
+ */
+static struct genl_family nss_nldynamic_interface_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
+	.id = GENL_ID_GENERATE,					/* Auto generate ID */
+#endif
+	.name = NSS_NLDYNAMIC_INTERFACE_FAMILY,			/* family name string */
+	.hdrsize = sizeof(struct nss_dynamic_interface_notification),	/* NSS NETLINK dynamic interface information */
+	.version = NSS_NL_VER,					/* Set it to NSS_NLDYNAMIC_INTERFACE version */
+	.maxattr = NSS_STATS_EVENT_MAX,				/* maximum commands supported */
+	.netnsok = true,
+	.pre_doit = NULL,
+	.post_doit = NULL,
+	.ops = nss_nldynamic_interface_ops,
+	.n_ops = ARRAY_SIZE(nss_nldynamic_interface_ops),
+	.mcgrps = nss_nldynamic_interface_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nldynamic_interface_mcgrp)
 };
 
 /*
@@ -125,7 +131,7 @@ bool nss_nldynamic_interface_init(void)
 	/*
 	 * register NETLINK ops with the family
 	 */
-	error = genl_register_family_with_ops_groups(&nss_nldynamic_interface_family, nss_nldynamic_interface_ops, nss_nldynamic_interface_mcgrp);
+	error = genl_register_family(&nss_nldynamic_interface_family);
 	if (error) {
 		nss_nl_info_always("Error: unable to register dynamic_interface family\n");
 		return false;

@@ -124,8 +124,8 @@ static int nss_connmgr_gre_v4_get_mac_address(uint32_t src_ip, uint32_t dest_ip,
 
 	if (!(neigh->nud_state & NUD_VALID) || !is_valid_ether_addr(neigh->ha)) {
 		ip_rt_put(rt);
-		neigh_release(neigh);
 		nss_connmgr_gre_warning("invalid neigh state (%x) or invalid MAC(%pM) for %pI4\n", neigh->nud_state, neigh->ha,  &raddr);
+		neigh_release(neigh);
 		return GRE_ERR_NEIGH_CREATE;
 	}
 

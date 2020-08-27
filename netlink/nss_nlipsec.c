@@ -43,6 +43,16 @@
 #include "nss_nlipv4_if.h"
 
 /*
+ * Function prototypes
+ */
+static int nss_nlipsec_op_create_tunnel(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlipsec_op_destroy_tunnel(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlipsec_op_add_sa(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlipsec_op_delete_sa(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlipsec_op_add_flow(struct sk_buff *skb, struct genl_info *info);
+static int nss_nlipsec_op_delete_flow(struct sk_buff *skb, struct genl_info *info);
+
+/*
  * Hold netdevice references
  */
 struct nss_nlipsec_ref {
@@ -72,10 +82,49 @@ struct nss_nlipsec_ctx {
 static struct nss_nlipsec_ctx gbl_ctx;
 
 /*
+ * Multicast group for sending message status & events
+ */
+static const struct genl_multicast_group nss_nlipsec_mcgrp[] = {
+	{.name = NSS_NLIPSEC_MCAST_GRP},
+};
+
+/*
+ * Operation table called by the generic netlink layer based on the command
+ */
+static struct genl_ops nss_nlipsec_ops[] = {
+	{ /* Create tunnel */
+		.cmd = NSS_NLIPSEC_CMD_ADD_TUNNEL,
+		.doit = nss_nlipsec_op_create_tunnel,
+	},
+	{ /* Destroy tunnel */
+		.cmd = NSS_NLIPSEC_CMD_DEL_TUNNEL,
+		.doit = nss_nlipsec_op_destroy_tunnel,
+	},
+	{ /* Add Security Association */
+		.cmd = NSS_NLIPSEC_CMD_ADD_SA,
+		.doit = nss_nlipsec_op_add_sa,
+	},
+	{ /* Delete Security Association */
+		.cmd = NSS_NLIPSEC_CMD_DEL_SA,
+		.doit = nss_nlipsec_op_delete_sa,
+	},
+	{ /* Add flow */
+		.cmd = NSS_NLIPSEC_CMD_ADD_FLOW,
+		.doit = nss_nlipsec_op_add_flow,
+	},
+	{ /* Delete flow */
+		.cmd = NSS_NLIPSEC_CMD_DEL_FLOW,
+		.doit = nss_nlipsec_op_delete_flow,
+	},
+};
+
+/*
  * IPsec family definition
  */
 static struct genl_family nss_nlipsec_family = {
+#if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 9, 0))
 	.id = GENL_ID_GENERATE,			/* Auto generate ID */
+#endif
 	.name = NSS_NLIPSEC_FAMILY,		/* Family name string */
 	.hdrsize = sizeof(struct nss_nlipsec_rule),/* NSS NETLINK IPsec rule */
 	.version = NSS_NL_VER,			/* Set it to NSS_NL version */
@@ -83,13 +132,10 @@ static struct genl_family nss_nlipsec_family = {
 	.netnsok = true,
 	.pre_doit = NULL,
 	.post_doit = NULL,
-};
-
-/*
- * Multicast group for sending message status & events
- */
-static const struct genl_multicast_group nss_nlipsec_mcgrp[] = {
-	{.name = NSS_NLIPSEC_MCAST_GRP},
+	.ops = nss_nlipsec_ops,
+	.n_ops = ARRAY_SIZE(nss_nlipsec_ops),
+	.mcgrps = nss_nlipsec_mcgrp,
+	.n_mcgrps = ARRAY_SIZE(nss_nlipsec_mcgrp)
 };
 
 /*
@@ -647,36 +693,6 @@ static int nss_nlipsec_op_delete_flow(struct sk_buff *skb, struct genl_info *inf
 }
 
 /*
- * Operation table called by the generic netlink layer based on the command
- */
-static struct genl_ops nss_nlipsec_ops[] = {
-	{ /* Create tunnel */
-		.cmd = NSS_NLIPSEC_CMD_ADD_TUNNEL,
-		.doit = nss_nlipsec_op_create_tunnel,
-	},
-	{ /* Destroy tunnel */
-		.cmd = NSS_NLIPSEC_CMD_DEL_TUNNEL,
-		.doit = nss_nlipsec_op_destroy_tunnel,
-	},
-	{ /* Add Security Association */
-		.cmd = NSS_NLIPSEC_CMD_ADD_SA,
-		.doit = nss_nlipsec_op_add_sa,
-	},
-	{ /* Delete Security Association */
-		.cmd = NSS_NLIPSEC_CMD_DEL_SA,
-		.doit = nss_nlipsec_op_delete_sa,
-	},
-	{ /* Add flow */
-		.cmd = NSS_NLIPSEC_CMD_ADD_FLOW,
-		.doit = nss_nlipsec_op_add_flow,
-	},
-	{ /* Delete flow */
-		.cmd = NSS_NLIPSEC_CMD_DEL_FLOW,
-		.doit = nss_nlipsec_op_delete_flow,
-	},
-};
-
-/*
  * nss_nlipsec_init()
  *	Netlink IPsec handler initialization
  */
@@ -700,7 +716,7 @@ bool nss_nlipsec_init(void)
 	/*
 	 * Register with the family
 	 */
-	error = genl_register_family_with_ops_groups(&nss_nlipsec_family, nss_nlipsec_ops, nss_nlipsec_mcgrp);
+	error = genl_register_family(&nss_nlipsec_family);
 	if (error != 0) {
 		nss_nl_info_always("Error: unable to register IPsec family\n");
 		return false;

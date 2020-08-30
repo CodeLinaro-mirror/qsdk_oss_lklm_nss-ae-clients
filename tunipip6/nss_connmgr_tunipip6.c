@@ -34,6 +34,8 @@
 #include "nss_connmgr_tunipip6.h"
 #include "nss_connmgr_tunipip6_sysctl.h"
 
+#define NSS_TUNIPIP6_MAX_FMR 255	/* Maximum number of forward mapping rule (FMR). */
+
 /*
  * NSS tunipip6 debug macros
  */
@@ -415,7 +417,7 @@ static void nss_tunipip6_dev_parse_param(struct net_device *netdev, struct nss_c
 	tnlcfg->ttl_inherit = false;
 	tnlcfg->tos_inherit = true;
 	tnlcfg->frag_id_update = frag_id_update;
-
+	tnlcfg->fmr_max = NSS_TUNIPIP6_MAX_FMR;
 	/*
 	 * Flow Label In kernel is stored in big endian format.
 	 */
@@ -454,9 +456,9 @@ static void nss_connmgr_tunipip6_configure_fmr(struct net_device *netdev)
 	tunnel = (struct ip6_tnl *)netdev_priv(netdev);
 
 	/*
-	 * Configure FMR table up to NSS_TUNIPIP6_MAX_FMR_NUMBER, the rest will be forwarded to BR
+	 * Configure FMR table up to NSS_TUNIPIP6_MAX_FMR, the rest will be forwarded to BR
 	 */
-	for (fmr = tunnel->parms.fmrs; fmr && fmr_number < NSS_TUNIPIP6_MAX_FMR_NUMBER; fmr = fmr->next, fmr_number++) {
+	for (fmr = tunnel->parms.fmrs; fmr && fmr_number < NSS_TUNIPIP6_MAX_FMR; fmr = fmr->next, fmr_number++) {
 		/*
 		 * Prepare "rulecfg"
 		 */
@@ -556,6 +558,7 @@ configure_tunnel:
 	tnlcreate->ttl_inherit = tnlcfg->ttl_inherit;
 	tnlcreate->tos_inherit = tnlcfg->tos_inherit;
 	tnlcreate->frag_id_update = tnlcfg->frag_id_update;
+	tnlcreate->fmr_max = tnlcfg->fmr_max;
 
 	/*
 	 * Set "draft03" based on "tunnel_type". draft03 should be

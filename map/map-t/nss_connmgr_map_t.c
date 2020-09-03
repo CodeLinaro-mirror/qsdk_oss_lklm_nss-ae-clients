@@ -626,6 +626,7 @@ static void nss_connmgr_map_t_encap_exception(struct net_device *dev,
 	}
 
 	skb_set_transport_header(skb, sizeof(struct ipv6hdr) + append_hdr_sz);
+	ip6_update_csum(skb, ip6_hdr, 0);
 
 	skb->pkt_type = PACKET_HOST;
 	skb->skb_iif = dev->ifindex;

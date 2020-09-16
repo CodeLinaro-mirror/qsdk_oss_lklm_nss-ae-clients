@@ -70,6 +70,7 @@ struct nss_ipsecmgr_ctx_stats_priv {
 	uint64_t exceptioned;		/* Exceptioned to host */
 	uint64_t linearized;		/* Linearized packets */
 	uint64_t redirected;		/* Redirected from inline */
+	uint64_t dropped;		/* Total dropped packets */
 	uint64_t fail_sa;		/* Failed to find SA */
 	uint64_t fail_flow;		/* Failed to find flow */
 	uint64_t fail_stats;		/* Failed to send statistics */
@@ -77,6 +78,9 @@ struct nss_ipsecmgr_ctx_stats_priv {
 	uint64_t fail_transform;	/* Failed to transform */
 	uint64_t fail_linearized;	/* Failed to linearized */
 	uint64_t fail_mdata_ver;	/* Invalid meta data version */
+	uint64_t fail_ctx_active;	/* Failed to queue as ctx is not active. */
+	uint64_t fail_pbuf_crypto;	/* Failed to allocate pbuf for crypto operation */
+	uint64_t fail_queue_crypto;	/* Failed to queue pbuf to crypto pnode */
 };
 
 /*

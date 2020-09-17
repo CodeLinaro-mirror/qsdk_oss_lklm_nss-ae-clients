@@ -269,7 +269,11 @@ extern int nss_ppe_configure(struct nss_qdisc *nq, struct nss_ppe_qdisc *prev_np
  * nss_ppe_fallback_to_nss()
  *	Calls the initialization of NSS Qdisc when PPE initialization fails.
  */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 extern int nss_ppe_fallback_to_nss(struct nss_qdisc *nq, struct nlattr *opt);
+#else
+extern int nss_ppe_fallback_to_nss(struct nss_qdisc *nq, struct nlattr *opt, struct netlink_ext_ack *extack);
+#endif
 
 /*
  * nss_ppe_destroy()

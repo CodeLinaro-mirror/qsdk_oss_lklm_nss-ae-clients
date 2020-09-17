@@ -29,9 +29,18 @@ static struct nla_policy nss_fifo_policy[TCA_NSSFIFO_MAX + 1] = {
 	[TCA_NSSFIFO_PARMS] = { .len = sizeof(struct tc_nssfifo_qopt) },
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 static int nss_fifo_enqueue(struct sk_buff *skb, struct Qdisc *sch)
+#else
+static int nss_fifo_enqueue(struct sk_buff *skb, struct Qdisc *sch,
+				struct sk_buff **to_free)
+#endif
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	return nss_qdisc_enqueue(skb, sch);
+#else
+	return nss_qdisc_enqueue(skb, sch, to_free);
+#endif
 }
 
 static struct sk_buff *nss_fifo_dequeue(struct Qdisc *sch)
@@ -39,11 +48,13 @@ static struct sk_buff *nss_fifo_dequeue(struct Qdisc *sch)
 	return nss_qdisc_dequeue(sch);
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 static unsigned int nss_fifo_drop(struct Qdisc *sch)
 {
 	nss_qdisc_info("nss_fifo dropping");
 	return nss_qdisc_drop(sch);
 }
+#endif
 
 static void nss_fifo_reset(struct Qdisc *sch)
 {
@@ -64,8 +75,14 @@ static void nss_fifo_destroy(struct Qdisc *sch)
 	nss_qdisc_info("nss_fifo destroyed");
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_fifo_params_validate_and_save(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_fifo_params_validate_and_save(struct Qdisc *sch, struct nlattr *opt,
+				struct netlink_ext_ack *extack)
+#endif
 {
+	struct nlattr *tb[TCA_NSSFIFO_MAX + 1];
 	struct tc_nssfifo_qopt *qopt;
 	struct nss_fifo_sched_data *q = qdisc_priv(sch);
 	bool is_bfifo = (sch->ops == &nss_bfifo_qdisc_ops);
@@ -74,7 +91,11 @@ static int nss_fifo_params_validate_and_save(struct Qdisc *sch, struct nlattr *o
 		return -EINVAL;
 	}
 
-	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, tb, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS);
+#else
+	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, tb, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS, extack);
+#endif
 	if (!qopt) {
 		nss_qdisc_warning("Invalid input to fifo %x", sch->handle);
 		return -EINVAL;
@@ -101,7 +122,11 @@ static int nss_fifo_params_validate_and_save(struct Qdisc *sch, struct nlattr *o
 }
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_fifo_ppe_change(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_fifo_ppe_change(struct Qdisc *sch, struct nlattr *opt, struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_fifo_sched_data *q = qdisc_priv(sch);
 	struct nss_qdisc *nq = &q->nq;
@@ -150,28 +175,45 @@ fail:
 	/*
 	 * Fallback to nss qdisc if PPE Qdisc configuration failed at init time.
 	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nss_ppe_fallback_to_nss(&q->nq, opt) < 0) {
-		nss_qdisc_warning("nss_fifo %x fallback to nss failed\n", sch->handle);
+#else
+	if (nss_ppe_fallback_to_nss(&q->nq, opt, extack) < 0) {
+#endif
+	nss_qdisc_warning("nss_fifo %x fallback to nss failed\n", sch->handle);
 		return -EINVAL;
 	}
 	return 0;
 }
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt,
+				struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_fifo_sched_data *q = qdisc_priv(sch);
 	struct nss_qdisc *nq = &q->nq;
 	struct nss_if_msg nim;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nss_fifo_params_validate_and_save(sch, opt) < 0) {
+#else
+	if (nss_fifo_params_validate_and_save(sch, opt, extack) < 0) {
+#endif
 		nss_qdisc_warning("nss_fifo %px params validate and save failed\n", sch);
 		return -EINVAL;
 	}
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	if (nq->mode == NSS_QDISC_MODE_PPE) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 		if (nss_fifo_ppe_change(sch, opt) < 0) {
+#else
+		if (nss_fifo_ppe_change(sch, opt, extack) < 0) {
+#endif
 			nss_qdisc_warning("nss_fifo %px params validate and save failed\n", sch);
 			return -EINVAL;
 		}
@@ -208,9 +250,15 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt,
+				struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
+	struct nlattr *tb[TCA_NSSFIFO_MAX + 1];
 	struct tc_nssfifo_qopt *qopt;
 
 	if (!opt) {
@@ -220,7 +268,11 @@ static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt)
 	nss_qdisc_info("Initializing Fifo - type %d\n", NSS_SHAPER_NODE_TYPE_FIFO);
 	nss_fifo_reset(sch);
 
-	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, tb, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS);
+#else
+	qopt = nss_qdisc_qopt_get(opt, nss_fifo_policy, tb, TCA_NSSFIFO_MAX, TCA_NSSFIFO_PARMS, extack);
+#endif
 	if (!qopt) {
 		nss_qdisc_warning("Invalid input to fifo %x", sch->handle);
 		return -EINVAL;
@@ -232,7 +284,11 @@ static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt)
 	}
 
 	nss_qdisc_info("NSS fifo initialized - handle %x parent %x\n", sch->handle, sch->parent);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nss_fifo_change(sch, opt) < 0) {
+#else
+	if (nss_fifo_change(sch, opt, extack) < 0) {
+#endif
 		nss_qdisc_destroy(nq);
 		return -EINVAL;
 	}
@@ -262,7 +318,8 @@ static int nss_fifo_dump(struct Qdisc *sch, struct sk_buff *skb)
 	opt.set_default = q->set_default;
 	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
-	opts = nla_nest_start(skb, TCA_OPTIONS);
+	opts = nss_qdisc_nla_nest_start(skb, TCA_OPTIONS);
+
 	if (opts == NULL) {
 		goto nla_put_failure;
 	}
@@ -290,7 +347,9 @@ struct Qdisc_ops nss_pfifo_qdisc_ops __read_mostly = {
 	.enqueue	=	nss_fifo_enqueue,
 	.dequeue	=	nss_fifo_dequeue,
 	.peek		=	nss_fifo_peek,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	.drop		=	nss_fifo_drop,
+#endif
 	.init		=	nss_fifo_init,
 	.reset		=	nss_fifo_reset,
 	.destroy	=	nss_fifo_destroy,
@@ -305,7 +364,9 @@ struct Qdisc_ops nss_bfifo_qdisc_ops __read_mostly = {
 	.enqueue	=	nss_fifo_enqueue,
 	.dequeue	=	nss_fifo_dequeue,
 	.peek		=	nss_fifo_peek,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	.drop		=	nss_fifo_drop,
+#endif
 	.init		=	nss_fifo_init,
 	.reset		=	nss_fifo_reset,
 	.destroy	=	nss_fifo_destroy,

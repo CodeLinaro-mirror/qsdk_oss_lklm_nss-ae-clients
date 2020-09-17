@@ -29,9 +29,18 @@ static struct nla_policy nss_tbl_policy[TCA_NSSTBL_MAX + 1] = {
 	[TCA_NSSTBL_PARMS] = { .len = sizeof(struct tc_nsstbl_qopt) },
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 static int nss_tbl_enqueue(struct sk_buff *skb, struct Qdisc *sch)
+#else
+static int nss_tbl_enqueue(struct sk_buff *skb, struct Qdisc *sch,
+				struct sk_buff **to_free)
+#endif
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	return nss_qdisc_enqueue(skb, sch);
+#else
+	return nss_qdisc_enqueue(skb, sch, to_free);
+#endif
 }
 
 static struct sk_buff *nss_tbl_dequeue(struct Qdisc *sch)
@@ -39,10 +48,12 @@ static struct sk_buff *nss_tbl_dequeue(struct Qdisc *sch)
 	return nss_qdisc_dequeue(sch);
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 static unsigned int nss_tbl_drop(struct Qdisc *sch)
 {
 	return nss_qdisc_drop(sch);
 }
+#endif
 
 static struct sk_buff *nss_tbl_peek(struct Qdisc *sch)
 {
@@ -77,7 +88,7 @@ static void nss_tbl_destroy(struct Qdisc *sch)
 	/*
 	 * Now we can destroy our child qdisc
 	 */
-	qdisc_destroy(q->qdisc);
+	 nss_qdisc_put(q->qdisc);
 
 	/*
 	 * Stop the polling of basic stats and destroy qdisc.
@@ -87,7 +98,11 @@ static void nss_tbl_destroy(struct Qdisc *sch)
 }
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_tbl_ppe_change(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_tbl_ppe_change(struct Qdisc *sch, struct nlattr *opt, struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
 	struct nss_qdisc *nq = &q->nq;
@@ -123,8 +138,12 @@ fail:
 	/*
 	 * PPE qdisc config failed, try to initialize in NSS.
 	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nss_ppe_fallback_to_nss(nq, opt)) {
-		nss_qdisc_warning("nss_tbl %x fallback to nss failed\n", sch->handle);
+#else
+	if (nss_ppe_fallback_to_nss(nq, opt, extack)) {
+#endif
+	nss_qdisc_warning("nss_tbl %x fallback to nss failed\n", sch->handle);
 		return -EINVAL;
 	}
 
@@ -132,9 +151,15 @@ fail:
 }
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt,
+				struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
+	struct nlattr *tb[TCA_NSSTBL_MAX + 1];
 	struct tc_nsstbl_qopt *qopt;
 	struct nss_if_msg nim;
 	struct net_device *dev = qdisc_dev(sch);
@@ -143,7 +168,11 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 		return -EINVAL;
 	}
 
-	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, tb, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS);
+#else
+	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, tb, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS, extack);
+#endif
 	if (!qopt) {
 		return -EINVAL;
 	}
@@ -178,7 +207,11 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	if (q->nq.mode == NSS_QDISC_MODE_PPE) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 		if (nss_tbl_ppe_change(sch, opt) < 0) {
+#else
+		if (nss_tbl_ppe_change(sch, opt, extack) < 0) {
+#endif
 			nss_qdisc_warning("nss_tbl %x SSDK scheduler config failed\n", sch->handle);
 			return -EINVAL;
 		}
@@ -216,9 +249,15 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt)
+#else
+static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt,
+				struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
+	struct nlattr *tb[TCA_NSSTBL_MAX + 1];
 	struct tc_nsstbl_qopt *qopt;
 
 	if (!opt) {
@@ -227,7 +266,11 @@ static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt)
 
 	q->qdisc = &noop_qdisc;
 
-	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
+	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, tb, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS);
+#else
+	qopt = nss_qdisc_qopt_get(opt, nss_tbl_policy, tb, TCA_NSSTBL_MAX, TCA_NSSTBL_PARMS, extack);
+#endif
 	if (!qopt) {
 		return -EINVAL;
 	}
@@ -235,7 +278,11 @@ static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt)
 	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_TBL, 0, qopt->accel_mode) < 0)
 		return -EINVAL;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nss_tbl_change(sch, opt) < 0) {
+#else
+	if (nss_tbl_change(sch, opt, extack) < 0) {
+#endif
 		nss_qdisc_info("Failed to configure tbl\n");
 		nss_qdisc_destroy(&q->nq);
 		return -EINVAL;
@@ -262,7 +309,8 @@ static int nss_tbl_dump(struct Qdisc *sch, struct sk_buff *skb)
 	opt.accel_mode = nss_qdisc_accel_mode_get(&q->nq);
 
 	nss_qdisc_info("Nsstbl dumping");
-	opts = nla_nest_start(skb, TCA_OPTIONS);
+
+	opts = nss_qdisc_nla_nest_start(skb, TCA_OPTIONS);
 	if (opts == NULL || nla_put(skb, TCA_NSSTBL_PARMS, sizeof(opt), &opt)) {
 		goto nla_put_failure;
 	}
@@ -286,8 +334,13 @@ static int nss_tbl_dump_class(struct Qdisc *sch, unsigned long cl,
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new,
 			struct Qdisc **old)
+#else
+static int nss_tbl_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new,
+			struct Qdisc **old, struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
 	struct nss_qdisc *nq_new = (struct nss_qdisc *)qdisc_priv(new);
@@ -339,6 +392,7 @@ static struct Qdisc *nss_tbl_leaf(struct Qdisc *sch, unsigned long arg)
 	return q->qdisc;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 static unsigned long nss_tbl_get(struct Qdisc *sch, u32 classid)
 {
 	return 1;
@@ -347,6 +401,12 @@ static unsigned long nss_tbl_get(struct Qdisc *sch, u32 classid)
 static void nss_tbl_put(struct Qdisc *sch, unsigned long arg)
 {
 }
+#else
+static unsigned long nss_tbl_search(struct Qdisc *sch, u32 classid)
+{
+	return 1;
+}
+#endif
 
 static void nss_tbl_walk(struct Qdisc *sch, struct qdisc_walker *walker)
 {
@@ -364,11 +424,20 @@ static void nss_tbl_walk(struct Qdisc *sch, struct qdisc_walker *walker)
 const struct Qdisc_class_ops nss_tbl_class_ops = {
 	.graft		=	nss_tbl_graft,
 	.leaf		=	nss_tbl_leaf,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 	.get		=	nss_tbl_get,
 	.put		=	nss_tbl_put,
+#else
+	.find       =   nss_tbl_search,
+#endif
+/*
+ * TODO: Remove kernel version check when IGS is ported
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	.tcf_chain	=	nss_qdisc_tcf_chain,
 	.bind_tcf	=	nss_qdisc_tcf_bind,
 	.unbind_tcf	=	nss_qdisc_tcf_unbind,
+#endif
 	.walk		=	nss_tbl_walk,
 	.dump		=	nss_tbl_dump_class,
 };
@@ -381,7 +450,9 @@ struct Qdisc_ops nss_tbl_qdisc_ops __read_mostly = {
 	.enqueue	=	nss_tbl_enqueue,
 	.dequeue	=	nss_tbl_dequeue,
 	.peek		=	nss_tbl_peek,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	.drop		=	nss_tbl_drop,
+#endif
 	.init		=	nss_tbl_init,
 	.reset		=	nss_tbl_reset,
 	.destroy	=	nss_tbl_destroy,

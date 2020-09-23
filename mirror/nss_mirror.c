@@ -180,6 +180,28 @@ static struct rtnl_link_stats64 *nss_mirror_get_stats(struct net_device *dev, st
 	return stats;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
+/*
+ * nss_mirror_netdev_stats64()
+ *	Netdev ops function to retrieve stats for kernel version < 4.6
+ */
+static struct rtnl_link_stats64 *nss_mirror_netdev_stats64(struct net_device *dev,
+						struct rtnl_link_stats64 *tot)
+{
+	return nss_mirror_get_stats(dev, tot);
+}
+#else
+/*
+ * nss_mirror_netdev_stats64()
+ *	Netdev ops function to retrieve stats
+ */
+static void nss_mirror_netdev_stats64(struct net_device *dev,
+						struct rtnl_link_stats64 *tot)
+{
+	nss_mirror_get_stats(dev, tot);
+}
+#endif
+
 /*
  * nss_mirror_netdev_ops
  *	Mirror net device operations.
@@ -187,7 +209,7 @@ static struct rtnl_link_stats64 *nss_mirror_get_stats(struct net_device *dev, st
 static const struct net_device_ops nss_mirror_netdev_ops = {
 	.ndo_open		= nss_mirror_netdev_up,
 	.ndo_stop		= nss_mirror_netdev_down,
-	.ndo_get_stats64	= nss_mirror_get_stats,
+	.ndo_get_stats64	= nss_mirror_netdev_stats64,
 };
 
 /*

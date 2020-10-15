@@ -28,6 +28,7 @@
 #include <linux/types.h>
 #include <nss_api_if.h>
 #include <linux/debugfs.h>
+#include <linux/of.h>
 
 /*
  * nss_match_verify_config_msg()

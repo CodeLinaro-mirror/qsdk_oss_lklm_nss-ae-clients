@@ -130,6 +130,7 @@ static const struct nss_ipsecmgr_print ipsecmgr_print_sa_stats[] = {
 	{"\tfail_transform", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tfail_crypto", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tfail_classification", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tis_stopped", NSS_IPSECMGR_PRINT_DWORD},
 };
 
 /*

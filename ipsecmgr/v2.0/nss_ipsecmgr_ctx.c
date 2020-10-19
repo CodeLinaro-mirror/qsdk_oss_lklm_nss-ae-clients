@@ -92,6 +92,7 @@ static const struct nss_ipsecmgr_print ipsecmgr_print_ctx_stats[] = {
 	{"\texceptioned", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tlinearized", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tredirected", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tdropped", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tfail_sa", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tfail_flow", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tfail_stats", NSS_IPSECMGR_PRINT_DWORD},
@@ -99,6 +100,9 @@ static const struct nss_ipsecmgr_print ipsecmgr_print_ctx_stats[] = {
 	{"\tfail_transform", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tfail_linearized", NSS_IPSECMGR_PRINT_DWORD},
 	{"\tfail_mdata_ver", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_ctx_active", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_pbuf_crypto", NSS_IPSECMGR_PRINT_DWORD},
+	{"\tfail_queue_crypto", NSS_IPSECMGR_PRINT_DWORD},
 };
 
 /*
@@ -875,6 +879,7 @@ bool nss_ipsecmgr_ctx_config(struct nss_ipsecmgr_ctx *ctx)
 	ctx_msg = &nicm.msg.ctx;
 	ctx_msg->type = ctx->state.type;
 	ctx_msg->except_ifnum = ctx->state.except_ifnum;
+	ctx_msg->sibling_ifnum = ctx->state.sibling_ifnum;
 
 	status = nss_ipsec_cmn_tx_msg_sync(ctx->nss_ctx, ctx->ifnum, msg_type, sizeof(*ctx_msg), &nicm);
 	if (status != NSS_TX_SUCCESS) {

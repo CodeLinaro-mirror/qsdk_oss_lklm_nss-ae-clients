@@ -291,20 +291,29 @@ static void nss_tunipip6_decap_exception(struct net_device *dev, struct sk_buff 
 
 /*
  *  nss_tunipip6_update_dev_stats
- *	Update the Dev stats received from NetAp
+ *	Update the Dev stats received from NSS
  */
 static void nss_tunipip6_update_dev_stats(struct net_device *dev,
-					struct nss_tunipip6_stats_sync_msg *sync_stats)
+					struct nss_tunipip6_msg *tnlmsg)
 {
 	struct pcpu_sw_netstats stats;
+	enum nss_dynamic_interface_type interface_type;
+	struct nss_tunipip6_stats_sync_msg *sync_stats = (struct nss_tunipip6_stats_sync_msg *)&tnlmsg->msg.stats;
 
-	u64_stats_init(&stats.syncp);
-	u64_stats_update_begin(&stats.syncp);
-	stats.rx_packets = sync_stats->node_stats.rx_packets;
-	stats.rx_bytes = sync_stats->node_stats.rx_bytes;
-	stats.tx_packets = sync_stats->node_stats.tx_packets;
-	stats.tx_bytes = sync_stats->node_stats.tx_bytes;
-	u64_stats_update_end(&stats.syncp);
+	interface_type = nss_dynamic_interface_get_type(nss_tunipip6_get_context(), tnlmsg->cm.interface);
+
+	memset(&stats, 0, sizeof(stats));
+	if (interface_type == NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_INNER) {
+		stats.tx_packets = sync_stats->node_stats.tx_packets;
+		stats.tx_bytes = sync_stats->node_stats.tx_bytes;
+	} else if (interface_type == NSS_DYNAMIC_INTERFACE_TYPE_TUNIPIP6_OUTER) {
+		stats.rx_packets = sync_stats->node_stats.rx_packets;
+		stats.rx_bytes = sync_stats->node_stats.rx_bytes;
+	} else {
+		nss_tunipip6_warning("%px: Invalid interface type received from NSS\n", dev);
+		return;
+	}
+
 	dev->stats.rx_dropped += nss_cmn_rx_dropped_sum(&sync_stats->node_stats);
 
 	/* TODO: Update rx_dropped stats in ip6_update_offload_stats() */
@@ -321,8 +330,8 @@ void nss_tunipip6_event_receive(void *if_ctx, struct nss_tunipip6_msg *tnlmsg)
 	netdev = (struct net_device *)if_ctx;
 
 	switch (tnlmsg->cm.type) {
-	case NSS_TUNIPIP6_RX_STATS_SYNC:
-		nss_tunipip6_update_dev_stats(netdev, (struct nss_tunipip6_stats_sync_msg *)&tnlmsg->msg.stats_sync);
+	case NSS_TUNIPIP6_STATS_SYNC:
+		nss_tunipip6_update_dev_stats(netdev, tnlmsg);
 		break;
 
 	default:

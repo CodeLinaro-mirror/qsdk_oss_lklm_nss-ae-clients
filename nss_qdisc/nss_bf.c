@@ -71,11 +71,13 @@ static inline struct nss_bf_class_data *nss_bf_find_class(u32 classid,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		  struct nlattr **tca, unsigned long *arg)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		  struct nlattr **tca, unsigned long *arg, struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
 	struct nss_bf_class_data *cl = (struct nss_bf_class_data *)*arg;
 	struct nlattr *opt = tca[TCA_OPTIONS];
@@ -132,7 +134,8 @@ static int nss_bf_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * that is registered to Linux. Therefore we initialize the NSSBF_GROUP shaper
 		 * here.
 		 */
-		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_BF_GROUP, classid, accel_mode) < 0) {
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_BF_GROUP, classid, accel_mode, extack) < 0)
+		{
 			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			kfree(cl);
 			return -EINVAL;
@@ -727,11 +730,13 @@ static void nss_bf_destroy_qdisc(struct Qdisc *sch)
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_bf_sched_data *q = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSBF_MAX + 1];
 	struct tc_nssbf_qopt *qopt;
@@ -771,7 +776,7 @@ static int nss_bf_init_qdisc(struct Qdisc *sch, struct nlattr *opt,
 	/*
 	 * Initialize the NSSBF shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_BF, 0, accel_mode) < 0) {
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_BF, 0, accel_mode, extack) < 0) {
 		return -EINVAL;
 	}
 
@@ -879,14 +884,13 @@ const struct Qdisc_class_ops nss_bf_class_ops = {
 #else
 	.find		= nss_bf_search_class,
 #endif
-/*
- * TODO: Remove kernel version check when IGS is ported
- */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	.tcf_chain	= nss_qdisc_tcf_chain,
+#else
+	.tcf_block      = nss_qdisc_tcf_block,
+#endif
 	.bind_tcf	= nss_qdisc_tcf_bind,
 	.unbind_tcf	= nss_qdisc_tcf_unbind,
-#endif
 	.dump		= nss_bf_dump_class,
 	.dump_stats	= nss_bf_dump_class_stats,
 	.walk		= nss_bf_walk

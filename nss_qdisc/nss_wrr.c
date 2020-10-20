@@ -231,11 +231,13 @@ static int nss_wrr_ppe_change_class(struct Qdisc *sch, struct nss_wrr_class_data
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		  struct nlattr **tca, unsigned long *arg)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		  struct nlattr **tca, unsigned long *arg, struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_wrr_sched_data *q = qdisc_priv(sch);
 	struct nss_wrr_class_data *cl = (struct nss_wrr_class_data *)*arg;
 	struct nss_if_msg nim_config;
@@ -305,7 +307,8 @@ static int nss_wrr_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 * here.
 		 */
 		cl->nq.parent = &q->nq;
-		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid, accel_mode) < 0) {
+		if (nss_qdisc_init(sch, &cl->nq, NSS_SHAPER_NODE_TYPE_WRR_GROUP, classid, accel_mode, extack) < 0)
+		{
 			nss_qdisc_error("Nss init for class %u failed\n", classid);
 			return -EINVAL;
 		}
@@ -643,11 +646,13 @@ static void nss_wrr_walk(struct Qdisc *sch, struct qdisc_walker *arg)
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_wrr_sched_data *q = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSWRR_MAX + 1];
 	int err;
@@ -680,7 +685,7 @@ static int nss_wrr_init_qdisc(struct Qdisc *sch, struct nlattr *opt,
 	/*
 	 * Initialize the NSSWRR shaper in NSS
 	 */
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_WRR, 0, qopt->accel_mode) < 0) {
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_WRR, 0, qopt->accel_mode, extack) < 0) {
 		nss_qdisc_warning("Failed init nss_wrr qdisc");
 		return -EINVAL;
 	}
@@ -909,14 +914,13 @@ const struct Qdisc_class_ops nss_wrr_class_ops = {
 #else
 	.find       = nss_wrr_search_class,
 #endif
-/*
- * TODO: Remove kernel version check when IGS is ported
- */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	.tcf_chain	= nss_qdisc_tcf_chain,
+#else
+	.tcf_block	= nss_qdisc_tcf_block,
+#endif
 	.bind_tcf	= nss_qdisc_tcf_bind,
 	.unbind_tcf	= nss_qdisc_tcf_unbind,
-#endif
 	.dump		= nss_wrr_dump_class,
 	.dump_stats	= nss_wrr_dump_class_stats,
 	.walk		= nss_wrr_walk
@@ -952,14 +956,13 @@ const struct Qdisc_class_ops nss_wfq_class_ops = {
 #else
 	.find       = nss_wrr_search_class,
 #endif
-/*
- * TODO: Remove kernel version check when IGS is ported
- */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	.tcf_chain	= nss_qdisc_tcf_chain,
+#else
+	.tcf_block	= nss_qdisc_tcf_block,
+#endif
 	.bind_tcf	= nss_qdisc_tcf_bind,
 	.unbind_tcf	= nss_qdisc_tcf_unbind,
-#endif
 	.dump		= nss_wrr_dump_class,
 	.dump_stats	= nss_wrr_dump_class_stats,
 	.walk		= nss_wrr_walk

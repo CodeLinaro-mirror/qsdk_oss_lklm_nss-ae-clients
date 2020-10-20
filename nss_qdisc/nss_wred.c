@@ -333,11 +333,13 @@ static int nss_wred_change(struct Qdisc *sch, struct nlattr *opt,
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_wred_init(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_wred_init(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_qdisc *nq = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSWRED_MAX + 1];
 	struct tc_nsswred_qopt *qopt;
@@ -358,8 +360,10 @@ static int nss_wred_init(struct Qdisc *sch, struct nlattr *opt,
 	nss_qdisc_info("Initializing Wred - type %d\n", NSS_SHAPER_NODE_TYPE_WRED);
 	nss_wred_reset(sch);
 
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_WRED, 0, qopt->accel_mode) < 0)
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_WRED, 0, qopt->accel_mode, extack) < 0)
+	{
 		return -EINVAL;
+	}
 
 	nss_qdisc_info("NSS wred initialized - handle %x parent %x\n", sch->handle, sch->parent);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))

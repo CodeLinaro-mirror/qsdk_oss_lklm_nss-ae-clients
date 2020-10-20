@@ -1014,11 +1014,9 @@ static void nss_qdisc_bounce_callback(void *app_data, struct sk_buff *skb)
 	__netif_schedule(sch);
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 /*
  * nss_qdisc_mark_and_schedule()
  *	Mark the classid in packet and enqueue it.
- * TODO: Remove kernel version check when IGS is ported
  */
 static void nss_qdisc_mark_and_schedule(void *app_data, struct sk_buff *skb)
 {
@@ -1041,7 +1039,6 @@ static void nss_qdisc_mark_and_schedule(void *app_data, struct sk_buff *skb)
 	nss_qdisc_add_to_tail_protected(skb, sch);
 	__netif_schedule(sch);
 }
-#endif
 
 /*
  * nss_qdisc_replace()
@@ -1192,7 +1189,6 @@ void nss_qdisc_reset(struct Qdisc *sch)
 			sch, nq->type);
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 /*
  * nss_qdisc_iterate_fl()
  *	Iterate the filter list over the qdisc.
@@ -1210,7 +1206,11 @@ static bool nss_qdisc_iterate_fl(struct sk_buff *skb, struct Qdisc *sch)
 		return 0;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	status = tc_classify(skb, tcf, &res, false);
+#else
+	status = tcf_classify(skb, tcf, &res, false);
+#endif
 	if ((status == TC_ACT_STOLEN) || (status == TC_ACT_QUEUED)) {
 		return 1;
 	}
@@ -1227,7 +1227,6 @@ static bool nss_qdisc_iterate_fl(struct sk_buff *skb, struct Qdisc *sch)
 	}
 	return 0;
 }
-#endif
 
 /*
  * nss_qdisc_enqueue()
@@ -1289,7 +1288,6 @@ extern int nss_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_b
 	/*
 	 * Iterate over the filters attached to the qdisc.
 	 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	if (nss_qdisc_iterate_fl(skb, sch)) {
 		kfree_skb(skb);
 		return NET_XMIT_SUCCESS;
@@ -1298,8 +1296,14 @@ extern int nss_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *sch, struct sk_b
 	/*
 	 * Skip the shaping of already shaped packets.
 	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	if (skb->tc_verd & TC_NCLS_NSS) {
 		skb->tc_verd = CLR_TC_NCLS_NSS(skb->tc_verd);
+		nss_qdisc_mark_and_schedule(nq->qdisc, skb);
+		return NET_XMIT_SUCCESS;
+	}
+#else
+	if (skb_skip_tc_classify_offload(skb)) {
 		nss_qdisc_mark_and_schedule(nq->qdisc, skb);
 		return NET_XMIT_SUCCESS;
 	}
@@ -1923,6 +1927,8 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 	 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	tcf_destroy_chain(&nq->filter_list);
+#else
+	tcf_block_put(nq->block);
 #endif
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
@@ -2002,12 +2008,19 @@ void nss_qdisc_destroy(struct nss_qdisc *nq)
 }
 
 /*
- * nss_qdisc_init()
+ * __nss_qdisc_init()
  *	Initializes a shaper in NSS, based on the position of this qdisc (child or root)
  *	and if its a normal interface or a bridge interface.
  */
-int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid, uint32_t accel_mode)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+int __nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid, uint32_t accel_mode)
 {
+#else
+int __nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid, uint32_t accel_mode,
+		struct netlink_ext_ack *extack)
+{
+	int err;
+#endif
 	struct Qdisc *root;
 	u32 parent;
 	nss_tx_status_t rc;
@@ -2019,9 +2032,7 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	bool mode_ppe = false;
 #endif
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	bool igs_put = false;
-#endif
 	if (accel_mode >= TCA_NSS_ACCEL_MODE_MAX) {
 		nss_qdisc_warning("Qdisc %px (type %d) accel_mode:%u should be < %u\n",
 					sch, nq->type, accel_mode, TCA_NSS_ACCEL_MODE_MAX);
@@ -2082,6 +2093,12 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 	 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	RCU_INIT_POINTER(nq->filter_list, NULL);
+#else
+	err = tcf_block_get(&nq->block, &nq->filter_list, sch, extack);
+	if (err) {
+		nss_qdisc_error("%px: Unable to initialize tcf_block\n", &nq->block);
+		return -1;
+	}
 #endif
 	/*
 	 * If we are a class, then classid is used as the qos tag.
@@ -2366,10 +2383,6 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 						nss_qdisc_bounce_callback, nq->qdisc, THIS_MODULE);
 			} else {
 
-/*
- * TODO: Remove kernel version check when IGS is ported
- */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 				/*
 				 * In case of IGS interface, take the reference of IGS module.
 				 */
@@ -2390,7 +2403,6 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 				igs_put = true;
 				nq->bounce_context = nss_shaper_register_shaper_bounce_interface(nq->nss_interface_number,
 						nss_qdisc_mark_and_schedule, nq->qdisc, THIS_MODULE);
-#endif
 			}
 
 			if (!nq->bounce_context) {
@@ -2439,13 +2451,10 @@ int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type
 				NSS_QDISC_COMMAND_TIMEOUT)) {
 		/*
 		 * Decrement the IGS module reference.
-		 * TODO: Remove kernel version check when IGS is ported
 		 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 		if (igs_put) {
 			nss_igs_module_put();
 		}
-#endif
 	nss_qdisc_error("init for qdisc %x timedout!\n", nq->qos_tag);
 		return -1;
 	}
@@ -2486,13 +2495,10 @@ init_fail:
 
 	/*
 	 * Decrement the IGS module reference.
-	 * TODO: Remove kernel version check when IGS is ported
 	 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	if (igs_put) {
 		nss_igs_module_put();
 	}
-#endif
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 	if (nq->mode == NSS_QDISC_MODE_PPE) {
@@ -2517,6 +2523,20 @@ init_fail:
 	}
 
 	return -1;
+}
+
+/*
+ * nss_qdisc_init()
+ *	Initialize nss qdisc based on position of the qdisc
+ */
+int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid,
+		uint32_t accel_mode, void *extack)
+{
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	return __nss_qdisc_init(sch, nq, type, classid, accel_mode);
+#else
+	return __nss_qdisc_init(sch, nq, type, classid, accel_mode, extack);
+#endif
 }
 
 /*
@@ -2831,13 +2851,19 @@ static int nss_qdisc_if_event_cb(struct notifier_block *unused,
 	return NOTIFY_DONE;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 /*
  * nss_qdisc_tcf_chain()
  *	Return the filter list of qdisc.
- * TODO: Remove kernel version check when IGS is ported
  */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 struct tcf_proto __rcu **nss_qdisc_tcf_chain(struct Qdisc *sch, unsigned long arg)
+#else
+/*
+ * nss_qdisc_tcf_block()
+ *	Return the block containing chain of qdisc.
+ */
+struct tcf_block *nss_qdisc_tcf_block(struct Qdisc *sch, unsigned long cl, struct netlink_ext_ack *extack)
+#endif
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
 
@@ -2855,7 +2881,11 @@ struct tcf_proto __rcu **nss_qdisc_tcf_chain(struct Qdisc *sch, unsigned long ar
 	 * at root qdisc.
 	 */
 	if (nq->is_root) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 		return &(nq->filter_list);
+#else
+		return nq->block;
+#endif
 	}
 	return NULL;
 }
@@ -2884,7 +2914,6 @@ void nss_qdisc_tcf_unbind(struct Qdisc *sch, unsigned long arg)
 {
 	return;
 }
-#endif
 
 static struct notifier_block nss_qdisc_device_notifier = {
 		.notifier_call = nss_qdisc_if_event_cb };

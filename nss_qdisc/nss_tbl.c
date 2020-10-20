@@ -251,11 +251,13 @@ static int nss_tbl_change(struct Qdisc *sch, struct nlattr *opt,
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_tbl_sched_data *q = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSTBL_MAX + 1];
 	struct tc_nsstbl_qopt *qopt;
@@ -275,8 +277,10 @@ static int nss_tbl_init(struct Qdisc *sch, struct nlattr *opt,
 		return -EINVAL;
 	}
 
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_TBL, 0, qopt->accel_mode) < 0)
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_TBL, 0, qopt->accel_mode, extack) < 0)
+	{
 		return -EINVAL;
+	}
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 	if (nss_tbl_change(sch, opt) < 0) {
@@ -430,14 +434,13 @@ const struct Qdisc_class_ops nss_tbl_class_ops = {
 #else
 	.find       =   nss_tbl_search,
 #endif
-/*
- * TODO: Remove kernel version check when IGS is ported
- */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	.tcf_chain	=	nss_qdisc_tcf_chain,
+#else
+	.tcf_block	=	nss_qdisc_tcf_block,
+#endif
 	.bind_tcf	=	nss_qdisc_tcf_bind,
 	.unbind_tcf	=	nss_qdisc_tcf_unbind,
-#endif
 	.walk		=	nss_tbl_walk,
 	.dump		=	nss_tbl_dump_class,
 };

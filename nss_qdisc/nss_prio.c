@@ -236,11 +236,13 @@ static int nss_prio_change(struct Qdisc *sch, struct nlattr *opt,
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_prio_init(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_prio_init(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_prio_sched_data *q = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSPRIO_MAX + 1];
 	struct tc_nssprio_qopt *qopt;
@@ -265,7 +267,8 @@ static int nss_prio_init(struct Qdisc *sch, struct nlattr *opt,
 		accel_mode = qopt->accel_mode;
 	}
 
-	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_PRIO, 0, accel_mode) < 0) {
+	if (nss_qdisc_init(sch, &q->nq, NSS_SHAPER_NODE_TYPE_PRIO, 0, accel_mode, extack) < 0)
+	{
 		return -EINVAL;
 	}
 
@@ -530,14 +533,13 @@ const struct Qdisc_class_ops nss_prio_class_ops = {
 #else
 	.find       =   nss_prio_search,
 #endif
-/*
- * TODO: Remove kernel version check when IGS is ported
- */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	.tcf_chain	=	nss_qdisc_tcf_chain,
+#else
+	.tcf_block	=	nss_qdisc_tcf_block,
+#endif
 	.bind_tcf	=	nss_qdisc_tcf_bind,
 	.unbind_tcf	=	nss_qdisc_tcf_unbind,
-#endif
 	.walk		=	nss_prio_walk,
 	.dump		=	nss_prio_dump_class,
 	.dump_stats	=	nss_prio_dump_class_stats,

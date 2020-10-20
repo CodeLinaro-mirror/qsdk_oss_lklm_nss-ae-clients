@@ -252,11 +252,13 @@ static int nss_fifo_change(struct Qdisc *sch, struct nlattr *opt,
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_qdisc *nq = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSFIFO_MAX + 1];
 	struct tc_nssfifo_qopt *qopt;
@@ -278,7 +280,8 @@ static int nss_fifo_init(struct Qdisc *sch, struct nlattr *opt,
 		return -EINVAL;
 	}
 
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0, qopt->accel_mode) < 0) {
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0, qopt->accel_mode, extack) < 0)
+	{
 		nss_qdisc_warning("Fifo %x init failed", sch->handle);
 		return -EINVAL;
 	}

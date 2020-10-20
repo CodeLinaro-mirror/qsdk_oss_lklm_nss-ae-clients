@@ -28,6 +28,9 @@
 #include <linux/version.h>
 #include <br_private.h>
 #include <nss_api_if.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <linux/netlink.h>
+#endif
 
 #if defined(NSS_QDISC_PPE_SUPPORT)
 #include "nss_ppe.h"
@@ -422,7 +425,8 @@ extern void nss_qdisc_destroy(struct nss_qdisc *nq);
  *	Initializes a shaper in NSS, based on the position of this qdisc (child or root)
  *	and if its a normal interface or a bridge interface.
  */
-extern int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid, uint32_t accel_mode);
+extern int nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_type_t type, uint32_t classid, uint32_t accel_mode,
+		void *extack);
 
 /*
  * nss_qdisc_start_basic_stats_polling()
@@ -457,15 +461,19 @@ extern int nss_qdisc_gnet_stats_copy_queue(struct gnet_dump *d,
 extern struct Qdisc *nss_qdisc_replace(struct Qdisc *sch, struct Qdisc *new,
 					struct Qdisc **pold);
 
-/*
- * TODO: Remove kernel version check when IGS is ported
- */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 /*
  * nss_qdisc_tcf_chain()
  *	Return the filter list of qdisc.
  */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 extern struct tcf_proto __rcu **nss_qdisc_tcf_chain(struct Qdisc *sch, unsigned long arg);
+#else
+/*
+ * nss_qdisc_tcf_block()
+ *	Return the block containing chain of qdisc.
+ */
+extern struct tcf_block *nss_qdisc_tcf_block(struct Qdisc *sch, unsigned long cl, struct netlink_ext_ack *extack);
+#endif
 
 /*
  * nss_qdisc_tcf_bind()
@@ -478,4 +486,3 @@ extern unsigned long nss_qdisc_tcf_bind(struct Qdisc *sch, unsigned long parent,
  *	Unbind the filter from the qdisc.
  */
 extern void nss_qdisc_tcf_unbind(struct Qdisc *sch, unsigned long arg);
-#endif

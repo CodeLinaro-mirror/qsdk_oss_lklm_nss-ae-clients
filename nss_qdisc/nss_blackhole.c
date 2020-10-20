@@ -177,11 +177,13 @@ static int nss_blackhole_change(struct Qdisc *sch, struct nlattr *opt,
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_blackhole_init(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_blackhole_init(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_qdisc *nq = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSBLACKHOLE_MAX + 1];
 	struct tc_nssblackhole_qopt *qopt;
@@ -207,7 +209,8 @@ static int nss_blackhole_init(struct Qdisc *sch, struct nlattr *opt,
 	nss_qdisc_info("qdisc %x initializing\n", sch->handle);
 	nss_blackhole_reset(sch);
 
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0, accel_mode) < 0) {
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_FIFO, 0, accel_mode, extack) < 0)
+	{
 		return -EINVAL;
 	}
 

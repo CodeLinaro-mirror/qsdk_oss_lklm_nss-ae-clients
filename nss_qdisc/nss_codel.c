@@ -404,11 +404,13 @@ fail:
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0))
 static int nss_codel_init(struct Qdisc *sch, struct nlattr *opt)
+{
+	struct netlink_ext_ack *extack = NULL;
 #else
 static int nss_codel_init(struct Qdisc *sch, struct nlattr *opt,
 				struct netlink_ext_ack *extack)
-#endif
 {
+#endif
 	struct nss_qdisc *nq = qdisc_priv(sch);
 	struct nlattr *tb[TCA_NSSCODEL_MAX + 1];
 	struct tc_nsscodel_qopt *qopt;
@@ -435,7 +437,8 @@ static int nss_codel_init(struct Qdisc *sch, struct nlattr *opt,
 	nss_qdisc_register_configure_callback(nq, nss_codel_configure_callback);
 	nss_qdisc_register_stats_callback(nq, nss_codel_stats_callback);
 
-	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_CODEL, 0, qopt->accel_mode) < 0) {
+	if (nss_qdisc_init(sch, nq, NSS_SHAPER_NODE_TYPE_CODEL, 0, qopt->accel_mode, extack) < 0)
+	{
 		return -EINVAL;
 	}
 

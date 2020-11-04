@@ -855,6 +855,10 @@ static int nss_nlipv6_ops_create_rule(struct sk_buff *skb, struct genl_info *inf
 	 * Push Rule to NSS
 	 */
 	tx_status = nss_ipv6_tx_sync(gbl_ctx.nss, nim);
+
+        /* TODO: Handle the case where firmware has received the response
+	 * and there is a failure in firmware.
+	 */
 	if (tx_status != NSS_TX_SUCCESS) {
 		nss_nl_error("%d:unable to send IPV6 rule create, status(%d)\n", pid, tx_status);
 		error = -EBUSY;
@@ -934,6 +938,10 @@ static int nss_nlipv6_ops_destroy_rule(struct sk_buff *skb, struct genl_info *in
 	 * Push rule to NSS
 	 */
 	tx_status = nss_ipv6_tx_sync(gbl_ctx.nss, nim);
+
+        /* TODO: Handle the case where firmware has received the response
+	 * and there is a failure in firmware.
+	 */
 	if (tx_status != NSS_TX_SUCCESS) {
 		nss_nl_error("%d:unable to send IPV6 rule delete, status(%d)\n", pid, tx_status);
 		return -EBUSY;

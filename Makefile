@@ -18,6 +18,7 @@ obj-$(dtlsmgr)+= dtls/$(DTLSMGR_DIR)/
 obj-$(gre)+= gre/
 obj-$(ipsecmgr)+= ipsecmgr/$(IPSECMGR_DIR)/
 obj-$(ipsecmgr-klips)+= ipsecmgr/$(IPSECMGR_DIR)/plugins/klips/
+obj-$(ipsecmgr-xfrm)+= ipsecmgr/$(IPSECMGR_DIR)/plugins/xfrm/
 obj-$(l2tpv2)+= l2tp/l2tpv2/
 obj-$(lag-mgr)+= lag/
 obj-$(map-t)+= map/map-t/

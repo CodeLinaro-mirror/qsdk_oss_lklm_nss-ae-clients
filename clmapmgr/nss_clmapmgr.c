@@ -84,10 +84,10 @@ fail:
 }
 
 /*
- * nss_clmapmgr_dev_stats64()
+ * nss_clmapmgr_get_dev_stats64()
  *	Netdev ops function to retrieve stats.
  */
-struct rtnl_link_stats64 *nss_clmapmgr_dev_stats64(struct net_device *dev,
+static struct rtnl_link_stats64 *nss_clmapmgr_get_dev_stats64(struct net_device *dev,
 						struct rtnl_link_stats64 *stats)
 {
 	struct nss_clmapmgr_priv_t *priv;
@@ -111,6 +111,28 @@ struct rtnl_link_stats64 *nss_clmapmgr_dev_stats64(struct net_device *dev,
 
 	return stats;
 }
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
+/*
+ * nss_clmapmgr_dev_stats64()
+ *	Netdev ops function to retrieve stats for kernel version < 4.6
+ */
+static struct rtnl_link_stats64 *nss_clmapmgr_dev_stats64(struct net_device *dev,
+						struct rtnl_link_stats64 *tot)
+{
+	return nss_clmapmgr_get_dev_stats64(dev, tot);
+}
+#else
+/*
+ * nss_clmapmgr_dev_stats64()
+ *	Netdev ops function to retrieve stats for kernel version >= 4.6
+ */
+static void nss_clmapmgr_dev_stats64(struct net_device *dev,
+				struct rtnl_link_stats64 *tot)
+{
+	nss_clmapmgr_get_dev_stats64(dev, tot);
+}
+#endif
 
 /*
  * nss_clmapmgr_dev_init()

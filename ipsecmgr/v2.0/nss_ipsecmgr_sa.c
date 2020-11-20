@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -364,6 +364,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		if (!rt_keys) {
 			nss_ipsecmgr_warn("%px: failed to allocate key memory\n", sa);
 			crypto_free_aead(sa->aead);
+			sa->aead = NULL;
 			return NSS_IPSECMGR_FAIL_NOMEM;
 		}
 
@@ -1067,6 +1068,85 @@ bool nss_ipsecmgr_sa_verify(struct net_device *dev, struct nss_ipsecmgr_sa_tuple
 	return !!sa;
 }
 EXPORT_SYMBOL(nss_ipsecmgr_sa_verify);
+
+/*
+ * nss_ipsecmgr_cra_name2algo()
+ * 	Returns nss_ipsecmgr_algo
+ */
+enum nss_ipsecmgr_algo nss_ipsecmgr_cra_name2algo(const char *cra_name)
+{
+	enum nss_ipsecmgr_algo algo = NSS_IPSECMGR_ALGO_AES_CBC_SHA1_HMAC;
+	const char **algo_name = ipsecmgr_algo_name;
+
+	for (; algo < NSS_IPSECMGR_ALGO_MAX; algo++, algo_name++) {
+		if (!strncmp(cra_name, *algo_name, strlen(*algo_name))) {
+			return algo;
+		}
+	}
+
+	return NSS_IPSECMGR_ALGO_MAX;
+}
+EXPORT_SYMBOL(nss_ipsecmgr_cra_name2algo);
+
+/*
+ * nss_ipsecmgr_sa_get_info()
+ * 	Get Crypto information for an already created SA.
+ */
+bool nss_ipsecmgr_sa_get_info(struct net_device *dev, struct nss_ipsecmgr_sa_tuple *tuple,
+		struct nss_ipsecmgr_sa_info *sa_info)
+{
+	struct nss_ipsec_cmn_sa_tuple sa_tuple = {0};
+	struct nss_ipsecmgr_sa *sa;
+	uint32_t mask;
+
+	/*
+	 * Look for an existing SA.
+	 */
+	nss_ipsecmgr_sa2tuple(tuple, &sa_tuple);
+
+	read_lock_bh(&ipsecmgr_drv->lock);
+	sa = nss_ipsecmgr_sa_find(ipsecmgr_drv->sa_db, &sa_tuple);
+	if (!sa) {
+		read_unlock_bh(&ipsecmgr_drv->lock);
+		return false;
+	}
+
+	sa_info->blk_len = sa->state.data.blk_len;
+	sa_info->iv_len = sa->state.data.iv_len;
+	sa_info->hash_len = sa->state.data.icv_len;
+	sa_info->session_idx = sa->state.tuple.crypto_index;
+
+	sa_info->hdr_len = sizeof(struct ip_esp_hdr) + sa_info->iv_len;
+	mask = NSS_IPSEC_CMN_FLAG_HDR_MASK | NSS_IPSEC_CMN_FLAG_MODE_TRANS;
+
+	switch (sa->state.data.flags & mask) {
+		case NSS_IPSEC_CMN_FLAG_IPV4_NATT | NSS_IPSEC_CMN_FLAG_MODE_TRANS:
+			sa_info->hdr_len += sizeof(struct udphdr);
+			break;
+		case NSS_IPSEC_CMN_FLAG_IPV6 | NSS_IPSEC_CMN_FLAG_MODE_TRANS:
+		case NSS_IPSEC_CMN_FLAG_MODE_TRANS:
+			break;
+		case NSS_IPSEC_CMN_FLAG_IPV4_NATT:
+			sa_info->hdr_len += sizeof(struct iphdr) + sizeof(struct udphdr);
+			break;
+		case NSS_IPSEC_CMN_FLAG_IPV6:
+			sa_info->hdr_len += sizeof(struct ipv6hdr);
+			break;
+		default:
+			sa_info->hdr_len += sizeof(struct iphdr);
+			break;
+	}
+
+	read_unlock_bh(&ipsecmgr_drv->lock);
+
+	/*
+	 * The user of trailer_len should take care of the odd length.
+	 */
+	sa_info->trailer_len = sa_info->blk_len + 1 + sa_info->hash_len;
+
+	return true;
+}
+EXPORT_SYMBOL(nss_ipsecmgr_sa_get_info);
 
 /*
  * nss_ipsecmgr_sa_tx_inner()

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -21,8 +21,10 @@
 #include <linux/skbuff.h>
 
 #include <qca_mscs_if.h>
+#include <qca_mesh_latency_if.h>
 #include <nss_api_if.h>
 #include <ecm_classifier_mscs_public.h>
+#include <ecm_classifier_emesh_public.h>
 
 #if defined(CONFIG_DYNAMIC_DEBUG)
 
@@ -65,6 +67,14 @@ static struct ecm_classifier_mscs_callbacks nss_mscs_ecm = {
 };
 
 /*
+ * nss_emesh_ecm
+ * 	Register EMESH client callback with ECM EMSH classifier to update peer mesh latency parameters.
+ */
+static struct ecm_classifier_emesh_callbacks nss_emesh_ecm = {
+	    .update_peer_mesh_latency_params = qca_mesh_latency_update_peer_parameter,
+};
+
+/*
  * nss_mscs_init_module()
  *	MSCS clinet module init function
  */
@@ -92,6 +102,12 @@ int __init nss_mscs_init_module(void)
 		return -1;
 	}
 
+	if (ecm_classifier_emesh_latency_config_callback_register(&nss_emesh_ecm)) {
+		ecm_classifier_mscs_callback_unregister();
+		nss_mscs_warning("ecm mesh classifier callback registration failed.\n");
+		return -1;
+	}
+
 	nss_mscs_info("NSS MSCS Client loaded: %s\n", NSS_CLIENT_BUILD_ID);
 	return 0;
 
@@ -114,6 +130,7 @@ void __exit nss_mscs_exit_module(void)
 #endif
 
 	ecm_classifier_mscs_callback_unregister();
+	ecm_classifier_emesh_latency_config_callback_unregister();
 	nss_mscs_info("MSCS Client unloaded\n");
 
 }

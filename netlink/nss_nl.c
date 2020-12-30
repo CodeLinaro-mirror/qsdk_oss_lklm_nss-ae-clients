@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2016,2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2021 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -75,6 +75,8 @@
 #include "nss_nll2tpv2_if.h"
 #include "nss_nlpptp.h"
 #include "nss_nlpptp_if.h"
+#include "nss_nludp_st.h"
+#include "nss_nludp_st_if.h"
 
 /*
  * nss_nl.c
@@ -284,6 +286,16 @@ static struct nss_nl_family family_handlers[] = {
 		.exit = NSS_NLPPTP_EXIT,		/* exit */
 		.valid = CONFIG_NSS_NLPPTP		/* 1 or 0 */
 	},
+	{
+                /*
+                 * NSS_NLUDP_ST
+                 */
+                .name = NSS_NLUDP_ST_FAMILY,             /* udp_st */
+                .entry = NSS_NLUDP_ST_INIT,              /* init */
+                .exit = NSS_NLUDP_ST_EXIT,               /* exit */
+                .valid = CONFIG_NSS_NLUDP_ST             /* 1 or 0 */
+        },
+
 };
 
 #define NSS_NL_FAMILY_HANDLER_SZ ARRAY_SIZE(family_handlers)

@@ -100,8 +100,11 @@
 
 static DEFINE_HASHTABLE(l2tpv2_session_data_hash_table, HASH_BUCKET_SIZE);
 static int ip_ttl_max = 255;
+
+#if defined(NSS_L2TP_IPSEC_BIND_BY_NETDEV)
 static char l2tpoipsec_config[L2TP_SYSCTL_STR_LEN_MAX];
 static struct ctl_table_header *ctl_tbl_hdr; /* l2tpv2 sysctl */
+#endif
 static struct l2tpmgr_ipsecmgr_cb __rcu ipsecmgr_cb;
 
 /*
@@ -474,6 +477,62 @@ static void nss_connmgr_l2tpv2_event_receive(void *if_ctx, struct nss_l2tpv2_msg
 }
 
 /*
+ * nss_connmgr_l2tpv2_bind_ipsec_by_ipaddr()
+ * 	Bind L2TP tunnel with IPsec(xfrm) based on IP Address
+ */
+static void nss_connmgr_l2tpv2_bind_ipsec_by_ipaddr(struct nss_ctx_instance *nss_ctx, struct nss_connmgr_l2tpv2_data *l2tpv2_data, uint32_t l2tp_ifnum)
+{
+	struct nss_l2tpv2_msg l2tpv2msg;
+	nss_tx_status_t status;
+	struct nss_l2tpv2_bind_ipsec_if_msg *l2tpv2_bind_ipsec_msg;
+	int32_t ipsec_ifnum;
+	get_ipsec_ifnum_by_ipv4_addr_callback_t ipsec_cb;
+
+	/*
+	 * Check if the L2TP interface is applied over an IPsec (XFRM) interface by querying the IPsec
+	 * client by using the L2TP tunnel IPv4 source/destination addresses.
+	 */
+	rcu_read_lock();
+	ipsec_cb = rcu_dereference(ipsecmgr_cb.get_ifnum_by_ipv4_addr);
+	if (!ipsec_cb) {
+		rcu_read_unlock();
+		nss_connmgr_l2tpv2_info("%px: IPsec get_ifnum_by_ipv4_addr callback is not registered\n", nss_ctx);
+		return;
+	}
+
+	ipsec_ifnum = ipsec_cb(&l2tpv2_data->ip.v4.saddr.s_addr, &l2tpv2_data->ip.v4.daddr.s_addr);
+	rcu_read_unlock();
+
+	if (ipsec_ifnum < 0) {
+		nss_connmgr_l2tpv2_info("%px: Invalid IPsec interface no.(0x%x) based on local & remote IP-address\n", nss_ctx, ipsec_ifnum);
+		return;
+	}
+
+	/*
+	 * For, l2tpoipsec, send the command to bind the l2tp session with the IPsec interface.
+	 */
+	memset(&l2tpv2msg, 0, sizeof(struct nss_l2tpv2_msg));
+	nss_l2tpv2_msg_init(&l2tpv2msg, l2tp_ifnum, NSS_L2TPV2_MSG_BIND_IPSEC_IF,
+			sizeof(struct nss_l2tpv2_bind_ipsec_if_msg), (void *)nss_connmgr_l2tpv2_msg_cb, NULL);
+	l2tpv2_bind_ipsec_msg = &l2tpv2msg.msg.bind_ipsec_if_msg;
+	l2tpv2_bind_ipsec_msg->ipsec_ifnum = ipsec_ifnum;
+
+	status = nss_l2tpv2_tx(nss_ctx, &l2tpv2msg);
+	if (status != NSS_TX_SUCCESS) {
+		/*
+		 * TODO: Add retry logic. Currently it sends a warning message to user.
+		 * In case of bind fails, then we don't bring down L2TP tunnel, instead we give a warning log
+		 * to user, as this introduces a potential risk of not having a per packet check for source
+		 * interface number in firmware.
+		 */
+		nss_connmgr_l2tpv2_warning("%px: L2TPv2 interface binding with IPSec interface(0x%x) failed.\n", nss_ctx, ipsec_ifnum);
+		return;
+	}
+
+	nss_connmgr_l2tpv2_info("%px: L2TPv2 interface is bound to IPsec interface with if_num(0x%x)\n", nss_ctx, ipsec_ifnum);
+}
+
+/*
  * nss_connmgr_l2tpv2_dev_up()
  *	pppol2tpv2 interface's up event handler
  */
@@ -577,7 +636,12 @@ static int nss_connmgr_l2tpv2_dev_up(struct net_device *dev)
 		return NOTIFY_BAD;
 	}
 
-	nss_connmgr_l2tpv2_info("%px: nss_l2tpv2_tx() successful\n", nss_ctx);
+	nss_connmgr_l2tpv2_info("%px: nss_l2tpv2_tx() CREATE successful\n", nss_ctx);
+
+	/*
+	 * Check if we need to bind the L2TP to an IPsec interface. This is required as per RFC3193
+	 */
+	nss_connmgr_l2tpv2_bind_ipsec_by_ipaddr(nss_ctx, data, if_number);
 
 	return NOTIFY_DONE;
 }
@@ -721,6 +785,83 @@ int nss_connmgr_l2tpv2_does_connmgr_track(const struct net_device *dev)
 EXPORT_SYMBOL(nss_connmgr_l2tpv2_does_connmgr_track);
 
 /*
+ * l2tpmgr_register_ipsecmgr_callback_by_ipaddr()
+ *	Register IPSecmgr callback.
+ */
+void l2tpmgr_register_ipsecmgr_callback_by_ipaddr(struct l2tpmgr_ipsecmgr_cb *cb)
+{
+	get_ipsec_ifnum_by_ipv4_addr_callback_t ipsec_get_ifnum_by_ipv4_addr;
+
+	rcu_read_lock();
+	ipsec_get_ifnum_by_ipv4_addr = rcu_dereference(ipsecmgr_cb.get_ifnum_by_ipv4_addr);
+	if (ipsec_get_ifnum_by_ipv4_addr) {
+		rcu_read_unlock();
+		nss_connmgr_l2tpv2_info("%px: IPSecmgr Callback get_ifnum_by_ipv4_addr is already registered\n", cb);
+		return;
+	}
+	rcu_read_unlock();
+
+	if (cb->get_ifnum_by_ipv4_addr == NULL) {
+		nss_connmgr_l2tpv2_warning("%px: IPSecmgr Callback get_ifnum_by_ipv4_addr is NULL\n", cb);
+		return;
+	}
+
+	rcu_assign_pointer(ipsecmgr_cb.get_ifnum_by_ipv4_addr, cb->get_ifnum_by_ipv4_addr);
+	synchronize_rcu();
+}
+EXPORT_SYMBOL(l2tpmgr_register_ipsecmgr_callback_by_ipaddr);
+
+/*
+ * l2tpmgr_unregister_ipsecmgr_callback_by_ipaddr
+ *	Unregister callback.
+ */
+void l2tpmgr_unregister_ipsecmgr_callback_by_ipaddr(void)
+{
+	rcu_assign_pointer(ipsecmgr_cb.get_ifnum_by_ipv4_addr, NULL);
+	synchronize_rcu();
+}
+EXPORT_SYMBOL(l2tpmgr_unregister_ipsecmgr_callback_by_ipaddr);
+
+#if defined(NSS_L2TP_IPSEC_BIND_BY_NETDEV)
+/*
+ * l2tpmgr_register_ipsecmgr_callback_by_netdev()
+ *	Register IPSecmgr callback.
+ */
+void l2tpmgr_register_ipsecmgr_callback_by_netdev(struct l2tpmgr_ipsecmgr_cb *cb)
+{
+	get_ipsec_ifnum_by_dev_callback_t ipsec_get_ifnum_by_dev;
+
+	rcu_read_lock();
+	ipsec_get_ifnum_by_dev = rcu_dereference(ipsecmgr_cb.get_ifnum_by_dev);
+	if (ipsec_get_ifnum_by_dev) {
+		rcu_read_unlock();
+		nss_connmgr_l2tpv2_info("%px: IPSecmgr Callback get_ifnum_by_dev is already registered\n", cb);
+		return;
+	}
+	rcu_read_unlock();
+
+	if (cb->get_ifnum_by_dev == NULL) {
+		nss_connmgr_l2tpv2_warning("%px: IPSecmgr Callback get_ifnum_by_dev is NULL\n", cb);
+		return;
+	}
+
+	rcu_assign_pointer(ipsecmgr_cb.get_ifnum_by_dev, cb->get_ifnum_by_dev);
+	synchronize_rcu();
+}
+EXPORT_SYMBOL(l2tpmgr_register_ipsecmgr_callback_by_netdev);
+
+/*
+ * l2tpmgr_unregister_ipsecmgr_callback_by_netdev
+ *	Unregister callback.
+ */
+void l2tpmgr_unregister_ipsecmgr_callback_by_netdev(void)
+{
+	rcu_assign_pointer(ipsecmgr_cb.get_ifnum_by_dev, NULL);
+	synchronize_rcu();
+}
+EXPORT_SYMBOL(l2tpmgr_unregister_ipsecmgr_callback_by_netdev);
+
+/*
  * nss_connmgr_l2tpv2_proc_handler()
  *	Read and write handler for sysctl.
  */
@@ -731,11 +872,11 @@ static int nss_connmgr_l2tpv2_proc_handler(struct ctl_table *ctl,
 	char *l2tp_device_name, *ipsec_device_name;
 	char *input_str = l2tpoipsec_config;
 	int32_t l2tp_ifnum, ipsec_ifnum;
-	struct net_device *l2tpdev, *ipsecdev, *ipsectundev;
+	struct net_device *l2tpdev, *ipsecdev;
 	nss_tx_status_t status;
 	struct nss_l2tpv2_msg l2tpv2msg;
-	get_ipsec_tundev_callback_t ipsec_cb;
-	struct nss_l2tpv2_bind_ipsec_if_msg *l2tpv2_bind_ipsec_if;
+	get_ipsec_ifnum_by_dev_callback_t ipsec_cb;
+	struct nss_l2tpv2_bind_ipsec_if_msg *l2tpv2_bind_ipsec_msg;
 	struct nss_ctx_instance *nss_ctx = nss_l2tpv2_get_context();
 	int ret = proc_dostring(ctl, write, buffer, lenp, ppos);
 	struct nss_connmgr_l2tpv2_session_data *ptr;
@@ -796,7 +937,7 @@ static int nss_connmgr_l2tpv2_proc_handler(struct ctl_table *ctl,
 	}
 
 	rcu_read_lock();
-	ipsec_cb = rcu_dereference(ipsecmgr_cb.cb);
+	ipsec_cb = rcu_dereference(ipsecmgr_cb.get_ifnum_by_dev);
 	if (!ipsec_cb) {
 		rcu_read_unlock();
 		nss_connmgr_l2tpv2_info("Callback to get IPsec tun device not registered");
@@ -805,27 +946,13 @@ static int nss_connmgr_l2tpv2_proc_handler(struct ctl_table *ctl,
 	}
 
 	/*
-	 * Get the dummy netdevice used to register this IPSec
-	 * device with NSS from the ipsecmgr module. This is
-	 * needed for looking up the NSS ifnum for the IPSec
-	 * netdevice.
-	 */
-	ipsectundev = ipsec_cb(ipsecdev);
-	rcu_read_unlock();
-	if (!ipsectundev) {
-		nss_connmgr_l2tpv2_info("Cannot get the device from IPSecmgr for %s\n", ipsec_device_name);
-		ret = -ENODEV;
-		goto exit;
-	}
-
-	/*
 	 * Get NSS ifnum for IPsec interface.
 	 */
-	ipsec_ifnum = nss_cmn_get_interface_number_by_dev_and_type(ipsectundev, NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_INNER);
+	ipsec_ifnum = ipsec_cb(ipsecdev);
+	rcu_read_unlock();
 	if (ipsec_ifnum == -1) {
 		nss_connmgr_l2tpv2_info("Cannot find the NSS interface associated with %s\n", ipsec_device_name);
 		ret = -ENODEV;
-		dev_put(ipsectundev);
 		goto exit;
 	}
 
@@ -834,52 +961,19 @@ static int nss_connmgr_l2tpv2_proc_handler(struct ctl_table *ctl,
 	 */
 	memset(&l2tpv2msg, 0, sizeof(struct nss_l2tpv2_msg));
 	nss_l2tpv2_msg_init(&l2tpv2msg, l2tp_ifnum, NSS_L2TPV2_MSG_BIND_IPSEC_IF, sizeof(struct nss_l2tpv2_bind_ipsec_if_msg), (void *)nss_connmgr_l2tpv2_msg_cb, NULL);
-	l2tpv2_bind_ipsec_if = &l2tpv2msg.msg.bind_ipsec_if_msg;
-	l2tpv2_bind_ipsec_if->ipsec_ifnum = ipsec_ifnum;
+	l2tpv2_bind_ipsec_msg = &l2tpv2msg.msg.bind_ipsec_if_msg;
+	l2tpv2_bind_ipsec_msg->ipsec_ifnum = ipsec_ifnum;
 	status = nss_l2tpv2_tx(nss_ctx, &l2tpv2msg);
 	if (status != NSS_TX_SUCCESS) {
 		nss_connmgr_l2tpv2_info("%px IPSec interface bind failed\n", nss_ctx);
 		ret = -EAGAIN;
 	}
 
-	dev_put(ipsectundev);
 exit:
 	dev_put(l2tpdev);
 	dev_put(ipsecdev);
 	return ret;
 }
-
-/*
- * l2tpmgr_register_ipsecmgr_callback()
- *	Register IPSecmgr callback.
- */
-void l2tpmgr_register_ipsecmgr_callback(struct l2tpmgr_ipsecmgr_cb *cb)
-{
-	get_ipsec_tundev_callback_t ipsec_cb;
-	rcu_read_lock();
-	ipsec_cb = rcu_dereference(ipsecmgr_cb.cb);
-	if (ipsec_cb) {
-		rcu_read_unlock();
-		nss_connmgr_l2tpv2_info("IPSecmgr Callback is already registered\n");
-		return;
-	}
-
-	rcu_assign_pointer(ipsecmgr_cb.cb, cb->cb);
-	rcu_read_unlock();
-}
-EXPORT_SYMBOL(l2tpmgr_register_ipsecmgr_callback);
-
-/*
- * l2tpmgr_unregister_ipsecmgr_callback
- *	Unregister callback.
- */
-void l2tpmgr_unregister_ipsecmgr_callback(void)
-{
-	rcu_read_lock();
-	rcu_assign_pointer(ipsecmgr_cb.cb, NULL);
-	rcu_read_unlock();
-}
-EXPORT_SYMBOL(l2tpmgr_unregister_ipsecmgr_callback);
 
 /*
  * nss_connmgr_l2tpv2_table
@@ -918,6 +1012,7 @@ static struct ctl_table nss_connmgr_l2tpv2_sysroot[] = {
 	},
 	{ }
 };
+#endif
 
 /*
  * Linux Net device Notifier
@@ -940,18 +1035,20 @@ int __init nss_connmgr_l2tpv2_init_module(void)
 		return 0;
 	}
 #endif
+#if defined(NSS_L2TP_IPSEC_BIND_BY_NETDEV)
 	ctl_tbl_hdr = register_sysctl_table(nss_connmgr_l2tpv2_sysroot);
 	if (!ctl_tbl_hdr) {
 		nss_connmgr_l2tpv2_info("Unable to register sysctl table for L2TP conn mgr\n");
 		return -EFAULT;
 	}
 
+#endif
 	/*
 	 * Initialize ipsecmgr callback.
 	 */
-	rcu_read_lock();
-	rcu_assign_pointer(ipsecmgr_cb.cb, NULL);
-	rcu_read_unlock();
+	rcu_assign_pointer(ipsecmgr_cb.get_ifnum_by_dev, NULL);
+	rcu_assign_pointer(ipsecmgr_cb.get_ifnum_by_ipv4_addr, NULL);
+	synchronize_rcu();
 	register_netdevice_notifier(&nss_connmgr_l2tpv2_notifier);
 	return 0;
 }

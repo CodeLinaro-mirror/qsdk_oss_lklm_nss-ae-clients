@@ -1,6 +1,6 @@
 /*
  * ********************************************************************************
- * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
@@ -731,6 +731,7 @@ void nss_ipsecmgr_ctx_rx_stats(void *app_data, struct nss_cmn_msg *ncm)
 		struct nss_ipsecmgr_sa *sa;
 		void *app_data;
 
+		event.type = NSS_IPSECMGR_EVENT_SA_STATS;
 		write_lock(&ipsecmgr_drv->lock);
 
 		sa = nss_ipsecmgr_sa_find(sa_db, &sync->sa_tuple);

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -92,17 +92,16 @@
 #define NSS_CAPWAPMGR_BIND_BITMAP 0x7E
 
 /*
- * The number of rules supported by a list is 4. Since we need 2 rules for every
- * dscp classification (v4 and v6). We set this value to 2.
+ * We need 4 ACL rules - 2 rules for each v4 and v6 classification.
  */
-#define NSS_CAPWAPMGR_ACL_RULES_PER_LIST 2
+#define NSS_CAPWAPMGR_ACL_RULES_PER_LIST 4
 
 /*
- * We currently have list-id 60 and 61 reserved for this purpose.
+ * We currently have list-id 60 reserved for this purpose.
  * TODO: Find a better approach to reserve list-id.
  */
 #define NSS_CAPWAPMGR_ACL_LIST_START 60
-#define NSS_CAPWAPMGR_ACL_LIST_CNT 2
+#define NSS_CAPWAPMGR_ACL_LIST_CNT 1
 
 #define NSS_CAPWAPMGR_NORMAL_FRAME_MTU 1500
 

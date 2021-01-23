@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -755,10 +755,6 @@ int nss_bridge_mgr_join_bridge(struct net_device *dev, struct nss_bridge_pvt *br
 		 * This is done by not sending join message to the bridge in NSS.
 		 */
 		if (br_mgr_ctx.wan_if_num == ifnum) {
-			if (!nss_bridge_mgr_l2_exception_acl_enable()) {
-				nss_bridge_mgr_warn("%px: failed to enable ACL\n", br);
-				return -EIO;
-			}
 			br->wan_if_enabled = true;
 			br->wan_if_num = ifnum;
 			nss_bridge_mgr_info("if_num %d is added as WAN interface \n", ifnum);
@@ -864,7 +860,6 @@ int nss_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_bridge_pvt *b
 		 * Hence a leave message should also be avaoided.
 		 */
 		if ((br->wan_if_enabled) && (br->wan_if_num == ifnum)) {
-			nss_bridge_mgr_l2_exception_acl_disable();
 			br->wan_if_enabled = false;
 			br->wan_if_num = -1;
 			nss_bridge_mgr_info("if_num %d is added as WAN interface\n", ifnum);
@@ -1598,6 +1593,14 @@ int __init nss_bridge_mgr_init_module(void)
 	br_mgr_ctx.wan_if_num = -1;
 	br_fdb_update_register_notify(&nss_bridge_mgr_fdb_update_notifier);
 	br_mgr_ctx.nss_bridge_mgr_header = register_sysctl_table(nss_bridge_mgr_root_dir);
+
+	/*
+	 * Enable ACL rule to enable L2 exception. This is needed if PPE Virtual ports is added to bridge.
+	 *  It is assumed that VP is using flow based bridging, hence L2 exceptions will need to be enabled on PPE bridge.
+	 */
+	if (!nss_bridge_mgr_l2_exception_acl_enable()) {
+		nss_bridge_mgr_warn("Failed to enable ACL\n");
+	}
 #endif
 #if defined (NSS_BRIDGE_MGR_OVS_ENABLE)
 	nss_bridge_mgr_ovs_init();
@@ -1619,6 +1622,12 @@ void __exit nss_bridge_mgr_exit_module(void)
 	if (br_mgr_ctx.nss_bridge_mgr_header) {
 		unregister_sysctl_table(br_mgr_ctx.nss_bridge_mgr_header);
 	}
+
+	/*
+	 * Disable the PPE L2 exceptions which were enabled during module init for PPE virtual ports.
+	 */
+	nss_bridge_mgr_l2_exception_acl_disable();
+
 #endif
 #if defined (NSS_BRIDGE_MGR_OVS_ENABLE)
 	nss_bridge_mgr_ovs_exit();

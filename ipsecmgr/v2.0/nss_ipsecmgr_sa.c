@@ -781,6 +781,10 @@ void nss_ipsecmgr_sa_sync2stats(struct nss_ipsecmgr_sa *sa, struct nss_ipsec_cmn
 		stats->seq_start = sync->replay.seq_start;
 		stats->seq_cur = sync->replay.seq_cur;
 	}
+
+	stats->fail_replay_win = sa_stats->fail_replay_win;
+	stats->fail_replay_dup = sa_stats->fail_replay_dup;
+	stats->fail_auth = sa_stats->fail_auth;
 }
 
 /*

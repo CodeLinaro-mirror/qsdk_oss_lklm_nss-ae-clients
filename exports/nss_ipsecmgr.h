@@ -252,7 +252,10 @@ struct nss_ipsecmgr_sa_stats {
 	uint32_t pkt_count;			/**< Number of packets processed. */
 	uint32_t pkt_failed;			/**< Number of packets failed in processing. */
 	uint16_t window_size;			/**< Current size of the window. */
-	bool replay_fail_alarm;			/**< Alarm for consecutive hash fail. */
+	uint16_t replay_fail_alarm;		/**< Alarm for consecutive hash fail. */
+	uint32_t fail_replay_win;		/**< Failure in anti-replay; packet outside the window */
+	uint32_t fail_replay_dup;		/**< Failure in anti-replay; duplicate records */
+	uint32_t fail_auth;			/**< Failure in authenticating the data */
 };
 
 /**

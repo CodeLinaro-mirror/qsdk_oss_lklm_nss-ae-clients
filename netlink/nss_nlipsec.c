@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2016,2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2021 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -326,7 +326,7 @@ int nss_nlipsec_get_mtu(struct net_device *dev, uint8_t ip_ver, uint8_t proto, u
 static int nss_nlipsec_op_create_tunnel(struct sk_buff *skb, struct genl_info *info)
 {
 	struct nss_nlipsec_rule *nl_rule;
-	struct nss_ipsecmgr_callback cb;
+	struct nss_ipsecmgr_callback cb = {0};
 	struct nss_nlcmn *nl_cm;
 	struct net_device *dev;
 	struct sk_buff *resp;

@@ -39,6 +39,7 @@ obj-$(match)+= match/
 obj-$(tlsmgr)+= tls/
 obj-$(mirror)+= mirror/
 obj-$(mscs)+= mscs/
+obj-$(wifi-meshmgr)+= wifi_meshmgr/
 
 #NSS NETLINK
 obj-$(netlink)+= netlink/

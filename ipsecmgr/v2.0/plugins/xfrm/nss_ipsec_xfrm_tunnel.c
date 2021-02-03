@@ -13,6 +13,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -296,7 +297,11 @@ struct nss_ipsec_xfrm_tunnel *nss_ipsec_xfrm_tunnel_alloc(struct nss_ipsec_xfrm_
 		 break;
 
 	case AF_INET6:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		rt6 = rt6_lookup(&init_net, &remote->in6, NULL, 0, 0);
+#else
 		rt6 = rt6_lookup(&init_net, &remote->in6, NULL, 0, 0, 0);
+#endif
 		if (!rt6) {
 			nss_ipsec_xfrm_err("Failed to allocate tunnel; No IPv6 dst found\n");
 			return NULL;

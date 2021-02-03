@@ -104,7 +104,7 @@ static ssize_t nss_ipsec_xfrm_drv_print(struct nss_ipsec_xfrm_drv *drv , char *b
 	len += snprintf(buf + len, max_len - len, "stats: {\n");
 
 	for (i = 0; i < ARRAY_SIZE(nss_ipsec_xfrm_drv_stats); i++, prn++, stats_dword++)
-		len += snprintf(buf + len, max_len - len, "%s: %llu\n", prn->str, atomic64_read(stats_dword));
+		len += snprintf(buf + len, max_len - len, "%s: %llu\n", prn->str, (uint64_t)atomic64_read(stats_dword));
 
 	len += snprintf(buf + len, max_len - len, "}\n");
 
@@ -743,8 +743,17 @@ static int nss_ipsec_xfrm_policy_notify(struct xfrm_policy *xp, int dir, const s
  */
 static int nss_ipsec_xfrm_state_notify(struct xfrm_state *x, const struct km_event *c)
 {
-	nss_ipsec_xfrm_info("%p(%d): event %d hard %d\n", x, x ? refcount_read(&x->refcnt) : -1, c->event,
-			c->data.hard);
+	int refcnt = -1;
+
+	if (x) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		refcnt = atomic_read(&x->refcnt);
+#else
+		refcnt = refcount_read(&x->refcnt);
+#endif
+	}
+
+	nss_ipsec_xfrm_info("%p(%d): event %d hard %d\n", x, refcnt, c->event, c->data.hard);
 	return 0;
 }
 
@@ -1042,6 +1051,94 @@ static int nss_ipsec_xfrm_encap_v4(struct net *net, struct sock *sk, struct sk_b
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+/*
+ * nss_ipsec_xfrm_v4_init_flags()
+ *	Initialize xfrm state flags
+ */
+static int nss_ipsec_xfrm_v4_init_flags(struct xfrm_state *x)
+{
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+
+	nss_ipsec_xfrm_trace("%px: Redirect to native xfrm stack\n", x);
+	return drv->xsa.v4->init_flags(x);
+}
+
+/*
+ * nss_ipsec_xfrm_v4_init_sel()
+ *	Initialize xfrm state selector
+ */
+static void nss_ipsec_xfrm_v4_init_sel(struct xfrm_selector *sel, const struct flowi *fl)
+{
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+
+	nss_ipsec_xfrm_trace("%px: Redirect to native xfrm stack\n", sel);
+	return drv->xsa.v4->init_tempsel(sel, fl);
+}
+
+/*
+ * nss_ipsec_xfrm_v4_init_param()
+ *	Initialize xfrm state parameters
+ */
+static void nss_ipsec_xfrm_v4_init_param(struct xfrm_state *x, const struct xfrm_tmpl *tmpl,
+		const xfrm_address_t *daddr, const xfrm_address_t *saddr)
+{
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+
+	nss_ipsec_xfrm_trace("%px: Redirect to native xfrm stack\n", x);
+	return drv->xsa.v4->init_temprop(x, tmpl, daddr, saddr);
+}
+
+/*
+ * nss_ipsec_xfrm_v6_init_sel()
+ *	Initialize xfrm state selector
+ */
+static void nss_ipsec_xfrm_v6_init_sel(struct xfrm_selector *sel, const struct flowi *fl)
+{
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+
+	nss_ipsec_xfrm_trace("%px: Redirect to native xfrm stack\n", sel);
+	return drv->xsa.v6->init_tempsel(sel, fl);
+}
+
+/*
+ * nss_ipsec_xfrm_v6_init_param()
+ *	Initialize xfrm state parameters
+ */
+static void nss_ipsec_xfrm_v6_init_param(struct xfrm_state *x, const struct xfrm_tmpl *tmpl,
+		const xfrm_address_t *daddr, const xfrm_address_t *saddr)
+{
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+
+	nss_ipsec_xfrm_trace("%px: Redirect to native xfrm stack\n", x);
+	return drv->xsa.v6->init_temprop(x, tmpl, daddr, saddr);
+}
+
+/*
+ * nss_ipsec_xfrm_v6_sort_tmpl()
+ *	Distribution couting sort for xfrm state template
+ */
+static int nss_ipsec_xfrm_v6_sort_tmpl(struct xfrm_tmpl **dst, struct xfrm_tmpl **src, int n)
+{
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+
+	nss_ipsec_xfrm_trace("%px: Redirect to native xfrm stack\n", dst);
+	return drv->xsa.v6->tmpl_sort(dst, src, n);
+}
+
+/*
+ * nss_ipsec_xfrm_v6_sort_state()
+ *	Distribution couting sort for xfrm state
+ */
+static int nss_ipsec_xfrm_v6_sort_state(struct xfrm_state **dst, struct xfrm_state **src, int n)
+{
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+
+	nss_ipsec_xfrm_trace("%px: Redirect to native xfrm stack\n", dst);
+	return drv->xsa.v6->state_sort(dst, src, n);
+}
+#endif
+
 /*
  * nss_ipsec_xfrm_v4_output()
  *	Called for IPv4 Plain text packets submitted for IPSec transformation.
@@ -1174,10 +1271,18 @@ uint32_t nss_ipsec_xfrm_esp_get_mtu(struct xfrm_state *x, int mtu)
 
 	if (x->props.family == AF_INET) {
 		ip_len = sizeof(struct iphdr);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		fallback_fn = drv->xsa.v4->type_map[IPPROTO_ESP]->get_mtu;
+#else
 		fallback_fn = drv->xsa.v4->type_esp->get_mtu;
+#endif
 	} else {
 		ip_len = sizeof(struct ipv6hdr);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		fallback_fn = drv->xsa.v6->type_map[IPPROTO_ESP]->get_mtu;
+#else
 		fallback_fn = drv->xsa.v6->type_esp->get_mtu;
+#endif
 	}
 
 	/*
@@ -1368,9 +1473,17 @@ static int nss_ipsec_xfrm_esp_input(struct xfrm_state *x, struct sk_buff *skb)
 	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
 
 	if (x->props.family == AF_INET) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		fallback_fn = drv->xsa.v4->type_map[IPPROTO_ESP]->input;
+#else
 		fallback_fn = drv->xsa.v4->type_esp->input;
+#endif
 	} else {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		fallback_fn = drv->xsa.v6->type_map[IPPROTO_ESP]->input;
+#else
 		fallback_fn = drv->xsa.v6->type_esp->input;
+#endif
 	}
 
 	nss_ipsec_xfrm_trace("%px: Redirect to native stack\n", skb);
@@ -1390,9 +1503,17 @@ static int nss_ipsec_xfrm_esp_output(struct xfrm_state *x, struct sk_buff *skb)
 	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
 
 	if (x->props.family == AF_INET) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		fallback_fn = drv->xsa.v4->type_map[IPPROTO_ESP]->output;
+#else
 		fallback_fn = drv->xsa.v4->type_esp->output;
+#endif
 	} else {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		fallback_fn = drv->xsa.v6->type_map[IPPROTO_ESP]->output;
+#else
 		fallback_fn = drv->xsa.v6->type_esp->output;
+#endif
 	}
 
 	nss_ipsec_xfrm_trace("%px: Redirect to native stack\n", skb);
@@ -1474,11 +1595,19 @@ static int nss_ipsec_xfrm_esp4_err(struct sk_buff *skb, u32 info)
 			return 0;
 		}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		ipv4_update_pmtu(skb, net, info, 0, 0, IPPROTO_ESP, 0);
+#else
 		ipv4_update_pmtu(skb, net, info, 0, IPPROTO_ESP);
+#endif
 		break;
 
 	case ICMP_REDIRECT:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		ipv4_redirect(skb, net, 0, 0, IPPROTO_ESP, 0);
+#else
 		ipv4_redirect(skb, net, 0, IPPROTO_ESP);
+#endif
 		break;
 
 	default:
@@ -1660,7 +1789,11 @@ static  int nss_ipsec_xfrm_v6_esp_hdr_offset(struct xfrm_state *x, struct sk_buf
 	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
 
 	nss_ipsec_xfrm_trace("%px: Redirect to native esp6 stack\n", skb);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	return drv->xsa.v6->type_map[IPPROTO_ESP]->hdr_offset(x, skb, prevhdr);
+#else
 	return drv->xsa.v6->type_esp->hdr_offset(x, skb, prevhdr);
+#endif
 }
 
 /*
@@ -1720,9 +1853,17 @@ static int nss_ipsec_xfrm_esp6_err(struct sk_buff *skb, struct inet6_skb_parm *o
 	}
 
 	if (type == NDISC_REDIRECT) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		ip6_redirect(skb, net, skb->dev->ifindex, 0);
+#else
 		ip6_redirect(skb, net, skb->dev->ifindex, 0, sock_net_uid(net, NULL));
+#endif
 	} else {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		ip6_update_pmtu(skb, net, info, 0, 0);
+#else
 		ip6_update_pmtu(skb, net, info, 0, 0, sock_net_uid(net, NULL));
+#endif
 	}
 
 	nss_ipsec_xfrm_sa_deref(sa);
@@ -1801,6 +1942,12 @@ static struct xfrm_mgr nss_ipsec_xfrm_mgr = {
 static struct xfrm_state_afinfo xfrm_v4_afinfo = {
 	.family = AF_INET,
 	.proto = IPPROTO_IPIP,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	.eth_proto = htons(ETH_P_IP),
+	.init_flags = nss_ipsec_xfrm_v4_init_flags,
+	.init_tempsel = nss_ipsec_xfrm_v4_init_sel,
+	.init_temprop = nss_ipsec_xfrm_v4_init_param,
+#endif
 	.output = nss_ipsec_xfrm_v4_output,
 	.output_finish = nss_ipsec_xfrm_v4_output_finish,
 	.extract_input = nss_ipsec_xfrm_v4_extract_input,
@@ -1808,6 +1955,42 @@ static struct xfrm_state_afinfo xfrm_v4_afinfo = {
 	.transport_finish = nss_ipsec_xfrm_v4_transport_finish,
 	.local_error = nss_ipsec_xfrm_v4_local_error,
 };
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+/*
+ * IPv4 xfrm_mode object
+ */
+struct xfrm_mode xfrm_v4_mode_map[XFRM_MODE_MAX] = {
+	[XFRM_MODE_TRANSPORT] = {
+		.owner = THIS_MODULE,
+		.encap = XFRM_MODE_TRANSPORT,
+	},
+	[XFRM_MODE_TUNNEL] = {
+		.owner = THIS_MODULE,
+		.encap = XFRM_MODE_TUNNEL,
+		.flags = XFRM_MODE_FLAG_TUNNEL,
+	},
+};
+
+/*
+ * IPv6 xfrm_mode object
+ */
+struct xfrm_mode xfrm_v6_mode_map[XFRM_MODE_MAX] = {
+	[XFRM_MODE_ROUTEOPTIMIZATION] = {
+		.owner = THIS_MODULE,
+		.encap = XFRM_MODE_ROUTEOPTIMIZATION,
+	},
+	[XFRM_MODE_TRANSPORT] = {
+		.owner = THIS_MODULE,
+		.encap = XFRM_MODE_TRANSPORT,
+	},
+	[XFRM_MODE_TUNNEL] = {
+		.owner = THIS_MODULE,
+		.encap = XFRM_MODE_TUNNEL,
+		.flags = XFRM_MODE_FLAG_TUNNEL,
+	},
+};
+#endif
 
 /*
  * IPv4 xfrm_type ESP object.
@@ -1841,6 +2024,13 @@ static struct xfrm4_protocol xfrm4_proto = {
 static struct xfrm_state_afinfo xfrm_v6_afinfo = {
 	.family = AF_INET6,
 	.proto = IPPROTO_IPV6,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	.eth_proto = htons(ETH_P_IPV6),
+	.init_tempsel = nss_ipsec_xfrm_v6_init_sel,
+	.init_temprop = nss_ipsec_xfrm_v6_init_param,
+	.tmpl_sort = nss_ipsec_xfrm_v6_sort_tmpl,
+	.state_sort = nss_ipsec_xfrm_v6_sort_state,
+#endif
 	.output = nss_ipsec_xfrm_v6_output,
 	.output_finish = nss_ipsec_xfrm_v6_output_finish,
 	.extract_input = nss_ipsec_xfrm_v6_extract_input,
@@ -1877,6 +2067,9 @@ static struct xfrm6_protocol xfrm6_proto = {
 
 static void nss_ipsec_xfrm_restore_afinfo(struct nss_ipsec_xfrm_drv *drv, uint16_t family)
 {
+	const struct xfrm_type *type_dstopts, *type_routing;
+	const struct xfrm_type *type_ipip, *type_ipv6;
+	const struct xfrm_type *type_ah, *type_comp;
 	struct xfrm_state_afinfo *afinfo;
 	const struct xfrm_type *base;
 
@@ -1886,35 +2079,62 @@ static void nss_ipsec_xfrm_restore_afinfo(struct nss_ipsec_xfrm_drv *drv, uint16
 	if (family == AF_INET) {
 		base = &xfrm_v4_type;
 		afinfo = drv->xsa.v4;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		xfrm_unregister_mode(&xfrm_v4_mode_map[XFRM_MODE_TUNNEL], AF_INET);
+		xfrm_unregister_mode(&xfrm_v4_mode_map[XFRM_MODE_TRANSPORT], AF_INET);
+#endif
 	} else {
 		base = &xfrm_v6_type;
 		afinfo = drv->xsa.v6;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		xfrm_unregister_mode(&xfrm_v6_mode_map[XFRM_MODE_TUNNEL], AF_INET6);
+		xfrm_unregister_mode(&xfrm_v6_mode_map[XFRM_MODE_TRANSPORT], AF_INET6);
+		xfrm_unregister_mode(&xfrm_v6_mode_map[XFRM_MODE_ROUTEOPTIMIZATION], AF_INET6);
+#endif
 	}
 
 	BUG_ON(!afinfo);
 
-	if (afinfo->type_routing) {
-		xfrm_unregister_type(afinfo->type_routing, family);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	type_ah = afinfo->type_map[IPPROTO_AH];
+	type_comp = afinfo->type_map[IPPROTO_COMP];
+	type_ipip = afinfo->type_map[IPPROTO_IPIP];
+	type_ipv6 = afinfo->type_map[IPPROTO_IPV6];
+	type_dstopts = afinfo->type_map[IPPROTO_DSTOPTS];
+	type_routing = afinfo->type_map[IPPROTO_ROUTING];
+#else
+	type_ah = afinfo->type_ah;
+	type_comp = afinfo->type_comp;
+	type_ipip = afinfo->type_ipip;
+	type_ipv6 = afinfo->type_ipip6;
+	type_dstopts = afinfo->type_dstopts;
+	type_routing = afinfo->type_routing;
+#endif
+	/*
+	 * Unregister types
+	 */
+	if (type_routing) {
+		xfrm_unregister_type(type_routing, family);
 	}
 
-	if (afinfo->type_dstopts) {
-		xfrm_unregister_type(afinfo->type_dstopts, family);
+	if (type_dstopts) {
+		xfrm_unregister_type(type_dstopts, family);
 	}
 
-	if (afinfo->type_ipip6) {
-		xfrm_unregister_type(afinfo->type_ipip6, family);
+	if (type_ipv6) {
+		xfrm_unregister_type(type_ipv6, family);
 	}
 
-	if (afinfo->type_ipip) {
-		xfrm_unregister_type(afinfo->type_ipip, family);
+	if (type_ipip) {
+		xfrm_unregister_type(type_ipip, family);
 	}
 
-	if (afinfo->type_comp) {
-		xfrm_unregister_type(afinfo->type_comp, family);
+	if (type_comp) {
+		xfrm_unregister_type(type_comp, family);
 	}
 
-	if (afinfo->type_ah) {
-		xfrm_unregister_type(afinfo->type_ah, family);
+	if (type_ah) {
+		xfrm_unregister_type(type_ah, family);
 	}
 
 	xfrm_unregister_type(base, family);
@@ -1924,6 +2144,9 @@ static void nss_ipsec_xfrm_restore_afinfo(struct nss_ipsec_xfrm_drv *drv, uint16
 
 static void nss_ipsec_xfrm_override_afinfo(struct nss_ipsec_xfrm_drv *drv, uint16_t family)
 {
+	const struct xfrm_type *type_dstopts, *type_routing;
+	const struct xfrm_type *type_ipip, *type_ipv6;
+	const struct xfrm_type *type_ah, *type_comp;
 	struct xfrm_state_afinfo *afinfo;
 	const struct xfrm_type *base;
 
@@ -1933,37 +2156,64 @@ static void nss_ipsec_xfrm_override_afinfo(struct nss_ipsec_xfrm_drv *drv, uint1
 	if (family == AF_INET) {
 		base = &xfrm_v4_type;
 		afinfo = drv->xsa.v4 = xfrm_state_update_afinfo(AF_INET, &xfrm_v4_afinfo);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		xfrm_register_mode(&xfrm_v4_mode_map[XFRM_MODE_TRANSPORT], AF_INET);
+		xfrm_register_mode(&xfrm_v4_mode_map[XFRM_MODE_TUNNEL], AF_INET);
+#endif
 	} else {
 		base = &xfrm_v6_type;
 		afinfo = drv->xsa.v6 = xfrm_state_update_afinfo(AF_INET6, &xfrm_v6_afinfo);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+		xfrm_register_mode(&xfrm_v6_mode_map[XFRM_MODE_ROUTEOPTIMIZATION], AF_INET6);
+		xfrm_register_mode(&xfrm_v6_mode_map[XFRM_MODE_TRANSPORT], AF_INET6);
+		xfrm_register_mode(&xfrm_v6_mode_map[XFRM_MODE_TUNNEL], AF_INET6);
+#endif
 	}
 
 	BUG_ON(!afinfo);
 
 	xfrm_register_type(base, family);
 
-	if (afinfo->type_ah) {
-		xfrm_register_type(afinfo->type_ah, family);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+	type_ah = afinfo->type_map[IPPROTO_AH];
+	type_comp = afinfo->type_map[IPPROTO_COMP];
+	type_ipip = afinfo->type_map[IPPROTO_IPIP];
+	type_ipv6 = afinfo->type_map[IPPROTO_IPV6];
+	type_dstopts = afinfo->type_map[IPPROTO_DSTOPTS];
+	type_routing = afinfo->type_map[IPPROTO_ROUTING];
+#else
+	type_ah = afinfo->type_ah;
+	type_comp = afinfo->type_comp;
+	type_ipip = afinfo->type_ipip;
+	type_ipv6 = afinfo->type_ipip6;
+	type_dstopts = afinfo->type_dstopts;
+	type_routing = afinfo->type_routing;
+#endif
+	/*
+	 * Register types
+	 */
+	if (type_ah) {
+		xfrm_register_type(type_ah, family);
 	}
 
-	if (afinfo->type_comp) {
-		xfrm_register_type(afinfo->type_comp, family);
+	if (type_comp) {
+		xfrm_register_type(type_comp, family);
 	}
 
-	if (afinfo->type_ipip) {
-		xfrm_register_type(afinfo->type_ipip, family);
+	if (type_ipip) {
+		xfrm_register_type(type_ipip, family);
 	}
 
-	if (afinfo->type_ipip6) {
-		xfrm_register_type(afinfo->type_ipip6, family);
+	if (type_ipv6) {
+		xfrm_register_type(type_ipv6, family);
 	}
 
-	if (afinfo->type_dstopts) {
-		xfrm_register_type(afinfo->type_dstopts, family);
+	if (type_dstopts) {
+		xfrm_register_type(type_dstopts, family);
 	}
 
-	if (afinfo->type_routing) {
-		xfrm_register_type(afinfo->type_routing, family);
+	if (type_routing) {
+		xfrm_register_type(type_routing, family);
 	}
 }
 

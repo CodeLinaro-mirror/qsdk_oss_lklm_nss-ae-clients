@@ -126,7 +126,7 @@ static void nss_wifi_meshmgr_cleanup(struct nss_wifi_meshmgr_mesh_ctx *wmesh_ctx
 	 * Unregister and dealloc decap DI.
 	 */
 	nss_unregister_wifi_mesh_if(decap_ifnum);
-	nss_status = nss_dynamic_interface_dealloc_node(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP);
+	nss_status = nss_dynamic_interface_dealloc_node(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER);
 	if (nss_status != NSS_WIFI_MESHMGR_SUCCESS) {
 		nss_wifi_meshmgr_warn("%px: Failed to dealloc decap: %d\n", &wmgr_ctx, nss_status);
 	}
@@ -135,7 +135,7 @@ static void nss_wifi_meshmgr_cleanup(struct nss_wifi_meshmgr_mesh_ctx *wmesh_ctx
 	 * Unregister and dealloc encap DI.
 	 */
 	nss_unregister_wifi_mesh_if(encap_ifnum);
-	nss_status = nss_dynamic_interface_dealloc_node(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP);
+	nss_status = nss_dynamic_interface_dealloc_node(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER);
 	if (nss_status != NSS_WIFI_MESHMGR_SUCCESS) {
 		nss_wifi_meshmgr_warn("%px: Failed to dealloc encap: %d\n", &wmgr_ctx, nss_status);
 	}
@@ -310,7 +310,7 @@ nss_wifi_meshmgr_status_t nss_wifi_meshmgr_tx_buf(nss_wifi_mesh_handle_t mesh_ha
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -345,8 +345,8 @@ nss_wifi_meshmgr_status_t nss_wifi_meshmgr_if_down(nss_wifi_mesh_handle_t mesh_h
 	/*
 	 * Verify the I/F encap and decap number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP) ||
-		nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER) ||
+		nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER))) {
 		nss_wifi_meshmgr_warn("%px: Interface verification failed\n", &wmgr_ctx);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -412,8 +412,8 @@ nss_wifi_meshmgr_status_t nss_wifi_meshmgr_if_up(nss_wifi_mesh_handle_t mesh_han
 	/*
 	 * Verify the I/F encap and decap number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP) ||
-		nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER) ||
+		nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER))) {
 		nss_wifi_meshmgr_warn("%px: Interface verification failed\n", &wmgr_ctx);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -479,7 +479,7 @@ nss_wifi_meshmgr_dump_mesh_path(nss_wifi_mesh_handle_t mesh_handle, nss_wifi_mes
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -574,7 +574,7 @@ nss_wifi_meshmgr_dump_mesh_proxy_path(nss_wifi_mesh_handle_t mesh_handle, nss_wi
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -678,7 +678,7 @@ nss_wifi_meshmgr_assoc_link_vap(nss_wifi_mesh_handle_t mesh_handle, struct nss_w
 	/*
 	 * Verify the decap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, decap_ifnum);
 		kfree(wifivdevmsg);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
@@ -790,7 +790,7 @@ nss_wifi_meshmgr_mesh_config_update(nss_wifi_mesh_handle_t mesh_handle, struct n
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -799,7 +799,7 @@ nss_wifi_meshmgr_mesh_config_update(nss_wifi_mesh_handle_t mesh_handle, struct n
 	/*
 	 * Verify the decap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER))) {
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, decap_ifnum);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -914,7 +914,7 @@ nss_wifi_meshmgr_mesh_proxy_path_delete(nss_wifi_mesh_handle_t mesh_handle, stru
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1013,7 +1013,7 @@ nss_wifi_meshmgr_mesh_proxy_path_update(nss_wifi_mesh_handle_t mesh_handle, stru
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1112,7 +1112,7 @@ nss_wifi_meshmgr_mesh_proxy_path_add(nss_wifi_mesh_handle_t mesh_handle, struct 
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1211,7 +1211,7 @@ nss_wifi_meshmgr_mesh_path_delete(nss_wifi_mesh_handle_t mesh_handle, struct nss
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1310,7 +1310,7 @@ nss_wifi_meshmgr_mesh_path_add(nss_wifi_mesh_handle_t mesh_handle, struct nss_wi
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1408,7 +1408,7 @@ nss_wifi_meshmgr_mesh_path_update(nss_wifi_mesh_handle_t mesh_handle, struct nss
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1504,7 +1504,7 @@ nss_wifi_meshmgr_status_t nss_wifi_meshmgr_if_destroy_sync(nss_wifi_mesh_handle_
 	/*
 	 * Verify the encap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, encap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1513,7 +1513,7 @@ nss_wifi_meshmgr_status_t nss_wifi_meshmgr_if_destroy_sync(nss_wifi_mesh_handle_
 	/*
 	 * Verify the decap I/F number against it types.
 	 */
-	if (!(nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP))) {
+	if (!(nss_wifi_meshmgr_verify_if_num(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER))) {
 		nss_wifi_meshmgr_warn("%px: I/F num: 0x%x verification failed\n", &wmgr_ctx, decap_ifnum);
 		nss_wifi_meshmgr_ref_dec(wmesh_ctx);
 		return NSS_WIFI_MESHMGR_FAILURE;
@@ -1591,13 +1591,13 @@ nss_wifi_mesh_handle_t nss_wifi_meshmgr_if_create_sync(struct net_device *dev, s
 	/*
 	 * Alloc the encap dynamic interface node.
 	 */
-	encap_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP);
+	encap_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER);
 	if (encap_ifnum < 0) {
 		nss_wifi_meshmgr_warn("%px: Encap allocation failed.\n", dev);
 		goto encap_alloc_fail;
 	}
 
-	if (nss_register_wifi_mesh_if(wmgr_ctx.nss_ctx, encap_ifnum, data_cb, ext_data_cb, event_cb,
+	if (nss_register_wifi_mesh_if(encap_ifnum, data_cb, ext_data_cb, event_cb,
 					NSS_WIFI_MESH_DP_INNER, dev, features) != NSS_WIFI_MESHMGR_SUCCESS) {
 		nss_wifi_meshmgr_warn("%px: Encap registration failed.\n", dev);
 		goto encap_reg_fail;
@@ -1606,14 +1606,14 @@ nss_wifi_mesh_handle_t nss_wifi_meshmgr_if_create_sync(struct net_device *dev, s
 	/*
 	 * Allocate and register decap interface.
 	 */
-	decap_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP);
+	decap_ifnum = nss_dynamic_interface_alloc_node(NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER);
 	if (decap_ifnum < 0) {
 		nss_wifi_meshmgr_warn("%px: Decap allocation failed.\n", dev);
 		goto decap_alloc_fail;
 	}
 
 
-	if (nss_register_wifi_mesh_if(wmgr_ctx.nss_ctx, decap_ifnum, data_cb, ext_data_cb, event_cb,
+	if (nss_register_wifi_mesh_if(decap_ifnum, data_cb, ext_data_cb, event_cb,
 					NSS_WIFI_MESH_DP_OUTER, dev, features) != NSS_WIFI_MESHMGR_SUCCESS) {
 		nss_wifi_meshmgr_warn("%px: Decap registration failed.\n", dev);
 		goto decap_reg_fail;
@@ -1689,14 +1689,14 @@ nss_wifi_mesh_handle_t nss_wifi_meshmgr_if_create_sync(struct net_device *dev, s
 config_failed:
 	nss_unregister_wifi_mesh_if(decap_ifnum);
 decap_reg_fail:
-	nss_dynamic_interface_dealloc_node(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_DECAP);
+	nss_dynamic_interface_dealloc_node(decap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_OUTER);
 	if (nss_status != NSS_WIFI_MESHMGR_SUCCESS) {
 		nss_wifi_meshmgr_warn("%px: Decap interface dealloc failed: %d\n", dev, nss_status);
 	}
 decap_alloc_fail:
 	nss_unregister_wifi_mesh_if(encap_ifnum);
 encap_reg_fail:
-	nss_dynamic_interface_dealloc_node(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_ENCAP);
+	nss_dynamic_interface_dealloc_node(encap_ifnum, NSS_DYNAMIC_INTERFACE_TYPE_WIFI_MESH_INNER);
 	if (nss_status != NSS_WIFI_MESHMGR_SUCCESS) {
 		nss_wifi_meshmgr_warn("%px: Encap interface dealloc failed: %d\n", dev, nss_status);
 	}

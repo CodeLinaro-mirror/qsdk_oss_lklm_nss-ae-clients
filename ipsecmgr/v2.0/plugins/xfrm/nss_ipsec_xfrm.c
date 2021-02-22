@@ -533,7 +533,7 @@ static struct net_device *nss_ipsec_xfrm_get_dev_n_type(struct net_device *kdev,
 	 */
 	if ((ip_ver == IPVERSION) && (IPCB(skb)->flags & IPSKB_XFRM_TRANSFORMED)) {
 		*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_OUTER;
-	} else if (IP6CB(skb)->flags & IP6SKB_XFRM_TRANSFORMED) {
+	} else if ((ip_ver == 6) && IP6CB(skb)->flags & IP6SKB_XFRM_TRANSFORMED) {
 		*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_OUTER;
 	} else {
 		*type = NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_INNER;

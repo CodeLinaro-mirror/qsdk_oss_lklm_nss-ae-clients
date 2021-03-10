@@ -230,7 +230,7 @@ void nss_ipsec_xfrm_flush_flow_all(struct nss_ipsec_xfrm_drv *drv)
 	 */
 	write_lock_bh(&drv->lock);
 	for (i = 0; i < NSS_IPSEC_XFRM_FLOW_DB_MAX; i++) {
-		list_splice(&drv->flow_db[i], &free_head);
+		list_splice_init(&drv->flow_db[i], &free_head);
 	}
 
 	write_unlock_bh(&drv->lock);
@@ -318,8 +318,9 @@ static struct nss_ipsec_xfrm_flow *nss_ipsec_xfrm_ref_flow(struct nss_ipsec_xfrm
 	read_lock_bh(&drv->lock);
 	list_for_each_entry(flow, &drv->flow_db[hash_idx], list_entry) {
 		if (nss_ipsec_xfrm_flow_match(flow, tuple)) {
+			flow = nss_ipsec_xfrm_flow_ref(flow);
 			read_unlock_bh(&drv->lock);
-			return nss_ipsec_xfrm_flow_ref(flow);
+			return flow;
 		}
 	}
 
@@ -429,8 +430,9 @@ struct nss_ipsec_xfrm_tunnel *nss_ipsec_xfrm_ref_tun(struct nss_ipsec_xfrm_drv *
 	read_lock_bh(&drv->lock);
 	list_for_each_entry(tun, &drv->tun_db[hash_idx], list_entry) {
 		if (nss_ipsec_xfrm_tunnel_match(tun, remote, local, family)) {
+			tun = nss_ipsec_xfrm_tunnel_ref(tun);
 			read_unlock_bh(&drv->lock);
-			return nss_ipsec_xfrm_tunnel_ref(tun);
+			return tun;
 		}
 	}
 

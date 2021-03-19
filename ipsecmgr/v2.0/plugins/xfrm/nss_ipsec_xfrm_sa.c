@@ -58,8 +58,8 @@ static struct nss_ipsec_xfrm_algo xfrm_algo[] = {
 	{.cipher_name  = "cbc(aes)", .auth_name = "hmac(md5)", .algo = NSS_IPSECMGR_ALGO_AES_CBC_MD5_HMAC},
 	{.cipher_name = "cbc(des3_ede)", .auth_name = "hmac(md5)", .algo = NSS_IPSECMGR_ALGO_3DES_CBC_MD5_HMAC},
 	{.cipher_name = "rfc4106(gcm(aes))", .auth_name = "rfc4106(gcm(aes))", .algo = NSS_IPSECMGR_ALGO_AES_GCM_GMAC_RFC4106},
-	{.cipher_name = "NULL", .auth_name = "hmac(sha1)", .algo = NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA1_HMAC},
-	{.cipher_name = "NULL", .auth_name = "hmac(sha256)", .algo = NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC},
+	{.cipher_name = "ecb(cipher_null)", .auth_name = "hmac(sha1)", .algo = NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA1_HMAC},
+	{.cipher_name = "ecb(cipher_null)", .auth_name = "hmac(sha256)", .algo = NSS_IPSECMGR_ALGO_NULL_CIPHER_SHA256_HMAC},
 };
 
 /*
@@ -117,29 +117,22 @@ static bool nss_ipsec_xfrm_sa_init_crypto(struct nss_ipsec_xfrm_sa *sa, struct x
 	char *cipher_name, *auth_name;
 
 	if (x->aead) { /* Combined mode cipher/authentication */
-		struct crypto_authenc_keys keys = {0};
 		unsigned int key_len = 0;
 
 		key_len = ALIGN(x->aead->alg_key_len, BITS_PER_BYTE) / BITS_PER_BYTE;
-		if (crypto_authenc_extractkeys(&keys, x->aead->alg_key, key_len) != 0) {
-			nss_ipsec_xfrm_err("%p: Failed to extract keys for AEAD(%s)\n", x, x->aead->alg_name);
-			return -EIO;
-		}
 
 		/* Cipher */
 		cipher_name = x->aead->alg_name;
-		nick->cipher_keylen = keys.enckeylen - 4; /* Subtract nonce */
-		nick->cipher_key = keys.enckey;
+		nick->cipher_keylen = key_len - 4; /* Subtract nonce */
+		nick->cipher_key = x->aead->alg_key;
 
-		/* Authentication */
+		/* Authentication; No separate auth keys */
 		auth_name = x->aead->alg_name;
-		nick->auth_keylen = keys.authkeylen;
-		nick->auth_key = keys.authkey;
 		nisc->icv_len = x->aead->alg_icv_len / BITS_PER_BYTE;
 
 		/* Nonce */
 		nick->nonce_size = 4;
-		nick->nonce = keys.enckey + keys.enckeylen;
+		nick->nonce = x->aead->alg_key + nick->cipher_keylen;
 	} else if (x->ealg && x->aalg) { /* Authenticated encryption */
 		/* Cipher */
 		cipher_name = x->ealg->alg_name;
@@ -151,17 +144,17 @@ static bool nss_ipsec_xfrm_sa_init_crypto(struct nss_ipsec_xfrm_sa *sa, struct x
 		nick->auth_keylen = ALIGN(x->aalg->alg_key_len, BITS_PER_BYTE) / BITS_PER_BYTE;
 		nick->auth_key = x->aalg->alg_key;
 		nisc->icv_len =  x->aalg->alg_trunc_len / BITS_PER_BYTE;
-	} else if (x->aalg) { /* Pure authentication with no cipher */
+	} else if (x->ealg) { /* Pure encryption */
 		/* Cipher */
-		cipher_name = "NULL";
-		nick->cipher_keylen = 0;
-		nick->cipher_key = NULL;
+		cipher_name = x->ealg->alg_name;
+		nick->cipher_keylen = ALIGN(x->ealg->alg_key_len, BITS_PER_BYTE) / BITS_PER_BYTE;
+		nick->cipher_key = x->ealg->alg_key;
 
 		/* Authentication */
-		auth_name = x->aalg->alg_name;
-		nick->auth_keylen = ALIGN(x->aalg->alg_key_len, BITS_PER_BYTE) / BITS_PER_BYTE;
-		nick->auth_key = x->aalg->alg_key;
-		nisc->icv_len =  x->aalg->alg_trunc_len / BITS_PER_BYTE;
+		auth_name = NULL;
+		nick->auth_keylen = 0;
+		nick->auth_key = NULL;
+		nisc->icv_len =  0;
 	} else { /* Bypass mode */
 		cipher_name = "NULL";
 		auth_name = "NULL";

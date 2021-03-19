@@ -285,7 +285,7 @@ struct nss_ipsec_xfrm_tunnel *nss_ipsec_xfrm_tunnel_alloc(struct nss_ipsec_xfrm_
 	switch (family) {
 	case AF_INET:
 		 rt = ip_route_output(&init_net, remote->a4, 0, 0, 0);
-		 if (!rt) {
+		 if (IS_ERR(rt)) {
 			 nss_ipsec_xfrm_err("%p:Failed to allocate tunnel; No IPv4 dst found\n", drv);
 			 return NULL;
 		 }

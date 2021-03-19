@@ -22,6 +22,7 @@ ccflags-y += -DCONFIG_NSS_NLLSO_RX=1
 ccflags-y += -DCONFIG_NSS_NLMAP_T=1
 ccflags-y += -DCONFIG_NSS_NLPPPOE=1
 ccflags-y += -DCONFIG_NSS_NLL2TPV2=1
+ccflags-y += -DCONFIG_NSS_NLQRFS=1
 ccflags-y += -DCONFIG_NSS_NLPPTP=1
 ccflags-y += -DCONFIG_NSS_NLCAPWAP=${CAPWAP_ENABLED}
 ccflags-y += -DCONFIG_NSS_NLIPSEC=${IPSEC_ENABLED}
@@ -49,6 +50,7 @@ qca-nss-netlink-objs += nss_nlpppoe.o
 qca-nss-netlink-objs += nss_nll2tpv2.o
 qca-nss-netlink-objs += nss_nlpptp.o
 qca-nss-netlink-objs += nss_nludp_st.o
+qca-nss-netlink-objs += nss_nlqrfs.o
 
 ifneq (,$(filter $(capwapmgr), y))
 qca-nss-netlink-objs += nss_nlcapwap.o

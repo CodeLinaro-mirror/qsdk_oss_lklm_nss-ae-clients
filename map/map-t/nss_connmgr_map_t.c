@@ -427,9 +427,12 @@ static void nss_connmgr_map_t_decap_exception(struct net_device *dev,
 	uint32_t identifier;
 	bool df_bit = false;
 	uint16_t skip_sz = 0;
+	struct nss_map_t_mdata *mdata;
 
-	/* discard L2 header */
-	skb_pull(skb, sizeof(struct ethhdr));
+	mdata = (struct nss_map_t_mdata *)skb->data;
+
+	/* discard meta data header */
+	skb_pull(skb, sizeof(struct nss_map_t_mdata));
 	skb_reset_mac_header(skb);
 
 	skb_reset_network_header(skb);
@@ -459,7 +462,12 @@ static void nss_connmgr_map_t_decap_exception(struct net_device *dev,
 	tclass = nss_connmgr_map_t_ipv6_get_tclass(ip6_hdr);
 
 	if (likely(next_hdr != NEXTHDR_FRAGMENT)) {
-		df_bit = true;
+
+		/*
+		 * Set DF bit
+		 */
+		df_bit = !!(mdata->flags & NSS_MAPT_MDATA_FLAG_DF_BIT);
+
 		l4_proto = next_hdr;
 	} else {
 		struct frag_hdr tmp_fh, *fh;

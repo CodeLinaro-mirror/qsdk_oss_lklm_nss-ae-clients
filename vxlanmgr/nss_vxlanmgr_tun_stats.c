@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -47,6 +47,7 @@ static int8_t *nss_vxlanmgr_tun_stats_str[NSS_VXLANMGR_TUN_STATS_TYPE_MAX] = {
 	"Except VNI Look-up failed",
 	"Dropped packet malformed",
 	"Dropped next node queue is full",
+	"Except Inner hash calculation failed",
 };
 
 /*
@@ -165,6 +166,8 @@ void nss_vxlanmgr_tun_stats_update(uint64_t *stats, struct nss_vxlan_stats_msg *
 		stats_msg->dropped_malformed;
 	stats[NSS_VXLANMGR_TUN_STATS_TYPE_DROP_NEXT_NODE_QUEUE_FULL] +=
 		stats_msg->dropped_next_node_queue_full;
+	stats[NSS_VXLANMGR_TUN_STATS_TYPE_EXCEPT_INNER_HASH] +=
+		stats_msg->except_inner_hash;
 }
 
 /*

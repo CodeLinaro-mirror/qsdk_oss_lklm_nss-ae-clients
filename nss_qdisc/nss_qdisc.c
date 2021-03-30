@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -2093,12 +2093,6 @@ int __nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_ty
 	 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	RCU_INIT_POINTER(nq->filter_list, NULL);
-#else
-	err = tcf_block_get(&nq->block, &nq->filter_list, sch, extack);
-	if (err) {
-		nss_qdisc_error("%px: Unable to initialize tcf_block\n", &nq->block);
-		return -1;
-	}
 #endif
 	/*
 	 * If we are a class, then classid is used as the qos tag.
@@ -2134,6 +2128,25 @@ int __nss_qdisc_init(struct Qdisc *sch, struct nss_qdisc *nq, nss_shaper_node_ty
 	 * or on a net device that is represented by a virtual NSS interface (e.g. WIFI)
 	 */
 	dev = qdisc_dev(sch);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	/*
+	 * Currently filter addition is only supported over IFB interfaces.
+	 * Therefore, perform tcf block allocation (which is used for storing
+	 * filter list) only if the input net device is an IFB device.
+	 */
+	if (netif_is_ifb_dev(dev)) {
+		err = tcf_block_get(&nq->block, &nq->filter_list, sch, extack);
+		if (err) {
+			nss_qdisc_error("%px: Unable to initialize tcf_block\n", &nq->block);
+			return -1;
+		}
+	} else {
+		RCU_INIT_POINTER(nq->filter_list, NULL);
+		nq->block = NULL;
+	}
+#endif
+
 	nss_qdisc_info("Qdisc %px (type %d) init dev: %px\n", nq->qdisc, nq->type, dev);
 
 	/*
@@ -2857,13 +2870,6 @@ static int nss_qdisc_if_event_cb(struct notifier_block *unused,
  *	Return the filter list of qdisc.
  */
 struct tcf_proto __rcu **nss_qdisc_tcf_chain(struct Qdisc *sch, unsigned long arg)
-#else
-/*
- * nss_qdisc_tcf_block()
- *	Return the block containing chain of qdisc.
- */
-struct tcf_block *nss_qdisc_tcf_block(struct Qdisc *sch, unsigned long cl, struct netlink_ext_ack *extack)
-#endif
 {
 	struct nss_qdisc *nq = qdisc_priv(sch);
 
@@ -2881,14 +2887,31 @@ struct tcf_block *nss_qdisc_tcf_block(struct Qdisc *sch, unsigned long cl, struc
 	 * at root qdisc.
 	 */
 	if (nq->is_root) {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 		return &(nq->filter_list);
-#else
-		return nq->block;
-#endif
 	}
+
 	return NULL;
 }
+#else
+/*
+ * nss_qdisc_tcf_block()
+ *	Return the block containing chain of qdisc.
+ */
+struct tcf_block *nss_qdisc_tcf_block(struct Qdisc *sch, unsigned long cl, struct netlink_ext_ack *extack)
+{
+	struct nss_qdisc *nq = qdisc_priv(sch);
+
+	/*
+	 * Currently, support is available only for tc filter iterations
+	 * at root qdisc.
+	 */
+	if (nq->is_root) {
+		return nq->block;
+	}
+
+	return NULL;
+}
+#endif
 
 /*
  * nss_qdisc_tcf_bind()
@@ -2901,7 +2924,6 @@ unsigned long nss_qdisc_tcf_bind(struct Qdisc *sch, unsigned long parent, u32 cl
 {
 	return (unsigned long)NULL;
 }
-
 
 /*
  * nss_qdisc_tcf_unbind()

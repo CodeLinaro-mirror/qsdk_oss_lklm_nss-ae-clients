@@ -696,6 +696,38 @@ static int nss_ipsec_xfrm_ecm_conn_notify(struct notifier_block *nb, unsigned lo
 	return NOTIFY_OK;
 }
 
+#if defined(NSS_L2TPV2_ENABLED)
+/*
+ * nss_ipsec_xfrm_get_encap_ifnum()
+ *»       Get ipsec tunnel NSS inner interface number.
+ */
+static int32_t nss_ipsec_xfrm_get_inner_ifnum(uint32_t *src_ip, uint32_t *dest_ip)
+{
+
+	struct nss_ipsec_xfrm_drv *drv = &g_ipsec_xfrm;
+	struct nss_ipsec_xfrm_tunnel *tun;
+	xfrm_address_t remote = {0};
+	xfrm_address_t local = {0};
+	int32_t if_num;
+
+	nss_ipsec_xfrm_info("%p: src_ip %pI4 %pI4", drv, src_ip, dest_ip);
+	memcpy(&remote, dest_ip, 4);
+	memcpy(&local, src_ip, 4);
+
+	tun = nss_ipsec_xfrm_ref_tun(drv, &local, &remote, AF_INET);
+	if (!tun) {
+		nss_ipsec_xfrm_info("%p: No IPSec tunnel for the given SIP/DIP", drv);
+		return -1;
+	}
+
+	if_num = nss_cmn_get_interface_number_by_dev_and_type(tun->dev, NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_INNER);
+	nss_ipsec_xfrm_info("%p: Tunnel %s Inner ifnum %d", tun, tun->dev->name, if_num);
+
+	nss_ipsec_xfrm_tunnel_deref(tun);
+	return if_num;
+}
+#endif
+
 /*
  * nss_ipsec_xfrm_state_acquire()
  *	xfrm km acquire operation function. No-op for the plugin.
@@ -1778,7 +1810,8 @@ static struct notifier_block xfrm_ecm_notifier = {
 
 #if defined(NSS_L2TPV2_ENABLED)
 static struct l2tpmgr_ipsecmgr_cb xfrm_l2tp =  {
-	.cb = NULL,
+	.get_ifnum_by_dev = NULL,
+	.get_ifnum_by_ipv4_addr = nss_ipsec_xfrm_get_inner_ifnum,
 };
 #endif
 
@@ -2006,7 +2039,7 @@ int __init nss_ipsec_xfrm_init_module(void)
 	ecm_notifier_register_connection_notify(&xfrm_ecm_notifier);
 
 #if defined(NSS_L2TPV2_ENABLED)
-	l2tpmgr_register_ipsecmgr_callback(&xfrm_l2tp);
+	l2tpmgr_register_ipsecmgr_callback_by_ipaddr(&xfrm_l2tp);
 #endif
 
 	/*
@@ -2044,7 +2077,7 @@ void __exit nss_ipsec_xfrm_exit_module(void)
 	ecm_interface_ipsec_unregister_callbacks();
 
 #if defined(NSS_L2TPV2_ENABLED)
-	l2tpmgr_unregister_ipsecmgr_callback();
+	l2tpmgr_unregister_ipsecmgr_callback_by_ipaddr();
 #endif
 	xfrm_unregister_km(&nss_ipsec_xfrm_mgr);
 

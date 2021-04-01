@@ -390,6 +390,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
 			nss_ipsecmgr_warn("%px: failed to configure keys\n", sa);
 			crypto_free_aead(sa->aead);
+			sa->aead = NULL;
 			vfree(rt_keys);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
 		}
@@ -416,6 +417,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		if (crypto_ahash_setkey(sa->ahash, keys->auth_key, keys->auth_keylen)) {
 			nss_ipsecmgr_warn("%px: failed to configure keys\n", sa);
 			crypto_free_ahash(sa->ahash);
+			sa->ahash = NULL;
 			return NSS_IPSECMGR_INVALID_KEYLEN;
 		}
 
@@ -446,6 +448,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		if (!rt_keys) {
 			nss_ipsecmgr_warn("%px: failed to allocate key memory\n", sa);
 			crypto_free_aead(sa->aead);
+			sa->aead = NULL;
 			return NSS_IPSECMGR_FAIL_NOMEM;
 		}
 
@@ -455,6 +458,7 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
 		if (crypto_aead_setkey(sa->aead, rt_keys, keylen)) {
 			nss_ipsecmgr_warn("%px: failed to configure keys\n", sa);
 			crypto_free_aead(sa->aead);
+			sa->aead = NULL;
 			vfree(rt_keys);
 			return NSS_IPSECMGR_INVALID_KEYLEN;
 		}
@@ -482,11 +486,15 @@ static nss_ipsecmgr_status_t nss_ipsecmgr_sa_crypto_alloc(struct nss_ipsecmgr_sa
  */
 static void nss_ipsecmgr_sa_free(struct nss_ipsecmgr_sa *sa)
 {
-	if (sa->aead)
+	if (sa->aead) {
 		crypto_free_aead(sa->aead);
+		sa->aead = NULL;
+	}
 
-	if (sa->ahash)
+	if (sa->ahash) {
 		crypto_free_ahash(sa->ahash);
+		sa->ahash = NULL;
+	}
 
 	kfree(sa);
 }

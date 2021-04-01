@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -343,6 +343,32 @@ static struct net_device *nss_ipsec_klips_get_tun_dev(struct net_device *klips_d
 
 	return tun_dev;
 }
+
+#if defined(NSS_L2TPV2_ENABLED)
+/*
+ * nss_ipsec_klips_get_inner_ifnum()
+ * 	Get ipsecmgr interface number for klips netdevice
+ *
+ * Calls nss_ipsec_klips_get_tun_dev(), which holds reference for tunnel,
+ * which gets released at the end of this function.
+ */
+static int nss_ipsec_klips_get_inner_ifnum(struct net_device *klips_dev)
+{
+	struct net_device *tun_dev;
+	int32_t ipsec_ifnum;
+
+	tun_dev = nss_ipsec_klips_get_tun_dev(klips_dev);
+	if (!tun_dev) {
+		nss_ipsec_klips_warn("%px: Tunnel device not found for klips dev", klips_dev);
+		return -1;
+	}
+
+	ipsec_ifnum = nss_cmn_get_interface_number_by_dev_and_type(tun_dev, NSS_DYNAMIC_INTERFACE_TYPE_IPSEC_CMN_INNER);
+	dev_put(tun_dev);
+
+	return ipsec_ifnum;
+}
+#endif
 
 /*
  * nss_ipsec_klips_get_tun_by_addr()
@@ -1971,7 +1997,8 @@ static struct notifier_block nss_ipsec_klips_ecm_conn_notifier = {
 
 #if defined(NSS_L2TPV2_ENABLED)
 static struct l2tpmgr_ipsecmgr_cb nss_ipsec_klips_l2tp =  {
-	.cb = nss_ipsec_klips_get_tun_dev
+	.get_ifnum_by_dev = nss_ipsec_klips_get_inner_ifnum,
+	.get_ifnum_by_ipv4_addr = NULL
 };
 #endif
 
@@ -2010,7 +2037,7 @@ int __init nss_ipsec_klips_init_module(void)
 	ecm_interface_ipsec_register_callbacks(&nss_ipsec_klips_ecm);
 	ecm_notifier_register_connection_notify(&nss_ipsec_klips_ecm_conn_notifier);
 #if defined(NSS_L2TPV2_ENABLED)
-	l2tpmgr_register_ipsecmgr_callback(&nss_ipsec_klips_l2tp);
+	l2tpmgr_register_ipsecmgr_callback_by_netdev(&nss_ipsec_klips_l2tp);
 #endif
 	return 0;
 }
@@ -2032,7 +2059,7 @@ void __exit nss_ipsec_klips_exit_module(void)
 	ecm_notifier_unregister_connection_notify(&nss_ipsec_klips_ecm_conn_notifier);
 	ecm_interface_ipsec_unregister_callbacks();
 #if defined(NSS_L2TPV2_ENABLED)
-	l2tpmgr_unregister_ipsecmgr_callback();
+	l2tpmgr_unregister_ipsecmgr_callback_by_netdev();
 #endif
 
 	nss_cfi_ocf_unregister_ipsec();

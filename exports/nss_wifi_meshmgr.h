@@ -71,6 +71,7 @@ typedef enum {
 	NSS_WIFI_MESHMGR_FAILURE_ENQUEUE_TO_HOST_FAIL,			/**< Wi-Fi mesh enqueue to host failure */
 	NSS_WIFI_MESHMGR_FAILURE_ENABLE_INTERFACE_FAIL,			/**< Wi-Fi mesh enabling interface failure */
 	NSS_WIFI_MESHMGR_FAILURE_DISABLE_INTERFACE_FAIL,			/**< Wi-Fi mesh disabling interface failure */
+	NSS_WIFI_MESHMGR_FAILURE_INVALID_EXCEPTION_NUM,				/**< Wi-Fi mesh invalid exception number */
 } nss_wifi_meshmgr_status_t;
 
 /**
@@ -549,6 +550,45 @@ extern nss_wifi_meshmgr_status_t nss_wifi_meshmgr_mesh_path_exception(nss_wifi_m
  */
 extern nss_wifi_meshmgr_status_t nss_wifi_meshmgr_mesh_path_exception_sync(nss_wifi_mesh_handle_t mesh_handle,
 							      struct nss_wifi_mesh_exception_flag_msg *wmpefm);
+
+/**
+ * nss_wifi_meshmgr_config_mesh_exception
+ *	Configure mesh exceptions.
+ *
+ * @datatypes
+ * nss_wifi_mesh_handle_t \n
+ * nss_wifi_mesh_rate_limit_config \n
+ * nss_wifi_mesh_msg_callback_t \n
+ *
+ * @param[in]	mesh_handle     Pointer to the mesh handle.
+ * @param[in]	wmrlc		WiFi mesh exception config message.
+ * @param[in]	msg_cb		Callback for NACK/ACK messages from NSS.
+ * @param[in]	app_data	Application data for the message callback.
+ *
+ * @return
+ * Status
+ */
+extern nss_wifi_meshmgr_status_t nss_wifi_meshmgr_config_mesh_exception(nss_wifi_mesh_handle_t mesh_handle,
+						      struct nss_wifi_mesh_rate_limit_config *wmrlc,
+						      nss_wifi_mesh_msg_callback_t msg_cb,
+						      void *app_data);
+
+/**
+ * nss_wifi_meshmgr_config_mesh_exception_sync
+ *	configure mesh exception synchronously.
+ *
+ * @datatypes
+ * nss_wifi_mesh_handle_t \n
+ * nss_wifi_mesh_rate_limit_config \n
+ *
+ * @param[in]	mesh_handle	Pointer to the mesh handle.
+ * @param[in]	wmrlc		WiFi mesh config exception message.
+ *
+ * @return
+ * Status
+ */
+extern nss_wifi_meshmgr_status_t nss_wifi_meshmgr_config_mesh_exception_sync(nss_wifi_mesh_handle_t mesh_handle,
+							      struct nss_wifi_mesh_rate_limit_config *wmrlc);
 
 /**
  * nss_wifi_meshmgr_mesh_if_destroy_sync

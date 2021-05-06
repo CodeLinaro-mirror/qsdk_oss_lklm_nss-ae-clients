@@ -72,6 +72,7 @@ typedef enum {
 	NSS_WIFI_MESHMGR_FAILURE_ENABLE_INTERFACE_FAIL,			/**< Wi-Fi mesh enabling interface failure */
 	NSS_WIFI_MESHMGR_FAILURE_DISABLE_INTERFACE_FAIL,			/**< Wi-Fi mesh disabling interface failure */
 	NSS_WIFI_MESHMGR_FAILURE_INVALID_EXCEPTION_NUM,				/**< Wi-Fi mesh invalid exception number */
+	NSS_WIFI_MESHMGR_FAILURE_ONESHOT_ALREADY_ATTACHED,			/**< Wi-Fi mesh oneshot already attached error */
 } nss_wifi_meshmgr_status_t;
 
 /**

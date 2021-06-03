@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2017, 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017, 2019-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -409,11 +409,6 @@ static int nss_htb_change_class(struct Qdisc *sch, u32 classid, u32 parentid,
 		 */
 		qdisc_class_hash_grow(sch, &q->clhash);
 
-		/*
-		 * Start the stats polling timer
-		 */
-		nss_qdisc_start_basic_stats_polling(&cl->nq);
-
 		nss_qdisc_trace("class %x successfully allocated and initialized\n", classid);
 	}
 
@@ -501,11 +496,6 @@ static void nss_htb_destroy_class(struct Qdisc *sch, struct nss_htb_class_data *
 	 * And now we destroy the child.
 	 */
 	 nss_qdisc_put(cl->qdisc);
-
-	/*
-	 * Stop the stats polling timer and free class
-	 */
-	nss_qdisc_stop_basic_stats_polling(&cl->nq);
 
 	/*
 	 * Destroy the shaper in NSS
@@ -977,11 +967,6 @@ static void nss_htb_destroy_qdisc(struct Qdisc *sch)
 	qdisc_class_hash_destroy(&q->clhash);
 
 	/*
-	 * Stop the polling of basic stats
-	 */
-	nss_qdisc_stop_basic_stats_polling(&q->nq);
-
-	/*
 	 * Now we can go ahead and destroy the qdisc.
 	 * Note: We dont have to detach ourself from our parent because this
 	 *	 will be taken care of by the graft call.
@@ -1056,11 +1041,6 @@ static int nss_htb_init_qdisc(struct Qdisc *sch, struct nlattr *opt,
 		nss_qdisc_destroy(&q->nq);
 		return -EINVAL;
 	}
-
-	/*
-	 * Start the stats polling timer
-	 */
-	nss_qdisc_start_basic_stats_polling(&q->nq);
 
 	return 0;
 }

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2015-2016,2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016,2018-2021 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -446,7 +446,7 @@ static void nss_nldtls_data_callback(void *app_data, struct sk_buff *skb)
  * nss_nldtls_create_session()
  *	Create a DTLS session through dtlsmgr driver API.
  */
-static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_rule, uint32_t flags)
+static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_rule)
 {
 	struct nss_nldtls_tun_ctx *dtls_tun_data;
 	struct nss_dtlsmgr_config dcfg;
@@ -463,7 +463,7 @@ static struct net_device *nss_nldtls_create_session(struct nss_nldtls_rule *nl_r
 
 	memset(&dcfg, 0, sizeof(struct nss_dtlsmgr_config));
 	algo = nl_rule->msg.create.encap.cfg.crypto.algo;
-	dcfg.flags = flags | (NSS_DTLSMGR_ENCAP_METADATA | NSS_DTLSMGR_HDR_CAPWAP);
+	dcfg.flags = nl_rule->msg.create.flags | NSS_DTLSMGR_ENCAP_METADATA;
 	if (algo == NSS_DTLSMGR_ALGO_AES_GCM)
 		dcfg.flags |= NSS_DTLSMGR_CIPHER_MODE_GCM;
 
@@ -605,7 +605,11 @@ static int nss_nldtls_create_ipv4_rule_entry(struct net_device *dtls_dev, struct
 	ipv4.dest_port = nl_rule->msg.create.encap.cfg.sport;
 	ipv4.dest_port_xlate = nl_rule->msg.create.encap.cfg.sport;
 
-	ipv4.protocol = IPPROTO_UDP;
+	if (nl_rule->msg.create.flags & NSS_DTLSMGR_HDR_UDPLITE)
+		ipv4.protocol = IPPROTO_UDPLITE;
+	else
+		ipv4.protocol = IPPROTO_UDP;
+
 	ipv4.in_vlan_tag[0] = NSS_NLDTLS_VLAN_INVALID;
 	ipv4.out_vlan_tag[0] = NSS_NLDTLS_VLAN_INVALID;
 	ipv4.in_vlan_tag[1] = NSS_NLDTLS_VLAN_INVALID;
@@ -654,7 +658,11 @@ static int nss_nldtls_create_ipv6_rule_entry(struct net_device *dtls_dev, struct
 	 */
 	memcpy(ipv6.src_ip, nl_rule->msg.create.encap.cfg.dip, sizeof(ipv6.src_ip));
 	memcpy(ipv6.dest_ip, nl_rule->msg.create.encap.cfg.sip, sizeof(ipv6.dest_ip));
-	ipv6.protocol = IPPROTO_UDP;
+
+	if (nl_rule->msg.create.flags & NSS_DTLSMGR_HDR_UDPLITE)
+		ipv6.protocol = IPPROTO_UDPLITE;
+	else
+		ipv6.protocol = IPPROTO_UDP;
 
 	ipv6.in_vlan_tag[0] = NSS_NLDTLS_VLAN_INVALID;
 	ipv6.in_vlan_tag[1] = NSS_NLDTLS_VLAN_INVALID;
@@ -729,7 +737,7 @@ static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info
 	 * Create tunnel based on ip version
 	 */
 	if (nl_rule->msg.create.ip_version == NSS_NLDTLS_IP_VERS_4) {
-		dtls_dev = nss_nldtls_create_session(nl_rule, NSS_NLDTLS_IPV4_SESSION);
+		dtls_dev = nss_nldtls_create_session(nl_rule);
 		if (!dtls_dev) {
 			nss_nl_error("%px: Unable to create dtls session for v4\n", skb);
 			return -EINVAL;
@@ -748,7 +756,7 @@ static int nss_nldtls_ops_create_tun(struct sk_buff *skb, struct genl_info *info
 		atomic_inc(&gbl_ctx.num_tun);
 		nss_nl_info("%px: Successfully created ipv4 dtls tunnel\n", skb);
 	} else {
-		dtls_dev = nss_nldtls_create_session(nl_rule, NSS_DTLSMGR_HDR_IPV6);
+		dtls_dev = nss_nldtls_create_session(nl_rule);
 		if (!dtls_dev) {
 			nss_nl_error("%px: Unable to create dtls session for v6\n", skb);
 			return -EINVAL;

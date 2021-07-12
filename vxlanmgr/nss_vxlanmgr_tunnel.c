@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -91,6 +91,8 @@ static uint16_t nss_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
 	uint16_t flags = 0;
 	uint32_t priv_flags = priv->flags;
 
+	if (priv_flags & VXLAN_F_RSC)
+		return flags;
 	if (priv_flags & VXLAN_F_GBP)
 		flags |= NSS_VXLAN_RULE_FLAG_GBP_ENABLED;
 	if (priv_flags & VXLAN_F_IPV6)
@@ -113,6 +115,10 @@ static uint16_t nss_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
 	struct vxlan_config *cfg = &priv->cfg;
 	uint32_t priv_flags = cfg->flags;
 
+	if (priv_flags & VXLAN_F_RSC)
+		return flags;
+	if (priv_flags & VXLAN_F_GPE)
+		return flags;
 	if (priv_flags & VXLAN_F_GBP)
 		flags |= NSS_VXLAN_RULE_FLAG_GBP_ENABLED;
 	if (priv_flags & VXLAN_F_IPV6)
@@ -929,6 +935,7 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 	struct nss_vxlan_rule_msg *vxlan_cfg;
 	struct nss_ctx_instance *nss_ctx;
 	uint32_t inner_ifnum, outer_ifnum;
+	uint16_t parse_flags;
 	nss_tx_status_t ret;
 
 	spin_lock_bh(&vxlan_ctx.tun_lock);
@@ -940,6 +947,16 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 	spin_unlock_bh(&vxlan_ctx.tun_lock);
 
 	dev_hold(dev);
+	priv = netdev_priv(dev);
+	parse_flags = nss_vxlanmgr_tunnel_flags_parse(priv);
+
+	/*
+	 * Check if the tunnel is supported.
+	 */
+	if (!parse_flags) {
+		nss_vxlanmgr_warn("%px: Tunnel offload not supported\n", dev);
+		goto ctx_alloc_fail;
+	}
 
 	tun_ctx = kzalloc(sizeof(struct nss_vxlanmgr_tun_ctx), GFP_ATOMIC);
 	if (!tun_ctx) {
@@ -988,9 +1005,8 @@ int nss_vxlanmgr_tunnel_create(struct net_device *dev)
 	memset(&vxlanmsg, 0, sizeof(struct nss_vxlan_msg));
 	vxlan_cfg = &vxlanmsg.msg.vxlan_create;
 
-	priv = netdev_priv(dev);
 	vxlan_cfg->vni = vxlan_get_vni(priv);
-	vxlan_cfg->tunnel_flags = nss_vxlanmgr_tunnel_flags_parse(priv);
+	vxlan_cfg->tunnel_flags = parse_flags;
 	vxlan_cfg->src_port_min = priv->cfg.port_min;
 	vxlan_cfg->src_port_max = priv->cfg.port_max;
 	vxlan_cfg->dest_port = priv->cfg.dst_port;

@@ -95,16 +95,19 @@ static uint16_t nss_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
 		return flags;
 	if (priv_flags & VXLAN_F_GBP)
 		flags |= NSS_VXLAN_RULE_FLAG_GBP_ENABLED;
-	if (priv_flags & VXLAN_F_IPV6)
+
+	if (priv_flags & VXLAN_F_IPV6) {
 		flags |= NSS_VXLAN_RULE_FLAG_IPV6;
-	else if (!(priv_flags & VXLAN_F_IPV6))
+		if (!(priv_flags & VXLAN_F_UDP_ZERO_CSUM6_TX))
+			flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
+	} else {
 		flags |= NSS_VXLAN_RULE_FLAG_IPV4;
+		if (priv_flags & VXLAN_F_UDP_CSUM)
+			flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
+	}
+
 	if (priv->cfg.tos == 1)
 		flags |= NSS_VXLAN_RULE_FLAG_INHERIT_TOS;
-	if (priv_flags & VXLAN_F_UDP_CSUM)
-		flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
-	else if (!(priv_flags & VXLAN_F_UDP_ZERO_CSUM6_TX))
-		flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
 
 	return (flags | NSS_VXLAN_RULE_FLAG_UDP);
 }
@@ -121,16 +124,19 @@ static uint16_t nss_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
 		return flags;
 	if (priv_flags & VXLAN_F_GBP)
 		flags |= NSS_VXLAN_RULE_FLAG_GBP_ENABLED;
-	if (priv_flags & VXLAN_F_IPV6)
+
+	if (priv_flags & VXLAN_F_IPV6) {
 		flags |= NSS_VXLAN_RULE_FLAG_IPV6;
-	else if (!(priv_flags & VXLAN_F_IPV6))
+		if (!(priv_flags & VXLAN_F_UDP_ZERO_CSUM6_TX))
+			flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
+	} else {
 		flags |= NSS_VXLAN_RULE_FLAG_IPV4;
+		if (!(priv_flags & VXLAN_F_UDP_ZERO_CSUM_TX))
+			flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
+	}
+
 	if (cfg->tos == 1)
 		flags |= NSS_VXLAN_RULE_FLAG_INHERIT_TOS;
-	if (priv_flags & VXLAN_F_UDP_ZERO_CSUM_TX)
-		flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
-	else if (!(priv_flags & VXLAN_F_UDP_ZERO_CSUM6_TX))
-		flags |= NSS_VXLAN_RULE_FLAG_ENCAP_L4_CSUM_REQUIRED;
 
 	return (flags | NSS_VXLAN_RULE_FLAG_UDP);
 }

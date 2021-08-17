@@ -77,6 +77,8 @@
 #include "nss_nlpptp_if.h"
 #include "nss_nludp_st.h"
 #include "nss_nludp_st_if.h"
+#include "nss_nlqrfs.h"
+#include "nss_nlqrfs_if.h"
 
 /*
  * nss_nl.c
@@ -295,6 +297,16 @@ static struct nss_nl_family family_handlers[] = {
                 .exit = NSS_NLUDP_ST_EXIT,               /* exit */
                 .valid = CONFIG_NSS_NLUDP_ST             /* 1 or 0 */
         },
+	{
+                /*
+                 * NSS_NLQRFS
+                 */
+                .name = NSS_NLQRFS_FAMILY,             /* qrfs */
+                .entry = NSS_NLQRFS_INIT,              /* init */
+                .exit = NSS_NLQRFS_EXIT,               /* exit */
+                .valid = CONFIG_NSS_NLQRFS             /* 1 or 0 */
+        },
+
 
 };
 

@@ -1,6 +1,6 @@
 /*
  *******************************************************************************
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -122,7 +122,7 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 	char *token, *param, *value;
 	struct nss_ctx_instance *nss_ctx = nss_match_get_context();
 	int ret = 0;
-	uint32_t actions = 0, if_num = 0, dscp = 0, outer_prio = 0, inner_prio = 0, setprio = 0, nexthop = 0;
+	uint32_t actions = 0, if_num = 0, dscp = 0, outer_prio = 0, inner_prio = 0, setprio = NSS_MAX_NUM_PRI, nexthop = 0;
 	uint16_t mask_id = 0;
 	uint32_t mask_val = 0;
 
@@ -301,22 +301,22 @@ static int nss_match_vow_cmd_parse(char *input_msg, struct nss_match_msg *rule_m
 
 		switch(actions) {
 		case NSS_MATCH_ACTION_SETPRIO:
-			if (nexthop || !setprio || setprio >= NSS_MAX_NUM_PRI) {
+			if (nexthop || setprio >= NSS_MAX_NUM_PRI) {
 				goto fail;
 			}
 			break;
 		case NSS_MATCH_ACTION_FORWARD:
-			if (setprio || !nexthop) {
+			if (!(setprio == NSS_MAX_NUM_PRI) || !nexthop) {
 				goto fail;
 			}
 			break;
 		case NSS_MATCH_ACTION_SETPRIO | NSS_MATCH_ACTION_FORWARD:
-			if (!setprio || !nexthop || setprio >= NSS_MAX_NUM_PRI) {
+			if (!nexthop || setprio >= NSS_MAX_NUM_PRI) {
 				goto fail;
 			}
 			break;
 		case NSS_MATCH_ACTION_DROP:
-			if (setprio || nexthop) {
+			if (!(setprio == NSS_MAX_NUM_PRI) || nexthop) {
 				goto fail;
 			}
 			break;

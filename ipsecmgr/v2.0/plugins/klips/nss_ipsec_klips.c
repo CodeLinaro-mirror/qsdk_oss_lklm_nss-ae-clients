@@ -402,6 +402,7 @@ static struct nss_ipsec_klips_tun *nss_ipsec_klips_get_tun_by_addr(struct sk_buf
 	return NULL;
 }
 
+#if defined(NSS_VXLAN_ENABLED)
 /*
  * nss_ipsec_klips_tun_match_ip_addr()
  *	Compare tunnel address with source & destination ip addresses.
@@ -468,6 +469,7 @@ static int32_t __maybe_unused nss_ipsec_klips_get_ipsec_ifnum(uint8_t ip_ver, ui
 	nss_ipsec_klips_warn("%px: tun dev not found with the local(%pI4) & remote(%pI4) IP pair.\n", tun, local_ip, remote_ip);
 	return -1;
 }
+#endif
 
 /*
  * nss_ipsec_klips_get_index()

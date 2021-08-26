@@ -36,7 +36,7 @@
 #include "nss_ppe.h"
 #endif
 #include "nss_qdisc_stats.h"
-#include "nss_qdisc_list.h"
+#include "nss_qdisc_htable.h"
 
 #define NSS_QDISC_DEBUG_LEVEL_ERROR 1
 #define NSS_QDISC_DEBUG_LEVEL_WARN 2

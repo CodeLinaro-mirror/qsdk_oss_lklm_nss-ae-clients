@@ -27,7 +27,7 @@
 #include <net/route.h>
 #include <net/vxlan.h>
 #include <nss_api_if.h>
-#include "nss_vxlanmgr.h"
+#include "nss_vxlanmgr_priv.h"
 #include "nss_vxlanmgr_tun_stats.h"
 
 /*
@@ -323,6 +323,7 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_add(struct nss_vxlanmgr_tun_ctx *
 	union vxlan_addr *remote_ip, *src_ip;
 	uint32_t i, inner_ifnum;
 	uint32_t new_src_ip[4] = {0};
+	int32_t ipsec_if_num;
 	nss_tx_status_t status = NSS_TX_FAILURE;
 
 	dev = vfe->dev;
@@ -376,6 +377,17 @@ static nss_tx_status_t nss_vxlanmgr_tunnel_mac_add(struct nss_vxlanmgr_tun_ctx *
 			goto done;
 		}
 		memcpy(mac_add_msg->encap.src_ip, new_src_ip, sizeof(struct in6_addr));
+	}
+
+	/*
+	 * Check if this is a VxLAN over IPsec use case. If so, we need to bind the IPsec interface to the VxLAN.
+	 * When the IPsec interface is deleted in NSS, user is expected to bring the vxlan interface down as well, thereby flushing the MAC entries in NSS.
+	 */
+	ipsec_if_num = nss_vxlanmgr_bind_ipsec_by_ip(src_ip, remote_ip);
+	if (ipsec_if_num > 0) {
+		mac_add_msg->ipsec_if_num = (uint32_t)ipsec_if_num;
+		mac_add_msg->flags = mac_add_msg->flags | NSS_VXLAN_MAC_ENABLE_IPSEC_BIND;
+		nss_vxlanmgr_trace("%px: VxLAN interface is bound to IPsec interface with if_num(0x%x)\n", dev, ipsec_if_num);
 	}
 
 	/*

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019, 2021 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -20,6 +20,8 @@
  */
 #ifndef __NSS_VXLANMGR_H
 #define __NSS_VXLANMGR_H
+
+union vxlan_addr;
 
 /*
  * Compile messages for dynamic enable/disable
@@ -81,5 +83,6 @@ extern int nss_vxlanmgr_tunnel_create(struct net_device *dev);
 extern int nss_vxlanmgr_tunnel_destroy(struct net_device *dev);
 extern int nss_vxlanmgr_tunnel_config(struct net_device *dev);
 extern int nss_vxlanmgr_tunnel_deconfig(struct net_device *dev);
+extern int32_t nss_vxlanmgr_bind_ipsec_by_ip(union vxlan_addr *src_ip, union vxlan_addr *dest_ip);
 
 #endif /* __NSS_VXLANMGR_H */

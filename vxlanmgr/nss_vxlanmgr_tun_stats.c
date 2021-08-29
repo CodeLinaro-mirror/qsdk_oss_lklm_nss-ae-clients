@@ -18,7 +18,7 @@
 #include <linux/etherdevice.h>
 #include <linux/netdevice.h>
 #include <nss_api_if.h>
-#include "nss_vxlanmgr.h"
+#include "nss_vxlanmgr_priv.h"
 #include "nss_vxlanmgr_tun_stats.h"
 
 /*
@@ -48,6 +48,7 @@ static int8_t *nss_vxlanmgr_tun_stats_str[NSS_VXLANMGR_TUN_STATS_TYPE_MAX] = {
 	"Dropped packet malformed",
 	"Dropped next node queue is full",
 	"Except Inner hash calculation failed",
+	"Decap IPSec source interface invalid"
 };
 
 /*
@@ -168,6 +169,8 @@ void nss_vxlanmgr_tun_stats_update(uint64_t *stats, struct nss_vxlan_stats_msg *
 		stats_msg->dropped_next_node_queue_full;
 	stats[NSS_VXLANMGR_TUN_STATS_TYPE_EXCEPT_INNER_HASH] +=
 		stats_msg->except_inner_hash;
+	stats[NSS_VXLANMGR_TUN_STATS_TYPE_DECAP_IPSEC_SRC_INVALID] +=
+		stats_msg->decap_ipsec_src_err;
 }
 
 /*

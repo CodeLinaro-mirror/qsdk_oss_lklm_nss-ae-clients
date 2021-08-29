@@ -173,6 +173,7 @@ void nss_vxlanmgr_tun_stats_update(uint64_t *stats, struct nss_vxlan_stats_msg *
 /*
  * nss_vxlanmgr_tun_macdb_stats_sync()
  *	Sync function for vxlan fdb entries
+ *	Note: Reference on the netdevice is expected to be held by the caller at the time this function is called.
  */
 void nss_vxlanmgr_tun_macdb_stats_sync(struct nss_vxlanmgr_tun_ctx *tun_ctx, struct nss_vxlan_msg *nvm)
 {
@@ -183,11 +184,8 @@ void nss_vxlanmgr_tun_macdb_stats_sync(struct nss_vxlanmgr_tun_ctx *tun_ctx, str
 	db_stats = &nvm->msg.db_stats;
 	nentries = db_stats->cnt;
 
-	dev_hold(tun_ctx->dev);
-
 	if (nentries > NSS_VXLAN_MACDB_ENTRIES_PER_MSG) {
 		nss_vxlanmgr_warn("%px: No more than 20 entries allowed per message.\n", tun_ctx->dev);
-		dev_put(tun_ctx->dev);
 		return;
 	}
 
@@ -203,7 +201,6 @@ void nss_vxlanmgr_tun_macdb_stats_sync(struct nss_vxlanmgr_tun_ctx *tun_ctx, str
 			}
 		}
 	}
-	dev_put(tun_ctx->dev);
 }
 
 /*

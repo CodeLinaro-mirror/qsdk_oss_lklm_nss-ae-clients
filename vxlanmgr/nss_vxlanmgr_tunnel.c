@@ -448,7 +448,8 @@ static struct notifier_block nss_vxlanmgr_tunnel_fdb_notifier = {
 
 /*
  * nss_vxlanmgr_tunnel_inner_stats()
- *	Update vxlan netdev stats with inner node stats
+ *	Update vxlan netdev stats with inner node stats.
+ *	Note: Reference on the netdevice is expected to be held by the caller at the time this function is called.
  */
 static void nss_vxlanmgr_tunnel_inner_stats(struct nss_vxlanmgr_tun_ctx *tun_ctx, struct nss_vxlan_msg *nvm)
 {
@@ -462,7 +463,6 @@ static void nss_vxlanmgr_tunnel_inner_stats(struct nss_vxlanmgr_tun_ctx *tun_ctx
 	stats = &nvm->msg.stats;
 	dev = tun_ctx->dev;
 
-	dev_hold(dev);
 	netdev_stats = (struct net_device_stats *)&dev->stats;
 
 	/*
@@ -481,7 +481,6 @@ static void nss_vxlanmgr_tunnel_inner_stats(struct nss_vxlanmgr_tun_ctx *tun_ctx
 	tstats->tx_bytes += stats->node_stats.tx_bytes;
 	u64_stats_update_end(&tstats->syncp);
 	netdev_stats->tx_dropped += dropped;
-	dev_put(dev);
 }
 
 /*
@@ -526,7 +525,7 @@ static void nss_vxlanmgr_tunnel_outer_stats(struct nss_vxlanmgr_tun_ctx *tun_ctx
  * nss_vxlanmgr_tunnel_fdb_update()
  *	Update vxlan fdb entries
  */
-static void nss_vxlanmgr_tunnel_fdb_update(struct nss_vxlanmgr_tun_ctx *tun_ctx, struct nss_vxlan_msg *nvm)
+static void nss_vxlanmgr_tunnel_fdb_update(struct net_device *dev, uint32_t vni, struct nss_vxlan_msg *nvm)
 {
 	uint8_t *mac;
 	uint16_t i, nentries;
@@ -535,13 +534,10 @@ static void nss_vxlanmgr_tunnel_fdb_update(struct nss_vxlanmgr_tun_ctx *tun_ctx,
 
 	db_stats = &nvm->msg.db_stats;
 	nentries = db_stats->cnt;
-	priv = netdev_priv(tun_ctx->dev);
-
-	dev_hold(tun_ctx->dev);
+	priv = netdev_priv(dev);
 
 	if (nentries > NSS_VXLAN_MACDB_ENTRIES_PER_MSG) {
-		nss_vxlanmgr_warn("%px: No more than 20 entries allowed per message.\n", tun_ctx->dev);
-		dev_put(tun_ctx->dev);
+		nss_vxlanmgr_warn("%px: No more than 20 entries allowed per message.\n", dev);
 		return;
 	}
 
@@ -551,11 +547,10 @@ static void nss_vxlanmgr_tunnel_fdb_update(struct nss_vxlanmgr_tun_ctx *tun_ctx,
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(4, 5, 7))
 			vxlan_fdb_update_mac(priv, mac);
 #else
-			vxlan_fdb_update_mac(priv, mac, tun_ctx->vni);
+			vxlan_fdb_update_mac(priv, mac, vni);
 #endif
 		}
 	}
-	dev_put(tun_ctx->dev);
 }
 
 /*
@@ -567,20 +562,29 @@ static void nss_vxlanmgr_tunnel_inner_notifier(void *app_data, struct nss_cmn_ms
 	struct net_device *dev = (struct net_device *)app_data;
 	struct nss_vxlanmgr_tun_ctx *tun_ctx;
 	struct nss_vxlan_msg *nvm;
+	uint32_t vni;
 
 	if (!ncm) {
 	    nss_vxlanmgr_info("%px: NULL msg received.\n", dev);
 	    return;
 	}
 
+	if (!dev) {
+		nss_vxlanmgr_info("%px: NULL device received.\n", dev);
+		return;
+	}
+
 	spin_lock_bh(&vxlan_ctx.tun_lock);
+	dev_hold(dev);
 	tun_ctx = nss_vxlanmgr_tunnel_ctx_dev_get(dev);
 	if (!tun_ctx) {
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
 		nss_vxlanmgr_warn("%px: Invalid tunnel context\n", dev);
+		dev_put(dev);
 		return;
 	}
 
+	vni = tun_ctx->vni;
 	nvm = (struct nss_vxlan_msg *)ncm;
 	switch (nvm->cm.type) {
 	case NSS_VXLAN_MSG_TYPE_STATS_SYNC:
@@ -588,14 +592,24 @@ static void nss_vxlanmgr_tunnel_inner_notifier(void *app_data, struct nss_cmn_ms
 		nss_vxlanmgr_tun_stats_sync(tun_ctx, nvm);
 		break;
 	case NSS_VXLAN_MSG_TYPE_MACDB_STATS:
-		nss_vxlanmgr_tunnel_fdb_update(tun_ctx, nvm);
 		nss_vxlanmgr_tun_macdb_stats_sync(tun_ctx, nvm);
-		break;
-	default:
+
+		/*
+		 * Release the lock before updating the Linux FDB entry.
+		 * This will ensure there is no deadlock when a potential
+		 * MAC add event occurs at same time, which needs to hold
+		 * the kernel's hash lock followed by the tunnel ctx lock.
+		 */
 		spin_unlock_bh(&vxlan_ctx.tun_lock);
-		nss_vxlanmgr_info("%px: Unknown Event from NSS", dev);
+
+		nss_vxlanmgr_tunnel_fdb_update(dev, vni, nvm);
+		dev_put(dev);
 		return;
+	default:
+		nss_vxlanmgr_info("%px: Unknown Event from NSS", dev);
 	}
+
+	dev_put(dev);
 	spin_unlock_bh(&vxlan_ctx.tun_lock);
 }
 

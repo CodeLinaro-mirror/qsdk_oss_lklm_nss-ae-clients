@@ -19,9 +19,9 @@
 #include "nss_qdisc.h"
 
 /*
- * Note: The table size is 1024 for 32 bit and 512 for 64 bit binary.
+ * Note: The table size 1024 ensures atleast page size memory is allocated for 32 bit binary.
  */
-#define NSS_QDISC_LIST_TABLE_INIT_SIZE (PAGE_SIZE / (sizeof(struct hlist_head)))
+#define NSS_QDISC_LIST_TABLE_INIT_SIZE 1024
 
 /*
  * nss_qdisc_htable_entry_compute_hash()
@@ -88,10 +88,8 @@ void nss_qdisc_htable_entry_add(struct nss_qdisc_htable *nqt, struct nss_qdisc *
  * nss_qdisc_htable_hlist_init()
  * 	Initialize list head of each slot of allocated table
  */
-static inline void nss_qdisc_htable_hlist_init(struct nss_qdisc_htable *nqt, struct hlist_head *hlh)
+static inline void nss_qdisc_htable_hlist_init(struct hlist_head *hlh, uint32_t size)
 {
-	 uint32_t size = nqt->htsize;
-
 	/*
 	 * Initialize list head of each slot
 	 */
@@ -116,7 +114,6 @@ static struct hlist_head *nss_qdisc_htable_alloc(struct nss_qdisc_htable *nqt, u
 	}
 
 	nqt->htsize = size;
-
 	nss_qdisc_info("%p: Qdisc list hash table memory allocation of size %u sucessful, for %u members\n", nqt, msize, size);
 
 	return hlh;
@@ -165,8 +162,8 @@ static uint32_t nss_qdisc_htable_resize_needed(struct nss_qdisc_htable *nqt)
 void nss_qdisc_htable_resize(struct Qdisc *sch, struct nss_qdisc_htable *nqt)
 {
 	struct nss_qdisc *nq;
-	uint32_t new_htsize, new_mask, new_slot;
-	uint32_t slot = nqt->htsize;
+	uint32_t prev_htsize, new_htsize, new_mask, new_slot;
+	uint32_t slot = prev_htsize = nqt->htsize;
 	struct hlist_head *hlh, *nhlh;
 	struct hlist_node *tmp;
 
@@ -175,14 +172,14 @@ void nss_qdisc_htable_resize(struct Qdisc *sch, struct nss_qdisc_htable *nqt)
 		return;
 	}
 
+	hlh = nqt->htable;
 	nhlh = nss_qdisc_htable_alloc(nqt, new_htsize);
 	if (!nhlh) {
 		nss_qdisc_info("%p: nss_qdisc failed to allocate new htable for size %u\n", nqt, new_htsize);
 		return;
 	}
 
-	nss_qdisc_htable_hlist_init(nqt, nhlh);
-	hlh = nqt->htable;
+	nss_qdisc_htable_hlist_init(nhlh, new_htsize);
 	new_mask = new_htsize - 1;
 	spin_lock_bh(&nqt->lock);
 	while (slot) {
@@ -198,9 +195,11 @@ void nss_qdisc_htable_resize(struct Qdisc *sch, struct nss_qdisc_htable *nqt)
 	/*
 	 * Free the old table
 	 */
-	nss_qdisc_htable_free(nqt, hlh, nqt->htsize);
+	nss_qdisc_htable_free(nqt, hlh, prev_htsize);
 
-	nqt->htsize = new_htsize;
+	/*
+	 * Attach the new table
+	 */
 	nqt->htable = nhlh;
 	spin_unlock_bh(&nqt->lock);
 }
@@ -221,8 +220,8 @@ bool nss_qdisc_htable_init(struct nss_qdisc_htable *nqt)
 		return false;
 	}
 
-	nss_qdisc_htable_hlist_init(nqt, nqt->htable);
 	nqt->count = 0;
+	nss_qdisc_htable_hlist_init(nqt->htable, NSS_QDISC_LIST_TABLE_INIT_SIZE);
 	return true;
 }
 

@@ -334,8 +334,10 @@ static void nss_qdisc_stats_sync_msg_tx(struct nss_qdisc_stats_wq *nqsw)
 	int retry = 3;
 
 	while (retry) {
+		atomic_set(&nqsw->pending_stat_resp, 1);
 		nss_tx_status = nss_if_tx_msg_with_size(nq->nss_shaping_ctx, nim, PAGE_SIZE);
 		if (nss_tx_status != NSS_TX_SUCCESS) {
+			atomic_set(&nqsw->pending_stat_resp, 0);
 			nqsw->stats_request_fail++;
 			retry--;
 			nss_qdisc_info("TX_NOT_OKAY, try again later\n");
@@ -348,15 +350,15 @@ static void nss_qdisc_stats_sync_msg_tx(struct nss_qdisc_stats_wq *nqsw)
 		/*
 		 * Wait on this thread until response is received by fw.
 		 */
-		atomic_set(&nqsw->pending_stat_resp, 1);
 		if (!wait_event_timeout(nqsw->stats_resp_waitqueue, atomic_read(&nqsw->pending_stat_resp) == 0,
 					NSS_QDISC_COMMAND_TIMEOUT)) {
 			nss_qdisc_error("Stats request command for %x timedout!\n", nq->qos_tag);
-		}
+		} else {
 
-		nss_qdisc_info("Qdisc %px nq:%p no more pending stat response  %d", nq->qdisc,
-				nq, atomic_read(&nqsw->pending_stat_resp));
-		return;
+			nss_qdisc_info("Qdisc %px nq:%p no more pending stat response  %d", nq->qdisc,
+					nq, atomic_read(&nqsw->pending_stat_resp));
+			return;
+		}
 	}
 
 	/*

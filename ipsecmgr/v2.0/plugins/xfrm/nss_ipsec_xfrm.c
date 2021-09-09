@@ -38,6 +38,9 @@
 #if defined(NSS_L2TPV2_ENABLED)
 #include <nss_l2tpmgr.h>
 #endif
+#if defined(NSS_VXLAN_ENABLED)
+#include <nss_vxlanmgr.h>
+#endif
 #include "nss_ipsec_xfrm_tunnel.h"
 #include "nss_ipsec_xfrm_sa.h"
 #include "nss_ipsec_xfrm_flow.h"
@@ -696,7 +699,7 @@ static int nss_ipsec_xfrm_ecm_conn_notify(struct notifier_block *nb, unsigned lo
 	return NOTIFY_OK;
 }
 
-#if defined(NSS_L2TPV2_ENABLED)
+#if defined(NSS_L2TPV2_ENABLED) || defined(NSS_VXLAN_ENABLED)
 /*
  * nss_ipsec_xfrm_get_encap_ifnum()
  *»       Get ipsec tunnel NSS inner interface number.
@@ -724,6 +727,23 @@ static int32_t nss_ipsec_xfrm_get_inner_ifnum(uint32_t *src_ip, uint32_t *dest_i
 	nss_ipsec_xfrm_info("%p: Tunnel %s Inner ifnum %d", tun, tun->dev->name, if_num);
 
 	nss_ipsec_xfrm_tunnel_deref(tun);
+	return if_num;
+}
+#endif
+
+#if defined(NSS_VXLAN_ENABLED)
+/*
+ * nss_ipsec_xfrm_get_encap_ifnum_by_ip()
+ *»       Get ipsec tunnel NSS inner interface number.
+ */
+static int32_t nss_ipsec_xfrm_get_inner_ifnum_by_ip(uint8_t ip_version, uint32_t *src_ip, uint32_t *dest_ip)
+{
+	int32_t if_num = -1;
+
+	if (ip_version == IPVERSION) {
+		if_num = nss_ipsec_xfrm_get_inner_ifnum(src_ip, dest_ip);
+	}
+
 	return if_num;
 }
 #endif
@@ -1992,6 +2012,12 @@ static struct l2tpmgr_ipsecmgr_cb xfrm_l2tp =  {
 };
 #endif
 
+#if defined(NSS_VXLAN_ENABLED)
+static struct nss_vxlanmgr_get_ipsec_if_num nss_ipsec_xfrm_vxlan_cb =  {
+	.get_ifnum_by_ip = nss_ipsec_xfrm_get_inner_ifnum_by_ip
+};
+#endif
+
 /*
  * xfrm_mgr template to listen to state and policy notifications.
  */
@@ -2333,6 +2359,10 @@ int __init nss_ipsec_xfrm_init_module(void)
 	l2tpmgr_register_ipsecmgr_callback_by_ipaddr(&xfrm_l2tp);
 #endif
 
+#if defined(NSS_VXLAN_ENABLED)
+	nss_vxlanmgr_register_ipsecmgr_callback_by_ip(&nss_ipsec_xfrm_vxlan_cb);
+#endif
+
 	/*
 	 * Register for xfrm events
 	 */
@@ -2369,6 +2399,10 @@ void __exit nss_ipsec_xfrm_exit_module(void)
 
 #if defined(NSS_L2TPV2_ENABLED)
 	l2tpmgr_unregister_ipsecmgr_callback_by_ipaddr();
+#endif
+
+#if defined(NSS_VXLAN_ENABLED)
+	nss_vxlanmgr_unregister_ipsecmgr_callback_by_ip();
 #endif
 	xfrm_unregister_km(&nss_ipsec_xfrm_mgr);
 

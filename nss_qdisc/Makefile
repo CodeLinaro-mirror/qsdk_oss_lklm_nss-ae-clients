@@ -16,7 +16,7 @@ qca-nss-qdisc-objs := 	nss_bf.o \
 			nss_htb.o \
 			nss_prio.o \
 			nss_qdisc.o \
-			nss_qdisc_list.o \
+			nss_qdisc_htable.o \
 			nss_qdisc_stats.o \
 			nss_tbl.o \
 			nss_wred.o \

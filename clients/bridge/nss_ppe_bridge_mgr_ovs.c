@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -15,21 +15,23 @@
  */
 
 /*
- * nss_bridge_mgr_ovs.c
+ * nss_ppe_bridge_mgr_ovs.c
  *	Handle OVS bridge notifications.
+ *
+ * TODO: This file needs to be reinvestigated when OVS is enabled/tested.
  */
 #include <linux/netdevice.h>
 #include <linux/notifier.h>
 #include <ovsmgr.h>
 #include <nss_vlan_mgr.h>
 
-#include "nss_bridge_mgr_priv.h"
+#include "nss_ppe_bridge_mgr_priv.h"
 
 /*
- * nss_bridge_mgr_ovs_handle_port_event()
+ * nss_ppe_bridge_mgr_ovs_handle_port_event()
  *	Handle OVS bridge port events
  */
-static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
+static int nss_ppe_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
 {
 	struct ovsmgr_dp_port_info *port;
 	struct nss_bridge_pvt *b_pvt;
@@ -38,7 +40,7 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 
 	port = ovs_info->port;
 	if (!port || !port->master || !port->dev) {
-		nss_bridge_mgr_warn("%px: Invalid ovs_info\n", ovs_info);
+		nss_ppe_bridge_mgr_warn("%px: Invalid ovs_info\n", ovs_info);
 		return -EINVAL;
 	}
 
@@ -48,9 +50,9 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 	/*
 	 * Check if upper_dev is a known bridge.
 	 */
-	b_pvt = nss_bridge_mgr_find_instance(master_dev);
+	b_pvt = nss_ppe_bridge_mgr_find_instance(master_dev);
 	if (!b_pvt) {
-		nss_bridge_mgr_warn("%px: Couldn't find bridge instance for master: %s\n", port, master_dev->name);
+		nss_ppe_bridge_mgr_warn("%px: Couldn't find bridge instance for master: %s\n", port, master_dev->name);
 		return -ENOENT;
 	}
 
@@ -58,11 +60,11 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 	 * add port to the bridge.
 	 */
 	if (event == OVSMGR_DP_PORT_ADD) {
-		nss_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
+		nss_ppe_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
 
-		err = nss_bridge_mgr_join_bridge(dev, b_pvt);
+		err = nss_ppe_bridge_mgr_join_bridge(dev, b_pvt);
 		if (err) {
-			nss_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
+			nss_ppe_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
 			return err;
 		}
 
@@ -72,11 +74,11 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 	/*
 	 * delete port from bridge.
 	 */
-	nss_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
+	nss_ppe_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
 
-	err = nss_bridge_mgr_leave_bridge(dev, b_pvt);
+	err = nss_ppe_bridge_mgr_leave_bridge(dev, b_pvt);
 	if (err) {
-		nss_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
+		nss_ppe_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
 		return err;
 	}
 
@@ -84,10 +86,10 @@ static int nss_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ov
 }
 
 /*
- * nss_bridge_mgr_ovs_handle_vlan_event()
+ * nss_ppe_bridge_mgr_ovs_handle_vlan_event()
  *	Handle VLAN events OVS bridge port
  */
-static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
+static void nss_ppe_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
 {
 	struct ovsmgr_dp_port_vlan_info *vlan;
 	struct nss_bridge_pvt *b_pvt;
@@ -95,7 +97,7 @@ static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *o
 
 	vlan = ovs_info->vlan;
 	if (!vlan || !vlan->master || !vlan->dev) {
-		nss_bridge_mgr_warn("%px: Invalid ovs_info\n", ovs_info);
+		nss_ppe_bridge_mgr_warn("%px: Invalid ovs_info\n", ovs_info);
 		return;
 	}
 
@@ -105,17 +107,17 @@ static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *o
 	/*
 	 * Check if upper_dev is a known bridge.
 	 */
-	b_pvt = nss_bridge_mgr_find_instance(master_dev);
+	b_pvt = nss_ppe_bridge_mgr_find_instance(master_dev);
 	if (!b_pvt) {
-		nss_bridge_mgr_warn("%px: Couldn't find bridge instance for master: %s\n", vlan, master_dev->name);
+		nss_ppe_bridge_mgr_warn("%px: Couldn't find bridge instance for master: %s\n", vlan, master_dev->name);
 		return;
 	}
 
+	/*
+	 * add VLAN in bridge.
+	 */
 	if (event == OVSMGR_DP_VLAN_ADD) {
-		/*
-		 * add VLAN in bridge.
-		 */
-		nss_bridge_mgr_trace("%px: VLAN = %d, add on port %s, bridge %s\n",
+		nss_ppe_bridge_mgr_trace("%px: VLAN = %d, add on port %s, bridge %s\n",
 				b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
 
 		nss_vlan_mgr_add_vlan_rule(dev, b_pvt->vsi, vlan->vh.h_vlan_TCI);
@@ -125,35 +127,35 @@ static void nss_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *o
 	/*
 	 * delete VLAN from bridge.
 	 */
-	nss_bridge_mgr_trace("%px: VLAN = %d, delete on port %s, bridge %s\n",
+	nss_ppe_bridge_mgr_trace("%px: VLAN = %d, delete on port %s, bridge %s\n",
 					b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
 	nss_vlan_mgr_del_vlan_rule(dev, b_pvt->vsi, vlan->vh.h_vlan_TCI);
 }
 
 /*
- * nss_bridge_mgr_ovs_notifier_callback()
+ * nss_ppe_bridge_mgr_ovs_notifier_callback()
  *	Netdevice notifier callback to inform us of change of state of a netdevice
  */
-static int nss_bridge_mgr_ovs_notifier_callback(struct notifier_block *nb, unsigned long event, void *data)
+static int nss_ppe_bridge_mgr_ovs_notifier_callback(struct notifier_block *nb, unsigned long event, void *data)
 {
 	struct ovsmgr_notifiers_info *ovs_info = (struct ovsmgr_notifiers_info *)data;
 
-	nss_bridge_mgr_info("OVS notifier event: %lu\n", event);
+	nss_ppe_bridge_mgr_info("OVS notifier event: %lu\n", event);
 
 	switch (event) {
 	case OVSMGR_DP_BR_ADD:
-		nss_bridge_mgr_register_br(ovs_info->dev);
+		nss_ppe_bridge_mgr_register_br(ovs_info->dev);
 		break;
 	case OVSMGR_DP_BR_DEL:
-		nss_bridge_mgr_unregister_br(ovs_info->dev);
+		nss_ppe_bridge_mgr_unregister_br(ovs_info->dev);
 		break;
 	case OVSMGR_DP_PORT_ADD:
 	case OVSMGR_DP_PORT_DEL:
-		nss_bridge_mgr_ovs_handle_port_event(ovs_info, event);
+		nss_ppe_bridge_mgr_ovs_handle_port_event(ovs_info, event);
 		break;
 	case OVSMGR_DP_VLAN_ADD:
 	case OVSMGR_DP_VLAN_DEL:
-		nss_bridge_mgr_ovs_handle_vlan_event(ovs_info, event);
+		nss_ppe_bridge_mgr_ovs_handle_vlan_event(ovs_info, event);
 		break;
 	}
 
@@ -161,18 +163,18 @@ static int nss_bridge_mgr_ovs_notifier_callback(struct notifier_block *nb, unsig
 }
 
 /*
- * struct notifier_block nss_bridge_mgr_ovs_notifier
+ * struct notifier_block nss_ppe_bridge_mgr_ovs_notifier
  *	Registration for OVS events
  */
 static struct notifier_block ovs_notifier __read_mostly = {
-	.notifier_call = nss_bridge_mgr_ovs_notifier_callback,
+	.notifier_call = nss_ppe_bridge_mgr_ovs_notifier_callback,
 };
 
 /*
- * nss_bridge_mgr_is_ovs_port()
+ * nss_ppe_bridge_mgr_is_ovs_port()
  *	Return true if dev is an OVS port.
  */
-int nss_bridge_mgr_is_ovs_port(struct net_device *dev)
+int nss_ppe_bridge_mgr_is_ovs_port(struct net_device *dev)
 {
 	if (dev->priv_flags & IFF_OVS_DATAPATH) {
 		return true;
@@ -182,19 +184,19 @@ int nss_bridge_mgr_is_ovs_port(struct net_device *dev)
 }
 
 /*
- * nss_bridge_mgr_ovs_exit()
+ * nss_ppe_bridge_mgr_ovs_exit()
  *	Cleanup OVS bridge handlers.
  */
-void nss_bridge_mgr_ovs_exit(void)
+void nss_ppe_bridge_mgr_ovs_exit(void)
 {
 	ovsmgr_notifier_unregister(&ovs_notifier);
 }
 
 /*
- * nss_bridge_mgr_exit_module()
+ * nss_ppe_bridge_mgr_exit_module()
  *	Initialize OVS bridge handlers.
  */
-void nss_bridge_mgr_ovs_init(void)
+void nss_ppe_bridge_mgr_ovs_init(void)
 {
 	ovsmgr_notifier_register(&ovs_notifier);
 }

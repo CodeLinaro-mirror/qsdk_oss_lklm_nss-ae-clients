@@ -27,7 +27,7 @@
 #include <linux/netdevice.h>
 #include <net/bonding.h>
 #include <ref/ref_vsi.h>
-#include <nss_vlan_mgr.h>
+#include <nss_ppe_vlan_mgr.h>
 #include <fal/fal_fdb.h>
 #include <fal/fal_stp.h>
 #include <fal/fal_acl.h>
@@ -821,17 +821,16 @@ static bool nss_ppe_bridge_mgr_is_physical_dev(struct net_device *dev)
 	 * However, the bond over VLAN is not supported in our driver.
 	 */
 	if (is_vlan_dev(dev)) {
-		root_dev = nss_vlan_mgr_get_real_dev(dev);
+		root_dev = nss_ppe_vlan_mgr_get_real_dev(dev);
 		if (!root_dev) {
 			goto error;
 		}
 
 		if (is_vlan_dev(root_dev)) {
-			root_dev = nss_vlan_mgr_get_real_dev(root_dev);
+			root_dev = nss_ppe_vlan_mgr_get_real_dev(root_dev);
 			if (!root_dev) {
 				goto error;
 			}
-
 		}
 	}
 
@@ -1126,9 +1125,9 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridg
 		/*
 		 * Find real_dev associated with the VLAN.
 		 */
-		real_dev = nss_vlan_mgr_get_real_dev(dev);
+		real_dev = nss_ppe_vlan_mgr_get_real_dev(dev);
 		if (real_dev && is_vlan_dev(real_dev)) {
-			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
+			real_dev = nss_ppe_vlan_mgr_get_real_dev(real_dev);
 		}
 
 		if (real_dev == NULL) {
@@ -1139,7 +1138,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridg
 		/*
 		 * This is a valid vlan dev, remove the vlan dev from bridge.
 		 */
-		if (nss_vlan_mgr_leave_bridge(dev, br->vsi)) {
+		if (nss_ppe_vlan_mgr_leave_bridge(dev, br->vsi)) {
 			nss_ppe_bridge_mgr_warn("%px: vlan device failed to leave bridge\n", br);
 			return -1;
 		}
@@ -1154,7 +1153,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridg
 			 */
 			if (nss_ppe_bridge_mgr_bond_master_leave(real_dev, br) != NOTIFY_DONE) {
 				nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s leave bridge failed\n", br, real_dev->name);
-				nss_vlan_mgr_join_bridge(dev, br->vsi);
+				nss_ppe_vlan_mgr_join_bridge(dev, br->vsi);
 				return -1;
 			}
 
@@ -1207,9 +1206,9 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge
 		/*
 		 * Find real_dev associated with the VLAN
 		 */
-		real_dev = nss_vlan_mgr_get_real_dev(dev);
+		real_dev = nss_ppe_vlan_mgr_get_real_dev(dev);
 		if (real_dev && is_vlan_dev(real_dev))
-			real_dev = nss_vlan_mgr_get_real_dev(real_dev);
+			real_dev = nss_ppe_vlan_mgr_get_real_dev(real_dev);
 		if (real_dev == NULL) {
 			nss_ppe_bridge_mgr_warn("%px: real dev for the vlan: %s in NULL\n", br, dev->name);
 			return -EINVAL;
@@ -1218,7 +1217,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge
 		/*
 		 * This is a valid vlan dev, add the vlan dev to bridge
 		 */
-		if (nss_vlan_mgr_join_bridge(dev, br->vsi)) {
+		if (nss_ppe_vlan_mgr_join_bridge(dev, br->vsi)) {
 			nss_ppe_bridge_mgr_warn("%px: vlan device failed to join bridge\n", br);
 			return -ENODEV;
 		}
@@ -1233,7 +1232,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge
 			 */
 			if (nss_ppe_bridge_mgr_bond_master_join(real_dev, br) != NOTIFY_DONE) {
 				nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s join bridge failed\n", br, real_dev->name);
-				nss_vlan_mgr_leave_bridge(dev, br->vsi);
+				nss_ppe_vlan_mgr_leave_bridge(dev, br->vsi);
 				return -EINVAL;
 			}
 

@@ -15,6 +15,7 @@
  */
 
 #include <linux/module.h>
+#include <ppe_drv_public.h>
 #include "ppe_drv_stats.h"
 
 /*

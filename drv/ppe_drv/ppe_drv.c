@@ -220,6 +220,8 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	ppe_drv_exception_init();
+
 	/*
 	 * Initialize locks
 	 */

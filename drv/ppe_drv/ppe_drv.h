@@ -16,6 +16,7 @@
 
 #include <linux/module.h>
 #include <ppe_drv_public.h>
+#include "ppe_drv_exception.h"
 #include "ppe_drv_l3_if.h"
 #include "ppe_drv_port.h"
 #include "ppe_drv_pppoe.h"
@@ -98,7 +99,6 @@
 #define PPE_DRV_HASH_DIPV6_MIX_3		0xb
 
 #define PPE_DRV_IFACE_MAX 256
-
 #define PPE_DRV_JUMBO_MAX 9216
 
 /*

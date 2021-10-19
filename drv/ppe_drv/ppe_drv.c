@@ -196,6 +196,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->l3_if = ppe_drv_l3_if_entries_alloc();
+	if (!p->l3_if) {
+		ppe_drv_warn("%p: failed to allocate l3_if entries", p);
+		goto fail;
+	}
+
 	/*
 	 * Initialize locks
 	 */
@@ -236,6 +242,11 @@ fail:
 		p->pub_ip = NULL;
 	}
 
+	if (p->l3_if) {
+		ppe_drv_l3_if_entries_free(p->l3_if);
+		p->l3_if = NULL;
+	}
+
 	return -1;
 }
 
@@ -254,6 +265,11 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->pub_ip) {
 		ppe_drv_pub_ip_entries_free(p->pub_ip);
 		p->pub_ip = NULL;
+	}
+
+	if (p->l3_if) {
+		ppe_drv_l3_if_entries_free(p->l3_if);
+		p->l3_if = NULL;
 	}
 
 	return 0;

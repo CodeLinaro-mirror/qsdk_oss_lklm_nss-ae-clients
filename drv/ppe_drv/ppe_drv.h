@@ -21,6 +21,7 @@
 #include "ppe_drv_port.h"
 #include "ppe_drv_pppoe.h"
 #include "ppe_drv_pub_ip.h"
+#include "ppe_drv_sc.h"
 #include "ppe_drv_stats.h"
 #include "ppe_drv_vsi.h"
 
@@ -118,6 +119,7 @@ struct ppe_drv {
 	uint32_t flow_num;				/* Number of entries in PPE Flow table */
 	uint32_t pppoe_session_max;			/* Number of entries in PPE PPPoe Session table */
 	uint32_t nexthop_num;				/* Number of entries in PPE Nexthop table */
+	uint32_t sc_num;				/* Number of entries in PPE Service Code table */
 	uint32_t queue_num;				/* Number of entries in PPE Service Code table */
 
 	/*

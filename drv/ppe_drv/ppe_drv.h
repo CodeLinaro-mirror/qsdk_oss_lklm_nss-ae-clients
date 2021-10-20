@@ -15,3 +15,49 @@
  */
 
 #include <linux/module.h>
+#include "ppe_drv_stats.h"
+
+/*
+ * PPE debug macros
+ */
+#if (PPE_DRV_DEBUG_LEVEL == 3)
+#define ppe_drv_assert(c, s, ...)
+#else
+#define ppe_drv_assert(c, s, ...) if (!(c)) { printk(KERN_CRIT "%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__); BUG_ON(!(c)); }
+#endif
+
+#if defined(CONFIG_DYNAMIC_DEBUG)
+/*
+ * If dynamic debug is enabled, use pr_debug.
+ */
+#define ppe_drv_warn(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define ppe_drv_info(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define ppe_drv_trace(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#else
+
+/*
+ * Statically compile messages at different levels, when dynamic debug is disabled.
+ */
+#if (PPE_DRV_DEBUG_LEVEL < 2)
+#define ppe_drv_warn(s, ...)
+#else
+#define ppe_drv_warn(s, ...) pr_warn("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#endif
+
+#if (PPE_DRV_DEBUG_LEVEL < 3)
+#define ppe_drv_info(s, ...)
+#else
+#define ppe_drv_info(s, ...) pr_notice("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#endif
+
+#if (PPE_DRV_DEBUG_LEVEL < 4)
+#define ppe_drv_trace(s, ...)
+#else
+#define ppe_drv_trace(s, ...) pr_info("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#endif
+#endif
+
+/*
+ * Default switch ID
+ */
+#define PPE_DRV_SWITCH_ID		0

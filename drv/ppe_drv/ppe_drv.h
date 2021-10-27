@@ -61,3 +61,92 @@
  * Default switch ID
  */
 #define PPE_DRV_SWITCH_ID		0
+
+/*
+ * PPE Hash seed and mask
+ *
+ * Note: we don't initialize the seed value with a random value
+ * to keep the hash calculation persistent across reboots.
+ */
+#define PPE_DRV_HASH_SEED_DEFAULT	0xabbcdefa
+#define PPE_DRV_HASH_MASK		0xfff
+#define PPE_DRV_HASH_MIX_V4_SIP		0x13
+#define PPE_DRV_HASH_MIX_V4_DIP		0xb
+#define PPE_DRV_HASH_MIX_V4_PROTO	0x13
+#define PPE_DRV_HASH_MIX_V4_DPORT	0xb
+#define PPE_DRV_HASH_MIX_V4_SPORT	0x13
+#define PPE_DRV_HASH_FIN_MASK		0x1f
+#define PPE_DRV_HASH_FIN_INNER_OUTER_0		0x205
+#define PPE_DRV_HASH_FIN_INNER_OUTER_1		0x264
+#define PPE_DRV_HASH_FIN_INNER_OUTER_2		0x227
+#define PPE_DRV_HASH_FIN_INNER_OUTER_3		0x245
+#define PPE_DRV_HASH_FIN_INNER_OUTER_4		0x201
+
+#define PPE_DRV_HASH_SIPV6_MIX_0		0x13
+#define PPE_DRV_HASH_SIPV6_MIX_1		0xb
+#define PPE_DRV_HASH_SIPV6_MIX_2		0x13
+#define PPE_DRV_HASH_SIPV6_MIX_3		0xb
+#define PPE_DRV_HASH_DIPV6_MIX_0		0x13
+#define PPE_DRV_HASH_DIPV6_MIX_1		0xb
+#define PPE_DRV_HASH_DIPV6_MIX_2		0x13
+#define PPE_DRV_HASH_DIPV6_MIX_3		0xb
+
+#define PPE_DRV_IFACE_MAX 256
+
+/*
+ * struct ppe_drv
+ *	PPE DRV base structure
+ */
+struct ppe_drv {
+	spinlock_t lock;				/* PPE lock */
+	spinlock_t stats_lock;				/* PPE statistics lock */
+
+	uint32_t iface_num;				/* Number of PPE interface */
+	uint32_t l3_if_num;				/* Number of entries in PPE L3_IF table */
+	uint32_t port_num;				/* Number of entries in PPE Port table */
+	uint32_t vsi_num;				/* Number of entries in PPE VSI table */
+	uint32_t pub_ip_num;				/* Number of entries in PPE Public IP table */
+	uint32_t host_num;				/* Number of entries in PPE Host table */
+	uint32_t flow_num;				/* Number of entries in PPE Flow table */
+	uint32_t pppoe_session_max;			/* Number of entries in PPE PPPoe Session table */
+	uint32_t nexthop_num;				/* Number of entries in PPE Nexthop table */
+	uint32_t queue_num;				/* Number of entries in PPE Service Code table */
+
+	/*
+	 * Timer
+	 */
+	struct timer_list hw_flow_stats_timer;      	/* Timer used to poll for stats from PPE_HW */
+	struct work_struct sw_v4_stats;			/* Workqueue used to sync v4 stats from PPE driver to ECM */
+	struct work_struct sw_v6_stats;       		/* Workqueue used to sync v6 stats from PPE driver to ECM */
+	struct ppe_drv_stats stats;			/* PPE statistics */
+
+	/*
+	 * Pointer to memory pool for different PPE tables
+	 */
+	struct ppe_drv_iface *iface;			/* Memory for PPE interface shadow table */
+	struct ppe_drv_flow *flow;			/* Memory for PPE Flow table */
+	struct ppe_drv_host *host;			/* Memory for PPE Host table */
+	struct ppe_drv_nexthop *nexthop;		/* Memory for PPE nexthop table */
+	struct ppe_drv_pub_ip *pub_ip;			/* Memory for PPE Public IP table */
+	struct ppe_drv_vsi *vsi;			/* Memory for PPE VSI shadow table */
+	struct ppe_drv_port *port;			/* Memory for PPE Port table */
+	struct ppe_drv_l3_if *l3_if;			/* Memory for PPE L3_IF shadow table */
+	struct ppe_drv_pppoe *pppoe;			/* Memory for PPE PPPoe table */
+	struct ppe_drv_queue *queue;			/* Memory for PPE queue table */
+	struct ppe_drv_sc *sc;				/* Memory for PPE Service Code table */
+
+	struct dentry *dentry;				/* Debugfs entry */
+
+	struct list_head active_nexthop;		/* List of active nexthops */
+	struct list_head free_nexthop;			/* List of free nexthops */
+	struct kref ref;				/* Reference count */
+
+	/*
+	 * v4 and v6 connection list
+	 */
+	struct list_head conn_v4;               /* List of v4 connection in PPE */
+	struct list_head conn_v6;               /* List of v6 connection in PPE */
+	bool toggled;				/* Toggled bit for sync during a particular iteration */
+};
+
+extern struct ppe_drv ppe_drv_gbl;

@@ -29,6 +29,8 @@
 #define PPE_DRV_PHYSICAL_MAX	8	/* PPE supports 8 physical ports 0-7 */
 #define PPE_DRV_VIRTUAL_MAX	192	/* PPE supports 192 virtual interfaces 64-255 */
 #define PPE_DRV_VIRTUAL_START	64	/* Virtual ports start at 64 */
+#define PPE_DRV_VIRTUAL_END	(PPE_DRV_VIRTUAL_START + PPE_DRV_VIRTUAL_MAX)
+					/* Virtual ports ends at 256 */
 #define PPE_DRV_PORTS_MAX	256	/* Total ports in PPE Physical + Trunk + Virtual */
 
 #define PPE_DRV_PORT_CPU	0	/* PPE egress port to reach CPUs */

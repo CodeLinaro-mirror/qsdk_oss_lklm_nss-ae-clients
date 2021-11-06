@@ -102,7 +102,6 @@ bool ppe_vp_base_free_vp(uint8_t port_num)
 	 * Using spin lock to write to a RCU object.
 	 */
 	spin_lock_bh(&pvb->lock);
-
 	vp = rcu_dereference_protected(pvt->vp_allocator[vp_idx], 1);
 	if (!vp) {
 		ppe_vp_warn("%px: VP already freed, cannot free this VP at idx %u", pvb, vp_idx);

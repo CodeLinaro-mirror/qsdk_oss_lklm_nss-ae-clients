@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define PPE_VP_FLAG_VP_ACTIVE 0x01
+struct ppe_vp_base;
+
+#define PPE_VP_FLAG_VP_ACTIVE	0x01
 
 /*
  * ppe_vp_rx_info
@@ -30,7 +32,7 @@ struct ppe_vp_rx_info {
  */
 struct ppe_vp {
 	struct ppe_vp_base *pvb;			/* Pointer to the PPE VP base object */
-	struct net_device *net_dev;			/* net_device for this VP */
+	struct net_device *netdev;			/* net_device for this VP */
 	struct ppe_drv_iface *ppe_iface;		/* Pointer to the PPE interface object */
 	struct ppe_vp_stats vp_stats;			/* Stats for this VP */
 	uint32_t netdev_if_num;				/* net_device interface number */
@@ -42,5 +44,5 @@ struct ppe_vp {
 	void *dst_cb_data;				/* Callback data */
 	ppe_vp_callback_t src_cb;			/* Packet to be handed over to stack by VP user callback */
 	void *src_cb_data;				/* Callback data */
-	ppe_vp_stats_callback_t tun_stats_cb;		/* Tunnel statistics callback */
+	ppe_vp_stats_callback_t stats_cb;		/* Tunnel statistics callback */
 };

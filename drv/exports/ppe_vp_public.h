@@ -22,6 +22,8 @@
 #ifndef _PPE_VP_PUBLIC_H_
 #define _PPE_VP_PUBLIC_H_
 
+#include <linux/module.h>
+
 /**
  * @addtogroup ppe_vp_public_subsystem
  * @{
@@ -29,18 +31,30 @@
 
 /**
  * ppe_vp_status
- *	Types of PPE VP statuses
+ *	Types of PPE VP statuses.
  */
 typedef enum ppe_vp_status {
-	PPE_VP_STATUS_SUCCESS = 0,	/* VP Success */
-	PPE_VP_STATUS_FAILURE,		/* VP Failure */
-	PPE_VP_STATUS_MAX,		/* Maximum VP statuses */
+	PPE_VP_STATUS_SUCCESS = 0,	/**< VP Success */
+	PPE_VP_STATUS_INVALID_TYPE,	/**< VP Invalid */
+	PPE_VP_STATUS_PPEIFACE_ALLOC_FAIL,
+					/**< VP PPE iface alloc failed */
+	PPE_VP_STATUS_GET_VP_FAIL,	/**< VP PPE init failed */
+	PPE_VP_STATUS_MAC_CLEAR_FAIL,	/**< VP PPE init failed */
+	PPE_VP_STATUS_MAC_SET_FAIL,	/**< VP PPE init failed */
+	PPE_VP_STATUS_MTU_SET_FAIL,	/**< VP PPE init failed */
+	PPE_VP_STATUS_VP_INIT_FAIL,	/**< VP PPE init failed */
+	PPE_VP_STATUS_VP_DEINIT_FAIL,	/**< VP PPE init failed */
+	PPE_VP_STATUS_PORT_INVALID,	/**< VP PPE init failed */
+	PPE_VP_STATUS_VP_ALLOC_FAIL,	/**< VP alloc failed */
+	PPE_VP_STATUS_VP_FREE_FAIL,	/**< VP free  failed */
+	PPE_VP_STATUS_FAILURE,		/**< VP Failure */
+	PPE_VP_STATUS_MAX,		/**< Maximum VP statuses */
 } ppe_vp_status_t;
 
 typedef int16_t ppe_vp_num_t;
 
 /**
- * Callback function for dynamic interface messages.
+ * Callback function for VP Rx.
  *
  * @datatypes
  * net_device
@@ -69,14 +83,28 @@ typedef enum ppe_vp_type {
  *	PPE VP HW port Statistics
  */
 struct ppe_vp_hw_stats {
-	atomic64_t rx_pkts;			/**< Total rx packets on VP port */
-	atomic64_t rx_bytes;			/**< Total rx bytes on VP port */
-	atomic64_t tx_pkts;			/**< Total tx packets on VP port */
-	atomic64_t tx_bytes;			/**< Total tx bytes on VP port */
+	atomic64_t rx_pkts;		/**< Total rx packets on VP port */
+	atomic64_t rx_bytes;		/**< Total rx bytes on VP port */
+	atomic64_t tx_pkts;		/**< Total tx packets on VP port */
+	atomic64_t tx_bytes;		/**< Total tx bytes on VP port */
 };
 
 /**
- * Callback function for synchronizing statistics.
+ * ppe_vp_ai
+ *	Data structure VP allocation.
+ */
+struct ppe_vp_ai {
+	ppe_vp_type_t type;		/**< VP dype */
+	ppe_vp_callback_t dst_cb;	/**< VP dst callback */
+	void *dst_cb_data;		/**< VP dst callback data */
+	ppe_vp_callback_t src_cb;	/**< VP src callback */
+	void *src_cb_data;		/**< VP src callback data */
+	uint8_t queue_num;		/**< Queue number */
+	ppe_vp_status_t status;		/**< VP return status */
+};
+
+/**
+ * Callback function for VP HW port statistics.
  *
  * @datatypes
  * net_device
@@ -86,6 +114,75 @@ struct ppe_vp_hw_stats {
  * @param[in] ppe_vp_hw_stats	Pointer to the skb.
  */
 typedef bool(*ppe_vp_stats_callback_t)(struct net_device *, struct ppe_vp_hw_stats *);
+
+/*
+ * ppe_vp_get_netdev_by_port_num()
+ *	Get the netdevice for port number.
+ *
+ * @param[in] port_num   VP port number.
+ *
+ * @return
+ * Netdevice for the port number.
+ */
+struct net_device *ppe_vp_get_netdev_by_port_num(ppe_vp_num_t port_num);
+
+/*
+ * ppe_vp_mac_addr_clear()
+ *	Clear the MAC address for the virtual port.
+ *
+ * @param[in] port_num   VP port number.
+ *
+ * @return
+ * Success status of clearing MAC address.
+ */
+extern ppe_vp_status_t ppe_vp_mac_addr_clear(ppe_vp_num_t port_num);
+
+/*
+ * ppe_vp_mac_addr_set()
+ *	Set the MAC address for the virtual port.
+ *
+ * @param[in] port_num   VP port number.
+ * @param[in] mac_addr   MAC Address.
+ *
+ * @return
+ * Success status of setting MAC address.
+ */
+extern ppe_vp_status_t ppe_vp_mac_addr_set(ppe_vp_num_t port_num, uint8_t *mac_addr);
+
+/*
+ * ppe_vp_mtu_set()
+ *	Set the MTU for the virtual port.
+ *
+ * @param[in] port_num   VP port number.
+ * @param[in] mtu        MTU.
+ *
+ * @return
+ * Success status of setting MTU.
+ */
+extern ppe_vp_status_t ppe_vp_mtu_set(ppe_vp_num_t port_num, uint16_t mtu);
+
+/*
+ * ppe_vp_free()
+ *	Free PPE VP interface.
+ *
+ * @param[in] port_num   VP port number.
+ *
+ * @return
+ * Success status of VP free.
+ */
+extern ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num);
+
+/*
+ * ppe_vp_alloc()
+ *	Allocate a PPE VP interface.
+ *
+ * @param[in] netdev     VP allocator netdevice.
+ * @param[in] vpai       VP allocation info.
+ *
+ * @return
+ * VP number.
+ */
+extern ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai);
 
 /** @} */ /* end_addtogroup ppe_vp_public_subsystem */
 

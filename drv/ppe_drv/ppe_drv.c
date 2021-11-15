@@ -190,6 +190,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		return -1;
 	}
 
+	p->pub_ip = ppe_drv_pub_ip_entries_alloc();
+	if (!p->pub_ip) {
+		ppe_drv_warn("%p: failed to allocate pub_ip entries", p);
+		goto fail;
+	}
+
 	/*
 	 * Initialize locks
 	 */
@@ -223,6 +229,14 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	kref_init(&p->ref);
 
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
+
+fail:
+	if (p->pub_ip) {
+		ppe_drv_pub_ip_entries_free(p->pub_ip);
+		p->pub_ip = NULL;
+	}
+
+	return -1;
 }
 
 /*
@@ -235,6 +249,11 @@ static int ppe_drv_remove(struct platform_device *pdev)
 
 	if (p->dentry) {
 		debugfs_remove_recursive(p->dentry);
+	}
+
+	if (p->pub_ip) {
+		ppe_drv_pub_ip_entries_free(p->pub_ip);
+		p->pub_ip = NULL;
 	}
 
 	return 0;

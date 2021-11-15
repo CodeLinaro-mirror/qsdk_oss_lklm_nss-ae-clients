@@ -16,6 +16,7 @@
 
 #include <linux/module.h>
 #include <ppe_drv_public.h>
+#include "ppe_drv_pub_ip.h"
 #include "ppe_drv_stats.h"
 
 /*
@@ -95,7 +96,7 @@
 #define PPE_DRV_IFACE_MAX 256
 
 /*
- * struct ppe_drv
+ * ppe_drv
  *	PPE DRV base structure
  */
 struct ppe_drv {

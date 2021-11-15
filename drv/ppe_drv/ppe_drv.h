@@ -19,6 +19,7 @@
 #include "ppe_drv_l3_if.h"
 #include "ppe_drv_pub_ip.h"
 #include "ppe_drv_stats.h"
+#include "ppe_drv_vsi.h"
 
 /*
  * PPE debug macros

@@ -63,6 +63,7 @@ struct ppe_drv_gen_stats {
 	atomic64_t fail_pubip_full;		/* Create req fail due to pub-ip table full */
 	atomic64_t fail_dev_port_map;		/* Create req fail due to PPE port not mapped to net-device */
 	atomic64_t fail_l3_if_full;		/* Create req fail due to L3_IF table full */
+        atomic64_t fail_vsi_full;		/* Create req fail due to VSI table full */
 	atomic64_t fail_rw_fifo_full;		/* Create req fail due to rw fifo full */
 	atomic64_t fail_flow_command;		/* Create req fail due to PPE flow command failure */
 	atomic64_t fail_unknown_proto;		/* Create req fail due to unknown protocol */

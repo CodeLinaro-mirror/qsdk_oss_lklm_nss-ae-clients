@@ -202,6 +202,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->vsi = ppe_drv_vsi_entries_alloc();
+	if (!p->vsi) {
+		ppe_drv_warn("%p: failed to allocate vsi entries", p);
+		goto fail;
+	}
+
 	/*
 	 * Initialize locks
 	 */
@@ -247,6 +253,11 @@ fail:
 		p->l3_if = NULL;
 	}
 
+	if (p->vsi) {
+		ppe_drv_vsi_entries_free(p->vsi);
+		p->vsi = NULL;
+	}
+
 	return -1;
 }
 
@@ -270,6 +281,11 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->l3_if) {
 		ppe_drv_l3_if_entries_free(p->l3_if);
 		p->l3_if = NULL;
+	}
+
+	if (p->vsi) {
+		ppe_drv_vsi_entries_free(p->vsi);
+		p->vsi = NULL;
 	}
 
 	return 0;

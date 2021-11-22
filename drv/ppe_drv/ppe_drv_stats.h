@@ -72,6 +72,8 @@ struct ppe_drv_gen_stats {
 	atomic64_t fail_ppe_unresponsive;	/* Create req fail due to PPE not responding */
 	atomic64_t ce_opaque_invalid;		/* Request fail due to invalid opaque in CE */
 	atomic64_t fail_fqg_full;		/* Create req fail due to flow qos group full */
+	atomic64_t fail_ingress_vlan_add;	/* Ingress vlan translation addition failed */
+	atomic64_t fail_egress_vlan_add;	/* Egress vlan translation addition failed */
 };
 
 /*

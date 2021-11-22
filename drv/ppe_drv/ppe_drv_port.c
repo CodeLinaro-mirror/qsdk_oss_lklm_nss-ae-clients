@@ -763,6 +763,27 @@ uint16_t ppe_drv_port_num_get(struct ppe_drv_port *pp)
 }
 
 /*
+ * ppe_drv_port_num_from_dev()
+ *	Get PPE port index from net device
+ */
+int32_t ppe_drv_port_num_from_dev(struct net_device *dev)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *pp = NULL;
+
+	spin_lock_bh(&p->lock);
+	pp = ppe_drv_port_from_dev(dev);
+	if (pp) {
+		spin_unlock_bh(&p->lock);
+		return pp->port;
+	}
+
+	spin_unlock_bh(&p->lock);
+	return -1;
+}
+EXPORT_SYMBOL(ppe_drv_port_num_from_dev);
+
+/*
  * ppe_drv_port_is_physical()
  *	Returns true if ppe port is physical.
  */
@@ -790,14 +811,17 @@ struct net_device *ppe_drv_port_num_to_dev(uint8_t port_num)
 	struct net_device *dev = NULL;
 	struct ppe_drv_port *pp;
 
+	spin_lock_bh(&p->lock);
 	pp = &p->port[port_num];
 
 	if (kref_read(&pp->ref_cnt)) {
 		dev = pp->dev;
 	}
 
+	spin_unlock_bh(&p->lock);
 	return dev;
 }
+EXPORT_SYMBOL(ppe_drv_port_num_to_dev);
 
 /*
  * ppe_drv_port_to_dev()

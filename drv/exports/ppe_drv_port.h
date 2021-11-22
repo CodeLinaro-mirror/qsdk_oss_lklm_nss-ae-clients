@@ -71,4 +71,29 @@ enum ppe_drv_port_qos_res_pre {
 	PPE_DRV_PORT_QOS_RES_PREC_7_RESERVED,
 };
 
+/**
+ * ppe_drv_port_num_from_dev
+ *	Get port index from device.
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] dev  Net device.
+ *
+ * @return
+ * -1 for failure else port_index.
+ */
+int32_t ppe_drv_port_num_from_dev(struct net_device *dev);
+
+/**
+ * ppe_drv_port_num_to_dev
+ *	Port number to device.
+ *
+ * @param[in] port  Port number.
+ *
+ * @return
+ * net_device.
+ */
+struct net_device *ppe_drv_port_num_to_dev(uint8_t port);
+
 #endif /* _PPE_DRV_PORT_H_ */

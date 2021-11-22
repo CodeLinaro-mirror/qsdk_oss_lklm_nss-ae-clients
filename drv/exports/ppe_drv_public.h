@@ -36,6 +36,7 @@
 #include "ppe_drv_sc.h"
 #include "ppe_drv_v4.h"
 #include "ppe_drv_v6.h"
+#include "ppe_drv_vlan.h"
 
 /** @} */ /* end_addtogroup ppe_drv_public_subsystem */
 

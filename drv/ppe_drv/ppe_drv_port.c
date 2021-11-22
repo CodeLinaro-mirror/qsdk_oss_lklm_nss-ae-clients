@@ -357,7 +357,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
  * ppe_drv_port_l3_if_attach()
  *	Attaches port to given l3_if
  */
-void ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl3)
+bool ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl3)
 {
 	sw_error_t err;
 	fal_intf_id_t intf_ctrl = {0};
@@ -366,7 +366,7 @@ void ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 
 	if ((pl3->type == PPE_DRV_L3_IF_TYPE_PORT) && pp->port_l3_if_attached) {
 		ppe_drv_warn("%p: port(%d) is already attached to port type l3_if(%d): ", pp, pp->port, pl3->l3_if_index);
-		return;
+		return false;
 	}
 
 	/*
@@ -386,7 +386,7 @@ void ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 		if (err != SW_OK) {
 			ppe_drv_warn("%p port l3_if configuration failed: %p port_num: %u l3_if_num: %u",
 					pp, pl3, pp->port, pl3->l3_if_index);
-			return;
+			return false;
 		}
 
 		pp->port_l3_if_attached = true;
@@ -400,6 +400,7 @@ void ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 
 	ppe_drv_trace("%p: attaching l3_if %u to port %u", pp, pl3->l3_if_index, pp->port);
 	ppe_drv_port_dump(pp);
+	return true;
 }
 
 /*

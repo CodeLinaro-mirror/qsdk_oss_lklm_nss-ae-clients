@@ -208,6 +208,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->pppoe = ppe_drv_pppoe_entries_alloc();
+	if (!p->pppoe) {
+		ppe_drv_warn("%p: failed to allocate PPPoe entries", p);
+		goto fail;
+	}
+
 	/*
 	 * Initialize locks
 	 */
@@ -258,6 +264,11 @@ fail:
 		p->vsi = NULL;
 	}
 
+	if (p->pppoe) {
+		ppe_drv_pppoe_entries_free(p->pppoe);
+		p->pppoe = NULL;
+	}
+
 	return -1;
 }
 
@@ -286,6 +297,11 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->vsi) {
 		ppe_drv_vsi_entries_free(p->vsi);
 		p->vsi = NULL;
+	}
+
+	if (p->pppoe) {
+		ppe_drv_pppoe_entries_free(p->pppoe);
+		p->pppoe = NULL;
 	}
 
 	return 0;

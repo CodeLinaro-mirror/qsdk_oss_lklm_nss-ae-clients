@@ -374,6 +374,50 @@ struct ppe_drv_l3_if *ppe_drv_l3_if_alloc(enum ppe_drv_l3_if_type type)
 }
 
 /*
+ * ppe_drv_l3_if_pppoe_clear()
+ *	Clears pppoe session-id from the given L3 interface in PPE
+ */
+void ppe_drv_l3_if_pppoe_clear(struct ppe_drv_l3_if *l3_if)
+{
+	sw_error_t err = fal_pppoe_l3intf_enable(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, false);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Disabling pppoe failed for L3_IF %u", l3_if, l3_if->l3_if_index);
+		return;
+	}
+
+	/*
+	 * set session value in shadow table
+	 */
+	ppe_drv_pppoe_deref(l3_if->pppoe);
+	l3_if->pppoe = NULL;
+
+	ppe_drv_trace("%p: clearing pppoe on l3_if:%u", l3_if, l3_if->l3_if_index);
+	ppe_drv_l3_if_dump(l3_if);
+}
+
+/*
+ * ppe_drv_l3_if_pppoe_set()
+ *	Programs the given pppoe session-id to L3 interface in PPE
+ */
+bool ppe_drv_l3_if_pppoe_set(struct ppe_drv_l3_if *l3_if, struct ppe_drv_pppoe *pppoe)
+{
+	sw_error_t err = fal_pppoe_l3intf_enable(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, true);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Enabling L3_IF failed for l3_if %u", l3_if, l3_if->l3_if_index);
+		return false;
+	}
+
+	/*
+	 * set session value in shadow table
+	 */
+	l3_if->pppoe = ppe_drv_pppoe_ref(pppoe);
+
+	ppe_drv_trace("%p: setting pppoe:%p for l3_if:%u", l3_if, pppoe, l3_if->l3_if_index);
+	ppe_drv_l3_if_dump(l3_if);
+	return true;
+}
+
+/*
  * ppe_drv_l3_if_pppoe_get()
  *	Returns the pppoe associated to L3 interface in PPE
  */
@@ -383,13 +427,26 @@ struct ppe_drv_pppoe *ppe_drv_l3_if_pppoe_get(struct ppe_drv_l3_if *l3_if)
 }
 
 /*
- * ppe_drv_l3_if_match_pppoe()
+ * ppe_drv_l3_if_pppoe_match()
  *	Match pppoe session-id and smac in l3 interface
  */
-bool ppe_drv_l3_if_match_pppoe(struct ppe_drv_l3_if *l3_if, uint16_t session_id, uint8_t *smac)
+bool ppe_drv_l3_if_pppoe_match(struct ppe_drv_l3_if *l3_if, uint16_t session_id, uint8_t *smac)
 {
-	/* TODO: Will be implemented with addition of PPPoe table */
-	return true;
+	struct ppe_drv_l3_if *pppoe_l3_if;
+
+	if (!kref_read(&l3_if->ref)) {
+		ppe_drv_warn("%p: unused l3_if %d for session_id %d", l3_if, l3_if->l3_if_index, session_id);
+		return false;
+	}
+
+	pppoe_l3_if = ppe_drv_pppoe_find_l3_if(session_id, smac);
+	if (!pppoe_l3_if) {
+		ppe_drv_info("%p: no pppoe l3_if found corresponding to session_id: %d for mac: %pM", l3_if, session_id, smac);
+		return false;
+	}
+
+	ppe_drv_trace("%p: pppoe l3_if found corresponding to session_id: %d for mac: %pM", l3_if, session_id, smac);
+	return (l3_if == pppoe_l3_if);
 }
 
 /*

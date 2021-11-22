@@ -54,7 +54,8 @@ bool ppe_drv_l3_if_mac_addr_clear(struct ppe_drv_l3_if *l3_if);
 
 struct ppe_drv_pppoe *ppe_drv_l3_if_pppoe_get(struct ppe_drv_l3_if *l3_if);
 void ppe_drv_l3_if_pppoe_clear(struct ppe_drv_l3_if *l3_if);
-bool ppe_drv_l3_if_match_pppoe(struct ppe_drv_l3_if *l3_if, uint16_t session_id, uint8_t *smac);
+bool ppe_drv_l3_if_pppoe_match(struct ppe_drv_l3_if *l3_if, uint16_t session_id, uint8_t *smac);
+bool ppe_drv_l3_if_pppoe_set(struct ppe_drv_l3_if *l3_if, struct ppe_drv_pppoe *pppoe);
 
 struct ppe_drv_l3_if *ppe_drv_l3_if_alloc(enum ppe_drv_l3_if_type type);
 struct ppe_drv_l3_if *ppe_drv_l3_if_ref(struct ppe_drv_l3_if *l3_if);

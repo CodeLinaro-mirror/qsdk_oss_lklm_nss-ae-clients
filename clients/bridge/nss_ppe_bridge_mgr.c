@@ -30,8 +30,8 @@
 #include <linux/netdevice.h>
 #include <net/bonding.h>
 #include <fal/fal_fdb.h>
-#include <nss_ppe_vlan_mgr.h>
 #include <ppe_drv_public.h>
+#include <nss_ppe_vlan_mgr.h>
 #include "nss_ppe_bridge_mgr.h"
 
 #if defined(NSS_BRIDGE_MGR_OVS_ENABLE)
@@ -1014,9 +1014,8 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridg
 
 	/*
 	 * This is a valid vlan dev, remove the vlan dev from bridge.
-	 * TODO: Update VSI to IFACE when VLAN is ready
 	 */
-	if (nss_ppe_vlan_mgr_leave_bridge(dev, ppe_drv_iface_vsi_num_get(b_pvt->iface))) {
+	if (nss_ppe_vlan_mgr_leave_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to leave bridge\n", b_pvt);
 		return -1;
 	}
@@ -1031,7 +1030,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridg
 		 */
 		if (nss_ppe_bridge_mgr_bond_master_leave(real_dev, b_pvt) != NOTIFY_DONE) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s leave bridge failed\n", b_pvt, real_dev->name);
-			nss_ppe_vlan_mgr_join_bridge(dev, ppe_drv_iface_vsi_num_get(b_pvt->iface));
+			nss_ppe_vlan_mgr_join_bridge(dev, b_pvt->iface);
 			return -1;
 		}
 	}
@@ -1058,10 +1057,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridg
 		}
 	}
 
-	/*
-	 * TODO: Update VSI to IFACE when VLAN is ready
-	 */
-	if (nss_ppe_vlan_mgr_join_bridge(dev, ppe_drv_iface_vsi_num_get(b_pvt->iface))) {
+	if (nss_ppe_vlan_mgr_join_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to join bridge\n", b_pvt);
 	}
 
@@ -1136,7 +1132,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge
 	 * This is a valid vlan dev, add the vlan dev to bridge
 	 * TODO: Use temp API. Then update when VLAN is updated.
 	 */
-	if (nss_ppe_vlan_mgr_join_bridge(dev, ppe_drv_iface_vsi_num_get(b_pvt->iface))) {
+	if (nss_ppe_vlan_mgr_join_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to join bridge\n", b_pvt);
 		return -ENODEV;
 	}
@@ -1152,7 +1148,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge
 		 */
 		if (nss_ppe_bridge_mgr_bond_master_join(real_dev, b_pvt) != NOTIFY_DONE) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s join bridge failed\n", b_pvt, real_dev->name);
-			nss_ppe_vlan_mgr_leave_bridge(dev, ppe_drv_iface_vsi_num_get(b_pvt->iface));
+			nss_ppe_vlan_mgr_leave_bridge(dev, b_pvt->iface);
 			return -EINVAL;
 		}
 	}
@@ -1178,9 +1174,8 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge
 
 	/*
 	 * This is a valid vlan dev, add the vlan dev to bridge
-	 * TODO: Use temp API. Then update when VLAN is updated.
 	 */
-	if (nss_ppe_vlan_mgr_leave_bridge(dev, ppe_drv_iface_vsi_num_get(b_pvt->iface))) {
+	if (nss_ppe_vlan_mgr_leave_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to leave bridge\n", b_pvt);
 	}
 

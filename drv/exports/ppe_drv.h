@@ -29,6 +29,17 @@
 #include <linux/if_ether.h>
 #include "ppe_drv_iface.h"
 
+/*
+ * ppe_drv_ip_type
+ *	Types of IP addresses handled
+ */
+enum ppe_drv_ip_type {
+	PPE_DRV_IP_TYPE_V4,	/**< IPv4 unicast IP-type. */
+	PPE_DRV_IP_TYPE_V6,	/**< IPv6 unicast IP-type. */
+	PPE_DRV_IP_TYPE_MC_V4,	/**< IPv4 multicast IP-type. */
+	PPE_DRV_IP_TYPE_MC_V6	/**< IPv6 multicast IP-type. */
+};
+
 /**
  * ppe_drv_pppoe_session
  *	Information for PPPoE session.

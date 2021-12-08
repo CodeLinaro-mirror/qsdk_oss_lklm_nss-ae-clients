@@ -69,6 +69,7 @@ struct ppe_drv_gen_stats {
 	atomic64_t fail_rw_fifo_full;		/* Create req fail due to rw fifo full */
 	atomic64_t fail_flow_command;		/* Create req fail due to PPE flow command failure */
 	atomic64_t fail_unknown_proto;		/* Create req fail due to unknown protocol */
+	atomic64_t fail_query_unknown_proto;	/* Query fail due to unknown protocol */
 	atomic64_t fail_ppe_unresponsive;	/* Create req fail due to PPE not responding */
 	atomic64_t ce_opaque_invalid;		/* Request fail due to invalid opaque in CE */
 	atomic64_t fail_fqg_full;		/* Create req fail due to flow qos group full */

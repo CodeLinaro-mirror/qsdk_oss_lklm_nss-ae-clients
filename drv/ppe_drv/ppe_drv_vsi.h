@@ -59,6 +59,7 @@ struct ppe_drv_vsi {
 	struct ppe_drv_l3_if *l3_if;	/* Pointer to associated L3 interface */
 	struct ppe_drv_vsi_vlan vlan;	/* VLAN information for a given VSI */
 	struct kref ref;		/* Reference count */
+	bool is_fdb_learn_enabled;	/* FDB learning enabled */
 	uint8_t index;			/* vsi number */
 	uint8_t type;			/* vsi type */
 };

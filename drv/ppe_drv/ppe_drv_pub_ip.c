@@ -36,7 +36,7 @@ static void ppe_drv_pub_ip_dump(struct ppe_drv_pub_ip *pub_ip)
 		return;
 	}
 
-	ppe_drv_trace("%p: public ip address: %pl4", p, pub_ip_cfg.pub_ip_addr);
+	ppe_drv_trace("%p: public ip address: %pl4", p, &pub_ip_cfg.pub_ip_addr);
 }
 #else
 static void ppe_drv_pub_ip_dump(struct ppe_drv_pub_ip *pub_ip)

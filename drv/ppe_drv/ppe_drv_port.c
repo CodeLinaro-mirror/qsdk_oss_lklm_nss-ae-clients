@@ -802,6 +802,15 @@ bool ppe_drv_port_is_virtual(struct ppe_drv_port *pp)
 }
 
 /*
+ * ppe_drv_port_is_tunnel_vp()
+ *	Return true if port is a hardware tunnel vp
+ */
+bool ppe_drv_port_is_tunnel_vp(struct ppe_drv_port *pp)
+{
+	return pp->is_tunnel_vp;
+}
+
+/*
  * ppe_drv_port_num_to_dev()
  *	Get netdev from port number
  */

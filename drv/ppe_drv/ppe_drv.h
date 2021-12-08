@@ -17,14 +17,19 @@
 #include <linux/module.h>
 #include <ppe_drv_public.h>
 #include "ppe_drv_exception.h"
+#include "ppe_drv_flow.h"
+#include "ppe_drv_host.h"
 #include "ppe_drv_iface.h"
 #include "ppe_drv_l3_if.h"
+#include "ppe_drv_nexthop.h"
 #include "ppe_drv_port.h"
 #include "ppe_drv_pppoe.h"
 #include "ppe_drv_pub_ip.h"
 #include "ppe_drv_sc.h"
 #include "ppe_drv_stats.h"
 #include "ppe_drv_vsi.h"
+#include "ppe_drv_v4.h"
+
 
 /*
  * PPE debug macros
@@ -104,6 +109,15 @@
 #define PPE_DRV_JUMBO_MAX 9216
 
 /*
+ * ppe_drv_entry_valid
+ *	PPE entry validity
+ */
+enum ppe_drv_entry_valid {
+	PPE_DRV_ENTRY_INVALID,	/* Entry invalid. */
+	PPE_DRV_ENTRY_VALID,	/* Entry valid. */
+};
+
+/*
  * ppe_drv
  *	PPE DRV base structure
  */
@@ -148,8 +162,8 @@ struct ppe_drv {
 
 	struct dentry *dentry;				/* Debugfs entry */
 
-	struct list_head active_nexthop;		/* List of active nexthops */
-	struct list_head free_nexthop;			/* List of free nexthops */
+	struct list_head nh_active;			/* List of active nexthops */
+	struct list_head nh_free;			/* List of free nexthops */
 	struct kref ref;				/* Reference count */
 
 	/*

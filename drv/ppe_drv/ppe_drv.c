@@ -233,6 +233,24 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->nexthop = ppe_drv_nexthop_entries_alloc();
+	if (!p->nexthop) {
+		ppe_drv_warn("%p: failed to allocate nexthop entries", p);
+		goto fail;
+	}
+
+	p->host = ppe_drv_host_entries_alloc();
+	if (!p->host) {
+		ppe_drv_warn("%p: failed to allocate host entries", p);
+		goto fail;
+	}
+
+	p->flow = ppe_drv_flow_entries_alloc();
+	if (!p->flow) {
+		ppe_drv_warn("%p: failed to allocate flow entries", p);
+		goto fail;
+	}
+
 	ppe_drv_exception_init();
 
 	/*
@@ -252,11 +270,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	INIT_WORK(&p->sw_v4_stats, ppe_drv_sw_v4_stats_sync);
 	INIT_WORK(&p->sw_v6_stats, ppe_drv_sw_v6_stats_sync);
 
-	/*
-	 * Initialize list
-	 */
-	INIT_LIST_HEAD(&p->active_nexthop);
-	INIT_LIST_HEAD(&p->free_nexthop);
+	/* Initialize list */
 	INIT_LIST_HEAD(&p->conn_v4);
 	INIT_LIST_HEAD(&p->conn_v6);
 
@@ -303,6 +317,21 @@ fail:
 	if (p->iface) {
 		ppe_drv_iface_entries_free(p->iface);
 		p->iface = NULL;
+	}
+
+	if (p->nexthop) {
+		ppe_drv_nexthop_entries_free(p->nexthop);
+		p->nexthop = NULL;
+	}
+
+	if (p->host) {
+		ppe_drv_host_entries_free(p->host);
+		p->host = NULL;
+	}
+
+	if (p->flow) {
+		ppe_drv_flow_entries_free(p->flow);
+		p->flow = NULL;
 	}
 
 	return -1;
@@ -353,6 +382,21 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->iface) {
 		ppe_drv_iface_entries_free(p->iface);
 		p->iface = NULL;
+	}
+
+	if (p->nexthop) {
+		ppe_drv_nexthop_entries_free(p->nexthop);
+		p->nexthop = NULL;
+	}
+
+	if (p->host) {
+		ppe_drv_host_entries_free(p->host);
+		p->host = NULL;
+	}
+
+	if (p->flow) {
+		ppe_drv_flow_entries_free(p->flow);
+		p->flow = NULL;
 	}
 
 	return 0;

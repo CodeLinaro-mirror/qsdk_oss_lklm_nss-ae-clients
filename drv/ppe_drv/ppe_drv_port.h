@@ -43,6 +43,7 @@ struct ppe_drv_port {
 };
 
 bool ppe_drv_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id);
+bool ppe_drv_port_is_tunnel_vp(struct ppe_drv_port *pp);
 
 struct net_device *ppe_drv_port_to_dev(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_from_dev(struct net_device *dev);

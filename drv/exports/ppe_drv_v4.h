@@ -63,8 +63,8 @@ struct ppe_drv_v4_5tuple {
  *	Information for creating a connection.
  */
 struct ppe_drv_v4_connection_rule {
-	uint16_t flow_mac[3];		/**< Flow MAC address. */
-	uint16_t return_mac[3];		/**< Return MAC address. */
+	uint8_t flow_mac[ETH_ALEN];	/**< Flow MAC address. */
+	uint8_t return_mac[ETH_ALEN];	/**< Return MAC address. */
 	uint32_t flow_mtu;		/**< MTU for the flow interface. */
 	uint32_t return_mtu;		/**< MTU for the return interface. */
 	uint32_t flow_ip_xlate;		/**< Translated flow IP address. */

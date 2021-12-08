@@ -55,7 +55,7 @@ static void ppe_drv_pppoe_dump(struct ppe_drv_pppoe *pppoe)
 	ppe_drv_trace("%p: tl_l3_if_index: %u\n", pppoe, pppoe_cfg.tl_l3_if_index);
 	ppe_drv_trace("%p: tl_l3_if_valid: %u\n", pppoe, pppoe_cfg.tl_l3_if_valid);
 	ppe_drv_trace("%p: smac_valid: %u\n", pppoe, pppoe_cfg.smac_valid);
-	ppe_drv_trace("%p: mac_addr: %M\n", pppoe, pppoe_cfg.smac_addr.uc);
+	ppe_drv_trace("%p: mac_addr: %pM\n", pppoe, pppoe_cfg.smac_addr.uc);
 }
 #else
 static void ppe_drv_pppoe_dump(struct ppe_drv_pppoe *pppoe)

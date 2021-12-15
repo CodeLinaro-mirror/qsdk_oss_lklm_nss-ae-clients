@@ -618,6 +618,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	flow->flags |= PPE_DRV_FLOW_V4;
 	flow->type = PPE_DRV_IP_TYPE_V4;
 	flow->entry_type = flow_cfg.entry_type;
+	flow->pcf.v4 = pcf;
 	ppe_drv_trace("%p: flow_tbl entry added at index: %u", pcf, flow_cfg.entry_id);
 	return flow;
 }

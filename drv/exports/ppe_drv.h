@@ -121,6 +121,7 @@ enum ppe_drv_stats_sync_reason {
 typedef enum ppe_drv_ret {
 	PPE_DRV_RET_SUCCESS = 0,			/**< Success */
 	PPE_DRV_RET_IFACE_INVALID,			/**< Failure due to Invalid PPE interface */
+	PPE_DRV_RET_FAILURE_NOT_SUPPORTED,		/**< Failure due to unsupported feature */
 	PPE_DRV_RET_FAILURE_NO_RESOURCE,		/**< Failure due to out of resource */
 	PPE_DRV_RET_FAILURE_INVALID_PARAM,		/**< Failure due to invalid parameter */
 	PPE_DRV_RET_PORT_NOT_FOUND,			/**< Port not found */
@@ -149,6 +150,16 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_EGRESS_VLAN_FAIL,			/**< Egress vlan configuration failed */
 	PPE_DRV_RET_VLAN_INGRESS_DEL_FAIL,		/**< Ingress vlan deletion configuration failed */
 	PPE_DRV_RET_VLAN_EGRESS_DEL_FAIL,		/**< Egress vlan deletion configuration failed */
+	PPE_DRV_RET_FAILURE_INVALID_HIERARCHY,		/**< Failure due to invalid hierarchy */
+	PPE_DRV_RET_FAILURE_SNAT_DNAT_SIMUL,		/**< Failure due to both snat and dnat requested */
+	PPE_DRV_RET_FAILURE_NOT_BRIDGE_SLAVES,		/**< Failure due to from and to interfaces not in same bridge */
+	PPE_DRV_RET_FAILURE_IFACE_PORT_MAP,
+	PPE_DRV_RET_FAILURE_CREATE_COLLISSION,		/**< Failure due to create collision */
+	PPE_DRV_RET_FAILURE_CREATE_OOM,			/**< Failure due to memory allocation failed */
+	PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL,		/**< Failure due to flow addition failed in hardware */
+	PPE_DRV_RET_FAILURE_DESTROY_NO_CONN,		/**< Failure due to connection not found in hardware */
+	PPE_DRV_RET_FAILURE_DESTROY_FAIL,		/**< Failure due to connection not found in hardware */
+	PPE_DRV_RET_FAILURE_BRIDGE_NAT,			/**< Failure due to Bridge + NAT flows */
 } ppe_drv_ret_t;
 
 /** @} */ /* end_addtogroup ppe_drv_subsystem */

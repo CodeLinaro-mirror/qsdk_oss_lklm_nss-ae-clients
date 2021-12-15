@@ -27,7 +27,7 @@
 					/* DSCP Marking Flag if IP DSCP value is to be changed */
 #define PPE_DRV_V4_CONN_FLOW_FLAG_VLAN_PRI_MARKING 0x00000010
 					/* Flow needs 802.1p marking */
-#define PPE_DRV_V4_CONN_FLOW_FLAG_PPPOE 0x00000020
+#define PPE_DRV_V4_CONN_FLOW_FLAG_PPPOE_FLOW 0x00000020
 					/* Flow is a PPPoE flow */
 #define PPE_DRV_V4_CONN_FLOW_FLAG_QOS_VALID 0x00000040
 					/* QoS valid */

@@ -28,33 +28,33 @@
  *	Message structure for ppe general stats
  */
 struct ppe_drv_gen_stats {
-	atomic64_t v4_l3_flows;			/* No of v4 routed flows */
-	atomic64_t v4_l2_flows;			/* No of v4 bridge flows */
-	atomic64_t v4_create_req;		/* No of v4 create requests */
-	atomic64_t v4_create_fail;		/* No of v4 create failure */
-	atomic64_t v4_destroy_req;		/* No of v4 delete requests */
-	atomic64_t v4_destroy_fail;		/* No of v4 delete failure */
-	atomic64_t v4_mc_create_req;		/* No of v4 MC create requests */
-	atomic64_t v4_mc_create_fail;		/* No of v4 MC create failure */
-	atomic64_t v4_mc_update_req;		/* No of v4 MC update requests */
-	atomic64_t v4_mc_update_fail;		/* No of v4 MC update failure */
-	atomic64_t v4_mc_destroy_req;		/* No of v4 MC delete requests */
-	atomic64_t v4_mc_destroy_fail;		/* No of v4 MC delete failure */
-	atomic64_t v4_unknown_interface;	/* No of v4 create failure due to invalid IF */
+        atomic64_t v4_l3_flows;			/* No of v4 routed flows */
+        atomic64_t v4_l2_flows;			/* No of v4 bridge flows */
+        atomic64_t v4_create_req;		/* No of v4 create requests */
+        atomic64_t v4_create_fail;		/* No of v4 create failure */
+        atomic64_t v4_destroy_req;		/* No of v4 delete requests */
+        atomic64_t v4_destroy_fail;		/* No of v4 delete failure */
+	atomic64_t v4_destroy_conn_not_found;	/* No of v4 delete failure due to connection not found */
+	atomic64_t v4_create_fail_mem;			/* No of v4 create failure due to OOM */
+	atomic64_t v4_create_fail_conn;			/* No of v4 create failure due to invalid parameters */
+	atomic64_t v4_create_fail_collision;		/* No of v4 create failure due to connection already exist */
+	atomic64_t v4_unknown_interface;		/* No of v4 create failure due to invalid IF */
+	atomic64_t v4_create_fail_invalid_rx_if;	/* No of v4 create failure due to invalid Rx IF */
+	atomic64_t v4_create_fail_invalid_tx_if;	/* No of v4 create failure due to invalid Tx IF */
+	atomic64_t v4_create_fail_invalid_rx_port;	/* No of v4 create failure due to invalid Rx Port */
+	atomic64_t v4_create_fail_invalid_tx_port;	/* No of v4 create failure due to invalid Tx Port */
+	atomic64_t v4_create_fail_bridge_nat;		/* No of v4 create failure due to NAT with bridge flow */
+	atomic64_t v4_create_fail_snat_dnat;		/* No of v4 create failure due to both SNAT and DNAT is requested */
+	atomic64_t v4_create_fail_if_hierarchy;		/* No of v4 create failure due to interface hierarchy walk fail */
+	atomic64_t v4_create_fail_vlan_filter;		/* No of v4 create failure due to interface not in bridge */
 
-	atomic64_t v6_l3_flows;			/* No of v6 routed flows */
-	atomic64_t v6_l2_flows;			/* No of v6 bridge flows */
-	atomic64_t v6_create_req;		/* No of v6 create requests */
-	atomic64_t v6_create_fail;		/* No of v6 create failure */
-	atomic64_t v6_destroy_req;		/* No of v6 delete requests */
-	atomic64_t v6_destroy_fail;		/* No of v6 delete failure */
-	atomic64_t v6_mc_create_req;		/* No of v6 MC create requests */
-	atomic64_t v6_mc_create_fail;		/* No of v6 MC create failure */
-	atomic64_t v6_mc_update_req;		/* No of v6 MC update requests */
-	atomic64_t v6_mc_update_fail;		/* No of v6 MC update failure */
-	atomic64_t v6_mc_destroy_req;		/* No of v6 MC delete requests */
-	atomic64_t v6_mc_destroy_fail;		/* No of v6 MC delete failure */
-	atomic64_t v6_unknown_interface;	/* No of v6 create failure due to invalid IF */
+        atomic64_t v6_l3_flows;			/* No of v6 routed flows */
+        atomic64_t v6_l2_flows;			/* No of v6 bridge flows */
+        atomic64_t v6_create_req;		/* No of v6 create requests */
+        atomic64_t v6_create_fail;		/* No of v6 create failure */
+        atomic64_t v6_destroy_req;		/* No of v6 delete requests */
+        atomic64_t v6_destroy_fail;		/* No of v6 delete failure */
+        atomic64_t v6_unknown_interface;	/* No of v6 create failure due to invalid IF */
 
 	atomic64_t fail_vp_full;		/* Create req fail due to VP table full */
         atomic64_t fail_pp_full;		/* Create req fail due to physical port table full */

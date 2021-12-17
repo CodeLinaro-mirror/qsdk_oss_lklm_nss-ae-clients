@@ -15,8 +15,8 @@
  */
 
 #define PPE_DRV_PORT_SRC_PROFILE_MAX	4	/* Source profile for a port can be between 0-3 */
-#define NSS_PPE_PHY_PORT_CHK(n) ((n) >= PPE_DRV_PHYSICAL_START && (n) < PPE_DRV_PHYSICAL_MAX)
-#define NSS_PPE_VIRTUAL_PORT_CHK(n) ((n) >= PPE_DRV_VIRTUAL_START && (n) < PPE_DRV_PORTS_MAX)
+#define PPE_DRV_PHY_PORT_CHK(n) ((n) >= PPE_DRV_PHYSICAL_START && (n) < PPE_DRV_PHYSICAL_MAX)
+#define PPE_DRV_VIRTUAL_PORT_CHK(n) ((n) >= PPE_DRV_VIRTUAL_START && (n) < PPE_DRV_PORTS_MAX)
 
 /*
  * ppe_drv_port
@@ -67,6 +67,7 @@ void ppe_drv_port_vsi_attach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi);
 
 bool ppe_drv_port_deref(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_ref(struct ppe_drv_port *pp);
+struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev, bool is_tunnel_vp);
 struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device *dev);
 
 void ppe_drv_port_entries_free(struct ppe_drv_port *port);

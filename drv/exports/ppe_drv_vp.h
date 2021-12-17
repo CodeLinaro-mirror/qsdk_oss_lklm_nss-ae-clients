@@ -14,24 +14,47 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef _PPE_DRV_PUBLIC_H_
-#define _PPE_DRV_PUBLIC_H_
-
 /**
- * @file ppe_drv_public.h
- *	NSS PPE Public definitions.
+ * @file ppe_drv_vp.h
+ *	NSS PPE VP definitions.
  */
 
-#include "ppe_drv.h"
-#include "ppe_drv_br.h"
-#include "ppe_drv_dp.h"
-#include "ppe_drv_iface.h"
-#include "ppe_drv_lag.h"
-#include "ppe_drv_port.h"
-#include "ppe_drv_sc.h"
-#include "ppe_drv_v4.h"
-#include "ppe_drv_v6.h"
-#include "ppe_drv_vlan.h"
-#include "ppe_drv_vp.h"
+#ifndef _PPE_DRV_VP_H_
+#define _PPE_DRV_VP_H_
 
-#endif /* _PPE_DRV_PUBLIC_H_ */
+/**
+ * @addtogroup ppe_drv_vp_subsystem
+ * @{
+ */
+
+/**
+ * ppe_drv_vp_deinit
+ *	Uninitialize a virutal port in PPE.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface   Pointer to the interface object.
+ *
+ * @return
+ * Status of the de-init operation.
+ */
+ppe_drv_ret_t ppe_drv_vp_deinit(struct ppe_drv_iface *iface);
+
+/**
+ * ppe_drv_vp_init
+ *	Initialize a virtual port in PPE.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface   Pointer to the interface object.
+ *
+ * @return
+ * Status of the initialization operation.
+ */
+ppe_drv_ret_t ppe_drv_vp_init(struct ppe_drv_iface *iface);
+
+/** @} */ /* end_addtogroup ppe_drv_vp_subsystem */
+
+#endif /* _PPE_DRV_VP_H_ */

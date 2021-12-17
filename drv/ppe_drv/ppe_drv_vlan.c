@@ -68,7 +68,7 @@ ppe_drv_ret_t ppe_drv_vlan_port_role_set(struct ppe_drv_iface *iface, uint32_t p
 	fal_port_t fal_port;
 
 	spin_lock_bh(&p->lock);
-	fal_port = NSS_PPE_VIRTUAL_PORT_CHK(port_id) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, port_id)
+	fal_port = PPE_DRV_VIRTUAL_PORT_CHK(port_id) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, port_id)
 			: FAL_PORT_ID(FAL_PORT_TYPE_PPORT, port_id);
 
 	if (fal_port_qinq_mode_set(PPE_DRV_SWITCH_ID, fal_port, mode) != SW_OK) {
@@ -117,7 +117,7 @@ ppe_drv_ret_t ppe_drv_vlan_del_xlate_rule(struct ppe_drv_iface *iface, struct pp
 	/*
 	 * Delete old ingress vlan translation rule
 	 */
-	fal_port = NSS_PPE_VIRTUAL_PORT_CHK(info->port_id) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, info->port_id)
+	fal_port = PPE_DRV_VIRTUAL_PORT_CHK(info->port_id) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, info->port_id)
 			: FAL_PORT_ID(FAL_PORT_TYPE_PPORT, info->port_id);
 
 
@@ -199,7 +199,7 @@ ppe_drv_ret_t ppe_drv_vlan_add_xlate_rule(struct ppe_drv_iface *iface, struct pp
 
 	vsi_idx = vsi->index;
 
-	fal_port = NSS_PPE_VIRTUAL_PORT_CHK(info->port_id) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, info->port_id)
+	fal_port = PPE_DRV_VIRTUAL_PORT_CHK(info->port_id) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, info->port_id)
 			: FAL_PORT_ID(FAL_PORT_TYPE_PPORT, info->port_id);
 
 	/*

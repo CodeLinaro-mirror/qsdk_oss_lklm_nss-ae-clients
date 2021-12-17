@@ -148,12 +148,15 @@ ppe_drv_ret_t ppe_drv_br_stp_state_set(struct ppe_drv_iface *br_iface, struct ne
 	}
 
 	/*
-	 * Set STP state to forwarding after bond physical port leaves bridge
+	 * Set STP state to forwarding after port leaves bridge
+	 * Note: PPE support STP only on physical port.
 	 */
-	if (fal_stp_port_state_set(PPE_DRV_SWITCH_ID, PPE_DRV_BR_SPANNING_TREE_ID, pp->port, state) != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p: failed to set STA state: %u for port: %u", br_iface, state, pp->port);
-		return PPE_DRV_RET_STP_STATE_FAIL;
+	if (PPE_DRV_PHY_PORT_CHK(pp->port)) {
+		if (fal_stp_port_state_set(PPE_DRV_SWITCH_ID, PPE_DRV_BR_SPANNING_TREE_ID, pp->port, state) != SW_OK) {
+			spin_unlock_bh(&p->lock);
+			ppe_drv_warn("%p: failed to set STA state: %u for port: %u", br_iface, state, pp->port);
+			return PPE_DRV_RET_STP_STATE_FAIL;
+		}
 	}
 
 	spin_unlock_bh(&p->lock);

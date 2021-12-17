@@ -1114,7 +1114,7 @@ bool ppe_drv_port_src_profile_set(struct ppe_drv_port *pp, uint8_t src_profile)
  * ppe_drv_port_alloc()
  *	Create a new physical port in PPE.
  */
-struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev)
+struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev, bool is_tunnel_vp)
 {
 	uint32_t port;
 	sw_error_t err;
@@ -1203,11 +1203,19 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 
 	/*
 	 * Set VP type as normal VP.
-	 *
-	 * TODO: Add check and set type for tunnel VP.
 	 */
-	vp_state.vp_type = FAL_VPORT_TYPE_NORMAL;
-	vp_state.vp_active = true;
+	if (is_tunnel_vp) {
+		vp_state.vp_type = FAL_VPORT_TYPE_TUNNEL;
+		vp_state.check_en = true;
+		vp_state.vp_active = false;
+		vp_state.eg_data_valid = false;
+	} else {
+		vp_state.vp_type = FAL_VPORT_TYPE_NORMAL;
+		vp_state.check_en = false;
+		vp_state.vp_active = true;
+		vp_state.eg_data_valid = false;
+	}
+
 	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, port, &vp_state);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure state check for port: %u", p, pp->port);
@@ -1260,6 +1268,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	pp->port_l3_if = NULL;
 	pp->dev = dev;
 	pp->type = type;
+	pp->is_tunnel_vp = is_tunnel_vp;
 	INIT_LIST_HEAD(&pp->l3_list);
 
 	ppe_drv_info("%p: allocated ppe port:%u for dev(%s): %p", pp, port, netdev_name(dev), dev);

@@ -35,39 +35,6 @@
 					/* Inline IPSec flow */
 
 /*
- * Maximum VLAN depth supported by PPE.
- */
-#define PPE_DRV_MAX_VLAN 2
-
-/*
- * VLAN macros
- */
-#define PPE_DRV_VLAN_NOT_CONFIGURED	0xFFF
-#define PPE_DRV_VLAN_ID_MASK		0xFFF
-#define PPE_DRV_VLAN_TPID_MASK		0xFFFF0000
-#define PPE_DRV_VLAN_TCI_MASK		0xFFFF
-#define PPE_DRV_VLAN_PRIORITY_MASK	0xE000
-#define PPE_DRV_VLAN_PRIORITY_SHIFT	13
-
-/*
- * ppe_drv_vlan_type
- *	PPE VLAN tag flag
- */
-enum ppe_drv_vlan_type {
-	PPE_DRV_VLAN_UNTAGGED,	/* Untagged VLAN */
-	PPE_DRV_VLAN_TAGGED	/* Tagged VLAN */
-};
-
-/*
- * ppe_drv_vlan
- *	VLAN information
- */
-struct ppe_drv_vlan {
-	uint16_t tpid;		/* TPID in VLAN header */
-	uint16_t tci;		/* TCI in VLAN header */
-};
-
-/*
  * ppe_drv_v4_conn_flow
  *	Structure for individual flow direction
  */

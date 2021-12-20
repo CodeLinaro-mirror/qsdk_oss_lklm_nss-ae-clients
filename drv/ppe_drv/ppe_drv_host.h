@@ -39,6 +39,7 @@ void ppe_drv_host_dump(struct ppe_drv_host *host);
 bool ppe_drv_host_deref(struct ppe_drv_host *host);
 struct ppe_drv_host *ppe_drv_host_ref(struct ppe_drv_host *host);
 struct ppe_drv_host *ppe_drv_host_v4_add(struct ppe_drv_v4_conn_flow *pcf);
+struct ppe_drv_host *ppe_drv_host_v6_add(struct ppe_drv_v6_conn_flow *pcf);
 
 void ppe_drv_host_entries_free(struct ppe_drv_host *host);
 struct ppe_drv_host *ppe_drv_host_entries_alloc(void);

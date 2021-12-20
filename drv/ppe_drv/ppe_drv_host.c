@@ -73,6 +73,46 @@ static void ppe_drv_host_delete(struct kref *kref)
 }
 
 /*
+ * ppe_drv_host_v6_add()
+ *	Add host tbl entry.
+ */
+struct ppe_drv_host *ppe_drv_host_v6_add(struct ppe_drv_v6_conn_flow *pcf)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	fal_host_entry_t host_cfg = {0};
+	struct ppe_drv_host *host;
+	uint32_t addr[4];
+	sw_error_t err;
+
+	ppe_drv_v6_conn_flow_match_src_ip_get(pcf, addr);
+	memcpy(host_cfg.ip6_addr.ul, addr, sizeof(addr));
+	host_cfg.flags = FAL_IP_IP6_ADDR;
+	host_cfg.action = FAL_MAC_FRWRD;
+	host_cfg.lan_wan = PPE_DRV_HOST_LAN;
+	host_cfg.status = PPE_DRV_ENTRY_VALID;
+	err = fal_ip_host_add(PPE_DRV_SWITCH_ID, &host_cfg);
+	if (err != SW_OK) {
+		ppe_drv_stats_inc(&p->stats.gen_stats.v6_host_add_fail);
+		ppe_drv_warn("%p, host entry addition failed for IP: %pI6", pcf, &host_cfg.ip6_addr);
+		return NULL;
+	}
+
+	/*
+	 * retrieve host index
+	 */
+	host = &p->host[host_cfg.entry_id];
+
+	if (!kref_read(&host->ref)) {
+		kref_init(&host->ref);
+		host->type = PPE_DRV_IP_TYPE_V6;
+	} else {
+		ppe_drv_host_ref(host);
+	}
+
+	return host;
+}
+
+/*
  * ppe_drv_host_v4_add()
  *	Add host tbl entry.
  */
@@ -91,9 +131,7 @@ struct ppe_drv_host *ppe_drv_host_v4_add(struct ppe_drv_v4_conn_flow *pcf)
 
 	err = fal_ip_host_add(PPE_DRV_SWITCH_ID, &host_cfg);
 	if (err != SW_OK) {
-		/*
-		 * TODO add stats
-		 */
+		ppe_drv_stats_inc(&p->stats.gen_stats.v4_host_add_fail);
 		ppe_drv_warn("%p, host entry addition failed for IP: %pI4", pcf, &host_cfg.ip4_addr);
 		return NULL;
 	}

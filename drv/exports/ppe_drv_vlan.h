@@ -18,15 +18,35 @@
 
 struct ppe_drv_iface;
 
+#define PPE_DRV_MAX_VLAN 2
+
+/*
+ * ppe_drv_vlan_type
+ *	Flag indicating packet is vlan tagged or untagged.
+ */
+enum ppe_drv_vlan_type {
+	PPE_DRV_VLAN_UNTAGGED,	/**< VLAN untagged. */
+	PPE_DRV_VLAN_TAGGED	/**< VLAN tagged. */
+};
+
+/*
+ * ppe_drv_vlan
+ *	VLAN information
+ */
+struct ppe_drv_vlan {
+	uint16_t tpid;		/**< TPID in VLAN header. */
+	uint16_t tci;		/**< TCI in VLAN header. */
+};
+
 /*
  * ppe_drv_vlan_xlate_info()
  *	VLAN translation info
  */
 struct ppe_drv_vlan_xlate_info {
-	struct ppe_drv_iface *br;				/* Bridge PPE interface */
-	uint32_t port_id;					/* Port-ID */
-	uint32_t cvid;						/* CVID to program in XLATE tables */
-	uint32_t svid;						/* SVID to program in XLATE tables */
+	struct ppe_drv_iface *br;				/**< Bridge PPE interface */
+	uint32_t port_id;					/**< Port-ID */
+	uint32_t cvid;						/**< CVID to program in XLATE tables */
+	uint32_t svid;						/**< SVID to program in XLATE tables */
 };
 
 /**

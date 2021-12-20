@@ -45,6 +45,7 @@ struct ppe_drv_nexthop {
 void ppe_drv_nexthop_dump(struct ppe_drv_nexthop *nh);
 bool ppe_drv_nexthop_deref(struct ppe_drv_nexthop *nh);
 struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_flow *pcf);
+struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_flow *pcf);
 
 void ppe_drv_nexthop_entries_free(struct ppe_drv_nexthop *nexthop);
 struct ppe_drv_nexthop *ppe_drv_nexthop_entries_alloc(void);

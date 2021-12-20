@@ -29,7 +29,7 @@
 #include "ppe_drv_stats.h"
 #include "ppe_drv_vsi.h"
 #include "ppe_drv_v4.h"
-
+#include "ppe_drv_v6.h"
 
 /*
  * PPE debug macros
@@ -107,6 +107,16 @@
 
 #define PPE_DRV_IFACE_MAX 256
 #define PPE_DRV_JUMBO_MAX 9216
+
+/*
+ * VLAN macros
+ */
+#define PPE_DRV_VLAN_NOT_CONFIGURED	0xFFF
+#define PPE_DRV_VLAN_ID_MASK		0xFFF
+#define PPE_DRV_VLAN_TPID_MASK		0xFFFF0000
+#define PPE_DRV_VLAN_TCI_MASK		0xFFFF
+#define PPE_DRV_VLAN_PRIORITY_MASK	0xE000
+#define PPE_DRV_VLAN_PRIORITY_SHIFT	13
 
 /*
  * ppe_drv_entry_valid

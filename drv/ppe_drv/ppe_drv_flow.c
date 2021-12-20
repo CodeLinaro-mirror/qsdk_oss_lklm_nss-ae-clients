@@ -15,6 +15,7 @@
  */
 
 #include <linux/in.h>
+#include <net/ipv6.h>
 #include <linux/netdevice.h>
 #include <fal/fal_flow.h>
 #include <fal/fal_qos.h>
@@ -154,6 +155,418 @@ void ppe_drv_flow_stats_update(struct ppe_drv_flow *pf)
 	pf->bytes = flow_cntrs.matched_bytes;
 
 	ppe_drv_trace("%p: updating stats for flow [index:%u] - curr pkt:%u byte:%llu", pf, pf->index, pf->pkts, pf->bytes);
+}
+
+/*
+ * ppe_drv_flow_v6_qos_set()
+ *	Set QOS mapping for this flow.
+ */
+bool ppe_drv_flow_v6_qos_set(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_flow *flow)
+{
+	sw_error_t err;
+	fal_qos_cosmap_t qos_cfg = {0};
+
+	/*
+	 * TODO: to be filled later.
+	 */
+	err = fal_qos_cosmap_flow_set(PPE_DRV_SWITCH_ID, 0, flow->index, &qos_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p qos mapping configuration failed for flow: %p", pcf, flow);
+		return false;
+	}
+
+	ppe_drv_trace("%p qos mapping configuration done for flow: %p", pcf, flow);
+	return true;
+}
+
+/*
+ * ppe_drv_flow_v6_qos_clear()
+ *	Return service code required for this flow.
+ */
+bool ppe_drv_flow_v6_qos_clear(struct ppe_drv_flow *pf)
+{
+	sw_error_t err;
+	fal_qos_cosmap_t qos_cfg = {0};
+
+	err = fal_qos_cosmap_flow_set(PPE_DRV_SWITCH_ID, 0, pf->index, &qos_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p qos mapping configuration failed for flow", pf);
+		return false;
+	}
+
+	ppe_drv_trace("%p qos mapping configuration done for flow", pf);
+	return true;
+}
+
+/*
+ * ppe_drv_flow_v6_tree_id_get()
+ *	Find the tree ID associated with a flow
+ */
+static bool ppe_drv_flow_v6_tree_id_get(struct ppe_drv_v6_conn_flow *pcf, uint32_t *tree_id)
+{
+	/*
+	 * TODO: to be added later.
+	 */
+	*tree_id = 0;
+	return true;
+}
+
+/*
+ * ppe_drv_flow_v6_vpn_id_get()
+ *	Find the tree ID associated with a flow
+ */
+static bool ppe_drv_flow_v6_vpn_id_get(struct ppe_drv_v6_conn_flow *pcf, uint32_t *vpn_id)
+{
+	/*
+	 * TODO: to be added later.
+	 */
+	*vpn_id = 0;
+	return true;
+}
+
+/*
+ * ppe_drv_flow_v6_wifi_qos_get()
+ *	Find the WIFI QOS associated with a flow
+ */
+static bool ppe_drv_flow_v6_wifi_qos_get(struct ppe_drv_v6_conn_flow *pcf, uint32_t *wifi_qos, bool *wifi_qos_en)
+{
+	/*
+	 * TODO: to be added later.
+	 */
+	*wifi_qos = 0;
+	*wifi_qos_en = false;
+	return true;
+}
+
+/*
+ * ppe_drv_flow_v6_service_code_get()
+ *	Return service code required for this flow.
+ */
+bool ppe_drv_flow_v6_service_code_get(struct ppe_drv_v6_conn_flow *pcf, uint8_t *scp)
+{
+	ppe_drv_sc_t service_code = *scp;
+
+	/*
+	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_VLAN_FILTER_BYPASS)) {
+			ppe_drv_warn("%p: flow requires multiple service codes existing:%u new:%u",
+					pcf, service_code, PPE_DRV_SC_VLAN_FILTER_BYPASS);
+			return false;
+		}
+	}
+
+	/*
+	 * SC required to accelerate inline EIP flows.
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_INLINE_IPSEC)) {
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_IPSEC_PPE2EIP)) {
+			ppe_drv_warn("%p: flow requires multiple service codes existing:%u new:%u",
+					pcf, service_code, PPE_DRV_SC_IPSEC_PPE2EIP);
+			return false;
+		}
+	}
+
+	*scp = service_code;
+	return true;
+}
+
+/*
+ * ppe_drv_flow_v6_get()
+ *	Find flow table entry.
+ */
+struct ppe_drv_flow *ppe_drv_flow_v6_get(struct ppe_drv_v6_5tuple *tuple)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	fal_flow_host_entry_t flow_host = {0};
+	fal_flow_entry_t *flow_cfg = &flow_host.flow_entry;
+	fal_host_entry_t *host_cfg = &flow_host.host_entry;
+	uint8_t protocol = tuple->protocol;
+	struct ppe_drv_flow *flow;
+	bool tuple_3 = false;
+	sw_error_t err;
+
+	/*
+	 * Fill host entry.
+	 */
+	memcpy(host_cfg->ip6_addr.ul, tuple->flow_ip, sizeof(tuple->flow_ip));
+	host_cfg->flags = FAL_IP_IP6_ADDR;
+
+	/*
+	 * Fill relevant details for 3-tuple and 5-tuple flows.
+	 */
+	if (protocol == IPPROTO_TCP) {
+		flow_cfg->protocol = FAL_FLOW_PROTOCOL_TCP;
+		ppe_drv_trace("%p: flow_tbl[protocol]: TCP-%u", tuple, FAL_FLOW_PROTOCOL_TCP);
+	} else if (protocol == IPPROTO_UDP) {
+		flow_cfg->protocol = FAL_FLOW_PROTOCOL_UDP;
+		ppe_drv_trace("%p: flow_tbl[protocol]: UDP-%u", tuple, FAL_FLOW_PROTOCOL_UDP);
+	} else if (protocol == IPPROTO_UDPLITE) {
+		flow_cfg->protocol = FAL_FLOW_PROTOCOL_UDPLITE;
+		ppe_drv_trace("%p: flow_tbl[protocol]: UDP-Lite-%u", tuple, FAL_FLOW_PROTOCOL_UDPLITE);
+	} else if (protocol == IPPROTO_ESP) {
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
+	} else if (protocol == IPPROTO_IPV6) {
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
+	} else {
+		ppe_drv_stats_inc(&p->stats.gen_stats.fail_query_unknown_proto);
+		ppe_drv_warn("%p: protocol: %u incorrect for PPE", tuple, protocol);
+		return NULL;
+	}
+
+	memcpy(flow_cfg->flow_ip.ipv6.ul, tuple->return_ip, sizeof(tuple->return_ip));
+
+	ppe_drv_trace("%p: flow_tbl[dest_ip]: %pI6", tuple, &tuple->return_ip);
+	if (tuple_3) {
+		flow_cfg->entry_type = FAL_FLOW_IP6_3TUPLE_ADDR;
+		flow_cfg->protocol = FAL_FLOW_PROTOCOL_OTHER;
+		flow_cfg->ip_type = protocol;
+		ppe_drv_trace("%p: flow_tbl[ip_proto]: 0x%x", tuple, protocol);
+	} else {
+		flow_cfg->entry_type = FAL_FLOW_IP6_5TUPLE_ADDR;
+
+		flow_cfg->src_port = tuple->flow_ident;
+		flow_cfg->dst_port = tuple->return_ident;
+
+		ppe_drv_trace("%p: flow_tbl[sport]: %u", tuple, flow_cfg->src_port);
+		ppe_drv_trace("%p: flow_tbl[dport]: %u", tuple, flow_cfg->dst_port);
+
+	}
+
+	/*
+	 * query hardware
+	 */
+	err = fal_flow_host_get(PPE_DRV_SWITCH_ID, FAL_FLOW_OP_MODE_KEY, &flow_host);
+	if (err != SW_OK) {
+		ppe_drv_trace("%p: flow get failed", tuple);
+		return NULL;
+	}
+
+	/*
+	 * Get the sw instance of flow entry.
+	 */
+	flow = &p->flow[flow_cfg->entry_id];
+	ppe_drv_assert((flow->flags & PPE_DRV_FLOW_VALID), "%p: flow entry is already decelerated from PPE at index: %d",
+			tuple, flow_cfg->entry_id);
+
+	ppe_drv_assert((host_cfg->entry_id == flow->host->index),
+			"%p flow entry and host entry mismatch flow-index: %d hw-host_index: %d sw-host_index: %d",
+			tuple, flow->index, host_cfg->entry_id, flow->host->index);
+
+	ppe_drv_trace("%p: flow_tbl entry found at index: %u", tuple, flow_cfg->entry_id);
+	return flow;
+}
+
+/*
+ * ppe_drv_flow_v6_add()
+ *	Add flow table entry.
+ */
+struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_nexthop *nh,
+					struct ppe_drv_host *host, bool entry_valid)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	fal_flow_entry_t flow_cfg = {0};
+	uint32_t match_dest_ip[4];
+	uint32_t match_protocol = ppe_drv_v6_conn_flow_match_protocol_get(pcf);
+	uint8_t vlan_hdr_cnt = ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf);
+	struct ppe_drv_iface *port_if = ppe_drv_v6_conn_flow_eg_port_if_get(pcf);
+	struct ppe_drv_port *pp = ppe_drv_iface_port_get(port_if);
+	struct ppe_drv_flow *flow;
+	bool tuple_3 = false;
+	bool wifi_qos_en;
+	uint16_t xmit_mtu;
+	sw_error_t err;
+
+	ppe_drv_trace("%p: flow_tbl[host_idx]: %u", pcf, host->index);
+	flow_cfg.host_addr_type = PPE_DRV_HOST_LAN;
+        flow_cfg.host_addr_index = host->index;
+        flow_cfg.deacclr_en = false;
+        flow_cfg.invalid = !entry_valid;
+
+	flow_cfg.sevice_code = PPE_DRV_SC_NONE;
+	if (!ppe_drv_flow_v6_service_code_get(pcf, &flow_cfg.sevice_code)) {
+		ppe_drv_warn("%p: failed to obtain a valid service code", pcf);
+		return NULL;
+	}
+
+	/*
+	 * Get the tree ID corresponding to flow.
+	 */
+	if (!ppe_drv_flow_v6_tree_id_get(pcf, &flow_cfg.tree_id)) {
+		ppe_drv_warn("%p: failed to obtain a valid tree ID", pcf);
+		return NULL;
+	}
+
+	/*
+	 * Get the VPN ID corresponding to flow.
+	 */
+	if (!ppe_drv_flow_v6_vpn_id_get(pcf, &flow_cfg.vpn_id)) {
+		ppe_drv_warn("%p: failed to obtain a valid vpn_id", pcf);
+		return NULL;
+	}
+
+	/*
+	 * Get the WIFI QOS corresponding to flow.
+	 */
+	if (!ppe_drv_flow_v6_wifi_qos_get(pcf, &flow_cfg.wifi_qos, &wifi_qos_en)) {
+		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
+		return NULL;
+	}
+
+	flow_cfg.wifi_qos_en = wifi_qos_en;
+
+	ppe_drv_v6_conn_flow_match_dest_ip_get(pcf, &match_dest_ip[0]);
+
+	/*
+	 * Set forwarding type
+	 */
+	if (ipv6_addr_is_multicast((struct in6_addr *)match_dest_ip)) {
+		/*
+		 * Multicast flow
+		 */
+		flow_cfg.fwd_type = FAL_FLOW_FORWARD;
+		ppe_drv_trace("%p: flow_tbl[fwd_type]: L2-Multicast: %u", pcf, FAL_FLOW_FORWARD);
+	} else if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+		/*
+		 * Case bridging
+		 */
+		flow_cfg.fwd_type = FAL_FLOW_BRIDGE;
+		ppe_drv_trace("%p: flow_tbl[fwd_type]: L2: %u", pcf, FAL_FLOW_BRIDGE);
+
+		flow_cfg.port_valid = true;
+		flow_cfg.bridge_port = pp->port;
+		ppe_drv_trace("%p: xmit interface port: %d", pcf, pp->port);
+
+		if (ppe_drv_port_is_tunnel_vp(pp)) {
+			switch (vlan_hdr_cnt) {
+				case 2:
+					flow_cfg.svlan_fmt = true;
+					flow_cfg.cvlan_fmt = true;
+					flow_cfg.vlan_fmt_valid = 1;
+					break;
+				case 1:
+					flow_cfg.cvlan_fmt = true;
+					flow_cfg.vlan_fmt_valid = 1;
+					break;
+				case 0:
+					break;
+				default:
+					ppe_drv_warn("%p: cannot acclerate bridge VLAN flows for more than 2 vlans: %u",
+							pcf, vlan_hdr_cnt);
+					return NULL;
+			}
+		}
+	} else {
+		/*
+		 * Case simple routing (Non-NAT)
+		 */
+		flow_cfg.route_nexthop = nh->index;
+		flow_cfg.fwd_type = FAL_FLOW_ROUTE;
+		ppe_drv_trace("%p: flow_tbl[fwd_type]: L3: %u", pcf, FAL_FLOW_ROUTE);
+	}
+
+	/*
+	 * Fill relevant details for 3-tuple and 5-tuple flows.
+	 */
+	switch (match_protocol) {
+	case IPPROTO_TCP:
+		flow_cfg.protocol = FAL_FLOW_PROTOCOL_TCP;
+		ppe_drv_trace("%p: flow_tbl[protocol]: TCP-%u", pcf, FAL_FLOW_PROTOCOL_TCP);
+		break;
+
+	case IPPROTO_UDP:
+		flow_cfg.protocol = FAL_FLOW_PROTOCOL_UDP;
+		ppe_drv_trace("%p: flow_tbl[protocol]: UDP-%u", pcf, FAL_FLOW_PROTOCOL_UDP);
+		break;
+
+	case IPPROTO_UDPLITE:
+		flow_cfg.protocol = FAL_FLOW_PROTOCOL_UDPLITE;
+		ppe_drv_trace("%p: flow_tbl[protocol]: UDP-Lite-%u", pcf, FAL_FLOW_PROTOCOL_UDPLITE);
+		break;
+
+	case IPPROTO_ESP:
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
+		break;
+
+	case IPPROTO_IPIP:
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
+		break;
+
+	default:
+		ppe_drv_stats_inc(&p->stats.gen_stats.fail_unknown_proto);
+		ppe_drv_warn("%p: protocol: %u cannot be offloaded to PPE", pcf, match_protocol);
+		return NULL;
+	}
+
+	memcpy(flow_cfg.flow_ip.ipv6.ul, &match_dest_ip, sizeof(match_dest_ip));
+	ppe_drv_trace("%p: flow_tbl[dest_ip]: %pI6", pcf, &match_dest_ip);
+	if (tuple_3) {
+		flow_cfg.entry_type = FAL_FLOW_IP6_3TUPLE_ADDR;
+		flow_cfg.protocol = FAL_FLOW_PROTOCOL_OTHER;
+		flow_cfg.ip_type = match_protocol;
+		ppe_drv_trace("%p: flow_tbl[ip_proto]: 0x%x", pcf, match_protocol);
+	} else {
+		flow_cfg.entry_type = FAL_FLOW_IP6_5TUPLE_ADDR;
+
+		flow_cfg.src_port = ppe_drv_v6_conn_flow_match_src_ident_get(pcf);
+		flow_cfg.dst_port = ppe_drv_v6_conn_flow_match_dest_ident_get(pcf);
+
+		ppe_drv_trace("%p: flow_tbl[sport]: %u", pcf, flow_cfg.src_port);
+		ppe_drv_trace("%p: flow_tbl[dport]: %u", pcf, flow_cfg.dst_port);
+
+	}
+
+	/*
+	 * Fill Path-MTU.
+	 *
+	 * Note: For multicast flows, it should be ok to program the minimum MTU value
+	 * of all the interfaces, since PPE also check MTU for each destination interface
+	 * and exception the packet (without cloning) if MTU check fail for any interface.
+	 */
+	xmit_mtu = ipv6_addr_is_multicast((struct in6_addr *)match_dest_ip) ? ppe_drv_v6_conn_flow_mc_min_mtu_get(pcf)
+		: ppe_drv_v6_conn_flow_xmit_interface_mtu_get(pcf);
+	if (xmit_mtu > PPE_DRV_PORT_JUMBO_MAX) {
+		ppe_drv_trace("%p: xmit_mtu: %d is larger, restricting to max: %d", pcf, xmit_mtu, PPE_DRV_PORT_JUMBO_MAX);
+		xmit_mtu = PPE_DRV_PORT_JUMBO_MAX;
+	}
+
+	flow_cfg.pmtu_check_l3 = PPE_DRV_FLOW_PMTU_TYPE_L3;
+	flow_cfg.pmtu = xmit_mtu;
+
+	ppe_drv_trace("%p: flow_tbl[PMTU]: %u", pcf, xmit_mtu);
+
+	/*
+	 * Add the flow
+	 */
+	err = fal_flow_entry_add(PPE_DRV_SWITCH_ID, FAL_FLOW_OP_MODE_KEY, &flow_cfg);
+	if (err != SW_OK) {
+		ppe_drv_trace("%p: flow entry add failed", pcf);
+		return NULL;
+	}
+
+	/*
+	 * Get the sw instance of flow entry.
+	 */
+	flow = &p->flow[flow_cfg.entry_id];
+	ppe_drv_assert(!(flow->flags & PPE_DRV_FLOW_VALID), "%p: flow entry is already accelerated to PPE at index: %d",
+			pcf, flow_cfg.entry_id);
+
+	/*
+	 * Update the shadow copy
+	 */
+	flow->host = host;
+	flow->nh = nh;
+	flow->flags |= PPE_DRV_FLOW_V6;
+	flow->type = PPE_DRV_IP_TYPE_V6;
+	flow->entry_type = flow_cfg.entry_type;
+	flow->pcf.v6 = pcf;
+	ppe_drv_trace("%p: flow_tbl entry added at index: %u", pcf, flow_cfg.entry_id);
+	return flow;
 }
 
 /*
@@ -546,7 +959,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
 		break;
 
-	case IPPROTO_IPV6:
+	case IPPROTO_IPIP:
 		tuple_3 = true;
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
 		break;

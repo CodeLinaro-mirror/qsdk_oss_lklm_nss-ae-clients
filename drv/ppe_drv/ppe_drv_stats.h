@@ -35,6 +35,7 @@ struct ppe_drv_gen_stats {
         atomic64_t v4_destroy_req;		/* No of v4 delete requests */
         atomic64_t v4_destroy_fail;		/* No of v4 delete failure */
 	atomic64_t v4_destroy_conn_not_found;	/* No of v4 delete failure due to connection not found */
+	atomic64_t v4_host_add_fail;			/* v4 host table add failed */
 	atomic64_t v4_create_fail_mem;			/* No of v4 create failure due to OOM */
 	atomic64_t v4_create_fail_conn;			/* No of v4 create failure due to invalid parameters */
 	atomic64_t v4_create_fail_collision;		/* No of v4 create failure due to connection already exist */
@@ -55,6 +56,7 @@ struct ppe_drv_gen_stats {
         atomic64_t v6_destroy_req;		/* No of v6 delete requests */
         atomic64_t v6_destroy_fail;		/* No of v6 delete failure */
         atomic64_t v6_unknown_interface;	/* No of v6 create failure due to invalid IF */
+	atomic64_t v6_host_add_fail;		/* v6 host table add failed */
 
 	atomic64_t fail_vp_full;		/* Create req fail due to VP table full */
         atomic64_t fail_pp_full;		/* Create req fail due to physical port table full */

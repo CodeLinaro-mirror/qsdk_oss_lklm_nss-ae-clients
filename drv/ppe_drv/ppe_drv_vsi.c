@@ -86,6 +86,24 @@ static void ppe_drv_vsi_dump(struct ppe_drv_vsi *vsi)
 #endif
 
 /*
+ * ppe_drv_vsi_fdb_learning_disable()
+ *	Disable FDB learning
+ */
+void ppe_drv_vsi_fdb_learning_disable(struct ppe_drv_vsi *vsi)
+{
+	vsi->is_fdb_learn_enabled = false;
+}
+
+/*
+ * ppe_drv_vsi_fdb_learning_enable()
+ *	Enable FDB learning
+ */
+void ppe_drv_vsi_fdb_learning_enable(struct ppe_drv_vsi *vsi)
+{
+	vsi->is_fdb_learn_enabled = true;
+}
+
+/*
  * ppe_drv_vsi_clear_vlan()
  *	Clear vlan info from a vsi entry
  */
@@ -179,6 +197,7 @@ static void ppe_drv_vsi_free(struct kref *kref)
 	 * clear vlan and other info corresponding to vsi
 	 */
 	ppe_drv_vsi_clear_vlan(vsi);
+	ppe_drv_vsi_fdb_learning_disable(vsi);
 	vsi->type = PPE_DRV_VSI_TYPE_MAX;
 
 	if (fal_vsi_member_set(PPE_DRV_SWITCH_ID, vsi->index, &vsi_mem_cfg) != SW_OK) {
@@ -474,6 +493,7 @@ struct ppe_drv_vsi *ppe_drv_vsi_alloc(enum ppe_drv_vsi_type type)
 	 */
 	ppe_drv_vsi_l3_if_attach(vsi, l3_if);
 	vsi->type = type;
+	ppe_drv_vsi_fdb_learning_enable(vsi);
 
 	ppe_drv_trace("%p: vsi %u of type %u created", vsi, vsi->index, type);
 

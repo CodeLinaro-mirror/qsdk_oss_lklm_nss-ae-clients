@@ -15,10 +15,10 @@
  */
 
 #include "ppe_vp_base.h"
-
-#define PPE_VP_BASE_PORT_TO_IDX(port_num)	((port_num) - PPE_DRV_VIRTUAL_START)
+#include "ppe_vp_rx.h"
 
 struct ppe_vp_base vp_base;
+int vp_enable __read_mostly = 0;
 
 /*
  * ppe_vp_base_feature_enable()
@@ -37,6 +37,69 @@ static void ppe_vp_base_feature_disable(struct ppe_vp_base *pvb)
 {
 	pvb->flags &= ~PPE_VP_BASE_FLAG_ENABLE_FEATURE;
 }
+
+/*
+ * ppe_vp_enable_handler()
+ *	Toggle VP feature.
+ *
+ * Only disabled allocation of new VPs. Old VPs are not destroyed.
+ */
+static int ppe_vp_enable_handler(struct ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+	struct ppe_vp_base *pvb = &vp_base;
+
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	if (ret) {
+		return ret;
+	}
+
+	if (write) {
+		if (vp_enable) {
+			ppe_vp_base_feature_enable(pvb);
+			ppe_vp_info("%px: VP feature enabled\n", pvb);
+			return ret;
+		}
+
+		ppe_vp_base_feature_disable(pvb);
+		ppe_vp_info("%px: VP feature disabled\n", pvb);
+	}
+
+	return ret;
+}
+
+/*
+ * nss_ppe_vp_feature
+ *	Sysctl command.
+ */
+static struct ctl_table nss_ppe_vp_feature[] = {
+	{
+		.procname		= "vp_enable",
+		.data			= &vp_enable,
+		.maxlen			= sizeof(int),
+		.mode			= 0644,
+		.proc_handler		= &ppe_vp_enable_handler,
+	},
+	{ }
+};
+
+static struct ctl_table nss_ppe_vp_dir[] = {
+	{
+		.procname		= "ppe_vp",
+		.mode			= 0555,
+		.child			= nss_ppe_vp_feature,
+	},
+	{ }
+};
+
+static struct ctl_table nss_ppe_root[] = {
+	{
+		.procname		= "ppe",
+		.mode			= 0555,
+		.child			= nss_ppe_vp_dir,
+	},
+	{ }
+};
 
 /*
  * ppe_vp_base_get_vp_by_port_num()
@@ -143,7 +206,7 @@ struct ppe_vp *ppe_vp_base_alloc_vp(uint8_t port_num)
 	vp = rcu_dereference_protected(pvt->vp_allocator[vp_idx], 1);
 	if (vp) {
 		ppe_vp_warn("%px: VP %px at idx (port num) %u is already in use", pvb, vp, vp_idx);
-		atomic64_inc(&pvb->base_stats->vp_allocation_fails);
+		atomic64_inc(&pvb->base_stats.vp_allocation_fails);
 		spin_unlock_bh(&pvb->lock);
 		return NULL;
 	}
@@ -159,13 +222,15 @@ struct ppe_vp *ppe_vp_base_alloc_vp(uint8_t port_num)
 }
 
 /*
- * ppe_vp_base_final()
- *	Finalize the Base VP
+ * ppe_vp_base_deinit()
+ *	De-initialize the Base VP.
  */
 static void ppe_vp_base_deinit(void)
 {
 	struct ppe_vp_base *pvb = &vp_base;
 	struct ppe_vp_table *pvt;
+	struct ppe_vp *vp;
+	ppe_vp_status_t ret;
 	int i;
 
 	/*
@@ -175,6 +240,13 @@ static void ppe_vp_base_deinit(void)
 	for (i = 0; i < PPE_DRV_VIRTUAL_MAX; i++) {
 		RCU_INIT_POINTER(pvt->vp_allocator[i], NULL);
 		synchronize_rcu();
+		vp = &pvt->vp_pool[i];
+
+		ret = ppe_vp_stats_deinit(vp);
+		if (ret != PPE_VP_STATUS_SUCCESS) {
+			ppe_vp_warn("%px: Unable to de-initialize VP %px statistics at idx %d", pvb, vp, i);
+			return;
+		}
 	}
 
 	/*
@@ -203,6 +275,7 @@ static void ppe_vp_base_init(void)
 	struct ppe_vp_base *pvb = &vp_base;
 	struct ppe_vp_table *pvt;
 	struct ppe_vp *vp;
+	ppe_vp_status_t ret;
 	int i;
 
 	/*
@@ -214,6 +287,12 @@ static void ppe_vp_base_init(void)
 		synchronize_rcu();
 		vp = &pvt->vp_pool[i];
 		spin_lock_init(&vp->lock);
+
+		ret = ppe_vp_stats_init(vp);
+		if (ret != PPE_VP_STATUS_SUCCESS) {
+			ppe_vp_warn("%px: Unable to initialize VP %px statistics at idx %d", pvb, vp, i);
+			return;
+		}
 	}
 
 	pvt->active_vp = 0;
@@ -225,7 +304,7 @@ static void ppe_vp_base_init(void)
 
 /*
  * ppe_vp_base_module_init()
- *	module init for ppe vp driver
+ *	module init for ppe vp driver.
  */
 static int __init ppe_vp_base_module_init(void)
 {
@@ -244,24 +323,37 @@ static int __init ppe_vp_base_module_init(void)
 		return -EINVAL;
 	}
 
+	pvb->vp_hdr = register_sysctl_table(nss_ppe_root);
+	if (!pvb->vp_hdr) {
+		ppe_vp_warn("%px: Unable to register sysctl table for PPE virtual port\n", pvb);
+		return -EINVAL;
+	}
+
 	pvb->dentry = ppe_drv_get_dentry();
 	if (!pvb->dentry) {
 		ppe_vp_warn("%px: Invalid PPE dentry", pvb);
 		return -EINVAL;
 	}
 
+	ppe_vp_base_stats_init(pvb);
+
 	ppe_vp_info("%px: PPE-VP module loaded successfully", pvb);
+
 	return 0;
 }
 module_init(ppe_vp_base_module_init);
 
 /*
  * ppe_vp_base_module_exit()
- *	module exit for ppe vp driver
+ *	module exit for ppe vp driver.
  */
 static void __exit ppe_vp_base_module_exit(void)
 {
 	struct ppe_vp_base *pvb = &vp_base;
+
+	if (pvb->vp_hdr) {
+		unregister_sysctl_table(pvb->vp_hdr);
+	}
 
 	if (!nss_dp_vp_deinit(pvb->edma_vp_dev)) {
 		ppe_vp_warn("%px: Virtual port DP de-initialization failed", pvb);

@@ -195,7 +195,7 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	vp->port_num = -1;
 	vp->flags &= ~PPE_VP_FLAG_VP_ACTIVE;
 	vp->dst_cb = NULL;
-	vp->recv_cb = NULL;
+	vp->src_cb = NULL;
 	stats_cb = vp->stats_cb;
 	vp->stats_cb = NULL;
 	netdev = vp->netdev;
@@ -206,7 +206,12 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	 * Clear out the stats for this VP. Also free out the per cpu stats.
 	 */
 	memcpy(&hw_stats, &vp->vp_stats.vp_hw_stats, sizeof(struct ppe_vp_hw_stats));
-	memset(&vp->vp_stats, 0, sizeof(struct ppe_vp_stats));
+
+	/*
+	 * Clear the stats for this VP. We can only clear non-per CPU stats.
+	 * Also clear the per cpu stats.
+	 */
+	ppe_vp_stats_reset_vp_stats(&vp->vp_stats);
 
 	vp->pvb = NULL;
 	spin_unlock_bh(&vp->lock);
@@ -342,13 +347,11 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 	vp->dst_cb_data = vpai->dst_cb_data;
 	vp->src_cb = vpai->src_cb;
 	vp->src_cb_data = vpai->src_cb_data;
+
+	vp->vp_stats.misc_info.netdev_if_num = netdev->ifindex;
+	vp->vp_stats.misc_info.ppe_port_num = pp_num;
 	spin_unlock_bh(&vp->lock);
 
-	/*
-	 * This will not collide with return statuses.
-	 * VP port numbers start from 64. We can send back
-	 * 64 error codes from this function.
-	 */
 	return pp_num;
 
 alloc_fail:

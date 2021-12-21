@@ -29,12 +29,12 @@ struct ppe_vp_base_stats {
 };
 
 /*
- * ppe_vp_misc_stats
+ * ppe_vp_misc_info
  *	PPE VP misc Statistics
  */
-struct ppe_vp_misc_stats {
-	atomic64_t netdev_if_num;         	/* Net device interface number */
-	atomic64_t ppe_port_num;          	/* PPE Port number */
+struct ppe_vp_misc_info {
+	uint32_t netdev_if_num;         	/* Net device interface number */
+	uint8_t ppe_port_num;          	/* PPE Port number */
 };
 
 /*
@@ -54,10 +54,10 @@ struct ppe_vp_rx_stats {
  *	PPE VP Tx Statistics
  */
 struct ppe_vp_tx_stats {
-	atomic64_t tx_pkts;			/* Total rx packets */
-	atomic64_t tx_bytes;			/* Total rx bytes */
-	atomic64_t tx_errors;			/* Total rx errors */
-	atomic64_t tx_drops;			/* Total rx drops */
+	atomic64_t tx_pkts;			/* Total tx packets */
+	atomic64_t tx_bytes;			/* Total tx bytes */
+	atomic64_t tx_errors;			/* Total tx errors */
+	atomic64_t tx_drops;			/* Total tx drops */
 	struct u64_stats_sync syncp;		/* Stats sync status */
 };
 
@@ -67,9 +67,14 @@ struct ppe_vp_tx_stats {
  */
 struct ppe_vp_stats {
 	struct ppe_vp_hw_stats vp_hw_stats;	/* HW port statistics */
-	struct ppe_vp_misc_stats misc_stats;	/* Misc statistics */
+	struct ppe_vp_misc_info misc_info;	/* Misc statistics */
 	struct ppe_vp_rx_stats __percpu *rx_stats;
 						/* VP Rx statistics */
 	struct ppe_vp_tx_stats __percpu *tx_stats;
 						/* VP Tx statistics */
 };
+
+extern void ppe_vp_stats_reset_vp_stats(struct ppe_vp_stats *vp_stats);
+extern ppe_vp_status_t ppe_vp_stats_deinit(struct ppe_vp *vp);
+extern ppe_vp_status_t ppe_vp_stats_init(struct ppe_vp *vp);
+extern ppe_vp_status_t ppe_vp_base_stats_init(struct ppe_vp_base *pvb);

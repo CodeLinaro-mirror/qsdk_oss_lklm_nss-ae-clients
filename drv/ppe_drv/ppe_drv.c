@@ -184,6 +184,7 @@ struct dentry *ppe_drv_get_dentry()
 	struct ppe_drv *p = &ppe_drv_gbl;
 	return p->dentry;
 }
+EXPORT_SYMBOL(ppe_drv_get_dentry);
 
 static const struct of_device_id ppe_drv_dt_ids[] = {
 	{ .compatible =  "qcom,nss-ppe" },

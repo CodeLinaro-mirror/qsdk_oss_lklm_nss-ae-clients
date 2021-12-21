@@ -26,6 +26,7 @@
 #include "ppe_vp.h"
 
 #define PPE_VP_BASE_FLAG_ENABLE_FEATURE		0x00000001
+#define PPE_VP_BASE_PORT_TO_IDX(port_num)	((port_num) - PPE_DRV_VIRTUAL_START)
 
 /*
  * PPE VP debug macros
@@ -84,18 +85,19 @@ struct ppe_vp_table {
  */
 struct ppe_vp_base {
 	struct ppe_vp_table vp_table;			/* VP allocation Table object */
-	struct ppe_vp_base_stats *base_stats;		/* VP Stats */
+	struct ppe_vp_base_stats base_stats;		/* VP Stats */
 	struct net_device *edma_vp_dev;			/* EDMA Device to queue VP packets */
 	uint32_t flags;					/* Base VP flags */
 	struct dentry *dentry;				/* Debugfs entry */
 	spinlock_t lock;				/* Lock for Base infra */
+	struct ctl_table_header *vp_hdr;		/* VP sysctl header, dir: /proc/sys/ppe/ppe_vp */
 };
 
 /*
  * ppe_vp_base_get_active_vp_count()
  *	Return the active VP count.
  */
-static uint8_t ppe_vp_base_get_active_vp_count(struct ppe_vp_base *pvb)
+static inline uint8_t ppe_vp_base_get_active_vp_count(struct ppe_vp_base *pvb)
 {
 	uint8_t active_vp;
 

@@ -100,6 +100,11 @@ ppe_drv_ret_t ppe_drv_br_fdb_lrn_ctrl(struct ppe_drv_iface *br_iface, bool enabl
 	}
 
 	/*
+	 * Update vsi shadow copy
+	 */
+	vsi->is_fdb_learn_enabled = enable;
+
+	/*
 	 * Flush FDB table for the bridge vsi
 	 */
 	if (fal_fdb_entry_del_byfid(PPE_DRV_SWITCH_ID, vsi->index, FAL_FDB_DEL_STATIC) != SW_OK) {

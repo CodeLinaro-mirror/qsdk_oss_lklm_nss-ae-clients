@@ -27,6 +27,25 @@
  * @{
  */
 
+/*
+ * v6 rule flags
+ */
+#define PPE_DRV_V6_RULE_FLAG_BRIDGE_FLOW	0x0001		/**< Bridge Flow */
+#define PPE_DRV_V6_RULE_FLAG_ROUTED_FLOW	0x0002		/**< Rule is for a routed connection */
+#define PPE_DRV_V6_RULE_FLAG_DSCP_MARKING	0x0004  	/**< Rule creation for DSCP marking */
+#define PPE_DRV_V6_RULE_FLAG_VLAN_MARKING	0x0008		/**< Rule creation for VLAN marking */
+#define PPE_DRV_V6_RULE_FLAG_FLOW_VALID		0x0010		/**< Rule creation for flow direction */
+#define PPE_DRV_V6_RULE_FLAG_RETURN_VALID	0x0020		/**< Rule creation for return direction */
+
+/*
+ * v6 valid flags
+ */
+#define PPE_DRV_V6_VALID_FLAG_PPPOE_FLOW	0x0001  /**< PPPoE fields are valid for flow direction. */
+#define PPE_DRV_V6_VALID_FLAG_PPPOE_RETURN	0x0002  /**< PPPoE fields are valid for return direction. */
+#define PPE_DRV_V6_VALID_FLAG_VLAN		0x0004  /**< VLAN fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_QOS		0x0008  /**< QoS fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_DSCP_MARKING	0x0010  /**< DSCP fields are valid. */
+
 /**
  * ppe_drv_v6_5tuple
  *	Common 5-tuple information.
@@ -47,7 +66,7 @@ struct ppe_drv_v6_connection_rule {
 	uint8_t flow_mac[ETH_ALEN];		/**< Flow MAC address. */
 	uint8_t return_mac[ETH_ALEN];		/**< Return MAC address. */
 	uint16_t flow_mtu;			/**< MTU for the flow interface. */
-	uint32_t return_mtu;			/**< MTU for the return interface. */
+	uint16_t return_mtu;			/**< MTU for the return interface. */
 	ppe_drv_iface_t rx_if;			/**< From PPE interface number */
 	ppe_drv_iface_t tx_if;			/**< To PPE interface number */
 };

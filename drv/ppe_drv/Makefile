@@ -23,6 +23,7 @@ qca-nss-ppe-objs += ppe_drv_vlan.o
 qca-nss-ppe-objs += ppe_drv_vp.o
 qca-nss-ppe-objs += ppe_drv_vsi.o
 qca-nss-ppe-objs += ppe_drv_v4.o
+qca-nss-ppe-objs += ppe_drv_v6.o
 
 ccflags-y += -Wall -Werror
 ccflags-y += -DPPE_DRV_DEBUG_LEVEL=3

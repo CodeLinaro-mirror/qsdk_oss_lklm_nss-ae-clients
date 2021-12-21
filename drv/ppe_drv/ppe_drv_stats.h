@@ -57,6 +57,17 @@ struct ppe_drv_gen_stats {
         atomic64_t v6_destroy_fail;		/* No of v6 delete failure */
         atomic64_t v6_unknown_interface;	/* No of v6 create failure due to invalid IF */
 	atomic64_t v6_host_add_fail;		/* v6 host table add failed */
+	atomic64_t v6_destroy_conn_not_found;	/* No of v6 delete failure due to connection not found */
+	atomic64_t v6_create_fail_mem;			/* No of v6 create failure due to OOM */
+	atomic64_t v6_create_fail_conn;			/* No of v6 create failure due to invalid parameters */
+	atomic64_t v6_create_fail_collision;		/* No of v6 create failure due to connection already exist */
+	atomic64_t v6_create_fail_invalid_rx_if;	/* No of v6 create failure due to invalid Rx IF */
+	atomic64_t v6_create_fail_invalid_tx_if;	/* No of v6 create failure due to invalid Tx IF */
+	atomic64_t v6_create_fail_invalid_rx_port;	/* No of v6 create failure due to invalid Rx Port */
+	atomic64_t v6_create_fail_invalid_tx_port;	/* No of v6 create failure due to invalid Tx Port */
+	atomic64_t v6_create_fail_bridge_nat;		/* No of v6 create failure due to NAT with bridge flow */
+	atomic64_t v6_create_fail_if_hierarchy;		/* No of v6 create failure due to interface hierarchy walk fail */
+	atomic64_t v6_create_fail_vlan_filter;		/* No of v6 create failure due to interface not in bridge */
 
 	atomic64_t fail_vp_full;		/* Create req fail due to VP table full */
         atomic64_t fail_pp_full;		/* Create req fail due to physical port table full */

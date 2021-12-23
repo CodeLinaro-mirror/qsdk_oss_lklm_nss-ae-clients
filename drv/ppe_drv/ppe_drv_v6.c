@@ -266,7 +266,9 @@ static ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create,
 				return PPE_DRV_RET_FAILURE_NOT_BRIDGE_SLAVES;
 			}
 		}
-	};;
+
+		ppe_drv_v6_conn_flags_set(cn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID);
+	}
 
 	return PPE_DRV_RET_SUCCESS;
 }
@@ -417,10 +419,10 @@ static bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_
 }
 
 /*
- * ppe_drv_v6_flow_get()
+ * ppe_drv_v6_flow_check()
  *	Search an entry into the flow table and returns the flow object.
  */
-static bool ppe_drv_v6_flow_get(struct ppe_drv_v6_conn_flow *pcf)
+static bool ppe_drv_v6_flow_check(struct ppe_drv_v6_conn_flow *pcf)
 {
 	struct ppe_drv_v6_5tuple tuple;
 	struct ppe_drv_flow *flow = NULL;
@@ -610,6 +612,119 @@ flow_add_fail:
 }
 
 /*
+ * ppe_drv_v6_conn_sync_one()
+ *	Sync stats for a single connection.
+ */
+void ppe_drv_v6_conn_sync_one(struct ppe_drv_v6_conn *cn, struct ppe_drv_v6_conn_sync *cns,
+		enum ppe_drv_stats_sync_reason reason)
+{
+	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
+	struct ppe_drv_v6_conn_flow *pcr = &cn->pcr;
+
+	/*
+	 * Fill 5-tuple connection rule from ppe_drv_v6_conn_flow to cns.
+	 */
+	cns->protocol = ppe_drv_v6_conn_flow_match_protocol_get(pcf);
+	cns->flow_ident = ppe_drv_v6_conn_flow_match_src_ident_get(pcf);
+	cns->return_ident = ppe_drv_v6_conn_flow_match_dest_ident_get(pcf);
+	ppe_drv_v6_conn_flow_match_src_ip_get(pcf, cns->flow_ip);
+	ppe_drv_v6_conn_flow_match_dest_ip_get(pcf, cns->return_ip);
+
+	/*
+	 * Fill reason for sync
+	 */
+	cns->reason = reason;
+
+	/*
+	 * Update stats for each direction
+	 */
+	ppe_drv_v6_conn_flow_rx_stats_get(pcf, &cns->flow_rx_packet_count, &cns->flow_rx_byte_count);
+	ppe_drv_v6_conn_flow_tx_stats_get(pcf, &cns->flow_tx_packet_count, &cns->flow_tx_byte_count);
+	ppe_drv_v6_conn_flow_rx_stats_sub(pcf, cns->flow_rx_packet_count, cns->flow_rx_byte_count);
+	ppe_drv_v6_conn_flow_tx_stats_sub(pcf, cns->flow_tx_packet_count, cns->flow_tx_byte_count);
+
+	/*
+	 * Update the status for return flow, if it exist.
+	 */
+	if (ppe_drv_v6_conn_flags_check(cn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID)) {
+		ppe_drv_v6_conn_flow_rx_stats_get(pcr, &cns->return_rx_packet_count, &cns->return_rx_byte_count);
+		ppe_drv_v6_conn_flow_tx_stats_get(pcr, &cns->return_tx_packet_count, &cns->return_tx_byte_count);
+		ppe_drv_v6_conn_flow_rx_stats_sub(pcr, cns->return_rx_packet_count, cns->return_rx_byte_count);
+		ppe_drv_v6_conn_flow_tx_stats_sub(pcr, cns->return_tx_packet_count, cns->return_tx_byte_count);
+	} else {
+		cns->return_rx_packet_count = 0;
+		cns->return_rx_byte_count = 0;
+		cns->return_tx_packet_count = 0;
+		cns->return_tx_byte_count = 0;
+	}
+}
+
+/*
+ * ppe_drv_v6_conn_sync_many()
+ *	API to sync a specific number of connection stats
+ */
+void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t num_conn)
+{
+	uint8_t count = 0;
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v6_conn *cn;
+	enum ppe_drv_stats_sync_reason reason = PPE_DRV_STATS_SYNC_REASON_STATS;
+
+	spin_lock_bh(&p->lock);
+	if (list_empty(&p->conn_v6)) {
+		spin_unlock_bh(&p->lock);
+		return;
+	}
+
+	/*
+	 * Traverse through active list of connection.
+	 */
+	list_for_each_entry(cn, &p->conn_v6, list) {
+		/*
+		 * Skip if stats are already synced for this connection in previous iteration.
+		 */
+		if (cn->toggle == p->toggled) {
+			if (list_is_last(&cn->list, &p->conn_v6)) {
+				p->toggled = !p->toggled;
+				break;
+			}
+
+			continue;
+		}
+
+		/*
+		 * sync stats for this connection.
+		 */
+		ppe_drv_v6_conn_sync_one(cn, &cn_syn->conn_sync[count], reason);
+		count++;
+
+		/*
+		 * Flip the toggle bit to avoid syncing the stats for this connection until
+		 * one full iteration of active list is done
+		 */
+		cn->toggle = !cn->toggle;
+
+		/*
+		 * If budget reached, break
+		 */
+		if (count == num_conn)
+			break;
+
+		/*
+		 * If we reached to the end of the list, flip the toggled bit
+		 * for the next interation
+		 */
+		if (list_is_last(&cn->list, &p->conn_v6)) {
+			p->toggled = !p->toggled;
+		}
+	}
+
+	spin_unlock_bh(&p->lock);
+	cn_syn->count = count;
+}
+EXPORT_SYMBOL(ppe_drv_v6_conn_sync_many);
+
+/*
  * ppe_drv_v6_mc_destroy()
  *	Destroy a multicast connection entry in PPE.
  */
@@ -761,14 +876,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	/*
 	 * Ensure either direction flow is not already offloaded by us.
 	 */
-	if (ppe_drv_v6_flow_get(pcf)) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_collision);
-		ppe_drv_warn("%p: create collision detected: %p", p, create);
-		ret = PPE_DRV_RET_FAILURE_CREATE_COLLISSION;
-		goto fail;
-	}
-
-	if (ppe_drv_v6_flow_get(pcr)) {
+	if (ppe_drv_v6_flow_check(&cn->pcf) || ppe_drv_v6_flow_check(&cn->pcr)) {
 		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_collision);
 		ppe_drv_warn("%p: create collision detected: %p", p, create);
 		ret = PPE_DRV_RET_FAILURE_CREATE_COLLISSION;
@@ -830,6 +938,11 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 
 	pcf->conn = cn;
 	pcr->conn = cn;
+
+	/*
+	 * Set the toggle bit to mark this connection as due for stats update in next sync.
+	 */
+	cn->toggle = !p->toggled;
 
 	/*
 	 * Add connection entry to the active connection list.

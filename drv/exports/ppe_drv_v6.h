@@ -129,9 +129,15 @@ struct ppe_drv_v6_conn_sync_many {
 };
 
 /**
- * Provide a registration mechanism for syncing IPv6 connection stats.
+ * Callback function for syncing IPv6 connection stats.
+ *
+ * @datatypes
+ * ppe_drv_v6_conn_sync
+ *
+ * @param[in] app_data    Pointer to the user context registered the callback.
+ * @param[in] conn_sync   Pointer to the connection sync message data structure.
  */
-typedef void (*ppe_drv_v6_sync_callback_t)(void *app_data, struct ppe_drv_v6_conn_sync_many *conn_sync);
+typedef void (*ppe_drv_v6_sync_callback_t)(void *app_data, struct ppe_drv_v6_conn_sync *conn_sync);
 
 /**
  * ppe_drv_v6_stats_callback_register
@@ -144,6 +150,18 @@ typedef void (*ppe_drv_v6_sync_callback_t)(void *app_data, struct ppe_drv_v6_con
  * Status of the register operation.
  */
 bool ppe_drv_v6_stats_callback_register(ppe_drv_v6_sync_callback_t cb, void *app_data);
+
+/**
+ * ppe_drv_v6_conn_sync_many
+ *	API to get v6 connection stats.
+ *
+ * @param[in] cn_syn     Pointer to the buffer in which stats are filled.
+ * @param[in] num_conn   Number of connection stats which can be filled in one iteration.
+ *
+ * @return
+ * void
+ */
+void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t num_conn);
 
 /**
  * ppe_drv_v6_destroy

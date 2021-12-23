@@ -15,6 +15,12 @@
  */
 
 /*
+ * Connection entry falgs.
+ */
+#define PPE_DRV_V4_CONN_FLAG_RETURN_VALID 0x00000001
+					/* Return direction flow is valid. */
+
+/*
  * Bit flags for flow entry.
  */
 #define PPE_DRV_V4_CONN_FLOW_FLAG_XLATE_SRC 0x00000001
@@ -86,6 +92,14 @@ struct ppe_drv_v4_conn_flow {
 	struct ppe_drv_iface *eg_port_if;
 	struct ppe_drv_iface *eg_l3_if;
 	struct ppe_drv_iface *eg_vsi_if;
+
+	/*
+	 * Statistics for this flow entry
+	 */
+	atomic_t rx_packets;			/* Number of Rx packets */
+	atomic_t rx_bytes;			/* Number of Rx bytes */
+	atomic_t tx_packets;			/* Number of Tx packets */
+	atomic_t tx_bytes;			/* Number of Tx bytes */
 };
 
 /**
@@ -96,8 +110,36 @@ struct ppe_drv_v4_conn {
 	struct list_head list;
 	struct ppe_drv_v4_conn_flow pcf;	/* flow object for flow direction */
 	struct ppe_drv_v4_conn_flow pcr;	/* flow object for return direction */
+	uint32_t flags;				/* connection flags */
 	bool toggle;				/* Used during stats sync */
 };
+
+/*
+ * ppe_drv_v4_conn_flags_check()
+ *      check the bit flags.
+ */
+static inline bool ppe_drv_v4_conn_flags_check(struct ppe_drv_v4_conn *cn, uint32_t flags)
+{
+        return (cn->flags & flags);
+}
+
+/*
+ * ppe_drv_v4_conn_flags_clear()
+ *	Clear a specific bit flag.
+ */
+static inline void ppe_drv_v4_conn_flags_clear(struct ppe_drv_v4_conn *cn, uint32_t flags)
+{
+        cn->flags &= ~flags;
+}
+
+/*
+ * ppe_drv_v4_conn_flags_set()
+ *	Set a specific bit flags.
+ */
+static inline void ppe_drv_v4_conn_flags_set(struct ppe_drv_v4_conn *cn, uint32_t flags)
+{
+        cn->flags |= flags;
+}
 
 /*
  * ppe_drv_v4_conn_flow_conn_get()
@@ -562,7 +604,7 @@ static inline void ppe_drv_v4_conn_flow_flags_set(struct ppe_drv_v4_conn_flow *p
 
 /*
  * ppe_drv_v4_conn_flow_mc_min_mtu_get()
- *	Returns the minimum MTU of interfaces in a multicast flow.
+ *	Find and return the minimum MTU supported by interfaces in multicast interface list.
  */
 static inline uint16_t ppe_drv_v4_conn_flow_mc_min_mtu_get(struct ppe_drv_v4_conn_flow *pcf)
 {
@@ -570,4 +612,64 @@ static inline uint16_t ppe_drv_v4_conn_flow_mc_min_mtu_get(struct ppe_drv_v4_con
 	 * TODO: fix this with multiast support.
 	 */
 	return 1500;
+}
+
+/*
+ * ppe_drv_v4_conn_flow_rx_stats_add()
+ *	Add counters to Rx stats atomically.
+ */
+static inline void ppe_drv_v4_conn_flow_rx_stats_add(struct ppe_drv_v4_conn_flow *pcf, uint32_t rx_pkts, uint32_t rx_bytes)
+{
+	atomic_add(rx_pkts, &pcf->rx_packets);
+	atomic_add(rx_bytes, &pcf->rx_bytes);
+}
+
+/*
+ * ppe_drv_v4_conn_flow_tx_stats_add()
+ *	Add counters to Tx stats atomically.
+ */
+static inline void ppe_drv_v4_conn_flow_tx_stats_add(struct ppe_drv_v4_conn_flow *pcf, uint32_t tx_pkts, uint32_t tx_bytes)
+{
+	atomic_add(tx_pkts, &pcf->tx_packets);
+	atomic_add(tx_bytes, &pcf->tx_bytes);
+}
+
+/*
+ * ppe_drv_v4_conn_flow_rx_stats_sub()
+ *	Subtract counters from Rx stats atomically.
+ */
+static inline void ppe_drv_v4_conn_flow_rx_stats_sub(struct ppe_drv_v4_conn_flow *pcf, uint32_t rx_pkts, uint32_t rx_bytes)
+{
+	atomic_sub(rx_pkts, &pcf->rx_packets);
+	atomic_sub(rx_bytes, &pcf->rx_bytes);
+}
+
+/*
+ * ppe_drv_v4_conn_flow_tx_stats_sub()
+ *	Subtract counters from Tx stats atomically.
+ */
+static inline void ppe_drv_v4_conn_flow_tx_stats_sub(struct ppe_drv_v4_conn_flow *pcf, uint32_t tx_pkts, uint32_t tx_bytes)
+{
+	atomic_sub(tx_pkts, &pcf->tx_packets);
+	atomic_sub(tx_bytes, &pcf->tx_bytes);
+}
+
+/*
+ * ppe_drv_v4_conn_flow_rx_stats_get()
+ *	Get counters from Rx stats atomically.
+ */
+static inline void ppe_drv_v4_conn_flow_rx_stats_get(struct ppe_drv_v4_conn_flow *pcf, uint32_t *rx_pkts, uint32_t *rx_bytes)
+{
+	*rx_pkts = atomic_read(&pcf->rx_packets);
+	*rx_bytes = atomic_read(&pcf->rx_bytes);
+}
+
+/*
+ * ppe_drv_v4_conn_flow_tx_stats_sub()
+ *	Get counters from Tx stats atomically.
+ */
+static inline void ppe_drv_v4_conn_flow_tx_stats_get(struct ppe_drv_v4_conn_flow *pcf, uint32_t *tx_pkts, uint32_t *tx_bytes)
+{
+	*tx_pkts = atomic_read(&pcf->tx_packets);
+	*tx_bytes = atomic_read(&pcf->tx_bytes);
 }

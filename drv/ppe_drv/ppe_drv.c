@@ -38,25 +38,51 @@ struct ppe_drv ppe_drv_gbl;
  */
 static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 {
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v4_conn *cn_v4;
+	struct ppe_drv_v6_conn *cn_v6;
+	struct ppe_drv_v4_conn_flow *pcf_v4;
+	struct ppe_drv_v4_conn_flow *pcr_v4;
+	struct ppe_drv_v6_conn_flow *pcf_v6;
+	struct ppe_drv_v6_conn_flow *pcr_v6;
 
-}
+	/*
+	 * Update hw stats for flow associated with active v4 connections
+	 */
+	spin_lock_bh(&p->lock);
+	if (!list_empty(&p->conn_v4)) {
+		list_for_each_entry(cn_v4, &p->conn_v4, list) {
+			pcf_v4 = &cn_v4->pcf;
+			pcr_v4 = &cn_v4->pcr;
 
-/*
- * ppe_drv_sw_v4_stats_sync()
- *	Sync PPE SW IPv4 stats
- */
-static void ppe_drv_sw_v4_stats_sync(struct work_struct *work)
-{
+			ppe_drv_flow_v4_stats_update(pcf_v4);
+			if (pcr_v4) {
+				ppe_drv_flow_v4_stats_update(pcr_v4);
+			}
+		}
+	}
 
-}
+	/*
+	 * Update hw stats for flow associated with active v6 connections
+	 */
+	if (!list_empty(&p->conn_v6)) {
+		list_for_each_entry(cn_v6, &p->conn_v6, list) {
+			pcf_v6 = &cn_v6->pcf;
+			pcr_v6 = &cn_v6->pcr;
 
-/*
- * ppe_drv_sw_v6_stats_sync()
- *	Sync PPE SW IPv6 stats
- */
-static void ppe_drv_sw_v6_stats_sync(struct work_struct *work)
-{
+			ppe_drv_flow_v6_stats_update(pcf_v6);
+			if (pcr_v6) {
+				ppe_drv_flow_v6_stats_update(pcr_v6);
+			}
+		}
+	}
 
+	spin_unlock_bh(&p->lock);
+
+	/*
+	 * Re arm the hardware stats timer
+	 */
+	mod_timer(&p->hw_flow_stats_timer, jiffies + p->hw_flow_stats_ticks);
 }
 
 /*
@@ -260,15 +286,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	spin_lock_init(&p->stats_lock);
 
 	/*
-	 * Initialize HW stats sync timer
+	 *
+	 * TODO: Check if we need to modify timer flag - specially irqsafe
+	 * or pinned to a specific core.
 	 */
+	p->hw_flow_stats_ticks = msecs_to_jiffies(PPE_DRV_HW_FLOW_STATS_MS);
 	timer_setup(&p->hw_flow_stats_timer, ppe_drv_hw_stats_sync, 0);
-
-	/*
-	 * Initialize SW stats sync workqueue
-	 */
-	INIT_WORK(&p->sw_v4_stats, ppe_drv_sw_v4_stats_sync);
-	INIT_WORK(&p->sw_v6_stats, ppe_drv_sw_v6_stats_sync);
 
 	/* Initialize list */
 	INIT_LIST_HEAD(&p->conn_v4);
@@ -280,6 +303,11 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	 * Take a reference
 	 */
 	kref_init(&p->ref);
+
+	/*
+	 * Start sync timer for hardware stats collection.
+	 */
+	mod_timer(&p->hw_flow_stats_timer, jiffies + p->hw_flow_stats_ticks);
 
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
 

@@ -61,6 +61,8 @@ struct ppe_drv_flow {
 bool ppe_drv_flow_valid_set(struct ppe_drv_flow *pf, bool enable);
 void ppe_drv_flow_dump(struct ppe_drv_flow *pf);
 void ppe_drv_flow_stats_clear(struct ppe_drv_flow *pf);
+void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf);
+void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf);
 
 bool ppe_drv_flow_v4_qos_clear(struct ppe_drv_flow *pf);
 bool ppe_drv_flow_v4_qos_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_flow *pf);

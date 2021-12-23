@@ -119,6 +119,11 @@
 #define PPE_DRV_VLAN_PRIORITY_SHIFT	13
 
 /*
+ * HW flow stats sync timer frequency in milliseconds
+ */
+#define PPE_DRV_HW_FLOW_STATS_MS	1000
+
+/*
  * ppe_drv_entry_valid
  *	PPE entry validity
  */
@@ -150,9 +155,8 @@ struct ppe_drv {
 	/*
 	 * Timer
 	 */
+	unsigned long hw_flow_stats_ticks;		/* Ticks to re-arm the hardware stats timer */
 	struct timer_list hw_flow_stats_timer;      	/* Timer used to poll for stats from PPE_HW */
-	struct work_struct sw_v4_stats;			/* Workqueue used to sync v4 stats from PPE driver to ECM */
-	struct work_struct sw_v6_stats;       		/* Workqueue used to sync v6 stats from PPE driver to ECM */
 	struct ppe_drv_stats stats;			/* PPE statistics */
 
 	/*

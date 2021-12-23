@@ -124,14 +124,16 @@ void ppe_drv_flow_stats_clear(struct ppe_drv_flow *pf)
 }
 
 /*
- * ppe_drv_flow_stats_update()
+ * ppe_drv_flow_v6_stats_update()
  *	Updates flow instance's stats counter from PPE flow hit counter.
  */
-void ppe_drv_flow_stats_update(struct ppe_drv_flow *pf)
+void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 {
 	sw_error_t err;
 	uint32_t delta_pkts;
 	uint32_t delta_bytes;
+	struct ppe_drv_v6_conn_flow *pcr;
+	struct ppe_drv_flow *pf = pcf->pf;
 	fal_entry_counter_t flow_cntrs = {0};
 
 	ppe_drv_trace("%p: updating flow stats", pf);
@@ -143,14 +145,76 @@ void ppe_drv_flow_stats_update(struct ppe_drv_flow *pf)
 	}
 
 	/*
-	 * Update ppe_conn_flow packet and byte counters
+	 * PPE stats are not clear on read, so we need to calculate the delta
+	 * between the latest counters and previously read counters.
 	 */
 	delta_pkts = flow_cntrs.matched_pkts - pf->pkts;
 	delta_bytes = flow_cntrs.matched_bytes - pf->bytes;
 
 	/*
-	 * TODO: to be completed with stats.
+	 * Update ppe_conn_flow packet and byte counters
 	 */
+	ppe_drv_v6_conn_flow_rx_stats_add(pcf, delta_pkts, delta_bytes);
+	if (ppe_drv_v6_conn_flags_check(pcf->conn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID)) {
+		pcr = &pcf->conn->pcr;
+		ppe_drv_v6_conn_flow_tx_stats_add(pcr, delta_pkts, delta_bytes);
+	} else {
+		/*
+		 * Multicast flows have no counter cme. For this type of flows
+		 * ECM expects tx count to be incremented in the same cme.
+		 */
+		ppe_drv_v6_conn_flow_tx_stats_add(pcf, delta_pkts, delta_bytes);
+	}
+
+	pf->pkts = flow_cntrs.matched_pkts;
+	pf->bytes = flow_cntrs.matched_bytes;
+
+	ppe_drv_trace("%p: updating stats for flow [index:%u] - curr pkt:%u byte:%llu", pf, pf->index, pf->pkts, pf->bytes);
+}
+
+/*
+ * ppe_drv_flow_v4_stats_update()
+ *	Updates flow instance's stats counter from PPE flow hit counter.
+ */
+void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
+{
+	sw_error_t err;
+	uint32_t delta_pkts;
+	uint32_t delta_bytes;
+	struct ppe_drv_v4_conn_flow *pcr;
+	struct ppe_drv_flow *pf = pcf->pf;
+	fal_entry_counter_t flow_cntrs = {0};
+
+	ppe_drv_trace("%p: updating flow stats", pf);
+
+	err = fal_flow_counter_get(PPE_DRV_SWITCH_ID, pf->index, &flow_cntrs);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to get stats for flow at index: %u", pf, pf->index);
+		return;
+	}
+
+	/*
+	 * PPE stats are not clear on read, so we need to calculate the delta
+	 * between the latest counters and previously read counters.
+	 */
+	delta_pkts = flow_cntrs.matched_pkts - pf->pkts;
+	delta_bytes = flow_cntrs.matched_bytes - pf->bytes;
+
+	/*
+	 * Update ppe_conn_flow packet and byte counters
+	 */
+	ppe_drv_v4_conn_flow_rx_stats_add(pcf, delta_pkts, delta_bytes);
+	if (ppe_drv_v4_conn_flags_check(pcf->conn, PPE_DRV_V4_CONN_FLAG_RETURN_VALID)) {
+		pcr = &pcf->conn->pcr;
+		ppe_drv_v4_conn_flow_tx_stats_add(pcr, delta_pkts, delta_bytes);
+	} else {
+		/*
+		 * Multicast flows have no counter cme. For this type of flows
+		 * ECM expects tx count to be incremented in the same cme.
+		 */
+		ppe_drv_v4_conn_flow_tx_stats_add(pcf, delta_pkts, delta_bytes);
+	}
+
 	pf->pkts = flow_cntrs.matched_pkts;
 	pf->bytes = flow_cntrs.matched_bytes;
 

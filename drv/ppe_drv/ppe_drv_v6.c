@@ -490,10 +490,8 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 	 * Read stats and clear counters for deleted flow.
 	 * Note: it is assured that no new flow can take the same index since all of this
 	 * is lock protected. Unless this operation is complete, a new flow cannot be offloaded.
-	 *
-	 * TODO: update this with stats patch.
 	 */
-	/* ppe_drv_v6_conn_stats_sync(p, pf->pcf); */
+	ppe_drv_flow_v6_stats_update(pcf);
 
 	ppe_drv_flow_stats_clear(flow);
 
@@ -725,6 +723,69 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 EXPORT_SYMBOL(ppe_drv_v6_conn_sync_many);
 
 /*
+ * ppe_drv_v6_conn_stats_sync_invoke_cb()
+ *	Invoke cb
+ */
+void ppe_drv_v6_conn_stats_sync_invoke_cb(struct ppe_drv_v6_conn_sync *cns)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	ppe_drv_v6_sync_callback_t sync_cb;
+	void *sync_data;
+
+	spin_lock_bh(&p->lock);
+	sync_cb = p->ipv6_stats_sync_cb;
+	sync_data = p->ipv6_stats_sync_data;
+	spin_unlock_bh(&p->lock);
+
+	if (sync_cb) {
+		sync_cb(sync_data, cns);
+		return;
+	}
+
+	ppe_drv_trace("%p: No callback registered for stats sync for cns: %p", p, cns);
+}
+
+/*
+ * ppe_drv_v6_stats_callback_unregister()
+ * 	Un-Register a notifier callback for IPv6 stats from PPE
+ */
+void ppe_drv_v6_stats_callback_unregister(void)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	/*
+	 * Unregister our sync callback.
+	 */
+	spin_lock_bh(&p->lock);
+	if (p->ipv6_stats_sync_cb) {
+		p->ipv6_stats_sync_cb = NULL;
+		p->ipv6_stats_sync_data = NULL;
+	}
+
+	spin_unlock_bh(&p->lock);
+	ppe_drv_info("%p: stats callback unregistered, cb:", p);
+}
+EXPORT_SYMBOL(ppe_drv_v6_stats_callback_unregister);
+
+/*
+ * ppe_drv_v6_stats_callback_register()
+ * 	Register a notifier callback for IPv6 stats from PPE
+ */
+bool ppe_drv_v6_stats_callback_register(ppe_drv_v6_sync_callback_t cb, void *app_data)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	spin_lock_bh(&p->lock);
+	p->ipv6_stats_sync_cb = cb;
+	p->ipv6_stats_sync_data = app_data;
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_info("%p: stats callback registered, cb: %p", p, cb);
+	return true;
+}
+EXPORT_SYMBOL(ppe_drv_v6_stats_callback_register);
+
+/*
  * ppe_drv_v6_mc_destroy()
  *	Destroy a multicast connection entry in PPE.
  */
@@ -801,10 +862,6 @@ ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
 	 */
 	list_del(&cn->list);
 
-	/*
-	 * Free the connection memory
-	 */
-	kfree(cn);
 	return PPE_DRV_RET_SUCCESS;
 }
 
@@ -818,6 +875,7 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_v6_conn_flow *pcf;
 	struct ppe_drv_v6_conn_flow *pcr;
+	struct ppe_drv_v6_conn_sync *cns;
 	struct ppe_drv_v6_conn *cn;
 
 	/*
@@ -873,14 +931,28 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	list_del(&cn->list);
 
 	/*
+	 * Capture remaining stats.
+	 */
+	cns = ppe_drv_v6_conn_stats_alloc();
+	if (cns) {
+		ppe_drv_v6_conn_sync_one(cn, cns, PPE_DRV_STATS_SYNC_REASON_DESTROY);
+	}
+
+	spin_unlock_bh(&p->lock);
+
+	if (cns) {
+		ppe_drv_v6_conn_stats_sync_invoke_cb(cns);
+		ppe_drv_v6_conn_stats_free(cns);
+	}
+
+	/*
 	 * We maintain reference per connection on main ppe context.
 	 * Dereference: connection destroy.
 	 *
 	 * TODO: check if this is needed
 	 */
 	/* ppe_drv_deref(p); */
-	spin_unlock_bh(&p->lock);
-	kfree(cn);
+	ppe_drv_v6_conn_free(cn);
 
 	return PPE_DRV_RET_SUCCESS;
 }
@@ -912,7 +984,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	 *
 	 * Revisit if we later handle this in a workqueue in async model.
 	 */
-	cn = kzalloc(sizeof(struct ppe_drv_v6_conn), GFP_ATOMIC);
+	cn = ppe_drv_v6_conn_alloc();
 	if (!cn) {
 		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_mem);
 		ppe_drv_warn("%p: failed to allocate connection memory: %p", p, create);

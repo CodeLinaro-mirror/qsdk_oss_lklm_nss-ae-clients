@@ -107,6 +107,53 @@ struct ppe_drv_v6_conn {
 };
 
 /*
+ * ppe_drv_v6_conn_alloc()
+ *      Allocate v6 connections.
+ */
+static inline struct ppe_drv_v6_conn *ppe_drv_v6_conn_alloc(void)
+{
+	/*
+	 * Allocate a new connection entry
+	 *
+	 * TODO: kzalloc with GFP_ATOMIC is used while considering sync method, in
+	 * that case this API would be called from softirq.
+	 *
+	 * Revisit if we later handle this in a workqueue in async model.
+	 */
+	return kzalloc(sizeof(struct ppe_drv_v6_conn), GFP_ATOMIC);
+}
+
+/*
+ * ppe_drv_v6_conn_free()
+ *      Free v6 connections.
+ */
+static inline void ppe_drv_v6_conn_free(struct ppe_drv_v6_conn *cn)
+{
+	kfree(cn);
+}
+
+/*
+ * ppe_drv_v6_conn_stats_alloc()
+ *      Allocate v6 stats connections.
+ */
+static inline struct ppe_drv_v6_conn_sync *ppe_drv_v6_conn_stats_alloc(void)
+{
+	/*
+	 * Allocate a new connection stats entry
+	 */
+	return kzalloc(sizeof(struct ppe_drv_v6_conn_sync), GFP_ATOMIC);
+}
+
+/*
+ * ppe_drv_v6_conn_stats_free()
+ *      Free v6 stats connections
+ */
+static inline void ppe_drv_v6_conn_stats_free(struct ppe_drv_v6_conn_sync *cns)
+{
+	kfree(cns);
+}
+
+/*
  * ppe_drv_v6_conn_flags_check()
  *      check the bit flags.
  */
@@ -610,3 +657,6 @@ static inline void ppe_drv_v6_conn_flow_tx_stats_get(struct ppe_drv_v6_conn_flow
  * IPv6 internal APIs.
  */
 ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn);
+void ppe_drv_v6_conn_stats_sync_invoke_cb(struct ppe_drv_v6_conn_sync *cns);
+void ppe_drv_v6_conn_sync_one(struct ppe_drv_v6_conn *cn, struct ppe_drv_v6_conn_sync *cns,
+		                enum ppe_drv_stats_sync_reason reason);

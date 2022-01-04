@@ -58,6 +58,7 @@
 #define PPE_DRV_V6_RULE_FLAG_VLAN_MARKING	0x0008		/**< Rule creation for VLAN marking */
 #define PPE_DRV_V6_RULE_FLAG_FLOW_VALID		0x0010		/**< Rule creation for flow direction */
 #define PPE_DRV_V6_RULE_FLAG_RETURN_VALID	0x0020		/**< Rule creation for return direction */
+#define PPE_DRV_V6_RULE_FLAG_PPPOE_VALID       	0x0040          /**< Rule creation for PPPoe */
 
 /*
  * v6 valid flags
@@ -67,6 +68,8 @@
 #define PPE_DRV_V6_VALID_FLAG_VLAN		0x0004  /**< VLAN fields are valid. */
 #define PPE_DRV_V6_VALID_FLAG_QOS		0x0008  /**< QoS fields are valid. */
 #define PPE_DRV_V6_VALID_FLAG_DSCP_MARKING	0x0010  /**< DSCP fields are valid. */
+
+#define PPE_DRV_V6_MAX_CONN_COUNT               1024
 
 /**
  * ppe_drv_v6_5tuple
@@ -160,6 +163,14 @@ struct ppe_drv_v6_conn_sync_many {
  * @param[in] conn_sync   Pointer to the connection sync message data structure.
  */
 typedef void (*ppe_drv_v6_sync_callback_t)(void *app_data, struct ppe_drv_v6_conn_sync *conn_sync);
+
+/**
+ * ppe_drv_v6_stats_callback_unregister
+ *	API to unregister IPv6 connection stats sync callback.
+ *
+ * @return
+ */
+void ppe_drv_v6_stats_callback_unregister(void);
 
 /**
  * ppe_drv_v6_stats_callback_register

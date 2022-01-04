@@ -29,6 +29,7 @@ static void ppe_drv_cc_process_v4(uint8_t cc, struct flow_keys *keys)
 	struct ppe_drv_flow *flow;
 	struct ppe_drv_v4_conn_flow *pcf;
 	struct ppe_drv_v4_5tuple v4_5tuple = {0};
+	struct ppe_drv_v4_conn_sync *cns;
 
 	v4_5tuple.flow_ip = ntohl(keys->addrs.v4addrs.src);
 	v4_5tuple.return_ip = ntohl(keys->addrs.v4addrs.dst);
@@ -65,7 +66,25 @@ static void ppe_drv_cc_process_v4(uint8_t cc, struct flow_keys *keys)
 		return;
 	}
 
+	/*
+	 * Capture remaining stats.
+	 */
+	cns = ppe_drv_v4_conn_stats_alloc();
+	if (cns) {
+		ppe_drv_v4_conn_sync_one(ppe_drv_v4_conn_flow_conn_get(pcf), cns, PPE_DRV_STATS_SYNC_REASON_FLUSH);
+	}
+
 	spin_unlock_bh(&p->lock);
+
+	/*
+	 * Sync stats with CM
+	 */
+	if (cns) {
+		ppe_drv_v4_conn_stats_sync_invoke_cb(cns);
+		ppe_drv_v4_conn_stats_free(cns);
+	}
+
+	ppe_drv_v4_conn_free(ppe_drv_v4_conn_flow_conn_get(pcf));
 }
 
 /*
@@ -78,6 +97,7 @@ static void ppe_drv_cc_process_v6(uint8_t cc, struct flow_keys *keys)
 	struct ppe_drv_flow *flow;
 	struct ppe_drv_v6_conn_flow *pcf;
 	struct ppe_drv_v6_5tuple v6_5tuple = {0};
+	struct ppe_drv_v6_conn_sync *cns;
 
 	PPE_DRV_IN6_TO_IPV6(v6_5tuple.flow_ip, keys->addrs.v6addrs.src);
 	PPE_DRV_IN6_TO_IPV6(v6_5tuple.return_ip, keys->addrs.v6addrs.dst);
@@ -113,7 +133,25 @@ static void ppe_drv_cc_process_v6(uint8_t cc, struct flow_keys *keys)
 		return;
 	}
 
+	/*
+	 * Capture remaining stats.
+	 */
+	cns = ppe_drv_v6_conn_stats_alloc();
+	if (cns) {
+		ppe_drv_v6_conn_sync_one(ppe_drv_v6_conn_flow_conn_get(pcf), cns, PPE_DRV_STATS_SYNC_REASON_FLUSH);
+	}
+
 	spin_unlock_bh(&p->lock);
+
+	/*
+	 * Sync stats with CM
+	 */
+	if (cns) {
+		ppe_drv_v6_conn_stats_sync_invoke_cb(cns);
+		ppe_drv_v6_conn_stats_free(cns);
+	}
+
+	ppe_drv_v6_conn_free(ppe_drv_v6_conn_flow_conn_get(pcf));
 }
 
 /*

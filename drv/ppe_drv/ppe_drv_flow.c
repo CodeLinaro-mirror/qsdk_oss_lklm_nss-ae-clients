@@ -121,6 +121,8 @@ void ppe_drv_flow_stats_clear(struct ppe_drv_flow *pf)
 		ppe_drv_warn("%p: failed to clear stats for flow at index: %u err: %d",
 				pf, pf->index, err);
 	}
+
+	ppe_drv_trace("%p: clear stats for flow index: %d", pf, pf->index);
 }
 
 /*
@@ -372,7 +374,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_get(struct ppe_drv_v6_5tuple *tuple)
 	} else if (protocol == IPPROTO_ESP) {
 		tuple_3 = true;
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
-	} else if (protocol == IPPROTO_IPV6) {
+	} else if (protocol == IPPROTO_IPIP) {
 		tuple_3 = true;
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
 	} else {

@@ -785,6 +785,61 @@ ppe_drv_ret_t ppe_drv_v4_mc_create(struct ppe_drv_v4_rule_create *create)
 }
 
 /*
+ * ppe_drv_v4_flush()
+ *	flush a connection entry in PPE.
+ */
+ppe_drv_ret_t ppe_drv_v4_flush(struct ppe_drv_v4_conn *cn)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v4_conn_flow *pcf = &cn->pcf;
+	struct ppe_drv_v4_conn_flow *pcr = &cn->pcr;
+
+	/*
+	 * Update stats
+	 */
+	ppe_drv_stats_inc(&p->stats.gen_stats.v4_flush_req);
+
+	/*
+	 * Delete flow table entry.
+	 */
+	if (!ppe_drv_v4_flow_del(pcf)) {
+		ppe_drv_stats_inc(&p->stats.gen_stats.v4_flush_fail);
+		ppe_drv_warn("%p: deletion of flow failed: %p", p, pcf);
+		return PPE_DRV_RET_FAILURE_FLUSH_FAIL;
+	}
+
+	/*
+	 * Release references on interfaces.
+	 */
+	ppe_drv_v4_if_walk_release(pcf);
+
+	/*
+	 * Find the other flow associated with this connection.
+	 */
+	if (!ppe_drv_v4_flow_del(pcr)) {
+		ppe_drv_stats_inc(&p->stats.gen_stats.v4_flush_fail);
+		ppe_drv_warn("%p: deletion of return flow failed: %p", p, pcf);
+		return PPE_DRV_RET_FAILURE_FLUSH_FAIL;
+	}
+
+	/*
+	 * Release references on interfaces.
+	 */
+	ppe_drv_v4_if_walk_release(pcr);
+
+	/*
+	 * Add connection entry to the active connection list.
+	 */
+	list_del(&cn->list);
+
+	/*
+	 * Free the connection entry memory.
+	 */
+	kfree(cn);
+	return PPE_DRV_RET_SUCCESS;
+}
+
+/*
  * ppe_drv_v4_destroy()
  *	Destroy a connection entry in PPE.
  */

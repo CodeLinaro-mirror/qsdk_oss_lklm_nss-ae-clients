@@ -606,3 +606,7 @@ static inline void ppe_drv_v6_conn_flow_tx_stats_get(struct ppe_drv_v6_conn_flow
 	*tx_bytes = atomic_read(&pcf->tx_bytes);
 }
 
+/*
+ * IPv6 internal APIs.
+ */
+ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn);

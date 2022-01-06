@@ -673,3 +673,8 @@ static inline void ppe_drv_v4_conn_flow_tx_stats_get(struct ppe_drv_v4_conn_flow
 	*tx_pkts = atomic_read(&pcf->tx_packets);
 	*tx_bytes = atomic_read(&pcf->tx_bytes);
 }
+
+/*
+ * IPv4 internal APIs.
+ */
+ppe_drv_ret_t ppe_drv_v4_flush(struct ppe_drv_v4_conn *cn);

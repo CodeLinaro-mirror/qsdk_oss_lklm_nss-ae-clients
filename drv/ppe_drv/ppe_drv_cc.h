@@ -14,25 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef _PPE_DRV_PUBLIC_H_
-#define _PPE_DRV_PUBLIC_H_
-
-/**
- * @file ppe_drv_public.h
- *	NSS PPE Public definitions.
+/*
+ * ppe_drv_cc
+ *	Instance structure for cpu code management
  */
+struct ppe_drv_cc {
+	ppe_drv_cc_callback_t cb;	/* Per cc registered callback */
+	void *app_data;			/* Associated app data */
+	bool flush;			/* Flush the connection */
+};
 
-#include "ppe_drv.h"
-#include "ppe_drv_br.h"
-#include "ppe_drv_cc.h"
-#include "ppe_drv_dp.h"
-#include "ppe_drv_iface.h"
-#include "ppe_drv_lag.h"
-#include "ppe_drv_port.h"
-#include "ppe_drv_sc.h"
-#include "ppe_drv_v4.h"
-#include "ppe_drv_v6.h"
-#include "ppe_drv_vlan.h"
-#include "ppe_drv_vp.h"
-
-#endif /* _PPE_DRV_PUBLIC_H_ */
+void ppe_drv_cc_entries_free(struct ppe_drv_cc *cc);
+struct ppe_drv_cc *ppe_drv_cc_entries_alloc(void);

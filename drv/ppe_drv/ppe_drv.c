@@ -277,6 +277,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->cc = ppe_drv_cc_entries_alloc();
+	if (!p->cc) {
+		ppe_drv_warn("%p: failed to allocate cpu-code entries", p);
+		goto fail;
+	}
+
 	ppe_drv_exception_init();
 
 	/*
@@ -362,6 +368,11 @@ fail:
 		p->flow = NULL;
 	}
 
+	if (p->cc) {
+		ppe_drv_cc_entries_free(p->cc);
+		p->cc = NULL;
+	}
+
 	return -1;
 }
 
@@ -425,6 +436,11 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->flow) {
 		ppe_drv_flow_entries_free(p->flow);
 		p->flow = NULL;
+	}
+
+	if (p->cc) {
+		ppe_drv_cc_entries_free(p->cc);
+		p->cc = NULL;
 	}
 
 	return 0;

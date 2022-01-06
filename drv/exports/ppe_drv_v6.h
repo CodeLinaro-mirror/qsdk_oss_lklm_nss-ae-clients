@@ -27,6 +27,28 @@
  * @{
  */
 
+/**
+ * Converts the format of an IPv6 address from Linux to PPE-drv.
+ */
+#define PPE_DRV_IN6_TO_IPV6(ipv6, in6) \
+{ \
+	((uint32_t *)ipv6)[0] = in6.in6_u.u6_addr32[0]; \
+	((uint32_t *)ipv6)[1] = in6.in6_u.u6_addr32[1]; \
+	((uint32_t *)ipv6)[2] = in6.in6_u.u6_addr32[2]; \
+	((uint32_t *)ipv6)[3] = in6.in6_u.u6_addr32[3]; \
+}
+
+/**
+ * Converts the format of an IPv6 address from PPE-drv to Linux.
+ */
+#define PPE_DRV_IPV6_TO_IN6(in6, ipv6) \
+{ \
+	in6.in6_u.u6_addr32[0] = ((uint32_t *)ipv6)[0]; \
+	in6.in6_u.u6_addr32[1] = ((uint32_t *)ipv6)[1]; \
+	in6.in6_u.u6_addr32[2] = ((uint32_t *)ipv6)[2]; \
+	in6.in6_u.u6_addr32[3] = ((uint32_t *)ipv6)[3]; \
+}
+
 /*
  * v6 rule flags
  */

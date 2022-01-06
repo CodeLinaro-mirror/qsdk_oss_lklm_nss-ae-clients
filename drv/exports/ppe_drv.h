@@ -159,6 +159,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL,		/**< Failure due to flow addition failed in hardware */
 	PPE_DRV_RET_FAILURE_DESTROY_NO_CONN,		/**< Failure due to connection not found in hardware */
 	PPE_DRV_RET_FAILURE_DESTROY_FAIL,		/**< Failure due to connection not found in hardware */
+	PPE_DRV_RET_FAILURE_FLUSH_FAIL,			/**< Flush failure */
 	PPE_DRV_RET_FAILURE_BRIDGE_NAT,			/**< Failure due to Bridge + NAT flows */
 } ppe_drv_ret_t;
 

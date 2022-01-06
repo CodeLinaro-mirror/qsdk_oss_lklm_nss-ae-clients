@@ -48,6 +48,9 @@ struct ppe_drv_gen_stats {
 	atomic64_t v4_create_fail_snat_dnat;		/* No of v4 create failure due to both SNAT and DNAT is requested */
 	atomic64_t v4_create_fail_if_hierarchy;		/* No of v4 create failure due to interface hierarchy walk fail */
 	atomic64_t v4_create_fail_vlan_filter;		/* No of v4 create failure due to interface not in bridge */
+	atomic64_t v4_flush_req;			/* No of v4 flush requests */
+	atomic64_t v4_flush_fail;			/* No of v4 flush requests fail */
+	atomic64_t v4_flush_conn_not_found;		/* No of v4 connection not found during flush. */
 
         atomic64_t v6_l3_flows;			/* No of v6 routed flows */
         atomic64_t v6_l2_flows;			/* No of v6 bridge flows */
@@ -68,6 +71,9 @@ struct ppe_drv_gen_stats {
 	atomic64_t v6_create_fail_bridge_nat;		/* No of v6 create failure due to NAT with bridge flow */
 	atomic64_t v6_create_fail_if_hierarchy;		/* No of v6 create failure due to interface hierarchy walk fail */
 	atomic64_t v6_create_fail_vlan_filter;		/* No of v6 create failure due to interface not in bridge */
+	atomic64_t v6_flush_req;			/* No of v6 flush requests */
+	atomic64_t v6_flush_fail;			/* No of v6 flush requests fail */
+	atomic64_t v6_flush_conn_not_found;		/* No of v6 connection not found during flush. */
 
 	atomic64_t fail_vp_full;		/* Create req fail due to VP table full */
         atomic64_t fail_pp_full;		/* Create req fail due to physical port table full */

@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <ppe_drv_public.h>
 #include "ppe_drv_exception.h"
+#include "ppe_drv_cc.h"
 #include "ppe_drv_flow.h"
 #include "ppe_drv_host.h"
 #include "ppe_drv_iface.h"
@@ -173,6 +174,7 @@ struct ppe_drv {
 	struct ppe_drv_pppoe *pppoe;			/* Memory for PPE PPPoe table */
 	struct ppe_drv_queue *queue;			/* Memory for PPE queue table */
 	struct ppe_drv_sc *sc;				/* Memory for PPE Service Code table */
+	struct ppe_drv_cc *cc;				/* Memory for PPE CPU Code table */
 
 	struct dentry *dentry;				/* Debugfs entry */
 

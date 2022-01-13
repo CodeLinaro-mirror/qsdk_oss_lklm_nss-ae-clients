@@ -175,6 +175,16 @@ static bool ppe_drv_l3_route_ctrl_init(struct ppe_drv *p)
 	return true;
 }
 
+/*
+ * ppe_drv_get_dentry()
+ *	Get PPE driver debugfs dentry
+ */
+struct dentry *ppe_drv_get_dentry()
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	return p->dentry;
+}
+
 static const struct of_device_id ppe_drv_dt_ids[] = {
 	{ .compatible =  "qcom,nss-ppe" },
 	{},
@@ -315,6 +325,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	 */
 	mod_timer(&p->hw_flow_stats_timer, jiffies + p->hw_flow_stats_ticks);
 
+	/*
+	 * Non availability of debugfs directory is not a catastrophy
+	 * We can still go ahead with other initialization
+	 */
+	ppe_drv_stats_debugfs_init();
+
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
 
 fail:
@@ -384,9 +400,7 @@ static int ppe_drv_remove(struct platform_device *pdev)
 {
 	struct ppe_drv *p = platform_get_drvdata(pdev);
 
-	if (p->dentry) {
-		debugfs_remove_recursive(p->dentry);
-	}
+	ppe_drv_stats_debugfs_exit();
 
 	if (p->pub_ip) {
 		ppe_drv_pub_ip_entries_free(p->pub_ip);
@@ -466,7 +480,6 @@ static struct platform_driver ppe_drv_platform = {
  */
 static int __init ppe_drv_module_init(void)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
 	if (!of_find_compatible_node(NULL, NULL, "qcom,nss-ppe")) {
 		ppe_drv_info("PPE device tree node not found\n");
 		return -EINVAL;
@@ -476,12 +489,6 @@ static int __init ppe_drv_module_init(void)
 		ppe_drv_warn("unable to register the driver\n");
 		return -EIO;
 	}
-
-	/*
-	 * Non availability of debugfs directory is not a catastrophy
-	 * We can still go ahead with other initialization
-	 */
-	p->dentry = debugfs_create_dir("qca-nss-ppe", NULL);
 
 	return 0;
 }

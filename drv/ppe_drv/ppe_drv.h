@@ -177,6 +177,7 @@ struct ppe_drv {
 	struct ppe_drv_cc *cc;				/* Memory for PPE CPU Code table */
 
 	struct dentry *dentry;				/* Debugfs entry */
+	struct dentry *stats_dentry;				/* Debugfs entry */
 
 	ppe_drv_v4_sync_callback_t ipv4_stats_sync_cb;		/* Callback to call to sync ipv4 statistics */
 	void *ipv4_stats_sync_data;				/* Argument for above callback: ipv4_stats_sync_cb */

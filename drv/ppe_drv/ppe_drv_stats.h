@@ -17,11 +17,13 @@
 #ifndef __PPE_DRV_STATS_H
 #define __PPE_DRV_STATS_H
 
+#define PPE_STATS_NODE_NAME		"PPE"
+
 /*
  * Max service code number.
  * TODO: update it with enum definition
  */
-#define PPE_DRV_SC_MAX 256
+#define PPE_DRV_SC_CNT_MAX 256
 
 /*
  * ppe_drv_gen_stats
@@ -112,7 +114,7 @@ struct ppe_drv_stats_sc {
  */
 struct ppe_drv_stats {
 	struct ppe_drv_gen_stats gen_stats;			/* General connection stats */
-	struct ppe_drv_stats_sc sc_stats[PPE_DRV_SC_MAX];	/* Per service-code stats */
+	struct ppe_drv_stats_sc	sc_stats[PPE_DRV_SC_CNT_MAX];	/* Per service-code stats */
 };
 
 /*
@@ -132,4 +134,8 @@ static inline void ppe_drv_stats_inc(atomic64_t *stat)
 {
 	atomic64_inc(stat);
 }
+
+int ppe_drv_stats_debugfs_init(void);
+void ppe_drv_stats_debugfs_exit(void);
+
 #endif

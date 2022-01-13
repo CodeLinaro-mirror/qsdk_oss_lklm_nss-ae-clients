@@ -26,6 +26,7 @@
  * @addtogroup ppe_drv_subsystem
  * @{
  */
+#include <linux/module.h>
 #include <linux/if_ether.h>
 #include "ppe_drv_iface.h"
 
@@ -162,6 +163,15 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_FLUSH_FAIL,			/**< Flush failure */
 	PPE_DRV_RET_FAILURE_BRIDGE_NAT,			/**< Failure due to Bridge + NAT flows */
 } ppe_drv_ret_t;
+
+/**
+ * ppe_drv_get_dentry
+ *	Get PPE debugfs entry.
+ *
+ * @return
+ * ppe dentry.
+ */
+struct dentry *ppe_drv_get_dentry(void);
 
 /** @} */ /* end_addtogroup ppe_drv_subsystem */
 

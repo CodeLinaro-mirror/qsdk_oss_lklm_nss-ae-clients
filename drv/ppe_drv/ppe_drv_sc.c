@@ -177,7 +177,7 @@ bool ppe_drv_sc_process_skbuff(uint8_t sc, struct sk_buff *skb)
 	void *app_data;
 	bool ret;
 
-	ppe_drv_assert(sc < PPE_DRV_SC_MAX, "%p: invalid service code %u", p, sc);
+	ppe_drv_assert(sc < PPE_DRV_SC_CNT_MAX, "%p: invalid service code %u", p, sc);
 
 	spin_lock_bh(&p->lock);
 	psc = &p->sc[sc];

@@ -15,6 +15,7 @@
  */
 
 #include "ppe_vp_base.h"
+#include "ppe_vp_rx.h"
 
 extern struct ppe_vp_base vp_base;
 
@@ -178,6 +179,16 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	ppe_iface = vp->ppe_iface;
 
 	/*
+	 * Map VP to PPE queue zero
+	 */
+	ret = ppe_drv_iface_ucast_queue_set(ppe_iface, 0);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		ppe_vp_warn("%px: port_num: %x, ppe vp ucast queue reset failed", pvb, port_num);
+		rcu_read_unlock();
+		goto free_fail;
+	}
+
+	/*
 	 * De-Initialize the virtual port in PPE.
 	 */
 	ret = ppe_drv_vp_deinit(ppe_iface);
@@ -323,13 +334,20 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 		goto mtu_set_failed;
 	}
 
+	ret = ppe_drv_iface_ucast_queue_set(ppe_iface, vpai->queue_num);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		ppe_vp_warn("%px: netdev: %px, ppe vp ucast queue %d set failed", pvb, netdev, vpai->queue_num);
+		goto alloc_fail;
+	}
+
+	ppe_vp_trace("%px: netdev: %px, ppe vp %d ucase queue %d set", pvb, netdev, pp_num, vpai->queue_num);
+
 	/*
 	 * Get the main vp object from local list.
 	 */
 	vp = ppe_vp_base_alloc_vp((uint8_t)pp_num);
 	if (!vp) {
 		ppe_vp_warn("%px: Unable to allocate a new VP for ppe port %d", pvb, pp_num);
-		rcu_read_unlock();
 		vpai->status = PPE_VP_STATUS_VP_ALLOC_FAIL;
 		goto alloc_fail;
 	}
@@ -345,8 +363,12 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 	vp->flags = PPE_VP_FLAG_VP_ACTIVE;
 	vp->dst_cb = vpai->dst_cb;
 	vp->dst_cb_data = vpai->dst_cb_data;
-	vp->src_cb = vpai->src_cb;
-	vp->src_cb_data = vpai->src_cb_data;
+	if (vpai->src_cb) {
+		vp->src_cb = vpai->src_cb;
+		vp->src_cb_data = vpai->src_cb_data;
+	} else {
+		vp->src_cb = ppe_vp_rx_process_cb;
+	}
 
 	vp->vp_stats.misc_info.netdev_if_num = netdev->ifindex;
 	vp->vp_stats.misc_info.ppe_port_num = pp_num;

@@ -26,6 +26,11 @@ struct ppe_vp_base_stats {
 	atomic64_t vp_table_full;		/* VP allocation fails due to table full */
 	atomic64_t mtu_assign_fails;		/* MTU assign fails */
 	atomic64_t mac_assign_fails;		/* MAC assign fails */
+	atomic64_t rx_dvp_inactive;		/* Packet received from PPE with inactive destinaton VP */
+	atomic64_t rx_svp_inactive;		/* Packet received from PPE with inactive Source VP */
+	atomic64_t rx_dvp_invalid;		/* Packet received from PPE without valid DVP */
+	atomic64_t rx_svp_invalid;		/* Packet received from PPE without valid SVP */
+	atomic64_t tx_vp_inactive;		/* VP of Packet forwarded by VP user is inactive */
 };
 
 /*
@@ -44,6 +49,8 @@ struct ppe_vp_misc_info {
 struct ppe_vp_rx_stats {
 	atomic64_t rx_pkts;			/* Total rx packets */
 	atomic64_t rx_bytes;			/* Total rx bytes */
+	atomic64_t rx_excp_pkts;		/* Total exceptioned VP packets */
+	atomic64_t rx_excp_bytes;		/* Total exceptioned VP bytes */
 	atomic64_t rx_errors;			/* Total rx errors */
 	atomic64_t rx_drops;			/* Total rx drops */
 	struct u64_stats_sync syncp;		/* Stats sync status */

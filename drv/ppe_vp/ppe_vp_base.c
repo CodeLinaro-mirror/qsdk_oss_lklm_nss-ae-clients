@@ -337,6 +337,11 @@ static int __init ppe_vp_base_module_init(void)
 
 	ppe_vp_base_stats_init(pvb);
 
+	/*
+	 * Register ppe_vp Rx handler with nss-dp
+	 */
+	nss_dp_vp_rx_register_cb(ppe_vp_rx_dp_cb);
+
 	ppe_vp_info("%px: PPE-VP module loaded successfully", pvb);
 
 	return 0;
@@ -350,6 +355,8 @@ module_init(ppe_vp_base_module_init);
 static void __exit ppe_vp_base_module_exit(void)
 {
 	struct ppe_vp_base *pvb = &vp_base;
+
+	nss_dp_vp_rx_unregister_cb();
 
 	if (pvb->vp_hdr) {
 		unregister_sysctl_table(pvb->vp_hdr);

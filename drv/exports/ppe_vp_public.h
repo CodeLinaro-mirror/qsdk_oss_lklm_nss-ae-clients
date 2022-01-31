@@ -48,6 +48,8 @@ typedef enum ppe_vp_status {
 	PPE_VP_STATUS_VP_ALLOC_FAIL,	/**< VP alloc failed */
 	PPE_VP_STATUS_VP_FREE_FAIL,	/**< VP free  failed */
 	PPE_VP_STATUS_FAILURE,		/**< VP Failure */
+	PPE_VP_STATUS_VP_QUEUE_SET_FAILED,
+					/**< VP to Queue map failed */
 	PPE_VP_STATUS_MAX,		/**< Maximum VP statuses */
 } ppe_vp_status_t;
 

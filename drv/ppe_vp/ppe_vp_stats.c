@@ -17,7 +17,7 @@
 #include <linux/debugfs.h>
 #include "ppe_vp_base.h"
 
-#define RX_STATS_COUNT		4
+#define RX_STATS_COUNT		6
 #define TX_STATS_COUNT		4
 
 extern struct ppe_vp_base vp_base;
@@ -26,12 +26,19 @@ static const char *ppe_vp_stats_base_str[] = {
 	"VP Allocation fails",			/* Total VP allocation failures */
 	"VP Table full errors",			/* VP allocation fails due to table full */
 	"MTU assign fails",			/* MTU assign fails */
-	"MAC assign fails"			/* MAC assign fails */
+	"MAC assign fails",			/* MAC assign fails */
+	"Rx Destination VP Inactive",		/* Packet received from PPE with inactive destinaton VP */
+	"Rx Source VP Inactive",		/* Packet received from PPE with inactive Source VP */
+	"Rx Destination VP Invalid",		/* Packet received from PPE without valid SVP */
+	"Rx Source VP Invalid",			/* Packet received from PPE without valid DVP */
+	"Tx VP Inactive"			/* VP of Packet forwarded by VP user is inactive */
 };
 
 static const char *ppe_vp_stats_rx_str[] = {
 	"Rx packets",				/* Total rx packets */
 	"Rx bytes",				/* Total rx bytes */
+	"Rx exceptioned packets",		/* Total exceptioned VP packets */
+	"Rx exceptioned bytes",			/* Total exceptioned VP bytes */
 	"Rx errors",				/* Total rx errors */
 	"Rx drops"				/* Total rx drops */
 };
@@ -82,7 +89,7 @@ static int ppe_vp_stats_show(struct seq_file *m, void __attribute__((unused))*p)
 	uint64_t rx_aggr[RX_STATS_COUNT], tx_aggr[TX_STATS_COUNT];
 	uint32_t active_vp_counter = 0;
 	int16_t idx;
-	int i;
+	uint32_t i;
 
 	/*
 	 * Read the statistics from the main structure for
@@ -103,7 +110,7 @@ static int ppe_vp_stats_show(struct seq_file *m, void __attribute__((unused))*p)
 	seq_printf(m, "\nBase VP Statistics:\n");
 	stats_shadow = (uint64_t *)pvb_stats;
 	seq_printf(m, "\tActive VPs: %u\n", pvb->vp_table.active_vp);
-	for (i = 0; i < sizeof(struct ppe_vp_base_stats) / sizeof(uint64_t); i++) {
+	for (i = 0; i < (sizeof(struct ppe_vp_base_stats) / sizeof(uint64_t)); i++) {
 		seq_printf(m, "\t[%s]:  %llu\n", ppe_vp_stats_base_str[i], stats_shadow[i]);
 	}
 
@@ -141,8 +148,10 @@ static int ppe_vp_stats_show(struct seq_file *m, void __attribute__((unused))*p)
 
 				rx_aggr[0] += atomic64_read(&rx_stats.rx_pkts);
 				rx_aggr[1] += atomic64_read(&rx_stats.rx_bytes);
-				rx_aggr[2] += atomic64_read(&rx_stats.rx_errors);
-				rx_aggr[3] += atomic64_read(&rx_stats.rx_drops);
+				rx_aggr[2] += atomic64_read(&rx_stats.rx_excp_pkts);
+				rx_aggr[3] += atomic64_read(&rx_stats.rx_excp_bytes);
+				rx_aggr[4] += atomic64_read(&rx_stats.rx_errors);
+				rx_aggr[5] += atomic64_read(&rx_stats.rx_drops);
 
 				tx_pcpu_stats = per_cpu_ptr(vp_stats->tx_stats, i);
 

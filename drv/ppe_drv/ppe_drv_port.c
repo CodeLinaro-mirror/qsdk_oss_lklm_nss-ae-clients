@@ -379,7 +379,7 @@ void ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 	/*
 	 * Update L3_VP_PORT_TBL.
 	 */
-	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT) {
+	if ((pl3->type == PPE_DRV_L3_IF_TYPE_PORT) || (pl3->type == PPE_DRV_L3_IF_TYPE_LAG)) {
 		intf_ctrl.l3_if_valid = true;
 		intf_ctrl.l3_if_index = pl3->l3_if_index;
 		err = fal_ip_port_intf_set(PPE_DRV_SWITCH_ID, pp->port, &intf_ctrl);
@@ -410,6 +410,7 @@ void ppe_drv_port_l3_if_detach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 {
 	sw_error_t err;
 	struct ppe_drv_l3_if *walk = NULL;
+	struct ppe_drv_l3_if *port_l3_if = NULL;
 	fal_intf_id_t intf_ctrl = {0};
 
 	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: attaching l3_if to unused port:%u", pp, pp->port);
@@ -441,7 +442,20 @@ void ppe_drv_port_l3_if_detach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 	/*
 	 * Update L3_VP_PORT_TBL.
 	 */
-	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT) {
+	if (pl3->type == PPE_DRV_L3_IF_TYPE_LAG) {
+		port_l3_if = ppe_drv_port_find_port_l3_if(pp);
+		if (port_l3_if) {
+			ppe_drv_info("%p: restoring port l3_if:%p", pp, pl3);
+			intf_ctrl.l3_if_valid = true;
+			intf_ctrl.l3_if_index = port_l3_if->l3_if_index;
+			err = fal_ip_port_intf_set(PPE_DRV_SWITCH_ID, pp->port, &intf_ctrl);
+			if (err != SW_OK) {
+				ppe_drv_warn("%p port l3_if configuration failed: %p port_num: %u l3_if_num: %u",
+						pp, port_l3_if, pp->port, port_l3_if->l3_if_index);
+				return;
+			}
+		}
+	} else if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT) {
 		intf_ctrl.l3_if_valid = false;
 		intf_ctrl.l3_if_index = pl3->l3_if_index;
 		err = fal_ip_port_intf_set(PPE_DRV_SWITCH_ID, pp->port, &intf_ctrl);

@@ -30,6 +30,7 @@
 #include "ppe_drv.h"
 #include "ppe_drv_br.h"
 #include "ppe_drv_iface.h"
+#include "ppe_drv_lag.h"
 #include "ppe_drv_port.h"
 #include "ppe_drv_sc.h"
 #include "ppe_drv_v4.h"

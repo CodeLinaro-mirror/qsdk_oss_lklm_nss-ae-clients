@@ -132,7 +132,7 @@ bool ppe_drv_iface_deref(struct ppe_drv_iface *ppe_iface);
 
 /**
  * ppe_drv_iface_get_by_dev
- *	Release reference on PPE interface.
+ *	Get PPE interface from net device.
  *
  * @param[in] dev    Associated net device.
  *

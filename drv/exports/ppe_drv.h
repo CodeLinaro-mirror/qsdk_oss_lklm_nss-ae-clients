@@ -119,7 +119,14 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_L3_IF_ALLOC_FAIL,			/**< L3_IF allocation fails */
 	PPE_DRV_RET_MAC_ADDR_CLEAR_CFG_FAIL,		/**< Mac address clear configuration fails */
 	PPE_DRV_RET_MAC_ADDR_SET_CFG_FAIL,		/**< Mac address set configuration fails */
-	PPE_DRV_RET_MTU_CFG_FAIL			/**< MTU configuration fails */
+	PPE_DRV_RET_MTU_CFG_FAIL,			/**< MTU configuration fails */
+	PPE_DRV_RET_DEL_MAC_FDB_FAIL,			/**< Failed to delete FDB entry by MAC */
+	PPE_DRV_RET_STA_MOVE_FAIL,			/**< Failed to configure station movement */
+	PPE_DRV_RET_NEW_ADDR_LRN_FAIL,			/**< Failed to configure new address learning */
+	PPE_DRV_RET_FDB_FLUSH_VSI_FAIL,			/**< Failed to flush FDB entries by VSI */
+	PPE_DRV_RET_MEM_IF_INVALID_PORT,		/**< Failed to find port for member interface */
+	PPE_DRV_RET_STP_STATE_FAIL,			/**< Failed to set STP state on the bridge port */
+	PPE_DRV_RET_IFACE_L3_IF_FAIL,			/**< Failed to find L3_IF for the interface */
 } ppe_drv_ret_t;
 
 /** @} */ /* end_addtogroup ppe_drv_subsystem */

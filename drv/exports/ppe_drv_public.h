@@ -28,6 +28,7 @@
  */
 
 #include "ppe_drv.h"
+#include "ppe_drv_br.h"
 #include "ppe_drv_iface.h"
 #include "ppe_drv_port.h"
 #include "ppe_drv_sc.h"

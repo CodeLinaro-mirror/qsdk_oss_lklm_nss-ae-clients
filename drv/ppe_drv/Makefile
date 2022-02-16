@@ -5,6 +5,7 @@ ccflags-y += -DPPE_DRV_BUILD_ID="$(BUILD_ID)"
 
 obj-m += qca-nss-ppe.o
 qca-nss-ppe-objs := ppe_drv.o
+qca-nss-ppe-objs += ppe_drv_br.o
 qca-nss-ppe-objs += ppe_drv_exception.o
 qca-nss-ppe-objs += ppe_drv_iface.o
 qca-nss-ppe-objs += ppe_drv_l3_if.o

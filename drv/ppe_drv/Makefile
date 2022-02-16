@@ -11,6 +11,7 @@ qca-nss-ppe-objs += ppe_drv_iface.o
 qca-nss-ppe-objs += ppe_drv_l3_if.o
 qca-nss-ppe-objs += ppe_drv_port.o
 qca-nss-ppe-objs += ppe_drv_pppoe.o
+qca-nss-ppe-objs += ppe_drv_pppoe_session.o
 qca-nss-ppe-objs += ppe_drv_pub_ip.o
 qca-nss-ppe-objs += ppe_drv_sc.o
 qca-nss-ppe-objs += ppe_drv_vsi.o

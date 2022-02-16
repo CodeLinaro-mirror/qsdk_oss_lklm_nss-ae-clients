@@ -127,6 +127,8 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_MEM_IF_INVALID_PORT,		/**< Failed to find port for member interface */
 	PPE_DRV_RET_STP_STATE_FAIL,			/**< Failed to set STP state on the bridge port */
 	PPE_DRV_RET_IFACE_L3_IF_FAIL,			/**< Failed to find L3_IF for the interface */
+	PPE_DRV_RET_PPPOE_ALLOC_FAIL,			/**< PPPOE session allocation failure */
+	PPE_DRV_RET_L3_IF_PPPOE_SET_FAIL,		/**< Failed to set PPPOE session information in L3_IF */
 } ppe_drv_ret_t;
 
 /** @} */ /* end_addtogroup ppe_drv_subsystem */

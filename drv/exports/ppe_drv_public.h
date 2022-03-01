@@ -14,13 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef _PPE_DRV_PUBLIC_H_
+#define _PPE_DRV_PUBLIC_H_
+
 /**
  * @file ppe_drv_public.h
  *	NSS PPE Public definitions.
  */
-
-#ifndef _PPE_DRV_PUBLIC_H_
-#define _PPE_DRV_PUBLIC_H_
 
 /**
  * @addtogroup ppe_drv_public_subsystem
@@ -29,6 +29,7 @@
 
 #include "ppe_drv.h"
 #include "ppe_drv_iface.h"
+#include "ppe_drv_port.h"
 #include "ppe_drv_v4.h"
 #include "ppe_drv_v6.h"
 

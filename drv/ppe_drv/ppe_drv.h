@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <ppe_drv_public.h>
 #include "ppe_drv_l3_if.h"
+#include "ppe_drv_port.h"
 #include "ppe_drv_pppoe.h"
 #include "ppe_drv_pub_ip.h"
 #include "ppe_drv_stats.h"

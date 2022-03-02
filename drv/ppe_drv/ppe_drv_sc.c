@@ -117,9 +117,12 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * packets.
 		 *
 		 * Disable source port filtering for bridge flows between two virtual ports.
+		 *
+		 * Avoid exception due to new MAC address learn when FDB learning is disabled.
 		 */
 		sc_cfg.bypass_bitmap[1] = ((1 << EG_VLAN_MEMBER_CHECK_BYP)
-					| (1 << SOURCE_FLTR_BYP));
+						| (1 << SOURCE_FLTR_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
 		sc_cfg.dest_port_valid = false;
 		break;

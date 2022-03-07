@@ -15,6 +15,8 @@
  */
 
 #define PPE_DRV_PORT_SRC_PROFILE_MAX	4	/* Source profile for a port can be between 0-3 */
+#define NSS_PPE_PHY_PORT_CHK(n) ((n) >= PPE_DRV_PHYSICAL_START && (n) < PPE_DRV_PHYSICAL_MAX)
+#define NSS_PPE_VIRTUAL_PORT_CHK(n) ((n) >= PPE_DRV_VIRTUAL_START && (n) < PPE_DRV_PORTS_MAX)
 
 /*
  * ppe_drv_port
@@ -58,7 +60,7 @@ struct ppe_drv_l3_if *ppe_drv_port_find_port_l3_if(struct ppe_drv_port *pp);
 struct ppe_drv_l3_if *ppe_drv_port_find_pppoe_l3_if(struct ppe_drv_port *pp, uint16_t session_id, uint8_t *smac);
 
 void ppe_drv_port_l3_if_detach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *l3_if);
-void ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *l3_if);
+bool ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *l3_if);
 
 void ppe_drv_port_vsi_detach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi);
 void ppe_drv_port_vsi_attach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi);

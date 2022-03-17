@@ -195,6 +195,7 @@ void ppe_drv_pppoe_l3_if_attach(struct ppe_drv_pppoe *pppoe, struct ppe_drv_l3_i
 	pppoe_cfg.smac_valid = true;
 	pppoe_cfg.port_bitmap = 0xFF;
 	pppoe_cfg.l3_if_index = l3_if->l3_if_index;
+	pppoe_cfg.l3_if_valid = true;
 
 	memcpy(&pppoe_cfg.smac_addr, &pppoe->server_mac[0], sizeof(pppoe_cfg.smac_addr));
 

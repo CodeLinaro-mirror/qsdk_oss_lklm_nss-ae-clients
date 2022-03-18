@@ -41,6 +41,8 @@ ppe_drv_ret_t ppe_drv_vlan_tpid_set(uint16_t ctpid, uint16_t stpid, uint32_t mas
 	tpid.mask = mask;
 	tpid.ctpid = ctpid;
 	tpid.stpid = stpid;
+	tpid.tunnel_ctpid = ctpid;
+	tpid.tunnel_stpid = stpid;
 
 	spin_lock_bh(&p->lock);
 	if ((fal_ingress_tpid_set(PPE_DRV_SWITCH_ID, &tpid) != SW_OK) || (fal_egress_tpid_set(PPE_DRV_SWITCH_ID, &tpid) != SW_OK)) {

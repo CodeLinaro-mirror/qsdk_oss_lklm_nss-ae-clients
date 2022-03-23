@@ -271,7 +271,10 @@ bool ppe_drv_vsi_set_vlan(struct ppe_drv_vsi *vsi, uint32_t vlan_id, struct ppe_
 	 * PPE support vlan acceleration only on physical, bond or pppoe interface.
 	 */
 	if ((nh_iface->type == PPE_DRV_IFACE_TYPE_PHYSICAL)
-		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_LAG)) {
+		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_LAG)
+		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_VIRTUAL)
+		|| (nh_iface->type == PPE_DRV_IFACE_TYPE_VP_TUN)) {
+
 		/*
 		 * single vlan
 		 */

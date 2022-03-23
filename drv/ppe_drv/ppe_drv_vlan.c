@@ -268,13 +268,29 @@ EXPORT_SYMBOL(ppe_drv_vlan_add_xlate_rule);
 void ppe_drv_vlan_deinit(struct ppe_drv_iface *iface)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_iface *port_if;
 	struct ppe_drv_vsi *vsi;
+	struct ppe_drv_port *pp;
 
 	spin_lock_bh(&p->lock);
 	vsi = ppe_drv_iface_vsi_get(iface);
 	ppe_drv_iface_base_clear(iface);
 	ppe_drv_iface_vsi_clear(iface);
 	ppe_drv_iface_l3_if_clear(iface);
+
+	/*
+	 * Detach VLAN vsi to port.
+	 * Use base interface for double vlan
+	 */
+	port_if = ppe_drv_iface_base_get(iface);
+	if (port_if->type == PPE_DRV_IFACE_TYPE_VLAN) {
+		port_if = ppe_drv_iface_base_get(port_if);
+	}
+
+	pp = ppe_drv_iface_port_get(port_if);
+	if (pp) {
+		ppe_drv_port_vsi_detach(pp, vsi);
+	}
 
 	if (vsi) {
 		ppe_drv_l3_if_deref(vsi->l3_if);
@@ -291,10 +307,11 @@ EXPORT_SYMBOL(ppe_drv_vlan_deinit);
  */
 ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *ppe_iface, struct net_device *base_dev, uint32_t vlan_id)
 {
-	struct ppe_drv_iface *base_if;
+	struct ppe_drv_iface *base_if, *port_if;
 	struct ppe_drv *p = &ppe_drv_gbl;
-	struct ppe_drv_vsi *vsi;
 	struct ppe_drv_l3_if *l3_if;
+	struct ppe_drv_vsi *vsi;
+	struct ppe_drv_port *pp;
 
 	spin_lock_bh(&p->lock);
 	base_if = ppe_drv_iface_get_by_dev_internal(base_dev);
@@ -334,6 +351,21 @@ ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *ppe_iface, struct net_devi
 	}
 
 	ppe_drv_iface_l3_if_set(ppe_iface, l3_if);
+
+	/*
+	 * Attach VLAN vsi to port.
+	 * Use base interface for double vlan
+	 */
+	port_if = base_if;
+	if (port_if->type == PPE_DRV_IFACE_TYPE_VLAN) {
+		port_if = ppe_drv_iface_base_get(port_if);
+	}
+
+	pp = ppe_drv_iface_port_get(port_if);
+	if (pp) {
+		ppe_drv_port_vsi_attach(pp, vsi);
+	}
+
 	spin_unlock_bh(&p->lock);
 
 	return PPE_DRV_RET_SUCCESS;

@@ -522,13 +522,19 @@ void ppe_drv_port_vsi_attach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi)
 	case PPE_DRV_VSI_TYPE_VLAN:
 		/*
 		 * Note: VLAN vsi are obtained from IN_VLAN_XLT_ACTION table.
-		 * L3_VP_PORT_TBL need not be touched for vlan cases here.
+		 *
+		 * Detach port L3_IF if this is the first VLAN interface on this port,
+		 * so that PPE can use l3 if associated with vlan interface.
 		 */
+		if (pp->port_l3_if && !pp->active_vlan) {
+			ppe_drv_port_l3_if_detach(pp, pp->port_l3_if);
+		}
 
 		/*
 		 * Take reference to vsi.
 		 * This reference will be freed up in port_detach_vsi call.
 		 */
+		pp->active_vlan++;
 		ppe_drv_vsi_ref(vsi);
 		return;
 
@@ -626,6 +632,17 @@ void ppe_drv_port_vsi_detach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi)
 		 * L3_VP_PORT_TBL need not be touched for vlan cases here.
 		 */
 		ppe_drv_vsi_deref(vsi);
+		pp->active_vlan--;
+
+		/*
+		 * Note: VLAN vsi are obtained from IN_VLAN_XLT_ACTION table.
+		 *
+		 * Attach port L3_IF if this is the last VLAN interface on this port,
+		 * so that PPE can use l3 if associated with port.
+		 */
+		if (pp->port_l3_if && !pp->active_vlan) {
+			ppe_drv_port_l3_if_attach(pp, pp->port_l3_if);
+		}
 		return;
 
 	default:
@@ -1121,7 +1138,7 @@ bool ppe_drv_port_src_profile_set(struct ppe_drv_port *pp, uint8_t src_profile)
 
 /*
  * ppe_drv_port_alloc()
- *	Create a new physical port in PPE.
+ *	Create a new virtual port in PPE.
  */
 struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev, bool is_tunnel_vp)
 {
@@ -1201,14 +1218,27 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	}
 
 	/*
-	 * Enable station move learning
+	 * Disable FDB learning and station move learning for virtual ports, this
+	 * forces PPE to use flow based bridging by default for all VPs.
+	 *
+	 * TODO: make this configurable through ppe-vp driver.
 	 */
-	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, port, true, FAL_MAC_RDT_TO_CPU);
+	err = fal_fdb_port_learning_ctrl_set(PPE_DRV_SWITCH_ID, port, false, FAL_MAC_FRWRD);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to configure FDB learning for port: %u", p, pp->port);
+		ppe_drv_port_deref(pp);
+		return NULL;
+	}
+
+	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, port, false, FAL_MAC_FRWRD);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure station move control for port: %u", p, pp->port);
 		ppe_drv_port_deref(pp);
 		return NULL;
 	}
+
+	pp->is_fdb_learn_enabled = false;
+
 
 	/*
 	 * Set VP type as normal VP.
@@ -1277,6 +1307,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	pp->port_l3_if = NULL;
 	pp->dev = dev;
 	pp->type = type;
+	pp->active_vlan = 0;
 	pp->is_tunnel_vp = is_tunnel_vp;
 	INIT_LIST_HEAD(&pp->l3_list);
 
@@ -1403,6 +1434,8 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	pp->port_vsi = NULL;
 	pp->port_l3_if = NULL;
 	pp->dev = dev;
+	pp->active_vlan = 0;
+	pp->is_fdb_learn_enabled = true;
 	pp->type = PPE_DRV_PORT_PHYSICAL;
 	INIT_LIST_HEAD(&pp->l3_list);
 

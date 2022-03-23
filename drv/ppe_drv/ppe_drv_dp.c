@@ -47,6 +47,7 @@ ppe_drv_ret_t ppe_drv_dp_deinit(struct ppe_drv_iface *iface)
 	 * Dereference port
 	 */
 	ppe_drv_port_l3_if_detach(port, l3_if);
+	port->port_l3_if = NULL;
 	ppe_drv_l3_if_deref(l3_if);
 	ppe_drv_port_deref(port);
 	spin_unlock_bh(&p->lock);

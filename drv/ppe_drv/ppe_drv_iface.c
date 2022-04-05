@@ -697,6 +697,60 @@ ppe_drv_ret_t ppe_drv_iface_mac_addr_set(struct ppe_drv_iface *iface, uint8_t *m
 EXPORT_SYMBOL(ppe_drv_iface_mac_addr_set);
 
 /*
+ * ppe_drv_iface_ucast_queue_get()
+ *	Get queue configuration for given PPE interface.
+ */
+ppe_drv_ret_t ppe_drv_iface_ucast_queue_get(struct ppe_drv_iface *iface, uint8_t *queue_id)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *port;
+
+	spin_lock_bh(&p->lock);
+	port = ppe_drv_iface_port_get(iface);
+	if (!port) {
+		spin_unlock_bh(&p->lock);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	*queue_id = ppe_drv_port_ucast_queue_get(port);
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_trace("%p: Unicast Queue get done for given port(%p)", p, port);
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_iface_ucast_queue_get);
+
+/*
+ * ppe_drv_iface_ucast_queue_set()
+ *	Set queue configuration for given PPE interface.
+ */
+ppe_drv_ret_t ppe_drv_iface_ucast_queue_set(struct ppe_drv_iface *iface, uint8_t queue_id)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *port;
+
+	spin_lock_bh(&p->lock);
+	port = ppe_drv_iface_port_get(iface);
+	if (!port) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: cannot get port for given interface (%p)", p, iface);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	if (!ppe_drv_port_ucast_queue_set(port, queue_id)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: queue configuration failed for queue_id(%d)", iface, queue_id);
+		return PPE_DRV_RET_QUEUE_CFG_FAIL;
+	}
+
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_trace("%p: Unicast Queue (%d)setting done for given port(%p)", p, queue_id, port);
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_iface_ucast_queue_set);
+
+/*
  * ppe_drv_iface_alloc()
  *	Allocates a free interface and takes a reference.
  */

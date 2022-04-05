@@ -164,6 +164,36 @@ int32_t ppe_drv_iface_port_idx_get(struct ppe_drv_iface *iface);
  */
 ppe_drv_iface_t ppe_drv_iface_idx_get_by_dev(struct net_device *dev);
 
+/**
+ * ppe_drv_iface_ucast_queue_get
+ *	Get queue configuration for given port.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface    PPE iface.
+ * @param[in] &queue_id   adress of queue_id.
+ *
+ * @return
+ * ppe_drv_iface_t
+ */
+ppe_drv_ret_t ppe_drv_iface_ucast_queue_get(struct ppe_drv_iface *iface, uint8_t *queue_id);
+
+/**
+ * ppe_drv_iface_ucast_queue_set
+ *	Queue configuration for given port.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface    PPE iface.
+ * @param[in] queue_id   queue_id.
+ *
+ * @return
+ * ppe_drv_iface_t
+ */
+ppe_drv_ret_t ppe_drv_iface_ucast_queue_set(struct ppe_drv_iface *iface, uint8_t queue_id);
+
 /** @} */ /* end_addtogroup ppe_drv_iface_subsystem */
 
 #endif /* _PPE_DRV_IFACE_H_ */

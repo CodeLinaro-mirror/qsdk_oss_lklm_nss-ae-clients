@@ -160,6 +160,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_DESTROY_NO_CONN,		/**< Failure due to connection not found in hardware */
 	PPE_DRV_RET_FAILURE_DESTROY_FAIL,		/**< Failure due to connection not found in hardware */
 	PPE_DRV_RET_FAILURE_BRIDGE_NAT,			/**< Failure due to Bridge + NAT flows */
+	PPE_DRV_RET_QUEUE_CFG_FAIL,			/**< Failure in queue configuration */
 } ppe_drv_ret_t;
 
 /** @} */ /* end_addtogroup ppe_drv_subsystem */

@@ -874,7 +874,7 @@ bool ppe_drv_port_deref(struct ppe_drv_port *pp)
  * ppe_drv_port_ucast_queue_set()
  *	Set queue ID of a given port in PPE.
  */
-bool ppe_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id)
+bool ppe_drv_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id)
 {
 	sw_error_t err;
 	fal_ucast_queue_dest_t q_dst = {0};
@@ -909,6 +909,7 @@ bool ppe_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id)
  */
 uint8_t ppe_drv_port_ucast_queue_get(struct ppe_drv_port *pp)
 {
+	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: getting ucast queue on an unused port:%u", pp, pp->port);
 	return pp->ucast_queue;
 }
 
@@ -1278,6 +1279,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	pp->dev = dev;
 	pp->type = type;
 	pp->is_tunnel_vp = is_tunnel_vp;
+	pp->ucast_queue = 0;
 	INIT_LIST_HEAD(&pp->l3_list);
 
 	ppe_drv_info("%p: allocated ppe port:%u for dev(%s): %p", pp, port, netdev_name(dev), dev);
@@ -1404,6 +1406,7 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	pp->port_l3_if = NULL;
 	pp->dev = dev;
 	pp->type = PPE_DRV_PORT_PHYSICAL;
+	pp->ucast_queue = 0;
 	INIT_LIST_HEAD(&pp->l3_list);
 
 	ppe_drv_info("%p: allocated physical port:%u for dev(%s): %p",

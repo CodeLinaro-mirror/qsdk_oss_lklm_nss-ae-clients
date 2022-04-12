@@ -230,6 +230,7 @@ done:
 
 	return ret;
 }
+EXPORT_SYMBOL(ppe_drv_cc_process_skbuff);
 
 /*
  * ppe_drv_cc_unregister_cb()
@@ -249,6 +250,7 @@ void ppe_drv_cc_unregister_cb(ppe_drv_cc_t cc)
 
 	ppe_drv_info("%p: unregistered cb/app_data for cc:%u", p, cc);
 }
+EXPORT_SYMBOL(ppe_drv_cc_unregister_cb);
 
 /*
  * ppe_drv_cc_register_cb()
@@ -271,6 +273,7 @@ void ppe_drv_cc_register_cb(ppe_drv_cc_t cc, ppe_drv_cc_callback_t cb, void *app
 
 	ppe_drv_info("%p: registered cb:%p app_data:%p for cc:%u", p, cb, app_data, cc);
 }
+EXPORT_SYMBOL(ppe_drv_cc_register_cb);
 
 /*
  * ppe_drv_cc_entries_free()
@@ -306,7 +309,7 @@ struct ppe_drv_cc *ppe_drv_cc_entries_alloc(void)
 	 * If this creates problem we can manually enable specific CPU code for which flush
 	 * is needed.
 	 */
-	for (i = 0; i < max_exception; i++) {
+	for (i = 1; i < max_exception; i++) {
 		cpu_code = ppe_drv_exception_list[i].code;
 		pcc = &cc[cpu_code];
 		pcc->flush = true;

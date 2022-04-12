@@ -202,6 +202,7 @@ bool ppe_drv_sc_process_skbuff(uint8_t sc, struct sk_buff *skb)
 
 	return ret;
 }
+EXPORT_SYMBOL(ppe_drv_sc_process_skbuff);
 
 /*
  * ppe_drv_sc_unregister_cb()
@@ -221,6 +222,7 @@ void ppe_drv_sc_unregister_cb(ppe_drv_sc_t sc)
 
 	ppe_drv_info("%p: unregistered cb/app_data for sc:%u", p, sc);
 }
+EXPORT_SYMBOL(ppe_drv_sc_unregister_cb);
 
 /*
  * ppe_drv_sc_register_cb()
@@ -243,6 +245,7 @@ void ppe_drv_sc_register_cb(ppe_drv_sc_t sc, ppe_drv_sc_callback_t cb, void *app
 
 	ppe_drv_info("%p: registered cb:%p app_data:%p for sc:%u", p, cb, app_data, sc);
 }
+EXPORT_SYMBOL(ppe_drv_sc_register_cb);
 
 /*
  * ppe_drv_sc_free()

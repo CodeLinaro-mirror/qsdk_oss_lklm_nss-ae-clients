@@ -32,6 +32,7 @@ struct ppe_drv_port {
 	struct kref ref_cnt;			/* Reference count object */
 	enum ppe_drv_port_type type;		/* Port type */
 	bool port_l3_if_attached;               /* Port L3_IF attached? */
+	bool is_fdb_learn_enabled;		/* Port FDB learning enabled */
 	uint16_t mtu;				/* MTU value of port */
 	uint16_t mru;				/* MRU value of port */
 	uint8_t mac_addr[ETH_ALEN];		/* MAC address of port */
@@ -40,6 +41,7 @@ struct ppe_drv_port {
 	uint8_t src_profile;			/* Source profile of the port */
 	uint8_t ucast_queue;			/* Base queue ID for the port */
 	uint8_t is_tunnel_vp;			/* Port is of type tunnel VP */
+	uint8_t active_vlan;			/* Number active VLAN configured on the port */
 };
 
 uint8_t ppe_drv_port_ucast_queue_get(struct ppe_drv_port *pp);

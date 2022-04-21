@@ -478,7 +478,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 		fal_nh.type = FAL_NEXTHOP_VP;
 		fal_nh.port = pp->port;
 	} else {
-		if (vsi->is_fdb_learn_enabled) {
+		if (vsi->is_fdb_learn_enabled && pp->is_fdb_learn_enabled) {
 			fal_nh.type = FAL_NEXTHOP_L3;
 			fal_nh.vsi = vsi->index;
 		} else {
@@ -658,7 +658,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 		fal_nh.type = FAL_NEXTHOP_VP;
 		fal_nh.port = pp->port;
 	} else {
-		if (vsi->is_fdb_learn_enabled) {
+		if (vsi->is_fdb_learn_enabled && pp->is_fdb_learn_enabled) {
 			fal_nh.type = FAL_NEXTHOP_L3;
 			fal_nh.vsi = vsi->index;
 		} else {

@@ -146,7 +146,10 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * packets sent to PPE, with SPF bypass service code.
 		 */
 		sc_cfg.bypass_bitmap[1] = ((1 << SOURCE_FLTR_BYP)
-					| (1 << BRIDGING_FWD_BYP));
+						| (1 << BRIDGING_FWD_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
+		sc_cfg.dest_port_valid = false;
+
 		break;
 
 	default:

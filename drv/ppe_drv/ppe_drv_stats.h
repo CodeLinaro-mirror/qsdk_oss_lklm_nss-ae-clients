@@ -60,7 +60,6 @@ struct ppe_drv_gen_stats {
         atomic64_t v6_create_fail;		/* No of v6 create failure */
         atomic64_t v6_destroy_req;		/* No of v6 delete requests */
         atomic64_t v6_destroy_fail;		/* No of v6 delete failure */
-        atomic64_t v6_unknown_interface;	/* No of v6 create failure due to invalid IF */
 	atomic64_t v6_host_add_fail;		/* v6 host table add failed */
 	atomic64_t v6_destroy_conn_not_found;	/* No of v6 delete failure due to connection not found */
 	atomic64_t v6_create_fail_mem;			/* No of v6 create failure due to OOM */

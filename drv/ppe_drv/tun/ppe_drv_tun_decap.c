@@ -22,6 +22,7 @@
 #include <fal_tunnel.h>
 #include <ppe_drv/ppe_drv.h>
 #include "ppe_drv_tun.h"
+#include <fal_vxlan.h>
 
 /*
  * ppe_drv_tun_decap_deconfigure
@@ -165,10 +166,10 @@ static bool ppe_drv_tun_decap_vxlan_check_n_set(struct ppe_drv_tun_decap *ptdc,
 	}
 
 	decap_entry->l4_proto = IPPROTO_UDP;
-	decap_entry->dport = th->tun.vxlan.dest_port;
+	decap_entry->dport = ntohs(th->tun.vxlan.dest_port);
 
-	decap_entry->tunnel_info = th->tun.vxlan.vni;
-	decap_entry->key_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_KEY_TLINFO_EN);
+	decap_entry->tunnel_info = ntohl(th->tun.vxlan.vni);
+	decap_entry->key_bmp |= (PPE_DRV_TUN_BIT(FAL_TUNNEL_KEY_TLINFO_EN) | PPE_DRV_TUN_BIT(FAL_TUNNEL_KEY_DPORT_EN));
 
 	return true;
 }

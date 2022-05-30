@@ -517,6 +517,8 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		p->ptun_l3_if = NULL;
 	}
 
+	ppe_drv_tun_vxlan_deconfigure(p);
+
 	return 0;
 }
 

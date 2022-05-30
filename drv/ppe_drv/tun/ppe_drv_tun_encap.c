@@ -272,25 +272,26 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 		}
 		l4_offset_valid = true;
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
-		struct udphdr udph;
-		struct vxlanhdr_gbp vxh;
+		struct udphdr udph = {0};
+		struct vxlanhdr vxh = {0};
+		struct vxlanhdr_gbp vxh_gbp = {0};
 
-		memset((void *)&udph, 0, sizeof(udph));
 		udph.dest = th->tun.vxlan.dest_port;
 		memcpy((void *)tun_hdr, (void *)&udph, sizeof(udph));
 		tun_hdr += sizeof(udph);
 		tun_len += sizeof(udph);
 
-		/*TODO:
-		 * Need to check VxLAN
-		 */
-
-		memset((void *)&vxh, 0, sizeof(vxh));
 		vxh.vx_flags = th->tun.vxlan.flags;
 		vxh.vx_vni = th->tun.vxlan.vni;
 
 		if (th->tun.vxlan.flags & VXLAN_F_GBP) {
-			vxh.policy_id = th->tun.vxlan.policy_id;
+			vxh_gbp.policy_id = th->tun.vxlan.policy_id;
+			vxh_gbp.vx_flags = th->tun.vxlan.flags;
+			vxh_gbp.vx_vni = th->tun.vxlan.vni;
+			vxh_gbp.policy_id = th->tun.vxlan.policy_id;
+			memcpy((void *)tun_hdr, (void *)&vxh_gbp, sizeof(vxh_gbp));
+			tun_hdr += sizeof(vxh_gbp);
+			tun_len += sizeof(vxh_gbp);
 		}
 
 		memcpy((void *)tun_hdr, (void *)&vxh, sizeof(vxh));
@@ -351,6 +352,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 {
 	sw_error_t err;
 	fal_tunnel_encap_cfg_t encap_cfg = {0};
+	fal_tunnel_encap_header_ctrl_t header_ctrl = {0};
 
 	/*
 	 * Update the tunnel encapsulation header
@@ -411,10 +413,21 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 	if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6) {
 		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_IP;
 
+	/*
+	 * PPE currently supports only the default source port range (49152 to 65535)
+	 */
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
-		encap_cfg.l4_proto = 2; /* 0:Non;1:TCP;2:UDP;3:UDP-Lite;4:Reserved (ICMP);5:GRE; */
+		encap_cfg.l4_proto = FAL_TUNNEL_ENCAP_L4_PROTO_UDP; /* 0:Non;1:TCP;2:UDP;3:UDP-Lite;4:Reserved (ICMP);5:GRE; */
 		encap_cfg.sport_entry_en = 1;  /* TODO: FAL API should be entropy */
-		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_TRANSPORT;
+		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_ETHERNET;
+		header_ctrl.udp_sport_base = FAL_TUNNEL_UDP_ENTROPY_SPORT_BASE;
+		header_ctrl.udp_sport_mask = FAL_TUNNEL_UDP_ENTROPY_SPORT_MASK;
+		encap_cfg.l4_checksum_en = true;
+		err = fal_tunnel_encap_header_ctrl_set(0, &header_ctrl);
+		if (err != SW_OK) {
+			ppe_drv_warn("%p VXLAN: failed to configure encap header err: %d", ptec, err);
+			return false;
+		}
 
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
 		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_ETHERNET;

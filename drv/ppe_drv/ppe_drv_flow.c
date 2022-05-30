@@ -396,6 +396,9 @@ struct ppe_drv_flow *ppe_drv_flow_v6_get(struct ppe_drv_v6_5tuple *tuple)
 	} else if (protocol == IPPROTO_IPIP) {
 		tuple_3 = true;
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
+	} else if (protocol == IPPROTO_GRE) {
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
 	} else {
 		ppe_drv_stats_inc(&p->stats.gen_stats.fail_query_unknown_proto);
 		ppe_drv_warn("%p: protocol: %u incorrect for PPE", tuple, protocol);
@@ -583,6 +586,11 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		break;
 
 	case IPPROTO_IPIP:
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
+		break;
+
+	case IPPROTO_GRE:
 		tuple_3 = true;
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
 		break;
@@ -862,6 +870,9 @@ struct ppe_drv_flow *ppe_drv_flow_v4_get(struct ppe_drv_v4_5tuple *tuple)
 	} else if (protocol == IPPROTO_IPV6) {
 		tuple_3 = true;
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
+	} else if (protocol == IPPROTO_GRE) {
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", tuple, FAL_FLOW_PROTOCOL_OTHER);
 	} else {
 		ppe_drv_stats_inc(&p->stats.gen_stats.fail_query_unknown_proto);
 		ppe_drv_warn("%p: protocol: %u incorrect for PPE", tuple, protocol);
@@ -1075,6 +1086,11 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		break;
 
 	case IPPROTO_IPIP:
+		tuple_3 = true;
+		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
+		break;
+
+	case IPPROTO_GRE:
 		tuple_3 = true;
 		ppe_drv_trace("%p: flow_tbl[protocol]: Other-%u", pcf, FAL_FLOW_PROTOCOL_OTHER);
 		break;

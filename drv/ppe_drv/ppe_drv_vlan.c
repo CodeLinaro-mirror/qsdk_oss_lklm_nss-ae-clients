@@ -274,6 +274,11 @@ void ppe_drv_vlan_deinit(struct ppe_drv_iface *iface)
 
 	spin_lock_bh(&p->lock);
 	vsi = ppe_drv_iface_vsi_get(iface);
+	if (!vsi) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: Invalid VSI vlan iface", iface);
+		return;
+	}
 
 	/*
 	 * Detach VLAN vsi to port.

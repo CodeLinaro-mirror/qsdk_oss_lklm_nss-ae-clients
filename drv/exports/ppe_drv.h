@@ -143,6 +143,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_STP_STATE_FAIL,			/**< Failed to set STP state on the bridge port */
 	PPE_DRV_RET_IFACE_L3_IF_FAIL,			/**< Failed to find L3_IF for the interface */
 	PPE_DRV_RET_PPPOE_ALLOC_FAIL,			/**< PPPOE session allocation failure */
+	PPE_DRV_RET_L3_IF_PPPOE_FAIL,			/**< PPPOE session not attached to L3_IF */
 	PPE_DRV_RET_L3_IF_PPPOE_SET_FAIL,		/**< Failed to set PPPOE session information in L3_IF */
 	PPE_DRV_RET_BASE_IFACE_NOT_FOUND,		/**< Base interface not found */
 	PPE_DRV_RET_VLAN_TPID_FAIL,			/**< VLAN TPID not found */

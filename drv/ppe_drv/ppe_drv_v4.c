@@ -127,14 +127,14 @@ static ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create,
 	}
 
 	top_if_rx = ppe_drv_iface_get_by_idx(top_rule->rx_if);
-	if (!if_rx) {
+	if (!top_if_rx) {
 		ppe_drv_stats_inc(&p->stats.gen_stats.v4_create_fail_invalid_rx_if);
 		ppe_drv_warn("%p: No PPE interface corresponding to rx_if: %d", create, top_rule->rx_if);
 		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
 	}
 
 	top_if_tx = ppe_drv_iface_get_by_idx(top_rule->tx_if);
-	if (!if_tx) {
+	if (!top_if_tx) {
 		ppe_drv_stats_inc(&p->stats.gen_stats.v4_create_fail_invalid_tx_if);
 		ppe_drv_warn("%p: No PPE interface corresponding to tx_if: %d", create, top_rule->tx_if);
 		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
@@ -346,6 +346,8 @@ static bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_
 	struct ppe_drv_iface *eg_l3_if = NULL;
 	struct ppe_drv_iface *iface, *top_iface = NULL;
 	struct ppe_drv_iface *tx_port_if = NULL;
+	struct ppe_drv_vsi *vlan_vsi;
+	struct ppe_drv_l3_if *pppoe_l3_if;
 	uint32_t egress_vlan_inner = PPE_DRV_VLAN_NOT_CONFIGURED, egress_vlan_outer = PPE_DRV_VLAN_NOT_CONFIGURED;
 	uint8_t vlan_cnt = ppe_drv_v4_conn_flow_egress_vlan_cnt_get(pcf);
 
@@ -404,7 +406,8 @@ static bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_
 		}
 
 		if ((iface->type == PPE_DRV_IFACE_TYPE_VLAN)) {
-			if (ppe_drv_vsi_match_vlan(ppe_drv_iface_vsi_get(iface), egress_vlan_inner, egress_vlan_outer)) {
+			vlan_vsi = ppe_drv_iface_vsi_get(iface);
+			if (vlan_vsi && ppe_drv_vsi_match_vlan(vlan_vsi, egress_vlan_inner, egress_vlan_outer)) {
 				eg_vsi_if = iface;
 
 				/*
@@ -417,7 +420,8 @@ static bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_
 		}
 
 		if (iface->type == PPE_DRV_IFACE_TYPE_PPPOE) {
-			if (ppe_drv_l3_if_pppoe_match(ppe_drv_iface_l3_if_get(iface), pcf->pppoe_session_id, pcf->pppoe_server_mac)) {
+			pppoe_l3_if = ppe_drv_iface_l3_if_get(iface);
+			if (pppoe_l3_if && ppe_drv_l3_if_pppoe_match(pppoe_l3_if, pcf->pppoe_session_id, pcf->pppoe_server_mac)) {
 				eg_l3_if = iface;
 
 				/*
@@ -933,7 +937,7 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 	if (!flow) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_stats_inc(&p->stats.gen_stats.v4_destroy_conn_not_found);
-		ppe_drv_warn("%p: flow entry not found", pcf);
+		ppe_drv_warn("%p: flow entry not found", p);
 		return PPE_DRV_RET_FAILURE_DESTROY_NO_CONN;
 	}
 

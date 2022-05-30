@@ -91,8 +91,8 @@ static int nss_ppe_lag_update_slave(struct netdev_notifier_info *info)
 	}
 
 	if (!ppe_drv_iface_get_by_dev(slave_dev)) {
-		nss_ppe_lag_warn("%px: Slave interface is unknown to PPE: bond name:%s slave name: %s\n",
-				 bond_dev, bond_dev->name, slave_dev->name);
+		nss_ppe_lag_warn("%px: Slave interface is unknown to PPE slave name: %s\n",
+				info, slave_dev->name);
 
 		return NOTIFY_DONE;
 	}

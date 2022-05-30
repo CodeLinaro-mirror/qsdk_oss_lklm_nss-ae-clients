@@ -549,6 +549,11 @@ void ppe_drv_port_vsi_attach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi)
 	 * If port is attached to bridge, it takes higher precedence.
 	 */
 	active_vsi = pp->br_vsi ? pp->br_vsi : pp->port_vsi;
+	if (!active_vsi) {
+		ppe_drv_warn("%p No active VSI assigned to port: %u",
+				pp, pp->port);
+		goto fail;
+	}
 
 	/*
 	 * If port has a valid vsi, mark port's l3_if invalid.
@@ -1192,6 +1197,8 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 		kref_init(&pp->ref_cnt);
 	} else {
 		ppe_drv_assert(false, "%p: Invalid type of port: %u", p, type);
+		ppe_drv_warn("%p: Invalid type of port: %u", p, type);
+		return NULL;
 	}
 
 	/*

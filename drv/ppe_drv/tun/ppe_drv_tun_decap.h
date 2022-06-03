@@ -16,8 +16,10 @@
 #ifndef _PPE_DRV_TUN_DECAP_H_
 #define _PPE_DRV_TUN_DECAP_H_
 
-#define PPE_DRV_TUN_DECAP_MAX_ENTRY		FAL_TUNNEL_DECAP_ENTRY_MAX
-#define PPE_DRV_TUN_DECAP_INVALID_IDX		0xFFFF
+#define PPE_DRV_TUN_DECAP_MAX_ENTRY             FAL_TUNNEL_DECAP_ENTRY_MAX
+#define PPE_DRV_TUN_DECAP_MAP_MAX_ENTRY         8
+#define PPE_DRV_TUN_DECAP_MAP_ENTRY_PAIR_MAX    2
+#define PPE_DRV_TUN_DECAP_INVALID_IDX           0xFFFF
 
 /*
  * ppe_drv_tun_decap
@@ -31,8 +33,9 @@ struct ppe_drv_tun_decap {
 	uint8_t rule_id;	/* Edit rule index associated to this decap for MAP-T */
 };
 
-uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptde, struct ppe_drv_port *pp,
-				     struct ppe_drv_tun_cmn_ctx *pth);
+
+
+uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptde, struct ppe_drv_port *pp, struct ppe_drv_tun_cmn_ctx *pth);
 struct ppe_drv_tun_decap *ppe_drv_tun_decap_alloc(struct ppe_drv *p);
 bool ppe_drv_tun_decap_deref(struct ppe_drv_tun_decap *ptdc);
 struct ppe_drv_tun_decap *ppe_drv_tun_decap_ref(struct ppe_drv_tun_decap *ptdc);
@@ -43,4 +46,16 @@ void ppe_drv_tun_decap_set_tl_index(struct ppe_drv_tun_decap *ptdc, uint32_t hwi
 void ppe_drv_tun_decap_set_tl_l3_idx(struct ppe_drv_tun_decap *ptdc, uint8_t tl_l3_idx);
 void ppe_drv_tun_decap_entries_free(struct ppe_drv_tun_decap *ptun_dc);
 struct ppe_drv_tun_decap *ppe_drv_tun_decap_entries_alloc(struct ppe_drv *p);
+
+/*
+ * MAP decap APIs
+ */
+bool ppe_drv_tun_decap_map_configure(struct ppe_drv_tun_decap *ptdcm, uint32_t *ipv6_prefix, uint8_t prefix_len, struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr,
+				bool src_info_update, uint16_t port_num, uint16_t rule_id, uint8_t ip_to_me);
+void ppe_drv_tun_decap_map_deconfigure(struct kref *kref);
+bool ppe_drv_tun_decap_map_entry_deref(struct ppe_drv_tun_decap *ptdcm);
+void ppe_drv_tun_decap_map_set_rule_id(struct ppe_drv_tun_decap *ptdcm, uint16_t rule_idx);
+void ppe_drv_tun_decap_map_entries_free(struct ppe_drv *p);
+struct ppe_drv_tun_decap * ppe_drv_tun_decap_map_entries_alloc(struct ppe_drv *p);
+struct ppe_drv_tun_decap *ppe_drv_tun_decap_map_alloc(struct ppe_drv *p);
 #endif /* _PPE_DRV_TUN_DECAP_H_ */

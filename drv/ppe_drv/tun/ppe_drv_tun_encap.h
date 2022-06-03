@@ -45,7 +45,6 @@ bool ppe_drv_tun_encap_tun_idx_configure(struct ppe_drv_tun_encap *ptec, uint32_
 uint8_t ppe_drv_tun_encap_get_tun_idx(struct ppe_drv_tun_encap *ptec);
 bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec, struct ppe_drv_tun_cmn_ctx *th,
 		struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr);
-bool ppe_drv_port_vp_encap_disable(struct ppe_drv_port *pp);
 bool ppe_drv_tun_encap_deref(struct ppe_drv_tun_encap *ptec);
 struct ppe_drv_tun_encap *ppe_drv_tun_encap_ref(struct ppe_drv_tun_encap *ptec);
 struct ppe_drv_tun_encap *ppe_drv_tun_encap_alloc(struct ppe_drv *p);

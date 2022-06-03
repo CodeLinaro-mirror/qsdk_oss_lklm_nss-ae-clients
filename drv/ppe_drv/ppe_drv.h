@@ -184,18 +184,17 @@ struct ppe_drv {
 	struct ppe_drv_tun_encap *ptun_ec;	/* PPE EG tunnel/translate control entries */
 	struct ppe_drv_tun_decap *ptun_dc;	/* PPE tunnel decap control entries */
 	struct ppe_drv_tun_l3_if *ptun_l3_if;	/* PPE tunnel L3 interface info */
+	struct ppe_drv_tun_decap *decap_map_entries;	/* PPE EG tunnel/translate control entries */
+	struct ppe_drv_tun_encap_xlate_rule *encap_xlate_rules; 	/* PPE EG translate rule entries */
+	struct ppe_drv_tun_decap_xlate_rule *decap_xlate_rules; 	/* PPE Tunnel decap xlate rules */
 	struct ppe_drv_sc *sc;				/* Memory for PPE Service Code table */
 	struct ppe_drv_cc *cc;				/* Memory for PPE CPU Code table */
-
 	struct dentry *dentry;				/* Debugfs entry */
 	struct dentry *stats_dentry;				/* Debugfs entry */
-
 	ppe_drv_v4_sync_callback_t ipv4_stats_sync_cb;		/* Callback to call to sync ipv4 statistics */
 	void *ipv4_stats_sync_data;				/* Argument for above callback: ipv4_stats_sync_cb */
-
 	ppe_drv_v6_sync_callback_t ipv6_stats_sync_cb;		/* Callback to call to sync ipv6 statistics */
 	void *ipv6_stats_sync_data;				/* Argument for above callback: ipv6_stats_sync_cb */
-
 	struct list_head nh_active;			/* List of active nexthops */
 	struct list_head nh_free;			/* List of free nexthops */
 	struct kref ref;				/* Reference count */

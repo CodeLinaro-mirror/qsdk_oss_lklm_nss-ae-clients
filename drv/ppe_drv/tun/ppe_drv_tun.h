@@ -18,6 +18,8 @@
 #include <ppe_drv_tun_public.h>
 #include "ppe_drv_tun_encap.h"
 #include "ppe_drv_tun_decap.h"
+#include "ppe_drv_tun_encap_xlate_rule.h"
+#include "ppe_drv_tun_decap_xlate_rule.h"
 #include "ppe_drv_tun_l3_if.h"
 
 #define PPE_DRV_TUN_BIT(x)	(1UL << x)
@@ -135,6 +137,9 @@ struct ppe_drv_tun {
 	struct ppe_drv_tun_l3_if *pt_l3_if;			/**< TL L3 interface instance >*/
 	struct ppe_drv_tun_encap *ptec;				/**< EG tunnel encapsulation >*/
 	struct ppe_drv_tun_decap *ptdc;				/**< TL decap entry >*/
+	struct ppe_drv_tun_encap_xlate_rule *ptecxr;             /* EG edit rule instance */
+	struct ppe_drv_tun_decap *ptdcm[PPE_DRV_TUN_DECAP_MAP_ENTRY_PAIR_MAX];
+	struct ppe_drv_tun_decap_xlate_rule *ptdcxr[PPE_DRV_TUN_DECAP_MAP_ENTRY_PAIR_MAX];
 	ppe_drv_tun_add_ce_callback_t add_cb;			/**< Callback for activating tunnel >*/
 	ppe_drv_tun_del_ce_callback_t del_cb;			/**< Callback for deactivating tunnel >*/
 	struct kref ref;					/**< Reference count >*/

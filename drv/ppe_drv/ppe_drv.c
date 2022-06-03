@@ -410,6 +410,24 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->decap_map_entries = ppe_drv_tun_decap_map_entries_alloc(p);
+	if (!p->decap_map_entries) {
+		ppe_drv_warn("%p: failed to allocate TL MAP LPM table interface entries", p);
+		goto fail;
+	}
+
+	p->encap_xlate_rules = ppe_drv_tun_encap_xlate_rule_entries_alloc(p);
+	if (!p->encap_xlate_rules) {
+		ppe_drv_warn("%p: failed to allocate EG edit rule entries", p);
+		goto fail;
+	}
+
+	p->decap_xlate_rules = ppe_drv_tun_decap_xlate_rule_entries_alloc(p);
+	if (!p->decap_xlate_rules) {
+		ppe_drv_warn("%p: failed to allocate TL MAP LPM action interface entries", p);
+		goto fail;
+	}
+
 	/*
 	 * Take a reference
 	 */
@@ -429,6 +447,21 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
 
 fail:
+	if (p->decap_map_entries) {
+		ppe_drv_tun_decap_entries_free(p->decap_map_entries);
+		p->decap_map_entries = NULL;
+	}
+
+	if (p->encap_xlate_rules) {
+		ppe_drv_tun_encap_xlate_rule_entries_free(p->encap_xlate_rules);
+		p->encap_xlate_rules = NULL;
+	}
+
+	if (p->decap_xlate_rules) {
+		ppe_drv_tun_decap_xlate_rule_entries_free(p->decap_xlate_rules);
+		p->decap_xlate_rules = NULL;
+	}
+
 	if (p->ptun_ec) {
 		ppe_drv_tun_encap_entries_free(p->ptun_ec);
 		p->ptun_ec = NULL;
@@ -580,6 +613,21 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->ptun_l3_if) {
 		ppe_drv_tun_l3_if_entries_free(p->ptun_l3_if);
 		p->ptun_l3_if = NULL;
+	}
+
+	if (p->decap_map_entries) {
+		ppe_drv_tun_decap_entries_free(p->decap_map_entries);
+		p->decap_map_entries = NULL;
+	}
+
+	if (p->encap_xlate_rules) {
+		ppe_drv_tun_encap_xlate_rule_entries_free(p->encap_xlate_rules);
+		p->encap_xlate_rules = NULL;
+	}
+
+	if (p->decap_xlate_rules) {
+		ppe_drv_tun_decap_xlate_rule_entries_free(p->decap_xlate_rules);
+		p->decap_xlate_rules = NULL;
 	}
 
 	ppe_drv_tun_vxlan_deconfigure(p);

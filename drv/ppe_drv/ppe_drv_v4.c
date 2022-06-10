@@ -708,6 +708,7 @@ void ppe_drv_v4_conn_sync_one(struct ppe_drv_v4_conn *cn, struct ppe_drv_v4_conn
 void ppe_drv_v4_conn_sync_many(struct ppe_drv_v4_conn_sync_many *cn_syn, uint8_t num_conn)
 {
 	uint8_t count = 0;
+	bool return_flow_valid;
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_v4_conn *cn;
 	enum ppe_drv_stats_sync_reason reason = PPE_DRV_STATS_SYNC_REASON_STATS;
@@ -723,9 +724,14 @@ void ppe_drv_v4_conn_sync_many(struct ppe_drv_v4_conn_sync_many *cn_syn, uint8_t
 	 */
 	list_for_each_entry(cn, &p->conn_v4, list) {
 		/*
-		 * Skip if stats are already synced for this connection in previous iteration.
+		 * Skip if
+		 *	- Stats are already synced for this connection in previous iteration.
+		 *	- Or there is no change in the stats from previous read.
 		 */
-		if (cn->toggle == p->toggled) {
+		return_flow_valid = ppe_drv_v4_conn_flags_check(cn, PPE_DRV_V4_CONN_FLAG_RETURN_VALID);
+		if ((cn->toggle == p->toggled) || !(atomic_read(&cn->pcf.rx_packets)
+				|| (return_flow_valid && atomic_read(&cn->pcr.rx_packets)))){
+
 			if (list_is_last(&cn->list, &p->conn_v4)) {
 				p->toggled = !p->toggled;
 				break;

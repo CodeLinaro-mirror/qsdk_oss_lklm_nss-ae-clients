@@ -984,7 +984,7 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 
 	cns = ppe_drv_v4_conn_stats_alloc();
 	if (cns) {
-		ppe_drv_v4_conn_sync_one(cn, cns, PPE_DRV_STATS_SYNC_REASON_FLUSH);
+		ppe_drv_v4_conn_sync_one(cn, cns, PPE_DRV_STATS_SYNC_REASON_DESTROY);
 	}
 
 	spin_unlock_bh(&p->lock);

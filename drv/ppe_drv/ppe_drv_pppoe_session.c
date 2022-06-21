@@ -40,10 +40,23 @@ ppe_drv_ret_t ppe_drv_pppoe_session_deinit(struct ppe_drv_iface *pppoe_iface)
 	/*
 	 * Clear l3_if handle from Iface.
 	 */
+	l3_if = ppe_drv_iface_l3_if_get(pppoe_iface);
+	if (!l3_if) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: L3_IF not attached to pppoe", pppoe_iface);
+		return PPE_DRV_RET_IFACE_L3_IF_FAIL;
+	}
+
 	ppe_drv_trace("%p: PPPOE_PPE: clear l3_if: %p from iface",
 			pppoe_iface, l3_if);
-	l3_if = ppe_drv_iface_l3_if_get(pppoe_iface);
+
 	pppoe = ppe_drv_l3_if_pppoe_get(l3_if);
+	if (!pppoe) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: pppoe not attached to l3_if : %p", pppoe_iface, l3_if);
+		return PPE_DRV_RET_L3_IF_PPPOE_FAIL;
+	}
+
 	ppe_drv_iface_l3_if_clear(pppoe_iface);
 
 	/*

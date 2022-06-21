@@ -174,7 +174,7 @@ void ppe_drv_vsi_l3_if_attach(struct ppe_drv_vsi *vsi, struct ppe_drv_l3_if *l3_
 
 	err = fal_ip_vsi_intf_set(PPE_DRV_SWITCH_ID, vsi->index, &cfg);
 	if (err != SW_OK) {
-		ppe_drv_warn("%p: Error in enabling l3_if %u from vsi %u", vsi, vsi->l3_if->l3_if_index, vsi->index);
+		ppe_drv_warn("%p: Error in enabling l3_if %u from vsi %u", vsi, l3_if->l3_if_index, vsi->index);
 		return;
 	}
 

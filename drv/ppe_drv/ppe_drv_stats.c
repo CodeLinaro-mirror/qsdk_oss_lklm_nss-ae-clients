@@ -99,6 +99,7 @@ static const char *ppe_drv_stats_conn_str[] = {
 	"fail_dev_port_map",				/* Create req fail due to PPE port not mapped to net-device */
 	"fail_l3_if_full",				/* Create req fail due to L3_IF table full */
 	"fail_vsi_full",				/* Create req fail due to VSI table full */
+	"fail_vsi_reuse",				/* Create req fail due to VSI reuse */
 	"fail_pppoe_full",				/* Create req fail due to PPPoE table full */
 	"fail_rw_fifo_full",				/* Create req fail due to read-write fifo full */
 	"fail_flow_full",				/* Create req fail due to flow full */

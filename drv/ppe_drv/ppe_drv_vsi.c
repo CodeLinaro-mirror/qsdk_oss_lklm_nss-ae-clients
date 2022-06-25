@@ -18,6 +18,7 @@
 #include <fal/fal_init.h>
 #include <fal/fal_api.h>
 #include <fal/fal_vsi.h>
+#include <ref/ref_vsi.h>
 #include "ppe_drv.h"
 
 #if (PPE_DRV_DEBUG_LEVEL == 3)
@@ -216,6 +217,10 @@ static void ppe_drv_vsi_free(struct kref *kref)
 	 */
 	if (fal_vsi_stamove_set(PPE_DRV_SWITCH_ID, vsi->index, &sta_cfg) != SW_OK) {
 		ppe_drv_warn("%p: failed to set station move for vsi\n", vsi);
+	}
+
+	if (ppe_vsi_free(PPE_DRV_SWITCH_ID, vsi->index) != SW_OK) {
+		ppe_drv_warn("%p: vsi free failed\n", vsi);
 	}
 
 	if (!vsi->l3_if) {
@@ -420,26 +425,27 @@ struct ppe_drv_vsi *ppe_drv_vsi_alloc(enum ppe_drv_vsi_type type)
 	fal_vsi_member_t vsi_mem_cfg = {0};
 	fal_vsi_newaddr_lrn_t addr_cfg = {0};
 	fal_vsi_stamove_t sta_cfg = {0};
-	uint16_t i;
+	uint32_t vsi_idx;
 
 	if (type >= PPE_DRV_VSI_TYPE_MAX) {
 		ppe_drv_warn("%p: Invalid vsi type %d", p, type);
 		return NULL;
 	}
 
-	for (i = 0; i < p->vsi_num; i++) {
-		if (!kref_read(&p->vsi[i].ref)) {
-			vsi = &p->vsi[i];
-			kref_init(&vsi->ref);
-			break;
-		}
-	}
-
-	if (!vsi) {
-		ppe_drv_warn("%p: failed to alloc, vsi table full", p);
+	if (ppe_vsi_alloc(PPE_DRV_SWITCH_ID, &vsi_idx) != SW_OK) {
+		ppe_drv_warn("%p: vsi allocation failed in ssdk for type %d", p, type);
 		ppe_drv_stats_inc(&p->stats.gen_stats.fail_vsi_full);
 		return NULL;
 	}
+
+	if (kref_read(&p->vsi[vsi_idx].ref)) {
+		ppe_drv_warn("%p: Trying to use an inuse vsi with index %d", p, vsi_idx);
+		ppe_drv_stats_inc(&p->stats.gen_stats.fail_vsi_reuse);
+		return NULL;
+	}
+
+	vsi = &p->vsi[vsi_idx];
+	kref_init(&vsi->ref);
 
 	/*
 	 * Pre-allocate a l3_if for vsi

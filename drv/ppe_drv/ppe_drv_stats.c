@@ -247,6 +247,11 @@ int ppe_drv_stats_debugfs_init(void)
 		goto debugfs_dir_failed;
 	}
 
+	if (!debugfs_create_dir("clients", p->dentry)) {
+		ppe_drv_warn("%p: Unable to create debugfs clients directory in debugfs\n", p);
+		goto debugfs_dir_failed;
+	}
+
 	if (!debugfs_create_file("common_stats", S_IRUGO, p->stats_dentry,
 			NULL, &ppe_drv_conn_stats_general_file_ops)) {
 		ppe_drv_warn("%p: Unable to create common statistics file entry in debugfs\n", p);

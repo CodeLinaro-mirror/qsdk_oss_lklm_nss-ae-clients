@@ -16,6 +16,8 @@
 
 #include <linux/module.h>
 #include <ppe_drv_public.h>
+#include <ppe_drv_tun_cmn_ctx.h>
+#include <ppe_drv_tun_public.h>
 #include "ppe_drv_exception.h"
 #include "ppe_drv_cc.h"
 #include "ppe_drv_flow.h"
@@ -179,6 +181,9 @@ struct ppe_drv {
 	struct ppe_drv_l3_if *l3_if;			/* Memory for PPE L3_IF shadow table */
 	struct ppe_drv_pppoe *pppoe;			/* Memory for PPE PPPoe table */
 	struct ppe_drv_queue *queue;			/* Memory for PPE queue table */
+	struct ppe_drv_tun_encap *ptun_ec;	/* PPE EG tunnel/translate control entries */
+	struct ppe_drv_tun_decap *ptun_dc;	/* PPE tunnel decap control entries */
+	struct ppe_drv_tun_l3_if *ptun_l3_if;	/* PPE tunnel L3 interface info */
 	struct ppe_drv_sc *sc;				/* Memory for PPE Service Code table */
 	struct ppe_drv_cc *cc;				/* Memory for PPE CPU Code table */
 

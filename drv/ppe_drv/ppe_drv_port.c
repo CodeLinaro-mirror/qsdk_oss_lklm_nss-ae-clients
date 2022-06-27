@@ -24,8 +24,10 @@
 #include <fal/fal_qos.h>
 #include <fal/fal_vport.h>
 #include <fal/fal_vsi.h>
+#include <fal/fal_tunnel.h>
 #include <ref/ref_vsi.h>
 #include "ppe_drv.h"
+#include "tun/ppe_drv_tun.h"
 
 #if (PPE_DRV_DEBUG_LEVEL == 3)
 /*
@@ -354,6 +356,51 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	}
 
 	ppe_drv_trace("%p: ppe port %u destroyed", pp, pp->port);
+}
+
+/*
+ * ppe_drv_port_get_n_ref_tl_l3_if
+ *	Attach a tl l3 index to port
+ */
+struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *pp)
+{
+	/*
+	 * Attach tl_l3_if to port
+	 */
+	if (!pp->tl_l3_if) {
+		return NULL;
+	}
+
+	return ppe_drv_tun_l3_if_ref(pp->tl_l3_if);
+}
+
+/*
+ * ppe_drv_port_attach_tl_l3_if
+ * 	Attach a tl l3 index to port
+ */
+void ppe_drv_port_tl_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_tun_l3_if *tl_l3_if)
+{
+	/*
+	 * Attach tl_l3_if to port
+	 */
+	pp->tl_l3_if = ppe_drv_tun_l3_if_ref(tl_l3_if);
+}
+
+/*
+ * ppe_drv_port_tl_l3_if_detach
+ * 	Detach a tl l3 index to port
+ */
+void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp)
+{
+	if (!pp->tl_l3_if) {
+		return;
+	}
+
+	/*
+	 * Detach tl_l3_if to port
+	 */
+	ppe_drv_tun_l3_if_deref(pp->tl_l3_if);
+	pp->tl_l3_if = NULL;
 }
 
 /*
@@ -713,6 +760,33 @@ struct ppe_drv_l3_if *ppe_drv_port_find_pppoe_l3_if(struct ppe_drv_port *pp, uin
 }
 
 /*
+ * ppe_drv_port_get_vp_phys_dev()
+ * 	Get the net device corresponding to physical port
+ * 	on which tunnel is created
+ */
+struct net_device *ppe_drv_port_get_vp_phys_dev(struct net_device *dev)
+{
+	int32_t pp_port;
+	fal_port_t phyport_id;
+	uint32_t v_port;
+	sw_error_t err;
+
+	pp_port = ppe_drv_port_num_from_dev(dev);
+	if (pp_port == -1) {
+		return NULL;
+	}
+
+	v_port = FAL_PORT_ID(FAL_PORT_TYPE_VPORT, pp_port);
+
+	err = fal_vport_physical_port_id_get(PPE_DRV_SWITCH_ID, v_port, &phyport_id);
+	if (err != SW_OK) {
+		return NULL;
+	}
+
+	return ppe_drv_port_num_to_dev(phyport_id);
+}
+EXPORT_SYMBOL(ppe_drv_port_get_vp_phys_dev);
+/*
  * ppe_drv_port_from_dev()
  *	Get PPE port from net-device
  */
@@ -829,9 +903,27 @@ bool ppe_drv_port_is_virtual(struct ppe_drv_port *pp)
  * ppe_drv_port_is_tunnel_vp()
  *	Return true if port is a hardware tunnel vp
  */
-bool ppe_drv_port_is_tunnel_vp(struct ppe_drv_port *pp)
+uint8_t ppe_drv_port_is_tunnel_vp(struct ppe_drv_port *pp)
 {
-	return pp->is_tunnel_vp;
+	return pp->tunnel_vp_cfg;
+}
+
+/*
+ *  ppe_drv_port_tun_set()
+ *       Attach tunnel instance to ppe_port
+ */
+void  ppe_drv_port_tun_set(struct ppe_drv_port *pp, struct ppe_drv_tun *ptun)
+{
+	pp->port_tun = ptun;
+}
+
+/*
+ * ppe_drv_port_tun_get()
+ *       Get attached tunnel instance to ppe_port
+ */
+struct ppe_drv_tun *ppe_drv_port_tun_get(struct ppe_drv_port *pp)
+{
+	return pp->port_tun;
 }
 
 /*
@@ -990,6 +1082,35 @@ void ppe_drv_port_mac_addr_clear(struct ppe_drv_port *pp)
 }
 
 /*
+ * ppe_drv_port_mtu_cfg_update()
+ *	update MTU config for tunnel vp port
+ */
+bool ppe_drv_port_mtu_cfg_update(struct ppe_drv_port *pp, uint16_t extra_hdr_len)
+{
+	sw_error_t err;
+	uint32_t v_port = FAL_PORT_ID(FAL_PORT_TYPE_VPORT, pp->port);
+	fal_mtu_cfg_t mtu_cfg = {0};
+
+	/*
+	 * MTU configuration
+	 */
+	err = fal_port_mtu_cfg_get(PPE_DRV_SWITCH_ID, v_port, &mtu_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to get MTU config for vp port%d", pp, pp->port);
+		return false;
+	}
+
+	mtu_cfg.extra_header_len = extra_hdr_len;
+	err = fal_port_mtu_cfg_set(PPE_DRV_SWITCH_ID, v_port, &mtu_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to set MTU config for vp port%d", pp, pp->port);
+		return false;
+	}
+
+	return true;
+}
+
+/*
  * ppe_drv_port_mtu_mru_set()
  *	Set MTU and MRU of given port in PPE.
  */
@@ -1031,6 +1152,21 @@ bool ppe_drv_port_mtu_mru_set(struct ppe_drv_port *pp, uint16_t mtu, uint16_t mr
 
 	mtu_cfg.mtu_enable = true;
 	mtu_cfg.mtu_type = FAL_MTU_ETHERNET;
+
+	/*
+	 * Check if port is tunnel VP port
+	 */
+	if (ppe_drv_port_is_tunnel_vp(pp)) {
+		if (pp->tunnel_vp_cfg & PPE_DRV_PORT_VIRTUAL_L3_TUN) {
+			mtu_cfg.mtu_type = FAL_MTU_IP;
+		}
+
+		/*
+		 * Disable MTU check for MAP-t tunnel ports
+		 * TODO: Add logic to identify if vp_cfg corresponds to MAP-T
+		 */
+	}
+
 	err = fal_port_mtu_cfg_set(PPE_DRV_SWITCH_ID, pp->port, &mtu_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: unable to configure port mtu config: %u", pp, port_mtu);
@@ -1148,7 +1284,8 @@ bool ppe_drv_port_src_profile_set(struct ppe_drv_port *pp, uint8_t src_profile)
  * ppe_drv_port_alloc()
  *	Create a new virtual port in PPE.
  */
-struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev, bool is_tunnel_vp)
+struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev,
+					uint8_t tunnel_vp_cfg)
 {
 	uint32_t port;
 	sw_error_t err;
@@ -1158,6 +1295,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	fal_vport_state_t vp_state = {0};
 	fal_qos_pri_precedence_t pre = {0};
 	fal_vsi_invalidvsi_ctrl_t vsi_ctrl = {0};
+	a_bool_t xcpn_mode = A_FALSE;
 
 	/*
 	 * Allocate a free port
@@ -1253,7 +1391,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	/*
 	 * Set VP type as normal VP.
 	 */
-	if (is_tunnel_vp) {
+	if (tunnel_vp_cfg) {
 		vp_state.vp_type = FAL_VPORT_TYPE_TUNNEL;
 		vp_state.check_en = true;
 		vp_state.vp_active = false;
@@ -1289,6 +1427,26 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 		return NULL;
 	}
 
+	if (tunnel_vp_cfg) {
+		/*
+		 * Set Decap exception mode to full packet mode by default for tunnel ports
+		 * Post tunnel decapsulation if packets exception, they can be done in two modes
+		 * Mode0 - Full (Pre decapsulated packet) packet exception;
+		 * Mode1 - Post decapsulated packet exception;
+		 * By default configure exception to full packet mode.
+		 */
+
+		/*
+		 * TODO: Add a config framework for changing exception mode from clients
+		 */
+		err = fal_tunnel_exp_decap_set(PPE_DRV_SWITCH_ID, port, &xcpn_mode);
+		if (err != SW_OK) {
+			ppe_drv_warn("%p: failed to set xcpn mode config for vp port%d", p, pp->port);
+			ppe_drv_port_deref(pp);
+			return NULL;
+		}
+	}
+
 	/*
 	 * Set QOS resolution precedence of different classification engines of this port.
 	 * Precedence values of 0, 6 and 7 are reserved for specific requirements.
@@ -1318,7 +1476,7 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	pp->dev = dev;
 	pp->type = type;
 	pp->active_vlan = 0;
-	pp->is_tunnel_vp = is_tunnel_vp;
+	pp->tunnel_vp_cfg = tunnel_vp_cfg;
 	pp->ucast_queue = 0;
 	INIT_LIST_HEAD(&pp->l3_list);
 

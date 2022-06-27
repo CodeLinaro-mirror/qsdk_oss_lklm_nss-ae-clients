@@ -910,7 +910,7 @@ ppe_drv_ret_t ppe_drv_v4_flush(struct ppe_drv_v4_conn *cn)
 	ppe_drv_v4_if_walk_release(pcr);
 
 	/*
-	 * Add connection entry to the active connection list.
+	 * Delete connection entry to the active connection list.
 	 */
 	list_del(&cn->list);
 

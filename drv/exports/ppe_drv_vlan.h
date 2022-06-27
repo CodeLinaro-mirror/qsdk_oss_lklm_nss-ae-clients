@@ -13,6 +13,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#ifndef _PPE_DRV_VLAN_H_
+#define _PPE_DRV_VLAN_H_
 
 #include <fal/fal_portvlan.h>
 
@@ -140,3 +142,5 @@ void ppe_drv_vlan_deinit(struct ppe_drv_iface *iface);
  * Status of the operation.
  */
 ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *iface, struct net_device *base_dev, uint32_t vlan_id);
+
+#endif /* _PPE_DRV_VLAN_H_ */

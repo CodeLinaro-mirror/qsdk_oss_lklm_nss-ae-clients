@@ -879,7 +879,7 @@ ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
 	ppe_drv_v6_if_walk_release(pcr);
 
 	/*
-	 * Add connection entry to the active connection list.
+	 * Delete connection entry to the active connection list.
 	 */
 	list_del(&cn->list);
 
@@ -947,7 +947,7 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	ppe_drv_v6_if_walk_release(pcr);
 
 	/*
-	 * Add connection entry to the active connection list.
+	 * Delete connection entry to the active connection list.
 	 */
 	list_del(&cn->list);
 

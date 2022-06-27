@@ -233,6 +233,7 @@ static inline struct ppe_drv_port *ppe_drv_port_get_free_port(enum ppe_drv_port_
  */
 static void ppe_drv_port_destroy(struct kref *kref)
 {
+	uint32_t port;
 	sw_error_t err;
 	fal_port_cnt_cfg_t cntr = {0};
 	fal_mtu_ctrl_t mtu_ctrl = {0};
@@ -301,10 +302,12 @@ static void ppe_drv_port_destroy(struct kref *kref)
 		return;
 	}
 
+	port = FAL_PORT_ID(FAL_PORT_TYPE_VPORT, pp->port);
+
 	/*
 	 * Enable promiscous mode
 	 */
-	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, pp->port, true);
+	err = fal_port_promisc_mode_set(PPE_DRV_SWITCH_ID, port, true);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure promiscous mode for port: %u", pp, pp->port);
 		return;
@@ -313,7 +316,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	/*
 	 * Disable station move learning
 	 */
-	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, pp->port, false, FAL_MAC_RDT_TO_CPU);
+	err = fal_fdb_port_stamove_ctrl_set(PPE_DRV_SWITCH_ID, port, false, FAL_MAC_RDT_TO_CPU);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to clear station move control config for port: %u", pp, pp->port);
 		return;
@@ -323,7 +326,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	 * Set VP type as normal VP.
 	 */
 	vp_state.vp_type = FAL_VPORT_TYPE_NORMAL;
-	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, pp->port, &vp_state);
+	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, port, &vp_state);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to reset state check for port: %u", pp, pp->port);
 		return;
@@ -334,7 +337,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	 */
 	cntr.rx_cnt_mode = FAL_PORT_CNT_MODE_FULL_PKT;
 	cntr.tx_cnt_mode = FAL_PORT_CNT_MODE_FULL_PKT;
-	err = fal_port_cnt_cfg_set(PPE_DRV_SWITCH_ID, pp->port, &cntr);
+	err = fal_port_cnt_cfg_set(PPE_DRV_SWITCH_ID, port, &cntr);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to clear counter config for port: %u", pp, pp->port);
 		return;

@@ -25,6 +25,7 @@
 #include <fal/fal_rss_hash.h>
 #include <fal/fal_ip.h>
 #include <fal/fal_init.h>
+#include <fal/fal_qm.h>
 #include "ppe_drv.h"
 
 /*
@@ -133,6 +134,34 @@ static bool ppe_drv_hash_init(void)
 	if (fal_rss_hash_config_set(0, mode, &config) != SW_OK) {
 		ppe_drv_warn("IPv6 hash register initialization failed\n");
 		return false;
+	}
+
+	return true;
+}
+
+/*
+ * ppe_drv phy_port_base_queue_init()
+ *	Initialize PPE port 0 - 7 base queue
+ */
+static bool ppe_drv_phy_port_base_queue_init(struct ppe_drv *p)
+{
+	fal_ucast_queue_dest_t q_dst = {0};
+	uint32_t queue_id = 0;
+	sw_error_t err;
+	uint8_t profile = 0;
+	int i = 0;
+
+	for (i = 0; i < PPE_DRV_PHYSICAL_MAX; i++) {
+		q_dst.src_profile = 0;
+		q_dst.dst_port = i;
+
+		err = fal_ucast_queue_base_profile_get(PPE_DRV_SWITCH_ID, &q_dst, &queue_id, &profile);
+		if (err != SW_OK) {
+			ppe_drv_warn("%p unable to get port queue base ID: %d", p, err);
+			return false;
+		}
+
+		ppe_drv_port_ucast_queue_update(&p->port[i], (uint8_t)queue_id);
 	}
 
 	return true;
@@ -295,6 +324,11 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	}
 
 	ppe_drv_exception_init();
+
+	if (!ppe_drv_phy_port_base_queue_init(p)) {
+		ppe_drv_warn("%p: failed to initialize physical port base queue\n", p);
+		goto fail;
+	}
 
 	/*
 	 * Initialize locks

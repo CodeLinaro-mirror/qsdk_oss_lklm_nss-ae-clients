@@ -20,6 +20,23 @@
 #include <fal_vport.h>
 #include <ppe_drv/ppe_drv.h>
 #include "ppe_drv_tun.h"
+#include "ppe_drv_tun_v4.h"
+#include "ppe_drv_tun_v6.h"
+
+/*
+ * ppe_drv_tun_check_support()
+ *     check if protocol is tunnel
+ */
+bool ppe_drv_tun_check_support(uint8_t protocol)
+{
+	switch (protocol) {
+	case IPPROTO_IPIP:
+	case IPPROTO_GRE:
+		return true;
+	default:
+		return false;
+	}
+}
 
 /*
  * ppe_drv_tun_ref
@@ -328,11 +345,12 @@ bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_
  */
 bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 {
+	ppe_drv_ret_t ret = PPE_DRV_RET_SUCCESS;
 	struct ppe_drv_tun_cmn_ctx *pth;
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_port *pp;
 	struct ppe_drv_tun *ptun;
-
+	bool is_ipv6;
 
 	spin_lock_bh(&p->lock);
 
@@ -351,6 +369,21 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 	}
 
 	pth = ptun->th;
+	is_ipv6 = ppe_drv_tun_cmn_ctx_tun_is_ipv6(pth);
+
+	if (vdestroy_rule && is_ipv6) {
+		ret = ppe_drv_v6_tun_del_ce_validate(vdestroy_rule);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			spin_unlock_bh(&p->lock);
+			return false;
+		}
+	} else if (vdestroy_rule) {
+		ret = ppe_drv_v4_tun_del_ce_validate(vdestroy_rule);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			spin_unlock_bh(&p->lock);
+			return false;
+		}
+	}
 
 	ppe_drv_trace("%p: Deactivating Tunnel %d at index %u", ptun, pth->type, ptun->tun_idx);
 
@@ -455,18 +488,24 @@ EXPORT_SYMBOL(ppe_drv_tun_deconfigure);
  */
 bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 {
-
 	struct ppe_drv *p = &ppe_drv_gbl;
-	struct ppe_drv_tun_cmn_ctx *th = NULL;
-	struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr = NULL;
 	fal_port_t port_id;
 	uint16_t xmit_port;
 	uint16_t tl_l3_if_idx;
 	bool dc_cfg_status = false;
 	struct ppe_drv_port *pp;
 	struct ppe_drv_tun *ptun;
+	struct ppe_drv_v4_conn *cn_v4 = NULL;
+	struct ppe_drv_v6_conn *cn_v6 = NULL;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv_tun_cmn_ctx *pth;
+	struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr;
+	bool is_ipv6;
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 
 	spin_lock_bh(&p->lock);
+
 	pp = ppe_drv_port_from_port_num(port_num);
 	if (!pp) {
 		ppe_drv_warn("%p: invalid port number %d", p, port_num);
@@ -489,24 +528,66 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 		goto err_fail;
 	}
 
+	pth = ptun->th;
+	l2_hdr = &pth->l2;
+	is_ipv6 = ppe_drv_tun_cmn_ctx_tun_is_ipv6(pth);
+
+	/*
+	 * there are two ways tunnel can be configured.
+	 * a. when ECM is front end, vcreate_rule is filled during outer rule push and we need
+	 *    to extract the L2 parameter from it.
+	 * b. the L2 parameter can be configured from user when ECM is not present.
+	 */
+	if (vcreate_rule && is_ipv6) {
+		cn_v6 = ppe_drv_v6_conn_alloc();
+		if (!cn_v6) {
+			ppe_drv_stats_inc(&comm_stats->v6_create_fail_mem);
+			ppe_drv_warn("%p: failed to allocate connection memory: %p", p, vcreate_rule);
+			goto err_fail;
+		}
+
+		if (ppe_drv_v6_tun_add_ce_validate(vcreate_rule, cn_v6)) {
+			goto err_fail;
+		}
+
+		/*
+		 * Extract the L2 HDR from ECM rule
+		 */
+		ppe_drv_tun_v6_parse_l2_hdr(vcreate_rule, cn_v6, l2_hdr);
+	} else if (vcreate_rule) {
+		cn_v4 = ppe_drv_v4_conn_alloc();
+		if (!cn_v4) {
+			ppe_drv_stats_inc(&comm_stats->v4_create_fail_mem);
+			ppe_drv_warn("%p: failed to allocate connection memory: %p", p, vcreate_rule);
+			goto err_fail;
+		}
+
+		if (ppe_drv_v4_tun_add_ce_validate(vcreate_rule, cn_v4)) {
+			goto err_fail;
+		}
+
+		/*
+		 * Extract the L2 HDR from ECM Connection entry
+		 */
+		ppe_drv_tun_v4_parse_l2_hdr(vcreate_rule, cn_v4, l2_hdr);
+	}
+
 	port_id = ptun->vp_num;
-	th = ptun->th;
-	l2_hdr = &th->l2;
 
 	/*
 	 * 1. Program EG Header Data table
 	 * 2. Program EG tunnel control table
 	 * 3. Program EG VP table
 	 */
-	if (!ppe_drv_tun_encap_configure(ptun->ptec, th, l2_hdr)) {
+	if (!ppe_drv_tun_encap_configure(ptun->ptec, pth, l2_hdr)) {
 		ppe_drv_warn("%p: Failed to do encap configure for tun %d of type %d", ptun, ptun->tun_idx,
-								th->type);
+								pth->type);
 		goto err_fail;
 	}
 
 	if (!ppe_drv_tun_encap_tun_idx_configure(ptun->ptec, ptun->vp_num, true)) {
 		ppe_drv_warn("%p: Failed to do encap tun idx for tun %d of type %d", ptun, ptun->tun_idx,
-								th->type);
+								pth->type);
 		goto err_fail;
 	}
 
@@ -530,7 +611,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	ptun->pt_l3_if = ppe_drv_tun_port_tl_l3_if_get(ptun, xmit_port);
 	if (ptun->pt_l3_if == NULL) {
 		ppe_drv_warn("%p: Failed to get active tl l3 index for tun %d of type %d",
-					ptun, ptun->tun_idx, th->type);
+					ptun, ptun->tun_idx, pth->type);
 		goto err_fail;
 	}
 
@@ -543,7 +624,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	ppe_drv_tun_decap_set_tl_l3_idx(ptun->ptdc, tl_l3_if_idx);
 
 
-	if (th->type != PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
+	if (pth->type != PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 		dc_cfg_status = ppe_drv_tun_decap_activate(ptun->ptdc, l2_hdr);
 	} else {
 		dc_cfg_status = false; /*TODO : MAP-T activate */
@@ -551,7 +632,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 
 	if (!dc_cfg_status) {
 		ppe_drv_warn("%p: Failed to activate decap entry for tun %d of type %d", ptun, ptun->tun_idx,
-								th->type);
+								pth->type);
 		goto err_fail;
 	}
 
@@ -560,7 +641,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	 */
 	if (!ppe_drv_tun_port_configure(ptun, xmit_port)) {
 		ppe_drv_warn("%p: Failed to configure VP tunnel port for tun %d of type %d", ptun,
-						ptun->tun_idx, th->type);
+						ptun->tun_idx, pth->type);
 		goto err_fail;
 	}
 
@@ -570,11 +651,20 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	 * Take reference
 	 */
 	ppe_drv_tun_ref(ptun);
+
+	if (cn_v6) {
+		list_add(&cn_v6->list, &p->conn_tun_v6);
+	} else if (cn_v4) {
+		list_add(&cn_v4->list, &p->conn_tun_v4);
+	}
+
 	spin_unlock_bh(&p->lock);
 	return true;
 
 err_fail:
 	spin_unlock_bh(&p->lock);
+	kfree(cn_v4);
+	kfree(cn_v6);
 	return false;
 }
 EXPORT_SYMBOL(ppe_drv_tun_activate);

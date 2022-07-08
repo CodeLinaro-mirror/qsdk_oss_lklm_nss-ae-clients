@@ -164,6 +164,10 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_FLUSH_FAIL,			/**< Flush failure */
 	PPE_DRV_RET_FAILURE_BRIDGE_NAT,			/**< Failure due to Bridge + NAT flows */
 	PPE_DRV_RET_QUEUE_CFG_FAIL,			/**< Failure in queue configuration */
+	PPE_DRV_RET_FAILURE_TUN_CE_ADD_FAILURE,		/**< Failure in adding tunnel connection entry */
+	PPE_DRV_RET_FAILURE_TUN_CE_DEL_FAILURE,		/**< Failure in removing tunnel connection entry */
+	PPE_DRV_RET_INVALID_VP_NUM,			/**< Invalid VP number */
+	PPE_DRV_RET_TUN_ADD_CE_NULL,			/**< Add connection entry callback is NULL */
 } ppe_drv_ret_t;
 
 /**

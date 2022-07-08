@@ -15,10 +15,12 @@
  */
 
 #include "ppe_drv.h"
+#include "tun/ppe_drv_tun.h"
+#include "tun/ppe_drv_tun_v6.h"
 
-static inline void ppe_drv_v6_flow_vlan_set(struct ppe_drv_v6_conn_flow *pcf,
-		uint32_t primary_ingress_vlan_tag, uint32_t primary_egress_vlan_tag,
-		uint32_t secondary_ingress_vlan_tag, uint32_t secondary_egress_vlan_tag)
+void ppe_drv_v6_flow_vlan_set(struct ppe_drv_v6_conn_flow *pcf,
+			      uint32_t primary_ingress_vlan_tag, uint32_t primary_egress_vlan_tag,
+			      uint32_t secondary_ingress_vlan_tag, uint32_t secondary_egress_vlan_tag)
 {
 	if ((primary_ingress_vlan_tag & PPE_DRV_VLAN_ID_MASK) != PPE_DRV_VLAN_NOT_CONFIGURED) {
 		pcf->ingress_vlan[0].tpid = primary_ingress_vlan_tag >> 16;
@@ -77,7 +79,8 @@ static inline void ppe_drv_v6_flow_vlan_set(struct ppe_drv_v6_conn_flow *pcf,
  * ppe_drv_v6_conn_fill()
  *	Populate each direction flow object.
  */
-static ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn)
+ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn,
+				   enum ppe_drv_conn_type flow_type)
 {
 	struct ppe_drv_v6_connection_rule *conn = &create->conn_rule;
 	struct ppe_drv_v6_5tuple *tuple = &create->tuple;
@@ -92,50 +95,52 @@ static ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create,
 	struct ppe_drv_v6_conn_flow *pcr = &cn->pcr;
 	uint16_t valid_flags = create->valid_flags;
 	uint16_t rule_flags = create->rule_flags;
+	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_port *pp_rx, *pp_tx;
 	struct ppe_drv *p = &ppe_drv_gbl;
 
+	comm_stats = &p->stats.comm_stats[flow_type];
 	/*
 	 * Make sure both Rx and Tx inteface are mapped to PPE ports properly.
 	 */
 	if_rx = ppe_drv_iface_get_by_idx(conn->rx_if);
 	if (!if_rx) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_invalid_rx_if);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_invalid_rx_if);
 		ppe_drv_warn("%p: No PPE interface corresponding to rx_if: %d", create, conn->rx_if);
 		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
 	}
 
 	pp_rx = ppe_drv_iface_port_get(if_rx);
 	if (!pp_rx) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_invalid_rx_port);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_invalid_rx_port);
 		ppe_drv_warn("%p: Invalid Rx IF: %d", create, conn->rx_if);
 		return PPE_DRV_RET_FAILURE_IFACE_PORT_MAP;
 	}
 
 	if_tx = ppe_drv_iface_get_by_idx(conn->tx_if);
 	if (!if_tx) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_invalid_tx_if);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_invalid_tx_if);
 		ppe_drv_warn("%p: No PPE interface corresponding to tx_if: %d", create, conn->tx_if);
 		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
 	}
 
 	pp_tx = ppe_drv_iface_port_get(if_tx);
 	if (!pp_tx) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_invalid_tx_port);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_invalid_tx_port);
 		ppe_drv_warn("%p: Invalid Tx IF: %d", create, conn->tx_if);
 		return PPE_DRV_RET_FAILURE_IFACE_PORT_MAP;
 	}
 
 	top_if_rx = ppe_drv_iface_get_by_idx(top_rule->rx_if);
 	if (!top_if_rx) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_invalid_rx_if);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_invalid_rx_if);
 		ppe_drv_warn("%p: No PPE interface corresponding to rx_if: %d", create, top_rule->rx_if);
 		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
 	}
 
 	top_if_tx = ppe_drv_iface_get_by_idx(top_rule->tx_if);
 	if (!top_if_tx) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_invalid_tx_if);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_invalid_tx_if);
 		ppe_drv_warn("%p: No PPE interface corresponding to tx_if: %d", create, top_rule->tx_if);
 		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
 	}
@@ -206,7 +211,7 @@ static ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create,
 			|| ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf))) {
 
 			if (ppe_drv_iface_parent_get(top_if_rx) != ppe_drv_iface_parent_get(top_if_tx)) {
-				ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_vlan_filter);
+				ppe_drv_stats_inc(&comm_stats->v6_create_fail_vlan_filter);
 				ppe_drv_warn("%p: IF not part of same bridge rx_if: %d tx_if: %d",
 						create, top_rule->rx_if, top_rule->tx_if);
 				return PPE_DRV_RET_FAILURE_NOT_BRIDGE_SLAVES;
@@ -271,7 +276,7 @@ static ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create,
 			|| ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcr))) {
 
 			if (ppe_drv_iface_parent_get(top_if_rx) != ppe_drv_iface_parent_get(top_if_tx)) {
-				ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_vlan_filter);
+				ppe_drv_stats_inc(&comm_stats->v6_create_fail_vlan_filter);
 				ppe_drv_warn("%p: IF not part of same bridge rx_if: %d tx_if: %d",
 						create, top_rule->rx_if, top_rule->tx_if);
 				return PPE_DRV_RET_FAILURE_NOT_BRIDGE_SLAVES;
@@ -288,7 +293,7 @@ static ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create,
  * ppe_drv_v6_if_walk_release()
  *	Release references taken during interface hierarchy walk.
  */
-static void ppe_drv_v6_if_walk_release(struct ppe_drv_v6_conn_flow *pcf)
+void ppe_drv_v6_if_walk_release(struct ppe_drv_v6_conn_flow *pcf)
 {
 	if (pcf->eg_vsi_if) {
 		ppe_drv_iface_deref_internal(pcf->eg_vsi_if);
@@ -310,7 +315,7 @@ static void ppe_drv_v6_if_walk_release(struct ppe_drv_v6_conn_flow *pcf)
  * ppe_drv_v6_if_walk()
  *	Walk iface heirarchy to obtain egress L3_IF and VSI
  */
-static bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if)
+bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_iface *eg_vsi_if = NULL;
@@ -892,26 +897,44 @@ ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
  */
 ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 {
+	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_v6_conn_flow *pcf;
 	struct ppe_drv_v6_conn_flow *pcr;
 	struct ppe_drv_v6_conn_sync *cns;
 	struct ppe_drv_v6_conn *cn;
+	int ret;
+
+	if (ppe_drv_tun_check_support(destroy->tuple.protocol)) {
+		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
+		ppe_drv_stats_inc(&comm_stats->v6_destroy_req);
+		ret = ppe_drv_v6_tun_del_ce_notify(destroy);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			ppe_drv_warn("%p: Tunnel destroy failed with error %d", destroy, ret);
+			ppe_drv_stats_inc(&comm_stats->v6_destroy_fail);
+			return ret;
+		}
+
+		return PPE_DRV_RET_SUCCESS;
+	}
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
 
 	/*
 	 * Update stats
 	 */
-	ppe_drv_stats_inc(&p->stats.gen_stats.v6_destroy_req);
+	ppe_drv_stats_inc(&comm_stats->v6_destroy_req);
 
 	/*
 	 * Get flow table entry.
 	 */
 	spin_lock_bh(&p->lock);
+
 	flow = ppe_drv_flow_v6_get(&destroy->tuple);
 	if (!flow) {
 		spin_unlock_bh(&p->lock);
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_destroy_conn_not_found);
+		ppe_drv_stats_inc(&comm_stats->v6_destroy_conn_not_found);
 		ppe_drv_warn("%p: flow entry not found", p);
 		return PPE_DRV_RET_FAILURE_DESTROY_NO_CONN;
 	}
@@ -919,7 +942,7 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	pcf = flow->pcf.v6;
 	if (!ppe_drv_v6_flow_del(pcf)) {
 		spin_unlock_bh(&p->lock);
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_destroy_fail);
+		ppe_drv_stats_inc(&comm_stats->v6_destroy_fail);
 		ppe_drv_warn("%p: deletion of flow failed: %p", p, pcf);
 		return PPE_DRV_RET_FAILURE_DESTROY_FAIL;
 	}
@@ -936,7 +959,7 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	pcr = (pcf == &cn->pcf) ? &cn->pcr : &cn->pcf;
 	if (!ppe_drv_v6_flow_del(pcr)) {
 		spin_unlock_bh(&p->lock);
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_destroy_fail);
+		ppe_drv_stats_inc(&comm_stats->v6_destroy_fail);
 		ppe_drv_warn("%p: deletion of return flow failed: %p", p, pcf);
 		return PPE_DRV_RET_FAILURE_DESTROY_FAIL;
 	}
@@ -988,14 +1011,29 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = NULL;
 	struct ppe_drv_v6_conn_flow *pcr = NULL;
+	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_top_if_rule top_if;
 	struct ppe_drv_v6_conn *cn = NULL;
 	ppe_drv_ret_t ret;
 
+	if (ppe_drv_tun_check_support(create->tuple.protocol)) {
+		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
+		ppe_drv_stats_inc(&comm_stats->v6_create_req);
+		ret = ppe_drv_v6_tun_add_ce_notify(create);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			ppe_drv_stats_inc(&comm_stats->v6_create_fail);
+			ppe_drv_warn("%p: failed to create tunnel CE with error %d", create, ret);
+			return PPE_DRV_RET_FAILURE_TUN_CE_ADD_FAILURE;
+		}
+
+		return PPE_DRV_RET_SUCCESS;
+	}
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
 	/*
 	 * Update stats
 	 */
-	ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_req);
+	ppe_drv_stats_inc(&comm_stats->v6_create_req);
 
 	/*
 	 * Allocate a new connection entry
@@ -1007,7 +1045,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	 */
 	cn = ppe_drv_v6_conn_alloc();
 	if (!cn) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_mem);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_mem);
 		ppe_drv_warn("%p: failed to allocate connection memory: %p", p, create);
 		return PPE_DRV_RET_FAILURE_CREATE_OOM;
 	}
@@ -1016,9 +1054,9 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	 * Fill the connection entry.
 	 */
 	spin_lock_bh(&p->lock);
-	ret = ppe_drv_v6_conn_fill(create, cn);
+	ret = ppe_drv_v6_conn_fill(create, cn, PPE_DRV_CONN_TYPE_TUNNEL);
 	if (ret != PPE_DRV_RET_SUCCESS) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_conn);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_conn);
 		ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
 		goto fail;
 	}
@@ -1027,7 +1065,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	 * Ensure either direction flow is not already offloaded by us.
 	 */
 	if (ppe_drv_v6_flow_check(&cn->pcf) || ppe_drv_v6_flow_check(&cn->pcr)) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_collision);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_collision);
 		ppe_drv_warn("%p: create collision detected: %p", p, create);
 		ret = PPE_DRV_RET_FAILURE_CREATE_COLLISSION;
 		goto fail;
@@ -1040,7 +1078,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	top_if.rx_if = create->top_rule.rx_if;
 	top_if.tx_if = create->top_rule.tx_if;
 	if (!ppe_drv_v6_if_walk(&cn->pcf, &top_if, create->conn_rule.tx_if)) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_if_hierarchy);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_if_hierarchy);
 		ppe_drv_warn("%p: create failed invalid interface hierarchy: %p", p, create);
 		ret = PPE_DRV_RET_FAILURE_INVALID_HIERARCHY;
 		goto fail;
@@ -1054,7 +1092,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	top_if.rx_if = create->top_rule.tx_if;
 	top_if.tx_if = create->top_rule.rx_if;
 	if (!ppe_drv_v6_if_walk(&cn->pcr, &top_if, create->conn_rule.rx_if)) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail_if_hierarchy);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_if_hierarchy);
 		ppe_drv_warn("%p: create failed invalid interface hierarchy: %p", p, create);
 		ret = PPE_DRV_RET_FAILURE_INVALID_HIERARCHY;
 		goto fail;
@@ -1067,7 +1105,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	 */
 	pcf->pf = ppe_drv_v6_flow_add(pcf);
 	if (!pcf->pf) {
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail);
 		ppe_drv_warn("%p: acceleration of flow failed: %p", p, pcf);
 		ret = PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL;
 		goto fail;
@@ -1080,7 +1118,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 		 */
 		ppe_drv_v6_flow_del(pcf);
 
-		ppe_drv_stats_inc(&p->stats.gen_stats.v6_create_fail);
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail);
 		ppe_drv_warn("%p: acceleration of return direction failed: %p", p, pcr);
 		ret = PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL;
 		goto fail;

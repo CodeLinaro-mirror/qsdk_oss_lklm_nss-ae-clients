@@ -786,6 +786,7 @@ struct net_device *ppe_drv_port_get_vp_phys_dev(struct net_device *dev)
 	return ppe_drv_port_num_to_dev(phyport_id);
 }
 EXPORT_SYMBOL(ppe_drv_port_get_vp_phys_dev);
+
 /*
  * ppe_drv_port_from_dev()
  *	Get PPE port from net-device

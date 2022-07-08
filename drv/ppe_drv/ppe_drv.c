@@ -319,6 +319,8 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	/* Initialize list */
 	INIT_LIST_HEAD(&p->conn_v4);
 	INIT_LIST_HEAD(&p->conn_v6);
+	INIT_LIST_HEAD(&p->conn_tun_v4);
+	INIT_LIST_HEAD(&p->conn_tun_v6);
 
 	p->toggled = false;
 

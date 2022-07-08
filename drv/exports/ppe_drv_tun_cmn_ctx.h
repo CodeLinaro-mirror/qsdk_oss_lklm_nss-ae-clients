@@ -186,4 +186,5 @@ static inline bool ppe_drv_tun_cmn_ctx_tun_is_ipv6(struct ppe_drv_tun_cmn_ctx *t
 {
 	return !!(th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_IPV6);
 }
+
 #endif /* _PPE_DRV_TUN_CMN_CTX_H_ */

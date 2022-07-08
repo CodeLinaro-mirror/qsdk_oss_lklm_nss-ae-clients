@@ -31,6 +31,8 @@ qca-nss-ppe-objs += tun/ppe_drv_tun.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_encap.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_decap.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_l3_if.o
+qca-nss-ppe-objs += tun/ppe_drv_tun_v6.o
+qca-nss-ppe-objs += tun/ppe_drv_tun_v4.o
 
 ccflags-y += -Wall -Werror
 ccflags-y += -DPPE_DRV_DEBUG_LEVEL=3

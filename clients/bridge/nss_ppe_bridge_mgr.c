@@ -34,7 +34,7 @@
 #include <nss_ppe_vlan_mgr.h>
 #include "nss_ppe_bridge_mgr.h"
 
-#if defined(NSS_BRIDGE_MGR_OVS_ENABLE)
+#if defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
 #include <ovsmgr.h>
 #endif
 
@@ -74,7 +74,7 @@ static struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_create_instance(struct 
 {
 	struct nss_ppe_bridge_mgr_pvt *br;
 
-#if !defined(NSS_BRIDGE_MGR_OVS_ENABLE)
+#if !defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
 	if (!netif_is_bridge_master(dev)) {
 		return NULL;
 	}
@@ -922,7 +922,7 @@ struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_find_instance(struct net_devic
 {
 	struct nss_ppe_bridge_mgr_pvt *br;
 
-#if !defined(NSS_BRIDGE_MGR_OVS_ENABLE)
+#if !defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
 	if (!netif_is_bridge_master(dev)) {
 		return NULL;
 	}
@@ -1259,8 +1259,8 @@ static void __exit nss_ppe_bridge_mgr_exit_module(void)
 		unregister_sysctl_table(br_mgr_ctx.nss_ppe_bridge_mgr_header);
 	}
 
-#if defined(NSS_BRIDGE_MGR_OVS_ENABLE)
-	nss_bridge_mgr_ovs_exit();
+#if defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
+	nss_ppe_bridge_mgr_ovs_exit();
 #endif
 }
 
@@ -1286,8 +1286,8 @@ static int __init nss_ppe_bridge_mgr_init_module(void)
 	br_fdb_update_register_notify(&nss_ppe_bridge_mgr_fdb_update_notifier);
 	br_mgr_ctx.nss_ppe_bridge_mgr_header = register_sysctl_table(nss_ppe_bridge_mgr_root_dir);
 
-#if defined(NSS_BRIDGE_MGR_OVS_ENABLE)
-	nss_bridge_mgr_ovs_init();
+#if defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
+	nss_ppe_bridge_mgr_ovs_init();
 #endif
 
 	return 0;
@@ -1298,3 +1298,6 @@ module_exit(nss_ppe_bridge_mgr_exit_module);
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("NSS PPE bridge manager");
+
+module_param(ovs_enabled, bool, 0644);
+MODULE_PARM_DESC(ovs_enabled, "OVS bridge is enabled");

@@ -26,9 +26,10 @@
 #include <linux/netdevice.h>
 #include <linux/notifier.h>
 #include <ovsmgr.h>
-#include <nss_vlan_mgr.h>
+#include <ppe_drv_iface.h>
+#include <nss_ppe_vlan_mgr.h>
 
-#include "nss_ppe_bridge_mgr_priv.h"
+#include "nss_ppe_bridge_mgr.h"
 
 /*
  * nss_ppe_bridge_mgr_ovs_handle_port_event()
@@ -37,7 +38,7 @@
 static int nss_ppe_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
 {
 	struct ovsmgr_dp_port_info *port;
-	struct nss_bridge_pvt *b_pvt;
+	struct nss_ppe_bridge_mgr_pvt *b_pvt;
 	struct net_device *master_dev, *dev;
 	int err;
 
@@ -95,7 +96,7 @@ static int nss_ppe_bridge_mgr_ovs_handle_port_event(struct ovsmgr_notifiers_info
 static void nss_ppe_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_info *ovs_info, unsigned long event)
 {
 	struct ovsmgr_dp_port_vlan_info *vlan;
-	struct nss_bridge_pvt *b_pvt;
+	struct nss_ppe_bridge_mgr_pvt *b_pvt;
 	struct net_device *master_dev, *dev;
 
 	vlan = ovs_info->vlan;
@@ -123,7 +124,7 @@ static void nss_ppe_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_inf
 		nss_ppe_bridge_mgr_trace("%px: VLAN = %d, add on port %s, bridge %s\n",
 				b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
 
-		nss_vlan_mgr_add_vlan_rule(dev, b_pvt->iface, vlan->vh.h_vlan_TCI);
+		nss_ppe_vlan_mgr_add_vlan_rule(dev, b_pvt->iface, vlan->vh.h_vlan_TCI);
 		return;
 	}
 
@@ -132,7 +133,7 @@ static void nss_ppe_bridge_mgr_ovs_handle_vlan_event(struct ovsmgr_notifiers_inf
 	 */
 	nss_ppe_bridge_mgr_trace("%px: VLAN = %d, delete on port %s, bridge %s\n",
 					b_pvt, vlan->vh.h_vlan_TCI, dev->name, master_dev->name);
-	nss_vlan_mgr_del_vlan_rule(dev, b_pvt->iface, vlan->vh.h_vlan_TCI);
+	nss_ppe_vlan_mgr_del_vlan_rule(dev, b_pvt->iface, vlan->vh.h_vlan_TCI);
 }
 
 /*

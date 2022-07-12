@@ -117,6 +117,32 @@ mac_set_fail:
 EXPORT_SYMBOL(ppe_vp_mac_addr_set);
 
 /*
+ * ppe_vp_mtu_get()
+ *	Get MTU for the virtual port.
+ */
+ppe_vp_status_t ppe_vp_mtu_get(ppe_vp_num_t port_num, uint16_t *mtu)
+{
+	struct ppe_vp_base *pvb = &vp_base;
+	struct ppe_vp *vp;
+	ppe_vp_status_t status = PPE_VP_STATUS_SUCCESS;
+
+	rcu_read_lock();
+	vp = ppe_vp_base_get_vp_by_port_num(port_num);
+	if (!vp) {
+		ppe_vp_warn("%px: VP already freed, cannot get VP for port num %d", pvb, port_num);
+		status = PPE_VP_STATUS_GET_VP_FAIL;
+		goto mtu_get_fail;
+	}
+
+	*mtu = vp->mtu;
+
+mtu_get_fail:
+	rcu_read_unlock();
+	return status;
+}
+EXPORT_SYMBOL(ppe_vp_mtu_get);
+
+/*
  * ppe_vp_mtu_set()
  *	Set MTU for the virtual port.
  */
@@ -144,6 +170,7 @@ ppe_vp_status_t ppe_vp_mtu_set(ppe_vp_num_t port_num, uint16_t mtu)
 		goto mtu_set_fail;
 	}
 
+	vp->mtu = mtu;
 	ppe_vp_info("%px: netdev: %px, vp %px at port num %u, MTU changed to %u", pvb, vp->netdev, vp, port_num, mtu);
 
 mtu_set_fail:
@@ -204,6 +231,7 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	spin_lock_bh(&vp->lock);
 	vp->ppe_iface = NULL;
 	vp->port_num = -1;
+	vp->mtu = 0;
 	vp->flags &= ~PPE_VP_FLAG_VP_ACTIVE;
 	vp->dst_cb = NULL;
 	vp->src_cb = NULL;
@@ -360,6 +388,7 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 	vp->netdev_if_num = netdev->ifindex;
 	vp->vp_type = type;
 	vp->port_num = pp_num;
+	vp->mtu = netdev->mtu;
 	vp->flags = PPE_VP_FLAG_VP_ACTIVE;
 	vp->dst_cb = vpai->dst_cb;
 	vp->dst_cb_data = vpai->dst_cb_data;

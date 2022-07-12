@@ -152,6 +152,18 @@ extern ppe_vp_status_t ppe_vp_mac_addr_clear(ppe_vp_num_t port_num);
 extern ppe_vp_status_t ppe_vp_mac_addr_set(ppe_vp_num_t port_num, uint8_t *mac_addr);
 
 /*
+ * ppe_vp_mtu_get()
+ *	Get the MTU for the virtual port.
+ *
+ * @param[in] port_num   VP port number.
+ * @param[in] mtu        Pointer to MTU variable.
+ *
+ * @return
+ * Success status of getting MTU.
+ */
+extern ppe_vp_status_t ppe_vp_mtu_get(ppe_vp_num_t port_num, uint16_t *mtu);
+
+/*
  * ppe_vp_mtu_set()
  *	Set the MTU for the virtual port.
  *

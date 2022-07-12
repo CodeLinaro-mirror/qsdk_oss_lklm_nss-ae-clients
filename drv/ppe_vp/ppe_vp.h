@@ -36,6 +36,7 @@ struct ppe_vp {
 	struct ppe_drv_iface *ppe_iface;		/* Pointer to the PPE interface object */
 	struct ppe_vp_stats vp_stats;			/* Stats for this VP */
 	uint32_t netdev_if_num;				/* net_device interface number */
+	uint16_t mtu;					/* MTU for VP */
 	ppe_vp_num_t port_num;				/* PPE Port number */
 	ppe_vp_type_t vp_type;				/* Virtual Port type */
 	uint32_t flags;					/* Flags associated with the VP */

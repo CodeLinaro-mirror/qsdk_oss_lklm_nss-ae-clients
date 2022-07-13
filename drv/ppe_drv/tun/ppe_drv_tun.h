@@ -22,7 +22,7 @@
 
 #define PPE_DRV_TUN_BIT(x)	(1UL << x)
 #define PPE_DRV_TUN_MAX_CTX	128
-
+#define PPE_DRV_TUN_PORT_STATS_RESERVED_COUNT 10  /* Number of slots reserved for tunnel statistics */
 /*
  * ppe_drv_tun_tl_action
  *	PPE TL action.
@@ -147,3 +147,5 @@ struct ppe_drv_tun {
 bool ppe_drv_tun_global_init(struct ppe_drv *p);
 bool ppe_drv_tun_check_support(uint8_t protocol);
 void ppe_drv_tun_vxlan_deconfigure(struct ppe_drv *p);
+void ppe_drv_tun_v4_port_stats_update(struct ppe_drv_v4_conn_flow *pcf);
+void ppe_drv_tun_v6_port_stats_update(struct ppe_drv_v6_conn_flow *pcf);

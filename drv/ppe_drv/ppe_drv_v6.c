@@ -689,9 +689,10 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_v6_conn *cn;
 	enum ppe_drv_stats_sync_reason reason = PPE_DRV_STATS_SYNC_REASON_STATS;
+	uint16_t max_flow_conn_count = num_conn - PPE_DRV_TUN_PORT_STATS_RESERVED_COUNT;
 
 	spin_lock_bh(&p->lock);
-	if (list_empty(&p->conn_v6)) {
+	if (list_empty(&p->conn_v6) && list_empty(&p->conn_tun_v6)) {
 		spin_unlock_bh(&p->lock);
 		return;
 	}
@@ -708,9 +709,55 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 		return_flow_valid = ppe_drv_v6_conn_flags_check(cn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID);
 		if ((cn->toggle == p->toggled) || !(atomic_read(&cn->pcf.rx_packets)
 				|| (return_flow_valid && atomic_read(&cn->pcr.rx_packets)))){
-
 			if (list_is_last(&cn->list, &p->conn_v6)) {
 				p->toggled = !p->toggled;
+				break;
+			}
+
+			continue;
+		}
+
+		/*
+		 * sync stats for this connection.
+		 */
+		ppe_drv_v6_conn_sync_one(cn, &cn_syn->conn_sync[count], reason);
+		count++;
+
+		/*
+		 * Flip the toggle bit to avoid syncing the stats for this connection until
+		 * one full iteration of active list is done
+		 */
+		cn->toggle = !cn->toggle;
+
+		/*
+		 * If budget reached, break
+		 */
+		if (count == num_conn - max_flow_conn_count) {
+			break;
+		}
+
+		/*
+		 * If we reached to the end of the list, flip the toggled bit
+		 * for the next interation
+		 */
+		if (list_is_last(&cn->list, &p->conn_v6)) {
+			p->toggled = !p->toggled;
+		}
+	}
+
+	/*
+	 * Traverse through active list of tunnel connections.
+	 */
+	list_for_each_entry(cn, &p->conn_tun_v6, list) {
+		/*
+		 * Skip if stats are already synced for this connection in previous iteration.
+		 */
+		return_flow_valid = ppe_drv_v6_conn_flags_check(cn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID);
+		if (cn->toggle == p->tun_toggled || !(atomic_read(&cn->pcf.rx_packets) || atomic_read(&cn->pcf.tx_packets)
+					|| (return_flow_valid && atomic_read(&cn->pcr.rx_packets))
+					|| (return_flow_valid && atomic_read(&cn->pcr.tx_packets)))) {
+			if (list_is_last(&cn->list, &p->conn_tun_v6)) {
+				p->tun_toggled = !p->tun_toggled;
 				break;
 			}
 
@@ -739,8 +786,8 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 		 * If we reached to the end of the list, flip the toggled bit
 		 * for the next interation
 		 */
-		if (list_is_last(&cn->list, &p->conn_v6)) {
-			p->toggled = !p->toggled;
+		if (list_is_last(&cn->list, &p->conn_tun_v6)) {
+			p->tun_toggled = !p->tun_toggled;
 		}
 	}
 

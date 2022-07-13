@@ -207,7 +207,8 @@ struct ppe_drv {
 	struct list_head conn_v6;			/* List of v6 connection in PPE */
 	struct list_head conn_tun_v4;		/* List of v4 tunnel connection in PPE */
 	struct list_head conn_tun_v6;		/* List of v6 tunnel connection in PPE */
-	bool toggled;					/* Toggled bit for sync during a particular iteration */
+	bool toggled;				/* Toggled bit for sync during a particular iteration */
+	bool tun_toggled;		        /* Tunnel specific Toggled bit for sync during a particular iteration*/
 };
 
 extern struct ppe_drv ppe_drv_gbl;

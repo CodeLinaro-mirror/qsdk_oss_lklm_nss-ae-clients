@@ -21,6 +21,17 @@
 #define PPE_DRV_PORT_VIRTUAL_L3_TUN		0x02	/* Port is L3 tunnel virtual port */
 
 /*
+ * ppe_drv_port_flag
+ *	Port flags
+ */
+typedef enum ppe_drv_port_flag {
+	PPE_DRV_PORT_FLAG_IIPSEC = 0x1,
+	PPE_DRV_PORT_FLAG_IDTLS = 0x2,
+	PPE_DRV_PORT_FLAG_DS = 0x4,
+	PPE_DRV_PORT_FLAG_MAX = 0x8
+} ppe_drv_port_flag_t;
+
+/*
  * ppe_drv_port
  *	Port information
  */
@@ -35,6 +46,7 @@ struct ppe_drv_port {
 	struct ppe_drv_tun *port_tun;		/* PPE drv tun object associated with port */
 	struct ppe_drv_tun_l3_if *tl_l3_if;	/* Tunnel L3 interface corresponding to this port entry */
 	enum ppe_drv_port_type type;		/* Port type */
+	uint32_t flags;				/* Port flags */
 	bool port_l3_if_attached;               /* Port L3_IF attached? */
 	bool is_fdb_learn_enabled;		/* Port FDB learning enabled */
 	uint16_t mtu;				/* MTU value of port */
@@ -63,9 +75,11 @@ struct ppe_drv_port *ppe_drv_port_from_dev(struct net_device *dev);
 void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, uint8_t *mac_addr);
 void ppe_drv_port_mac_addr_clear(struct ppe_drv_port *pp);
 
+bool ppe_drv_port_pp_mtu_cfg(struct ppe_drv_port *pp, bool enable);
 bool ppe_drv_port_mtu_mru_set(struct ppe_drv_port *pp, uint16_t mtu, uint16_t mru);
 void ppe_drv_port_mtu_mru_clear(struct ppe_drv_port *pp);
 bool ppe_drv_port_mtu_cfg_update(struct ppe_drv_port *pp, uint16_t extra_hdr_len);
+bool ppe_drv_port_mtu_mru_disable(struct ppe_drv_port *pp);
 
 struct ppe_drv_vsi *ppe_drv_port_find_vlan_vsi(struct ppe_drv_port *pp, uint32_t in_vlan, uint32_t out_vlan);
 struct ppe_drv_vsi *ppe_drv_port_find_bridge_vsi(struct ppe_drv_port *pp);
@@ -96,3 +110,30 @@ void ppe_drv_port_tl_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_tun_l3
 
 void  ppe_drv_port_tun_set(struct ppe_drv_port *pp, struct ppe_drv_tun *ptun);
 struct ppe_drv_tun *ppe_drv_port_tun_get(struct ppe_drv_port *pp);
+
+/*
+ * ppe_drv_port_flags_check()
+ *      check the bit flags.
+ */
+static inline bool ppe_drv_port_flags_check(struct ppe_drv_port *pp, uint32_t flags)
+{
+	return (pp->flags & flags);
+}
+
+/*
+ * ppe_drv_port_flags_clear()
+ *	Clear a specific bit flag.
+ */
+static inline void ppe_drv_port_flags_clear(struct ppe_drv_port *pp, uint32_t flags)
+{
+	pp->flags &= ~flags;
+}
+
+/*
+ * ppe_drv_port_flags_set()
+ *	Set a specific bit flags.
+ */
+static inline void ppe_drv_port_flags_set(struct ppe_drv_port *pp, uint32_t flags)
+{
+	pp->flags |= flags;
+}

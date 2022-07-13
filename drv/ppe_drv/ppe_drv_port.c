@@ -1127,6 +1127,82 @@ bool ppe_drv_port_mtu_cfg_update(struct ppe_drv_port *pp, uint16_t extra_hdr_len
 }
 
 /*
+ * ppe_drv_port_pp_mtu_cfg()
+ *	update MTU config for vp port
+ */
+bool ppe_drv_port_pp_mtu_cfg(struct ppe_drv_port *pp, bool enable)
+{
+	sw_error_t err;
+	fal_port_t fal_port;
+	fal_mtu_cfg_t mtu_cfg = {0};
+
+	fal_port = PPE_DRV_VIRTUAL_PORT_CHK(pp->port) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, pp->port)
+			: FAL_PORT_ID(FAL_PORT_TYPE_PPORT, pp->port);
+
+	/*
+	 * MTU configuration
+	 */
+	err = fal_port_mtu_cfg_get(PPE_DRV_SWITCH_ID, fal_port, &mtu_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to get MTU config for port%d", pp, pp->port);
+		return false;
+	}
+
+	mtu_cfg.mtu_enable = enable;
+	err = fal_port_mtu_cfg_set(PPE_DRV_SWITCH_ID, fal_port, &mtu_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to set MTU config for port%d", pp, pp->port);
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * ppe_drv_port_mtu_mru_disable()
+ *	Disable port MTU and MRU check n PPE.
+ */
+bool ppe_drv_port_mtu_mru_disable(struct ppe_drv_port *pp)
+{
+	sw_error_t err;
+	fal_mtu_ctrl_t mtu_ctrl = {0};
+	fal_mru_ctrl_t mru_ctrl = {0};
+
+	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: setting mtu/mru for unused port:%u", pp, pp->port);
+
+	/*
+	 * Disable exception for MTU and MRU check
+	 */
+	mtu_ctrl.mtu_size = PPE_DRV_PORT_JUMBO_MAX;
+	mtu_ctrl.action = FAL_MAC_FRWRD;
+	err = fal_port_mtu_set(PPE_DRV_SWITCH_ID, pp->port, &mtu_ctrl);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: unable to configure port mtu: %u", pp, PPE_DRV_PORT_JUMBO_MAX);
+		return false;
+	}
+
+	mru_ctrl.mru_size = PPE_DRV_PORT_JUMBO_MAX;
+	mru_ctrl.action = FAL_MAC_FRWRD;
+	err = fal_port_mru_set(PPE_DRV_SWITCH_ID, pp->port, &mru_ctrl);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: unable to configure port mru: %u", pp, PPE_DRV_PORT_JUMBO_MAX);
+		return false;
+	}
+
+	/*
+	 * Set MTU/MRU of associated L3_IF
+	 */
+	if (pp->port_vsi && pp->port_vsi->l3_if) {
+		ppe_drv_l3_if_mtu_mru_disable(pp->port_vsi->l3_if);
+	} else if (pp->port_l3_if) {
+		ppe_drv_l3_if_mtu_mru_disable(pp->port_l3_if);
+	}
+
+	ppe_drv_info("%p: mtu-mru disable for port %u", pp, pp->port);
+	return true;
+}
+
+/*
  * ppe_drv_port_mtu_mru_set()
  *	Set MTU and MRU of given port in PPE.
  */

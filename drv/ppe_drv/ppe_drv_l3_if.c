@@ -253,6 +253,37 @@ bool ppe_drv_l3_if_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 }
 
 /*
+ * ppe_drv_l3_if_mtu_mru_disable()
+ *	Disable MTU/MRU to check for L3 interface in PPE
+ */
+bool ppe_drv_l3_if_mtu_mru_disable(struct ppe_drv_l3_if *l3_if)
+{
+	sw_error_t err;
+
+	/*
+	 * PPE doesn't support MTU/MRU check configuration per L3_IF.
+	 * Set the MAX packet size to avoid any exception to disable MTU check for L3_IF.
+	 */
+	err = fal_ip_intf_mtu_mru_set(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, PPE_DRV_JUMBO_MAX, PPE_DRV_JUMBO_MAX);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Error in setting mtu/mru for l3_if %u", l3_if, l3_if->l3_if_index);
+		return false;
+	}
+
+	err = fal_ip6_intf_mtu_mru_set(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, PPE_DRV_JUMBO_MAX, PPE_DRV_JUMBO_MAX);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Error in setting IPv6 mtu/mru for l3_if %u", l3_if, l3_if->l3_if_index);
+		fal_ip_intf_mtu_mru_set(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, 0, 0);
+		return false;
+	}
+
+	ppe_drv_trace("%p: disable mtu-mru on l3_if %u", l3_if, l3_if->l3_if_index);
+
+	ppe_drv_l3_if_dump(l3_if);
+	return true;
+}
+
+/*
  * ppe_drv_l3_if_mtu_mru_set()
  *	Programs the given MTU/MRU to L3 interface in PPE
  */

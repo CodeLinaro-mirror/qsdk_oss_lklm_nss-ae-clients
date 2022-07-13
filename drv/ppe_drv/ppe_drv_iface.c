@@ -425,6 +425,154 @@ bool ppe_drv_iface_l3_if_set(struct ppe_drv_iface *iface, struct ppe_drv_l3_if *
 }
 
 /*
+ * ppe_drv_iface_eip_set
+ *	Configure an interface as inline EIP virtual port
+ */
+ppe_drv_ret_t ppe_drv_iface_eip_set(struct ppe_drv_iface *iface, ppe_drv_eip_service_t type, uint32_t features)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *vp;
+
+	spin_lock_bh(&p->lock);
+	vp = ppe_drv_iface_port_get(iface);
+	if (!vp || !PPE_DRV_VIRTUAL_PORT_CHK(vp->port)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: invalid port for eip configuration type: %u", iface, type);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	switch (type) {
+	case PPE_DRV_EIP_SERVICE_IIPSEC:
+		/*
+		 * Mark virtual port as inline IPsec ports
+		 */
+		ppe_drv_port_flags_set(vp, PPE_DRV_PORT_FLAG_IIPSEC);
+		break;
+	default:
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: unsupported EIP service type: %u", iface, type);
+		return PPE_DRV_RET_INVALID_EIP_SERVICE;
+	}
+
+	/*
+	 * Map VP queues to EIP port.
+	 * TODO: Update this after rebasing it on queue mapping patch.
+	 */
+	if (!ppe_drv_port_ucast_queue_set(vp, 252)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: failed to set queue for the port: %u", iface, vp->port);
+		return PPE_DRV_RET_QUEUE_CFG_FAIL;
+	}
+
+	/*
+	 * EIP port is not represented as net-device.
+	 * Force VP based MTU instead of physical port based MTU.
+	 */
+	if (!ppe_drv_port_pp_mtu_cfg(vp, true)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: failed to set mtu config for the port: %u", iface, vp->port);
+		return PPE_DRV_RET_MTU_CFG_FAIL;
+	}
+
+	spin_unlock_bh(&p->lock);
+
+	/*
+	 * Configure based on feature set requested.
+	 */
+	if (features & PPE_DRV_EIP_FEATURE_MTU_DISABLE) {
+		ppe_drv_iface_mtu_disable(iface);
+	}
+
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_iface_eip_set);
+
+/*
+ * ppe_drv_iface_mtu_disable()
+ *	Disable MTU check for the given interface
+ */
+ppe_drv_ret_t ppe_drv_iface_mtu_disable(struct ppe_drv_iface *iface)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	ppe_drv_ret_t status = PPE_DRV_RET_SUCCESS;
+
+	spin_lock_bh(&p->lock);
+	switch (iface->type) {
+	case PPE_DRV_IFACE_TYPE_BRIDGE:
+	case PPE_DRV_IFACE_TYPE_VLAN:
+	{
+		struct ppe_drv_vsi *vsi = ppe_drv_iface_vsi_get(iface);
+		struct ppe_drv_l3_if *l3_if;
+		if (!vsi) {
+			status = PPE_DRV_RET_MTU_CFG_FAIL;
+			break;
+		}
+
+		l3_if = vsi->l3_if;
+		if (!l3_if) {
+			ppe_drv_warn("%p: No L3_IF associated with vsi(%p)\n", iface, vsi);
+			status = PPE_DRV_RET_MTU_CFG_FAIL;
+			break;
+		}
+
+		if (!ppe_drv_l3_if_mtu_mru_disable(l3_if)) {
+			ppe_drv_warn("%p: L3_IF MTU MRU failed\n", iface);
+			status = PPE_DRV_RET_MTU_CFG_FAIL;
+			break;
+		}
+
+		break;
+	}
+
+	case PPE_DRV_IFACE_TYPE_LAG:
+	case PPE_DRV_IFACE_TYPE_PPPOE:
+	{
+		struct ppe_drv_l3_if *l3_if = ppe_drv_iface_l3_if_get(iface);
+		if (!l3_if) {
+			status = PPE_DRV_RET_MTU_CFG_FAIL;
+			break;
+		}
+
+		if (!ppe_drv_l3_if_mtu_mru_disable(l3_if)) {
+			ppe_drv_warn("%p: L3_IF MTU MRU config failed\n", iface);
+			status = PPE_DRV_RET_MTU_CFG_FAIL;
+			break;
+		}
+
+		break;
+	}
+
+	case PPE_DRV_IFACE_TYPE_PHYSICAL:
+	case PPE_DRV_IFACE_TYPE_VIRTUAL:
+	case PPE_DRV_IFACE_TYPE_VP_L2_TUN:
+	case PPE_DRV_IFACE_TYPE_VP_L3_TUN:
+	{
+		struct ppe_drv_port *port = ppe_drv_iface_port_get(iface);
+		if (!port) {
+			status = PPE_DRV_RET_MTU_CFG_FAIL;
+			break;
+		}
+
+		if (!ppe_drv_port_mtu_mru_disable(port)) {
+			ppe_drv_warn("%p: PORT MTU MRU config failed\n", iface);
+			status = PPE_DRV_RET_MTU_CFG_FAIL;
+			break;
+		}
+
+		break;
+	}
+
+	default:
+		ppe_drv_warn("%p: invalid inface type(%d)\n", iface, iface->type);
+		status = PPE_DRV_RET_IFACE_INVALID;
+	}
+
+	spin_unlock_bh(&p->lock);
+	return status;
+}
+EXPORT_SYMBOL(ppe_drv_iface_mtu_disable);
+
+/*
  * ppe_drv_iface_mtu_set()
  *	Set mac address for the given interface
  */

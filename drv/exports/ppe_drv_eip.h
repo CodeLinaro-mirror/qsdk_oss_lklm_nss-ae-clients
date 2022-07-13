@@ -27,6 +27,20 @@
  * @{
  */
 
+/*
+ * EIP feature list
+ */
+#define PPE_DRV_EIP_FEATURE_MTU_DISABLE 0x1	/* Disable MTU for EIP VP interface */
+
+/*
+ * ppe_drv_eip_service
+ *	Type of inline EIP service.
+ */
+typedef enum ppe_drv_eip_service {
+	PPE_DRV_EIP_SERVICE_IIPSEC = 1,
+	PPE_DRV_EIP_SERVICE_IDTLS,
+} ppe_drv_eip_service_t;
+
 /**
  * ppe_drv_eip_deinit
  *	Deinitialize EIP.

@@ -137,6 +137,7 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	struct ppe_drv_v6_conn_flow *pcr;
 	struct ppe_drv_flow *pf = pcf->pf;
 	fal_entry_counter_t flow_cntrs = {0};
+	struct ppe_drv_v6_conn *cn = pcf->conn;
 
 	ppe_drv_trace("%p: updating flow stats", pf);
 
@@ -157,8 +158,8 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	 * Update ppe_conn_flow packet and byte counters
 	 */
 	ppe_drv_v6_conn_flow_rx_stats_add(pcf, delta_pkts, delta_bytes);
-	if (ppe_drv_v6_conn_flags_check(pcf->conn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID)) {
-		pcr = &pcf->conn->pcr;
+	if (ppe_drv_v6_conn_flags_check(cn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID)) {
+		pcr = (pcf == &cn->pcf) ? &cn->pcr : &cn->pcf;
 		ppe_drv_v6_conn_flow_tx_stats_add(pcr, delta_pkts, delta_bytes);
 	} else {
 		/*
@@ -186,6 +187,7 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	struct ppe_drv_v4_conn_flow *pcr;
 	struct ppe_drv_flow *pf = pcf->pf;
 	fal_entry_counter_t flow_cntrs = {0};
+	struct ppe_drv_v4_conn *cn = pcf->conn;
 
 	ppe_drv_trace("%p: updating flow stats", pf);
 
@@ -206,8 +208,8 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	 * Update ppe_conn_flow packet and byte counters
 	 */
 	ppe_drv_v4_conn_flow_rx_stats_add(pcf, delta_pkts, delta_bytes);
-	if (ppe_drv_v4_conn_flags_check(pcf->conn, PPE_DRV_V4_CONN_FLAG_RETURN_VALID)) {
-		pcr = &pcf->conn->pcr;
+	if (ppe_drv_v4_conn_flags_check(cn, PPE_DRV_V4_CONN_FLAG_RETURN_VALID)) {
+		pcr = (pcf == &cn->pcf) ? &cn->pcr : &cn->pcf;
 		ppe_drv_v4_conn_flow_tx_stats_add(pcr, delta_pkts, delta_bytes);
 	} else {
 		/*

@@ -513,7 +513,7 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 	/*
 	 * Update stats
 	 */
-	if (flow->flags & PPE_DRV_FLOW_BRIDGED) {
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
 		ppe_drv_stats_dec(&p->stats.gen_stats.v6_l2_flows);
 	} else {
 		ppe_drv_stats_dec(&p->stats.gen_stats.v6_l3_flows);

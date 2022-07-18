@@ -94,7 +94,7 @@ static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *
  * nss_ppe_gretap_ip4_dev_parse_param()
  *      Parse IPv4 gretap arguments sent to PPE driver
  */
-static void nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
+static bool nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
 {
 	struct ip_tunnel *tunnel;
 	struct ppe_drv_tun_cmn_ctx_l3 *l3 = &tun_hdr->l3;
@@ -130,13 +130,15 @@ static void nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct
 
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP;
 	nss_ppe_gretap_set_gre_key_flags(gre, tunnel->parms.i_flags, tunnel->parms.o_flags, tunnel->parms.i_key, tunnel->parms.o_key);
+
+	return true;
 }
 
 /*
  * nss_ppe_gretap_ip6_dev_parse_param()
  *      Parse IPv4 gretap arguments sent to PPE driver
  */
-static void nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
+static bool nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
 {
 	struct ip6_tnl *tunnel;
 	struct flowi6 *fl6;
@@ -144,6 +146,11 @@ static void nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct
 
 	struct ppe_drv_tun_cmn_ctx_gretap *gre = &tun_hdr->tun.gre;
 	tunnel = (struct ip6_tnl *)netdev_priv(netdev);
+
+	if (!(tunnel->parms.flags & IP6_TNL_F_IGN_ENCAP_LIMIT)) {
+		nss_ppe_gretap_warning("%p: Encap limit should be none", netdev);
+		return false;
+	}
 
 	/*
 	 * Find the Tunnel device flow information
@@ -180,6 +187,8 @@ static void nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct
 
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP;
 	nss_ppe_gretap_set_gre_key_flags(gre, tunnel->parms.i_flags, tunnel->parms.o_flags, tunnel->parms.i_key, tunnel->parms.o_key);
+
+	return true;
 }
 
 /*
@@ -223,9 +232,14 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 			}
 
 			if (netif_is_ip6gretap(netdev)) {
-				nss_ppe_gretap_ip6_dev_parse_param(netdev, tun_hdr);
-			} else if (netif_is_gretap(netdev)) {
-				nss_ppe_gretap_ip4_dev_parse_param(netdev, tun_hdr);
+				status = nss_ppe_gretap_ip6_dev_parse_param(netdev, tun_hdr);
+			} else {
+				status = nss_ppe_gretap_ip4_dev_parse_param(netdev, tun_hdr);
+			}
+
+			if (!status) {
+				kfree(tun_hdr);
+				break;
 			}
 
 			if (!(ppe_tun_configure(netdev, tun_hdr, nss_ppe_gretap_src_exception, NULL))) {

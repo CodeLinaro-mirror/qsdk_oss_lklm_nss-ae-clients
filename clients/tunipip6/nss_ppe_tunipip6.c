@@ -45,6 +45,20 @@ static bool nss_tunipip6_stats_dentry_create(struct net_device *dev);
 static bool nss_tunipip6_stats_dentry_free(struct net_device *dev);
 
 /*
+ * nss_ppe_tunipip6_src_exception()
+ *	handle the source VP exception.
+ */
+static bool nss_ppe_tunipip6_src_exception(struct net_device *dev, struct sk_buff *skb)
+{
+	skb_reset_network_header(skb);
+	skb->protocol = htons(ETH_P_IP);
+	skb->dev = dev;
+	skb->skb_iif = dev->ifindex;
+	netif_receive_skb(skb);
+	return true;
+}
+
+/*
  * nss_ppe_tunipip6_dev_parse_param()
  *	parse tunnel parameter
  */
@@ -136,7 +150,7 @@ static int nss_ppe_tunipip6_dev_event(struct notifier_block  *nb,
 			break;
 		}
 
-		if (!(ppe_tun_configure(dev, tun_hdr, NULL, NULL))) {
+		if (!(ppe_tun_configure(dev, tun_hdr, nss_ppe_tunipip6_src_exception, NULL))) {
 			nss_ppe_tunipip6_trace("%p: Unable to configure PPE tunnel for dev: %s", dev, dev->name);
 		}
 

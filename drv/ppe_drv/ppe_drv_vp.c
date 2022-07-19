@@ -48,7 +48,14 @@ ppe_drv_ret_t ppe_drv_vp_deinit(struct ppe_drv_iface *iface)
 	ppe_drv_iface_l3_if_clear(iface);
 	port->port_l3_if = NULL;
 	ppe_drv_l3_if_deref(l3_if);
-	ppe_drv_iface_port_clear(iface);
+
+	/*
+	 * Detach tl_l3_if if attached
+	 * Attach of tl_l3_if is done during tunnel activate when outer
+	 * decap port is identified
+	 */
+	ppe_drv_port_tl_l3_if_detach(port);
+
 	ppe_drv_port_deref(port);
 	spin_unlock_bh(&p->lock);
 
@@ -65,14 +72,17 @@ ppe_drv_ret_t ppe_drv_vp_init(struct ppe_drv_iface *iface)
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_l3_if *l3_if;
 	struct ppe_drv_port *port;
-	bool is_tunnel_vp;
+	uint8_t tunnel_vp_cfg = 0;
 
 	switch (iface->type) {
 	case PPE_DRV_IFACE_TYPE_VIRTUAL:
-		is_tunnel_vp = false;
+		tunnel_vp_cfg = 0x0;
 		break;
-	case PPE_DRV_IFACE_TYPE_VP_TUN:
-		is_tunnel_vp = true;
+	case PPE_DRV_IFACE_TYPE_VP_L2_TUN:
+		tunnel_vp_cfg = PPE_DRV_PORT_VIRTUAL_L2_TUN;
+		break;
+	case PPE_DRV_IFACE_TYPE_VP_L3_TUN:
+		tunnel_vp_cfg = PPE_DRV_PORT_VIRTUAL_L3_TUN;
 		break;
 	default:
 		ppe_drv_warn("%p: Incorrect interface type: %d", iface, iface->type);
@@ -80,7 +90,7 @@ ppe_drv_ret_t ppe_drv_vp_init(struct ppe_drv_iface *iface)
 	}
 
 	spin_lock_bh(&p->lock);
-	port = ppe_drv_port_alloc(PPE_DRV_PORT_VIRTUAL, iface->dev, is_tunnel_vp);
+	port = ppe_drv_port_alloc(PPE_DRV_PORT_VIRTUAL, iface->dev, tunnel_vp_cfg);
 	if (!port) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: unable to get a valid virtual port of iface type(%d)", iface, iface->type);

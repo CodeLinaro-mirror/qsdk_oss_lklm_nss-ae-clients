@@ -5,6 +5,11 @@ ccflags-y := -I$(obj) -I$(obj)/.. -I$(obj)/../..
 ifneq ($(ppe-vp),)
 obj-m += ppe_vp/
 else
+ifneq ($(ppe-tun),)
+obj-m += ppe_tun/
+else
 obj-m += ppe_drv/
 endif
+endif
+
 obj ?= .

@@ -26,6 +26,7 @@
 #include <fal/fal_ip.h>
 #include <fal/fal_init.h>
 #include "ppe_drv.h"
+#include "tun/ppe_drv_tun.h"
 
 /*
  * Define the filename to be used for assertions.
@@ -228,6 +229,11 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		return -1;
 	}
 
+	if (!ppe_drv_tun_global_init(p)) {
+		ppe_drv_warn("%p: failed to do global config init for tunnels", p);
+		return -1;
+	}
+
 	p->pub_ip = ppe_drv_pub_ip_entries_alloc();
 	if (!p->pub_ip) {
 		ppe_drv_warn("%p: failed to allocate pub_ip entries", p);
@@ -313,8 +319,31 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	/* Initialize list */
 	INIT_LIST_HEAD(&p->conn_v4);
 	INIT_LIST_HEAD(&p->conn_v6);
+	INIT_LIST_HEAD(&p->conn_tun_v4);
+	INIT_LIST_HEAD(&p->conn_tun_v6);
 
 	p->toggled = false;
+
+	/*
+	 * Allocate tunnel specific entries
+	 */
+	p->ptun_ec = ppe_drv_tun_encap_entries_alloc(p);
+	if (!p->ptun_ec) {
+		ppe_drv_warn("%p: failed to allocate tunnel encap entries", p);
+		goto fail;
+	}
+
+	p->ptun_dc = ppe_drv_tun_decap_entries_alloc(p);
+	if (!p->ptun_dc) {
+		ppe_drv_warn("%p: failed to allocate tunnel decap entries", p);
+		goto fail;
+	}
+
+	p->ptun_l3_if = ppe_drv_tun_l3_if_entries_alloc(p);
+	if (!p->ptun_l3_if) {
+		ppe_drv_warn("%p: failed to allocate TL L3 interface entries", p);
+		goto fail;
+	}
 
 	/*
 	 * Take a reference
@@ -335,6 +364,21 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
 
 fail:
+	if (p->ptun_ec) {
+		ppe_drv_tun_encap_entries_free(p->ptun_ec);
+		p->ptun_ec = NULL;
+	}
+
+	if (p->ptun_dc) {
+		ppe_drv_tun_decap_entries_free(p->ptun_dc);
+		p->ptun_dc = NULL;
+	}
+
+	if (p->ptun_l3_if) {
+		ppe_drv_tun_l3_if_entries_free(p->ptun_l3_if);
+		p->ptun_l3_if = NULL;
+	}
+
 	if (p->pub_ip) {
 		ppe_drv_pub_ip_entries_free(p->pub_ip);
 		p->pub_ip = NULL;
@@ -456,6 +500,21 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->cc) {
 		ppe_drv_cc_entries_free(p->cc);
 		p->cc = NULL;
+	}
+
+	if (p->ptun_ec) {
+		ppe_drv_tun_encap_entries_free(p->ptun_ec);
+		p->ptun_ec = NULL;
+	}
+
+	if (p->ptun_dc) {
+		ppe_drv_tun_decap_entries_free(p->ptun_dc);
+		p->ptun_dc = NULL;
+	}
+
+	if (p->ptun_l3_if) {
+		ppe_drv_tun_l3_if_entries_free(p->ptun_l3_if);
+		p->ptun_l3_if = NULL;
 	}
 
 	return 0;

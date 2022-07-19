@@ -10,6 +10,8 @@ KERNELVERSION := $(word 1, $(subst ., ,$(KERNELVERSION))).$(word 2, $(subst ., ,
 
 obj-y += drv/
 ifeq ($(ppe-vp),)
+ifeq ($(ppe-tun),)
 obj-y += clients/
+endif
 endif
 obj ?= .

@@ -74,6 +74,20 @@ enum ppe_drv_port_qos_res_pre {
 };
 
 /**
+ * ppe_drv_port_get_vp_phys_dev
+ *	Get physical dev attached to VP.
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] dev  Net device.
+ *
+ * @return
+ *  return net device
+ */
+struct net_device *ppe_drv_port_get_vp_phys_dev(struct net_device *dev);
+
+/**
  * ppe_drv_port_num_from_dev
  *	Get port index from device.
  *

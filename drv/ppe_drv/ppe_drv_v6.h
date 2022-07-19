@@ -107,6 +107,18 @@ struct ppe_drv_v6_conn {
 };
 
 /*
+ * ppe_drv_v6_addr_equal()
+ *	Compare ipv6 address
+ */
+static inline bool ppe_drv_v6_addr_equal(uint32_t *a1, uint32_t *a2)
+{
+	return ((a1[0] ^ a2[0]) |
+		(a1[1] ^ a2[1]) |
+		(a1[2] ^ a2[2]) |
+		(a1[3] ^ a2[3])) == 0;
+}
+
+/*
  * ppe_drv_v6_conn_alloc()
  *      Allocate v6 connections.
  */
@@ -656,7 +668,15 @@ static inline void ppe_drv_v6_conn_flow_tx_stats_get(struct ppe_drv_v6_conn_flow
 /*
  * IPv6 internal APIs.
  */
+ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn,
+				   enum ppe_drv_conn_type flow_type);
 ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn);
 void ppe_drv_v6_conn_stats_sync_invoke_cb(struct ppe_drv_v6_conn_sync *cns);
 void ppe_drv_v6_conn_sync_one(struct ppe_drv_v6_conn *cn, struct ppe_drv_v6_conn_sync *cns,
-		                enum ppe_drv_stats_sync_reason reason);
+								enum ppe_drv_stats_sync_reason reason);
+void ppe_drv_v6_flow_vlan_set(struct ppe_drv_v6_conn_flow *pcf,
+		uint32_t primary_ingress_vlan_tag, uint32_t primary_egress_vlan_tag,
+		uint32_t secondary_ingress_vlan_tag, uint32_t secondary_egress_vlan_tag);
+void ppe_drv_v6_if_walk_release(struct ppe_drv_v6_conn_flow *pcf);
+bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if,
+						ppe_drv_iface_t tx_if);

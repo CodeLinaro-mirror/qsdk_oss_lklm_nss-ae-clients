@@ -17,6 +17,8 @@
 #define PPE_DRV_PORT_SRC_PROFILE_MAX	4	/* Source profile for a port can be between 0-3 */
 #define PPE_DRV_PHY_PORT_CHK(n) ((n) >= PPE_DRV_PHYSICAL_START && (n) < PPE_DRV_PHYSICAL_MAX)
 #define PPE_DRV_VIRTUAL_PORT_CHK(n) ((n) >= PPE_DRV_VIRTUAL_START && (n) < PPE_DRV_PORTS_MAX)
+#define PPE_DRV_PORT_VIRTUAL_L2_TUN		0x01	/* Port is L2 tunnel virtual port */
+#define PPE_DRV_PORT_VIRTUAL_L3_TUN		0x02	/* Port is L3 tunnel virtual port */
 
 /*
  * ppe_drv_port
@@ -30,6 +32,8 @@ struct ppe_drv_port {
 	struct ppe_l2_vp *l2_vp;		/* Pointer to L2 VP instance. */
 	struct net_device *dev;			/* Associated netdev */
 	struct kref ref_cnt;			/* Reference count object */
+	struct ppe_drv_tun *port_tun;		/* PPE drv tun object associated with port */
+	struct ppe_drv_tun_l3_if *tl_l3_if;	/* Tunnel L3 interface corresponding to this port entry */
 	enum ppe_drv_port_type type;		/* Port type */
 	bool port_l3_if_attached;               /* Port L3_IF attached? */
 	bool is_fdb_learn_enabled;		/* Port FDB learning enabled */
@@ -40,13 +44,13 @@ struct ppe_drv_port {
 	uint8_t mac_valid;			/* 1 if MAC address is valid */
 	uint8_t src_profile;			/* Source profile of the port */
 	uint8_t ucast_queue;			/* Base queue ID for the port */
-	uint8_t is_tunnel_vp;			/* Port is of type tunnel VP */
+	uint8_t tunnel_vp_cfg;			/* Port is of type tunnel VP */
 	uint8_t active_vlan;			/* Number active VLAN configured on the port */
 };
 
 uint8_t ppe_drv_port_ucast_queue_get(struct ppe_drv_port *pp);
 bool ppe_drv_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id);
-bool ppe_drv_port_is_tunnel_vp(struct ppe_drv_port *pp);
+uint8_t ppe_drv_port_is_tunnel_vp(struct ppe_drv_port *pp);
 
 struct net_device *ppe_drv_port_to_dev(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_from_dev(struct net_device *dev);
@@ -56,6 +60,7 @@ void ppe_drv_port_mac_addr_clear(struct ppe_drv_port *pp);
 
 bool ppe_drv_port_mtu_mru_set(struct ppe_drv_port *pp, uint16_t mtu, uint16_t mru);
 void ppe_drv_port_mtu_mru_clear(struct ppe_drv_port *pp);
+bool ppe_drv_port_mtu_cfg_update(struct ppe_drv_port *pp, uint16_t extra_hdr_len);
 
 struct ppe_drv_vsi *ppe_drv_port_find_vlan_vsi(struct ppe_drv_port *pp, uint32_t in_vlan, uint32_t out_vlan);
 struct ppe_drv_vsi *ppe_drv_port_find_bridge_vsi(struct ppe_drv_port *pp);
@@ -71,8 +76,18 @@ void ppe_drv_port_vsi_attach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi);
 
 bool ppe_drv_port_deref(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_ref(struct ppe_drv_port *pp);
-struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev, bool is_tunnel_vp);
+struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev, uint8_t tunnel_vp_cfg);
 struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device *dev);
 
 void ppe_drv_port_entries_free(struct ppe_drv_port *port);
 struct ppe_drv_port *ppe_drv_port_entries_alloc(void);
+uint16_t ppe_drv_port_num_get(struct ppe_drv_port *pp);
+bool ppe_drv_port_is_physical(struct ppe_drv_port *pp);
+struct ppe_drv_port *ppe_drv_port_from_port_num(uint16_t port_num);
+
+void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp);
+struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *pp);
+void ppe_drv_port_tl_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_tun_l3_if *tl_l3_if);
+
+void  ppe_drv_port_tun_set(struct ppe_drv_port *pp, struct ppe_drv_tun *ptun);
+struct ppe_drv_tun *ppe_drv_port_tun_get(struct ppe_drv_port *pp);

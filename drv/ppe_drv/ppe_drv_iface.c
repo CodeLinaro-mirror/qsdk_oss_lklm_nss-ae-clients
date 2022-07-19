@@ -481,7 +481,8 @@ ppe_drv_ret_t ppe_drv_iface_mtu_set(struct ppe_drv_iface *iface, uint16_t mtu)
 
 	case PPE_DRV_IFACE_TYPE_PHYSICAL:
 	case PPE_DRV_IFACE_TYPE_VIRTUAL:
-	case PPE_DRV_IFACE_TYPE_VP_TUN:
+	case PPE_DRV_IFACE_TYPE_VP_L2_TUN:
+	case PPE_DRV_IFACE_TYPE_VP_L3_TUN:
 	{
 		struct ppe_drv_port *port = ppe_drv_iface_port_get(iface);
 		if (!port) {
@@ -566,7 +567,8 @@ ppe_drv_ret_t ppe_drv_iface_mac_addr_clear(struct ppe_drv_iface *iface)
 
 	case PPE_DRV_IFACE_TYPE_PHYSICAL:
 	case PPE_DRV_IFACE_TYPE_VIRTUAL:
-	case PPE_DRV_IFACE_TYPE_VP_TUN:
+	case PPE_DRV_IFACE_TYPE_VP_L2_TUN:
+	case PPE_DRV_IFACE_TYPE_VP_L3_TUN:
 	{
 		struct ppe_drv_l3_if *l3_if;
 		struct ppe_drv_port *port = ppe_drv_iface_port_get(iface);
@@ -660,7 +662,8 @@ ppe_drv_ret_t ppe_drv_iface_mac_addr_set(struct ppe_drv_iface *iface, uint8_t *m
 
 	case PPE_DRV_IFACE_TYPE_PHYSICAL:
 	case PPE_DRV_IFACE_TYPE_VIRTUAL:
-	case PPE_DRV_IFACE_TYPE_VP_TUN:
+	case PPE_DRV_IFACE_TYPE_VP_L2_TUN:
+	case PPE_DRV_IFACE_TYPE_VP_L3_TUN:
 	{
 		struct ppe_drv_l3_if *l3_if;
 		struct ppe_drv_port *port = ppe_drv_iface_port_get(iface);

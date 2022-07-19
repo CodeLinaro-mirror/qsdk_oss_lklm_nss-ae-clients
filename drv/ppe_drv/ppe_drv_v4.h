@@ -41,6 +41,12 @@
 					/* Inline IPSec flow */
 
 /*
+ * ppe_drv_v4_addr_equal()
+ *	compare ipv4 address
+ */
+#define ppe_drv_v4_addr_equal(a, b) ((u32)(a) == (u32)(b))
+
+/*
  * ppe_drv_v4_conn_flow
  *	Structure for individual flow direction
  */
@@ -724,7 +730,14 @@ static inline void ppe_drv_v4_conn_flow_tx_stats_get(struct ppe_drv_v4_conn_flow
 /*
  * IPv4 internal APIs.
  */
+ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct ppe_drv_v4_conn *cn,
+				   enum ppe_drv_conn_type flow_type);
 ppe_drv_ret_t ppe_drv_v4_flush(struct ppe_drv_v4_conn *cn);
 void ppe_drv_v4_conn_stats_sync_invoke_cb(struct ppe_drv_v4_conn_sync *cns);
 void ppe_drv_v4_conn_sync_one(struct ppe_drv_v4_conn *cn, struct ppe_drv_v4_conn_sync *cns,
 		                enum ppe_drv_stats_sync_reason reason);
+void ppe_drv_v4_flow_vlan_set(struct ppe_drv_v4_conn_flow *pcf,
+		uint32_t primary_ingress_vlan_tag, uint32_t primary_egress_vlan_tag,
+		uint32_t secondary_ingress_vlan_tag, uint32_t secondary_egress_vlan_tag);
+void ppe_drv_v4_if_walk_release(struct ppe_drv_v4_conn_flow *pcf);
+bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if);

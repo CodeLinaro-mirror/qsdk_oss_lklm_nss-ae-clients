@@ -6,5 +6,7 @@ obj-$(bridge-mgr)+= bridge/
 obj-$(vlan-mgr)+= vlan/
 obj-$(pppoe-mgr)+= pppoe/
 obj-$(lag-mgr)+= lag/
+obj-$(tunipip6-mgr)+= tunipip6/
+obj-$(gretap-mgr)+= gretap/
 
 obj ?= .

@@ -1,0 +1,387 @@
+/*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+#include <ppe_drv/ppe_drv.h>
+#include "ppe_drv_tun.h"
+#include <ppe_drv_iface.h>
+#include <exports/ppe_drv_tun_public.h>
+#include <net/ipv6.h>
+#include <fal/fal_tunnel.h>
+
+/*
+ * ppe_drv_v6_conn_tun_conn_get()
+ *	Get the connection entry from list for matching tuple
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+static struct ppe_drv_v6_conn *ppe_drv_v6_conn_tun_conn_get(struct ppe_drv_v6_5tuple *tuple)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v6_conn *cn;
+
+	list_for_each_entry(cn, &p->conn_tun_v6, list) {
+		if (cn->pcf.match_protocol != tuple->protocol) {
+			continue;
+		}
+
+		if ((ppe_drv_v6_addr_equal(cn->pcf.match_src_ip, tuple->flow_ip) &&
+			ppe_drv_v6_addr_equal(cn->pcf.match_dest_ip, tuple->return_ip)) ||
+			(ppe_drv_v6_addr_equal(cn->pcr.match_src_ip, tuple->flow_ip) &&
+			ppe_drv_v6_addr_equal(cn->pcr.match_dest_ip, tuple->return_ip))) {
+			return cn;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * ppe_drv_v6_tun_conn_fill()
+ *	Populate each direction flow object.
+ */
+static ppe_drv_ret_t ppe_drv_v6_tun_conn_fill(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn)
+{
+	return ppe_drv_v6_conn_fill(create, cn, PPE_DRV_CONN_TYPE_TUNNEL);
+}
+
+/*
+ * ppe_drv_tun_v6_parse_l2_hdr()
+ *	Collect the Layer 2 parameters from rile create.
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn,
+				 struct ppe_drv_tun_cmn_ctx_l2 *l2)
+{
+	struct ppe_drv_v6_connection_rule *rule = &create->conn_rule;
+	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
+	uint16_t xmit_port = PPE_DRV_PORTS_MAX;
+	struct ppe_drv_tun_cmn_ctx *th;
+	struct ppe_drv_port *pp = NULL;
+	struct ppe_drv_tun *tun;
+	uint8_t egress_vlan_cnt;
+	uint8_t *src_mac_addr;
+	uint32_t *ip6_addr;
+
+	if (!ppe_drv_port_tun_get(pcf->tx_port)) {
+		pp = pcf->tx_port;
+		tun = ppe_drv_port_tun_get(pcf->rx_port);
+	} else {
+		pp = pcf->rx_port;
+		tun = ppe_drv_port_tun_get(pcf->tx_port);
+	}
+
+	ppe_drv_assert(pp, "%p: physical xmit port not found", create);
+
+	xmit_port = pp->port;
+	ppe_drv_assert((xmit_port < PPE_DRV_PHYSICAL_MAX), "%p: Invalid physical xmit interface", create);
+
+	ppe_drv_assert(pp->mac_valid, "%p: MAC address is not set", pp);
+
+	src_mac_addr = pp->mac_addr;
+
+	memset(l2, 0, sizeof(*l2));
+
+	l2->xmit_port = xmit_port;
+	memcpy(l2->smac, src_mac_addr, sizeof(l2->smac));
+	memcpy(l2->dmac, rule->return_mac, sizeof(l2->dmac));
+
+	l2->eth_type = htons(ETH_P_IPV6);
+
+	egress_vlan_cnt = pcf->egress_vlan_cnt;
+
+	/*
+	 * for MAP-T we need to get the source and destintion
+	 * IP address at the time of outer rule push, since
+	 * it is not available during NETDEV_UP.
+	 */
+	th = tun->th;
+	if (ipv6_addr_any((struct in6_addr *)th->l3.saddr)) {
+		ip6_addr = pcf->match_src_ip;
+		th->l3.saddr[0] = htonl(ip6_addr[0]);
+		th->l3.saddr[1] = htonl(ip6_addr[1]);
+		th->l3.saddr[2] = htonl(ip6_addr[2]);
+		th->l3.saddr[3] = htonl(ip6_addr[3]);
+	}
+
+	if (ipv6_addr_any((struct in6_addr *)th->l3.daddr)) {
+		ip6_addr = pcf->match_dest_ip;
+		th->l3.daddr[0] = htonl(ip6_addr[0]);
+		th->l3.daddr[1] = htonl(ip6_addr[1]);
+		th->l3.daddr[2] = htonl(ip6_addr[2]);
+		th->l3.daddr[3] = htonl(ip6_addr[3]);
+	}
+
+	if (egress_vlan_cnt == 2) {
+		l2->vlan[0].tpid = pcf->egress_vlan[0].tpid;
+		l2->vlan[0].tci = pcf->egress_vlan[0].tci;
+		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_SVLAN_VALID;
+		l2->vlan[1].tpid = pcf->egress_vlan[1].tpid;
+		l2->vlan[1].tci = pcf->egress_vlan[1].tci;
+		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID;
+	} else if (egress_vlan_cnt == 1) {
+		l2->vlan[0].tpid = pcf->egress_vlan[0].tpid;
+		l2->vlan[0].tci = pcf->egress_vlan[0].tci;
+		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID;
+	}
+
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_PPPOE_FLOW)) {
+		l2->pppoe.ph.type = 1;
+		l2->pppoe.ph.ver = 1;
+		l2->pppoe.ph.code = 0;
+		l2->pppoe.ph.sid = ppe_drv_v6_conn_flow_pppoe_session_id_get(pcf);
+		l2->pppoe.ppp_proto = PPP_IPV6;
+		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID;
+	}
+}
+
+/*
+ * ppe_drv_v6_tun_del_ce_validate()
+ *	Delete a tunnel connection entry in PPE.
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule)
+{
+	struct ppe_drv_v6_rule_destroy *destroy = (struct ppe_drv_v6_rule_destroy *)vdestroy_rule;
+	ppe_drv_ret_t ret = PPE_DRV_RET_SUCCESS;
+	struct ppe_drv_v6_conn_flow *pcf, *pcr;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v6_conn *cn;
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
+
+	cn = ppe_drv_v6_conn_tun_conn_get(&destroy->tuple);
+	if (!cn) {
+		ppe_drv_stats_inc(&comm_stats->v6_destroy_conn_not_found);
+		ppe_drv_warn("%p: Could not find tunnel connection entry", destroy);
+		return PPE_DRV_RET_FAILURE_DESTROY_NO_CONN;
+	}
+
+	pcf = &cn->pcf;
+	pcr = &cn->pcr;
+
+	/*
+	 * Release references on interfaces.
+	 */
+	ppe_drv_v6_if_walk_release(pcf);
+
+	/*
+	 * Release references on interfaces.
+	 */
+	ppe_drv_v6_if_walk_release(pcr);
+
+	/*
+	 * Add connection entry to the active connection list.
+	 */
+	list_del(&cn->list);
+
+	ppe_drv_v6_conn_free(cn);
+
+	return ret;
+}
+
+/*
+ * ppe_drv_v6_tun_del_ce_notify()
+ *	Notify the PPE tunnel driver to delete the connection.
+ */
+ppe_drv_ret_t ppe_drv_v6_tun_del_ce_notify(struct ppe_drv_v6_rule_destroy *destroy)
+{
+	struct ppe_drv_v6_conn_flow *pcf, *pcr;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv *p = &ppe_drv_gbl;
+	ppe_drv_tun_del_ce_callback_t del_cb;
+	struct ppe_drv_v6_conn *cn;
+	struct ppe_drv_tun *tun;
+	uint8_t vp_num;
+	uint8_t status;
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
+
+	spin_lock_bh(&p->lock);
+	cn = ppe_drv_v6_conn_tun_conn_get(&destroy->tuple);
+	if (!cn) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_stats_inc(&comm_stats->v6_destroy_conn_not_found);
+		ppe_drv_warn("%p: Could not find tunnel connection entry", destroy);
+		return PPE_DRV_RET_FAILURE_DESTROY_NO_CONN;
+	}
+
+	pcf = &cn->pcf;
+	pcr = &cn->pcr;
+
+	tun = (ppe_drv_port_tun_get(pcf->tx_port)) ? \
+			(ppe_drv_port_tun_get(pcf->tx_port)) : (ppe_drv_port_tun_get(pcf->rx_port));
+
+	vp_num = tun->vp_num;
+	del_cb = tun->del_cb;
+
+	spin_unlock_bh(&p->lock);
+
+	status = del_cb(vp_num, destroy);
+	if (status != true) {
+		return PPE_DRV_RET_FAILURE_TUN_CE_DEL_FAILURE;
+	}
+
+	return PPE_DRV_RET_SUCCESS;
+}
+
+/*
+ * ppe_drv_v6_tun_add_ce_notify()
+ *	Notify the PPE tunnel driver to add the connection.
+ */
+ppe_drv_ret_t ppe_drv_v6_tun_add_ce_notify(struct ppe_drv_v6_rule_create *create)
+{
+	struct ppe_drv_v6_connection_rule *conn = &create->conn_rule;
+	struct ppe_drv_iface *iface;
+	struct ppe_drv_port *pp_port;
+	struct ppe_drv_tun *port_tun;
+	ppe_drv_tun_add_ce_callback_t add_cb;
+	struct ppe_drv *p = &ppe_drv_gbl;
+	uint8_t vp_num;
+	uint8_t status;
+
+	spin_lock_bh(&p->lock);
+	iface = ppe_drv_iface_get_by_idx(conn->rx_if);
+	pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
+
+	port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+	if (!port_tun) {
+		iface = ppe_drv_iface_get_by_idx(conn->tx_if);
+		pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
+		port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+	}
+
+	/*
+	 * If the outer rule is pushed before the PPE tunnel client creates the tunnel
+	 * instance, then the tunnel will be NULL.
+	 */
+	vp_num = (port_tun) ? (port_tun->vp_num) : 0;
+	add_cb = (port_tun) ? (port_tun->add_cb) : (NULL);
+
+	spin_unlock_bh(&p->lock);
+
+	if ((vp_num < PPE_DRV_VIRTUAL_START) || !add_cb) {
+		return (!add_cb) ? (PPE_DRV_RET_TUN_ADD_CE_NULL) : (PPE_DRV_RET_INVALID_VP_NUM);
+	}
+
+	status = add_cb(vp_num, create);
+	if (status != true) {
+		return PPE_DRV_RET_FAILURE_TUN_CE_ADD_FAILURE;
+	}
+
+	return PPE_DRV_RET_SUCCESS;
+}
+
+/*
+ * ppe_drv_v6_tun_add_ce_validate()
+ *	Validate rule create parameters.
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+ppe_drv_ret_t ppe_drv_v6_tun_add_ce_validate(void *vcreate_rule, struct ppe_drv_v6_conn *cn)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v6_conn_flow *pcf = NULL;
+	struct ppe_drv_v6_conn_flow *pcr = NULL;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv_top_if_rule top_if;
+	struct ppe_drv_v6_rule_create *create = (struct ppe_drv_v6_rule_create *)vcreate_rule;
+	ppe_drv_ret_t ret;
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
+
+	/*
+	 * Fill the connection entry.
+	 */
+	ret = ppe_drv_v6_tun_conn_fill(create, cn);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_conn);
+		ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
+		goto fail;
+	}
+
+	/*
+	 * Ensure either direction flow is not already offloaded by us.
+	 */
+	if (ppe_drv_v6_conn_tun_conn_get(&create->tuple)) {
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_collision);
+		ppe_drv_warn("%p: create collision detected: %p", p, create);
+		ret = PPE_DRV_RET_FAILURE_CREATE_COLLISSION;
+		goto fail;
+	}
+
+	/*
+	 * Perform interface hierarchy walk and obtain egress L3_If and egress VSI
+	 * for each direction.
+	 */
+	top_if.rx_if = create->top_rule.rx_if;
+	top_if.tx_if = create->top_rule.tx_if;
+	if (!ppe_drv_v6_if_walk(&cn->pcf, &top_if, create->conn_rule.tx_if)) {
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_if_hierarchy);
+		ppe_drv_warn("%p: create failed invalid interface hierarchy: %p", p, create);
+		ret = PPE_DRV_RET_FAILURE_INVALID_HIERARCHY;
+		goto fail;
+	}
+
+	pcf = &cn->pcf;
+
+	/*
+	 * Reverse the top interfaces for return direction.
+	 */
+	top_if.rx_if = create->top_rule.tx_if;
+	top_if.tx_if = create->top_rule.rx_if;
+	if (!ppe_drv_v6_if_walk(&cn->pcr, &top_if, create->conn_rule.rx_if)) {
+		ppe_drv_stats_inc(&comm_stats->v6_create_fail_if_hierarchy);
+		ppe_drv_warn("%p: create failed invalid interface hierarchy: %p", p, create);
+		ret = PPE_DRV_RET_FAILURE_INVALID_HIERARCHY;
+		goto fail;
+	}
+
+	pcr = &cn->pcr;
+
+	/*
+	 * Add connection entry to the active connection list.
+	 */
+
+	pcf->conn = cn;
+	pcr->conn = cn;
+
+	/*
+	 * Set the toggle bit to mark this connection as due for stats update in next sync.
+	 */
+	cn->toggle = !p->toggled;
+
+	return PPE_DRV_RET_SUCCESS;
+
+fail:
+	/*
+	 * Free flow direction references.
+	 */
+	if (pcf) {
+		ppe_drv_v6_if_walk_release(pcf);
+	}
+
+	/*
+	 * Free return direction references.
+	 */
+	if (pcr) {
+		ppe_drv_v6_if_walk_release(pcr);
+	}
+
+	return ret;
+}

@@ -311,8 +311,11 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 			break;
 
 		case PPE_VP_TYPE_HW_L2TUN:
+			ppe_type = PPE_DRV_IFACE_TYPE_VP_L2_TUN;
+			break;
+
 		case PPE_VP_TYPE_HW_L3TUN:
-			ppe_type = PPE_DRV_IFACE_TYPE_VP_TUN;
+			ppe_type = PPE_DRV_IFACE_TYPE_VP_L3_TUN;
 			break;
 
 		default:

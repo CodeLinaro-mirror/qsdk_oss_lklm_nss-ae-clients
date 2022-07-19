@@ -17,6 +17,7 @@
 #include "ppe_drv.h"
 #include "tun/ppe_drv_tun.h"
 #include "tun/ppe_drv_tun_v6.h"
+#include <net/vxlan.h>
 
 void ppe_drv_v6_flow_vlan_set(struct ppe_drv_v6_conn_flow *pcf,
 			      uint32_t primary_ingress_vlan_tag, uint32_t primary_egress_vlan_tag,
@@ -906,7 +907,10 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	struct ppe_drv_v6_conn *cn;
 	int ret;
 
-	if (ppe_drv_tun_check_support(destroy->tuple.protocol)) {
+	/*
+	 * PPE accelearation is only supported for default port currently.
+	 */
+	if (ppe_drv_tun_check_support(destroy->tuple.protocol) || destroy->tuple.flow_ident == IANA_VXLAN_UDP_PORT || destroy->tuple.return_ident == IANA_VXLAN_UDP_PORT) {
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v6_destroy_req);
 		ret = ppe_drv_v6_tun_del_ce_notify(destroy);
@@ -1016,7 +1020,10 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	struct ppe_drv_v6_conn *cn = NULL;
 	ppe_drv_ret_t ret;
 
-	if (ppe_drv_tun_check_support(create->tuple.protocol)) {
+	/*
+	 * PPE accelearation is only supported for default port currently.
+	 */
+	if (ppe_drv_tun_check_support(create->tuple.protocol) || create->tuple.flow_ident == IANA_VXLAN_UDP_PORT || create->tuple.return_ident == IANA_VXLAN_UDP_PORT) {
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v6_create_req);
 		ret = ppe_drv_v6_tun_add_ce_notify(create);

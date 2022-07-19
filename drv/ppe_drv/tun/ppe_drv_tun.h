@@ -146,3 +146,4 @@ struct ppe_drv_tun {
 
 bool ppe_drv_tun_global_init(struct ppe_drv *p);
 bool ppe_drv_tun_check_support(uint8_t protocol);
+void ppe_drv_tun_vxlan_deconfigure(struct ppe_drv *p);

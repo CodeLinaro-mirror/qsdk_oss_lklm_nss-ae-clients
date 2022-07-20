@@ -9,5 +9,6 @@ obj-$(lag-mgr)+= lag/
 obj-$(tunipip6-mgr)+= tunipip6/
 obj-$(gretap-mgr)+= gretap/
 obj-$(vxlanmgr)+= vxlanmgr/
+obj-$(mapt-mgr)+= mapt/
 
 obj ?= .

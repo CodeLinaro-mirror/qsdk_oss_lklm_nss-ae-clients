@@ -48,6 +48,7 @@ struct ppe_drv_port {
 	uint8_t active_vlan;			/* Number active VLAN configured on the port */
 };
 
+void ppe_drv_port_ucast_queue_update(struct ppe_drv_port *pp, uint8_t queue_id);
 uint8_t ppe_drv_port_ucast_queue_get(struct ppe_drv_port *pp);
 bool ppe_drv_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id);
 uint8_t ppe_drv_port_is_tunnel_vp(struct ppe_drv_port *pp);

@@ -988,6 +988,21 @@ bool ppe_drv_port_deref(struct ppe_drv_port *pp)
 }
 
 /*
+ * ppe_drv_port_ucast_queue_update()
+ *	Set queue ID of a given port in PPE.
+ */
+void ppe_drv_port_ucast_queue_update(struct ppe_drv_port *pp, uint8_t queue_id)
+{
+	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: setting queue ID for an unused port:%u", pp, pp->port);
+
+	/*
+	 * Update shadow copy.
+	 */
+	pp->ucast_queue = queue_id;
+	ppe_drv_info("%p: set port ucast queue base id: %u", pp, queue_id);
+}
+
+/*
  * ppe_drv_port_ucast_queue_set()
  *	Set queue ID of a given port in PPE.
  */

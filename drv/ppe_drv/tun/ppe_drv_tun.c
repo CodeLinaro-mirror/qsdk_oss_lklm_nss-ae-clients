@@ -529,6 +529,58 @@ bool ppe_drv_tun_deconfigure(uint16_t port_num)
 EXPORT_SYMBOL(ppe_drv_tun_deconfigure);
 
 /*
+ * ppe_drv_tun_decap_disable_by_port_num
+ *	Disable tunnel decapsulation
+ */
+bool ppe_drv_tun_decap_disable_by_port_num(uint16_t port_num)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *pp;
+	struct ppe_drv_tun *ptun;
+
+	pp = ppe_drv_port_from_port_num(port_num);
+	if (!pp) {
+		ppe_drv_warn("%p: Invalid port number %d", p, port_num);
+		return false;
+	}
+
+	ptun = pp->port_tun;
+	if (!ptun) {
+		ppe_drv_warn("%p: Failed to disable decap. Decap entry not present for port num:%d", p, port_num);
+		return false;
+	}
+
+	return ppe_drv_tun_decap_disable(ptun->ptdc);
+}
+EXPORT_SYMBOL(ppe_drv_tun_decap_disable_by_port_num);
+
+/*
+ * ppe_drv_tun_decap_enable_by_port_num
+ *	Enable tunnel decapsulation
+ */
+bool ppe_drv_tun_decap_enable_by_port_num(uint16_t port_num)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *pp;
+	struct ppe_drv_tun *ptun;
+
+	pp = ppe_drv_port_from_port_num(port_num);
+	if (!pp) {
+		ppe_drv_warn("%p: Invalid port number %d", p, port_num);
+		return false;
+	}
+
+	ptun = pp->port_tun;
+	if (!ptun) {
+		ppe_drv_warn("%p: Failed to enable decap. Decap entry not present for port num:%d", p, port_num);
+		return false;
+	}
+
+	return ppe_drv_tun_decap_enable(ptun->ptdc);
+}
+EXPORT_SYMBOL(ppe_drv_tun_decap_enable_by_port_num);
+
+/*
  * ppe_drv_tun_activate
  *	Activate PPE tunnel
  */

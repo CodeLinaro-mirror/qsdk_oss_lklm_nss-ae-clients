@@ -45,7 +45,7 @@ void ppe_tun_stats(struct net_device *dev, struct ppe_drv_tun_cmn_ctx_stats *sta
 
 /*
  * ppe_tun_allow_accel()
- *	Check if perticular tunnel type accelaration supported.
+ *	Check if particular tunnel type acceleration supported.
  */
 static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 {
@@ -185,7 +185,7 @@ static struct ppe_tun *ppe_tun_get_tun_by_vp_num_and_ref(ppe_vp_num_t vp_num)
 
 /*
  * ppe_tun_deactivate_with_conn_entry()
- *     Deactivate the ppe tunnel
+ *	Deactivate the ppe tunnel
  */
 static bool ppe_tun_deactivate_with_conn_entry(uint8_t vp_num, void *vdestroy_rule)
 {
@@ -215,7 +215,7 @@ static bool ppe_tun_deactivate_with_conn_entry(uint8_t vp_num, void *vdestroy_ru
 
 /*
  * ppe_tun_activate_with_conn_entry()
- *     Activate the ppe tunnel
+ *	Activate the ppe tunnel
  */
 static bool ppe_tun_activate_with_conn_entry(uint8_t vp_num, void *create_rule)
 {
@@ -259,7 +259,7 @@ static bool ppe_tun_exception_dest_cb(struct net_device *dev, struct sk_buff *sk
 
 	cb = tun->dest_cb;
 	if (!cb) {
-		ppe_tun_warn("%p: no registered cb for dest exception %s", tun, dev->name);
+		ppe_tun_warn("%p: No registered callback for destination exception %s", tun, dev->name);
 		ppe_tun_deref(tun);
 		goto free_skb;
 	}
@@ -293,7 +293,7 @@ static bool ppe_tun_exception_src_cb(struct net_device *dev, struct sk_buff *skb
 	cb = tun->src_cb;
 	if (!cb) {
 		ppe_tun_deref(tun);
-		ppe_tun_warn("%p: no registered cb for src exception %s", tun, dev->name);
+		ppe_tun_warn("%p: No registered callback for source exception %s", tun, dev->name);
 		goto free_skb;
 	}
 
@@ -737,6 +737,56 @@ bool ppe_tun_setup(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
 	return true;
 }
 EXPORT_SYMBOL(ppe_tun_setup);
+
+/*
+ * ppe_tun_decap_disable()
+ *	Disable tunnel decapsulation
+ */
+bool ppe_tun_decap_disable(struct net_device *dev)
+{
+	struct ppe_tun *tun;
+	bool ret;
+
+	tun = ppe_tun_get_tun_by_netdev_and_ref(dev);
+	if (!tun) {
+		ppe_tun_assert(0, "%p: Failed disabling decap for %s", tun, dev->name);
+		return false;
+	}
+
+	ret = ppe_drv_tun_decap_disable_by_port_num(tun->vp_num);
+	if (!ret) {
+		ppe_tun_warn("%p, Failed to disable the decap for %s", tun, dev->name);
+	}
+
+	ppe_tun_deref(tun);
+	return ret;
+}
+EXPORT_SYMBOL(ppe_tun_decap_disable);
+
+/*
+ * ppe_tun_decap_enable()
+ *	Enable tunnel decapsulation
+ */
+bool ppe_tun_decap_enable(struct net_device *dev)
+{
+	struct ppe_tun *tun;
+	bool ret;
+
+	tun = ppe_tun_get_tun_by_netdev_and_ref(dev);
+	if (!tun) {
+		ppe_tun_assert(0, "%p: Failed disabling decap for %s", tun, dev->name);
+		return false;
+	}
+
+	ret = ppe_drv_tun_decap_enable_by_port_num(tun->vp_num);
+	if (!ret) {
+		ppe_tun_warn("%p, Failed to disable the decap for %s", tun, dev->name);
+	}
+
+	ppe_tun_deref(tun);
+	return ret;
+}
+EXPORT_SYMBOL(ppe_tun_decap_enable);
 
 /*
  * ppe_tun_gretap_read()

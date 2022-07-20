@@ -373,7 +373,7 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 		return false;
 	}
 
-	pth = ptun->th;
+	pth = &ptun->th;
 	is_ipv6 = ppe_drv_tun_cmn_ctx_tun_is_ipv6(pth);
 
 	if (vdestroy_rule && is_ipv6) {
@@ -515,7 +515,7 @@ bool ppe_drv_tun_deconfigure(uint16_t port_num)
 		return false;
 	}
 
-	pth = ptun->th;
+	pth = &ptun->th;
 
 	ppe_drv_trace("%p: Destroying Tunnel %d at index %u", ptun, pth->type, ptun->tun_idx);
 
@@ -574,7 +574,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 		goto err_fail;
 	}
 
-	pth = ptun->th;
+	pth = &ptun->th;
 	l2_hdr = &pth->l2;
 	is_ipv6 = ppe_drv_tun_cmn_ctx_tun_is_ipv6(pth);
 
@@ -754,7 +754,7 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 
 	kref_init(&ptun->ref);
 
-	ptun->th = pth;
+	memcpy(&ptun->th, pth, sizeof(*pth));
 	ptun->pp = pp;
 	ptun->add_cb = add_cb;
 	ptun->del_cb = del_cb;

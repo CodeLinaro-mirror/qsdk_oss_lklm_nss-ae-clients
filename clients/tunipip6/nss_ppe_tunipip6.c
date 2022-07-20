@@ -154,6 +154,7 @@ static int nss_ppe_tunipip6_dev_event(struct notifier_block  *nb,
 			nss_ppe_tunipip6_trace("%p: Unable to configure PPE tunnel for dev: %s", dev, dev->name);
 		}
 
+		kfree(tun_hdr);
 		break;
 
 	case NETDEV_CHANGEMTU:

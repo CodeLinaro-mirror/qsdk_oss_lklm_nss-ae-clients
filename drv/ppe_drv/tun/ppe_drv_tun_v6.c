@@ -203,7 +203,7 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 	struct ppe_drv_v6_connection_rule *rule = &create->conn_rule;
 	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
 	uint16_t xmit_port = PPE_DRV_PORTS_MAX;
-	struct ppe_drv_tun_cmn_ctx *th;
+	struct ppe_drv_tun_cmn_ctx *pth;
 	struct ppe_drv_port *pp = NULL;
 	struct ppe_drv_tun *tun;
 	uint8_t egress_vlan_cnt;
@@ -242,21 +242,21 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 	 * IP address at the time of outer rule push, since
 	 * it is not available during NETDEV_UP.
 	 */
-	th = tun->th;
-	if (ipv6_addr_any((struct in6_addr *)th->l3.saddr)) {
+	pth = &tun->th;
+	if (ipv6_addr_any((struct in6_addr *)pth->l3.saddr)) {
 		ip6_addr = pcf->match_src_ip;
-		th->l3.saddr[0] = htonl(ip6_addr[0]);
-		th->l3.saddr[1] = htonl(ip6_addr[1]);
-		th->l3.saddr[2] = htonl(ip6_addr[2]);
-		th->l3.saddr[3] = htonl(ip6_addr[3]);
+		pth->l3.saddr[0] = htonl(ip6_addr[0]);
+		pth->l3.saddr[1] = htonl(ip6_addr[1]);
+		pth->l3.saddr[2] = htonl(ip6_addr[2]);
+		pth->l3.saddr[3] = htonl(ip6_addr[3]);
 	}
 
-	if (ipv6_addr_any((struct in6_addr *)th->l3.daddr)) {
+	if (ipv6_addr_any((struct in6_addr *)pth->l3.daddr)) {
 		ip6_addr = pcf->match_dest_ip;
-		th->l3.daddr[0] = htonl(ip6_addr[0]);
-		th->l3.daddr[1] = htonl(ip6_addr[1]);
-		th->l3.daddr[2] = htonl(ip6_addr[2]);
-		th->l3.daddr[3] = htonl(ip6_addr[3]);
+		pth->l3.daddr[0] = htonl(ip6_addr[0]);
+		pth->l3.daddr[1] = htonl(ip6_addr[1]);
+		pth->l3.daddr[2] = htonl(ip6_addr[2]);
+		pth->l3.daddr[3] = htonl(ip6_addr[3]);
 	}
 
 	if (egress_vlan_cnt == 2) {

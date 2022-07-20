@@ -231,6 +231,8 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 			if (!(ppe_tun_configure(netdev, tun_hdr, nss_ppe_gretap_src_exception, NULL))) {
 				nss_ppe_gretap_trace("%px: Not able to create tunnel for dev: %s\n", netdev, netdev->name);
 			}
+
+			kfree(tun_hdr);
 			break;
 
 		case NETDEV_DOWN:

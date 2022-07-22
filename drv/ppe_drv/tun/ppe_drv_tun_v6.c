@@ -18,9 +18,11 @@
 #include "ppe_drv_tun.h"
 #include <ppe_drv_iface.h>
 #include <exports/ppe_drv_tun_public.h>
-#include <net/ipv6.h>
 #include <fal/fal_tunnel.h>
 #include <fal/fal_port_ctrl.h>
+
+#include <net/ipv6.h>
+#include <net/vxlan.h>
 
 /*
  * ppe_drv_tun_v6_port_stats_update()
@@ -120,6 +122,73 @@ static struct ppe_drv_v6_conn *ppe_drv_v6_conn_tun_conn_get(struct ppe_drv_v6_5t
 static ppe_drv_ret_t ppe_drv_v6_tun_conn_fill(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn)
 {
 	return ppe_drv_v6_conn_fill(create, cn, PPE_DRV_CONN_TYPE_TUNNEL);
+}
+
+/*
+ * ppe_drv_v6_tun_get_tun_from_create_rule
+ *	Get tunnel drv for tunnel device
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+static struct ppe_drv_tun *ppe_drv_v6_tun_get_tun_from_create_rule(struct ppe_drv_v6_connection_rule *conn)
+{
+	struct ppe_drv_port *pp_port;
+	struct ppe_drv_iface *iface;
+	struct ppe_drv_tun *port_tun;
+
+	iface = ppe_drv_iface_get_by_idx(conn->rx_if);
+	pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
+
+	port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+	if (!port_tun) {
+		iface = ppe_drv_iface_get_by_idx(conn->tx_if);
+		pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
+		port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+	}
+
+	return port_tun;
+}
+
+/*
+ * ppe_drv_v6_tun_allow_tunnel_create()
+ *	Check if the create rule is received for tunnel activation
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+bool ppe_drv_v6_tun_allow_tunnel_create(struct ppe_drv_v6_rule_create *create)
+{
+	struct ppe_drv_tun *port_tun;
+	struct net_device *dev;
+
+	/*
+	 * Check if the rule is for GRE or IPIP6
+	 */
+	if (ppe_drv_tun_check_support(create->tuple.protocol)) {
+		return true;
+	}
+
+	/*
+	 * Vxlan PPE accelearation is only supported for default port currently.
+	 */
+	if ((create->tuple.flow_ident == IANA_VXLAN_UDP_PORT) ||
+	    (create->tuple.return_ident == IANA_VXLAN_UDP_PORT)) {
+		return true;
+	}
+
+	port_tun = ppe_drv_v6_tun_get_tun_from_create_rule(&create->conn_rule);
+	if (!port_tun) {
+		return false;
+	}
+
+	/*
+	 * Check if the rule is for MAP-T
+	 */
+	dev = ppe_drv_port_to_dev(port_tun->pp);
+	if (dev->priv_flags_ext & IFF_EXT_MAPT) {
+		return true;
+	}
+
+	return false;
 }
 
 /*
@@ -311,8 +380,10 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_notify(struct ppe_drv_v6_rule_destroy *destr
 
 	spin_unlock_bh(&p->lock);
 
+	ppe_drv_stats_inc(&comm_stats->v6_destroy_req);
 	status = del_cb(vp_num, destroy);
 	if (status != true) {
+		ppe_drv_stats_inc(&comm_stats->v6_destroy_fail);
 		return PPE_DRV_RET_FAILURE_TUN_CE_DEL_FAILURE;
 	}
 
@@ -326,8 +397,6 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_notify(struct ppe_drv_v6_rule_destroy *destr
 ppe_drv_ret_t ppe_drv_v6_tun_add_ce_notify(struct ppe_drv_v6_rule_create *create)
 {
 	struct ppe_drv_v6_connection_rule *conn = &create->conn_rule;
-	struct ppe_drv_iface *iface;
-	struct ppe_drv_port *pp_port;
 	struct ppe_drv_tun *port_tun;
 	ppe_drv_tun_add_ce_callback_t add_cb;
 	struct ppe_drv *p = &ppe_drv_gbl;
@@ -335,15 +404,8 @@ ppe_drv_ret_t ppe_drv_v6_tun_add_ce_notify(struct ppe_drv_v6_rule_create *create
 	uint8_t status;
 
 	spin_lock_bh(&p->lock);
-	iface = ppe_drv_iface_get_by_idx(conn->rx_if);
-	pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
 
-	port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
-	if (!port_tun) {
-		iface = ppe_drv_iface_get_by_idx(conn->tx_if);
-		pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
-		port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
-	}
+	port_tun = ppe_drv_v6_tun_get_tun_from_create_rule(conn);
 
 	/*
 	 * If the outer rule is pushed before the PPE tunnel client creates the tunnel

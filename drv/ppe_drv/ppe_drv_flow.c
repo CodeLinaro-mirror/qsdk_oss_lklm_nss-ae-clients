@@ -60,7 +60,7 @@ void ppe_drv_flow_dump(struct ppe_drv_flow *pf)
 	ppe_drv_trace("%p: sevice_code: %d", pf, flow_cfg.sevice_code);
 	ppe_drv_trace("%p: src_port: %d", pf, flow_cfg.src_port);
 	ppe_drv_trace("%p: dst_port: %d", pf, flow_cfg.dst_port);
-	ppe_drv_trace("%p: tree_id: %d", pf, flow_cfg.tree_id);
+	ppe_drv_trace("%p: tree_id: %d", pf, flow_cfg.flow_qos.tree_id);
 	ppe_drv_trace("%p: pkt_counter: %d", pf, flow_cfg.pkt_counter);
 	ppe_drv_trace("%p: byte_counter: %llu", pf, flow_cfg.byte_counter);
 	ppe_drv_trace("%p: pmtu_check_l3: %d", pf, flow_cfg.pmtu_check_l3);
@@ -69,8 +69,8 @@ void ppe_drv_flow_dump(struct ppe_drv_flow *pf)
 	ppe_drv_trace("%p: vlan_fmt_valid: %d", pf, flow_cfg.vlan_fmt_valid);
 	ppe_drv_trace("%p: svlan_fmt: %d", pf, flow_cfg.svlan_fmt);
 	ppe_drv_trace("%p: cvlan_fmt: %d", pf, flow_cfg.cvlan_fmt);
-	ppe_drv_trace("%p: wifi_qos_en: %d", pf, flow_cfg.wifi_qos_en);
-	ppe_drv_trace("%p: wifi_qos: %d", pf, flow_cfg.wifi_qos);
+	ppe_drv_trace("%p: wifi_qos_en: %d", pf, flow_cfg.flow_qos.wifi_qos_en);
+	ppe_drv_trace("%p: wifi_qos: %d", pf, flow_cfg.flow_qos.wifi_qos);
 	ppe_drv_trace("%p: invalid: %d", pf, flow_cfg.invalid);
 
 	if (pf->type == PPE_DRV_IP_TYPE_V4) {
@@ -494,7 +494,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	/*
 	 * Get the tree ID corresponding to flow.
 	 */
-	if (!ppe_drv_flow_v6_tree_id_get(pcf, &flow_cfg.tree_id)) {
+	if (!ppe_drv_flow_v6_tree_id_get(pcf, &flow_cfg.flow_qos.tree_id)) {
 		ppe_drv_warn("%p: failed to obtain a valid tree ID", pcf);
 		return NULL;
 	}
@@ -510,12 +510,12 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	/*
 	 * Get the WIFI QOS corresponding to flow.
 	 */
-	if (!ppe_drv_flow_v6_wifi_qos_get(pcf, &flow_cfg.wifi_qos, &wifi_qos_en)) {
+	if (!ppe_drv_flow_v6_wifi_qos_get(pcf, &flow_cfg.flow_qos.wifi_qos, &wifi_qos_en)) {
 		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
 		return NULL;
 	}
 
-	flow_cfg.wifi_qos_en = wifi_qos_en;
+	flow_cfg.flow_qos.wifi_qos_en = wifi_qos_en;
 
 	/*
 	 * Set forwarding type
@@ -978,7 +978,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	/*
 	 * Get the tree ID corresponding to flow.
 	 */
-	if (!ppe_drv_flow_v4_tree_id_get(pcf, &flow_cfg.tree_id)) {
+	if (!ppe_drv_flow_v4_tree_id_get(pcf, &flow_cfg.flow_qos.tree_id)) {
 		ppe_drv_warn("%p: failed to obtain a valid tree ID", pcf);
 		return NULL;
 	}
@@ -994,12 +994,12 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	/*
 	 * Get the WIFI QOS corresponding to flow.
 	 */
-	if (!ppe_drv_flow_v4_wifi_qos_get(pcf, &flow_cfg.wifi_qos, &wifi_qos_en)) {
+	if (!ppe_drv_flow_v4_wifi_qos_get(pcf, &flow_cfg.flow_qos.wifi_qos, &wifi_qos_en)) {
 		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
 		return NULL;
 	}
 
-	flow_cfg.wifi_qos_en = wifi_qos_en;
+	flow_cfg.flow_qos.wifi_qos_en = wifi_qos_en;
 
 	/*
 	 * Set forwarding type

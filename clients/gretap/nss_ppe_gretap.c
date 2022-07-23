@@ -41,8 +41,23 @@
 #include "nss_ppe_gretap.h"
 
 static struct dentry *gretap_dentry;
+
 static bool nss_gretap_stats_dentry_create(struct net_device *dev);
 static bool nss_gretap_stats_dentry_free(struct net_device *dev);
+
+/*
+ * nss_ppe_gretap_src_exception()
+ *	handle the source VP exception
+ */
+static bool nss_ppe_gretap_src_exception(struct net_device *dev, struct sk_buff *skb)
+{
+	skb_reset_network_header(skb);
+	skb->protocol = eth_type_trans(skb, dev);
+	skb->dev = dev;
+	skb->skb_iif = dev->ifindex;
+	netif_receive_skb(skb);
+	return true;
+}
 
 /*
  * nss_ppe_gretap_set_gre_key_flags()
@@ -213,7 +228,7 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 				nss_ppe_gretap_ip4_dev_parse_param(netdev, tun_hdr);
 			}
 
-			if (!(ppe_tun_configure(netdev, tun_hdr, NULL, NULL))) {
+			if (!(ppe_tun_configure(netdev, tun_hdr, nss_ppe_gretap_src_exception, NULL))) {
 				nss_ppe_gretap_trace("%px: Not able to create tunnel for dev: %s\n", netdev, netdev->name);
 			}
 			break;

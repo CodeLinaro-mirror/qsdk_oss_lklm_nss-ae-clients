@@ -353,6 +353,8 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_port *pp;
 	struct ppe_drv_tun *ptun;
+	struct ppe_drv_v4_conn_sync *cns_v4 = NULL;
+	struct ppe_drv_v6_conn_sync *cns_v6 = NULL;
 	bool is_ipv6;
 
 	spin_lock_bh(&p->lock);
@@ -375,13 +377,13 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 	is_ipv6 = ppe_drv_tun_cmn_ctx_tun_is_ipv6(pth);
 
 	if (vdestroy_rule && is_ipv6) {
-		ret = ppe_drv_v6_tun_del_ce_validate(vdestroy_rule);
+		ret = ppe_drv_v6_tun_del_ce_validate(vdestroy_rule, &cns_v6);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			spin_unlock_bh(&p->lock);
 			return false;
 		}
 	} else if (vdestroy_rule) {
-		ret = ppe_drv_v4_tun_del_ce_validate(vdestroy_rule);
+		ret = ppe_drv_v4_tun_del_ce_validate(vdestroy_rule, &cns_v4);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			spin_unlock_bh(&p->lock);
 			return false;
@@ -437,10 +439,25 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 	 */
 	ppe_drv_tun_deref(ptun);
 	spin_unlock_bh(&p->lock);
+
+	/*
+	 *  Invoke callback and free the cns structure
+	 */
+	if (cns_v4) {
+		ppe_drv_v4_conn_stats_sync_invoke_cb(cns_v4);
+		ppe_drv_v4_conn_stats_free(cns_v4);
+	} else if (cns_v6) {
+		ppe_drv_v6_conn_stats_sync_invoke_cb(cns_v6);
+		ppe_drv_v6_conn_stats_free(cns_v6);
+	}
+
 	return true;
 
 error:
 	spin_unlock_bh(&p->lock);
+	ppe_drv_v4_conn_stats_free(cns_v4);
+	ppe_drv_v6_conn_stats_free(cns_v6);
+
 	return false;
 }
 EXPORT_SYMBOL(ppe_drv_tun_deactivate);

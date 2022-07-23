@@ -151,8 +151,9 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	 * PPE stats are not clear on read, so we need to calculate the delta
 	 * between the latest counters and previously read counters.
 	 */
-	delta_pkts = flow_cntrs.matched_pkts - pf->pkts;
-	delta_bytes = flow_cntrs.matched_bytes - pf->bytes;
+	delta_pkts = (flow_cntrs.matched_pkts - pf->pkts + FAL_FLOW_PKT_CNT_MASK + 1) & FAL_FLOW_PKT_CNT_MASK;
+	delta_bytes = (flow_cntrs.matched_bytes - pf->bytes + FAL_FLOW_BYTE_CNT_MASK + 1)
+		                                              & FAL_FLOW_BYTE_CNT_MASK;
 
 	/*
 	 * Update ppe_conn_flow packet and byte counters
@@ -201,8 +202,9 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	 * PPE stats are not clear on read, so we need to calculate the delta
 	 * between the latest counters and previously read counters.
 	 */
-	delta_pkts = flow_cntrs.matched_pkts - pf->pkts;
-	delta_bytes = flow_cntrs.matched_bytes - pf->bytes;
+	delta_pkts = (flow_cntrs.matched_pkts - pf->pkts + FAL_FLOW_PKT_CNT_MASK + 1) & FAL_FLOW_PKT_CNT_MASK;
+	delta_bytes = (flow_cntrs.matched_bytes - pf->bytes + FAL_FLOW_BYTE_CNT_MASK + 1)
+		                                              & FAL_FLOW_BYTE_CNT_MASK;
 
 	/*
 	 * Update ppe_conn_flow packet and byte counters

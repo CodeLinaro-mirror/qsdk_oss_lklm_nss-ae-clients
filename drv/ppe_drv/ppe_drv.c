@@ -41,8 +41,8 @@ struct ppe_drv ppe_drv_gbl;
 static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
-	struct ppe_drv_v4_conn *cn_v4;
-	struct ppe_drv_v6_conn *cn_v6;
+	struct ppe_drv_v4_conn *cn_v4, *cn_tun_v4;
+	struct ppe_drv_v6_conn *cn_v6, *cn_tun_v6;
 	struct ppe_drv_v4_conn_flow *pcf_v4;
 	struct ppe_drv_v4_conn_flow *pcr_v4;
 	struct ppe_drv_v6_conn_flow *pcf_v6;
@@ -75,6 +75,36 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 			ppe_drv_flow_v6_stats_update(pcf_v6);
 			if (pcr_v6) {
 				ppe_drv_flow_v6_stats_update(pcr_v6);
+			}
+		}
+	}
+
+	/*
+	 * Update hw stats for tunnels associated with active v4 connections
+	 */
+	if (!list_empty(&p->conn_tun_v4)) {
+		list_for_each_entry(cn_tun_v4, &p->conn_tun_v4, list) {
+			pcf_v4 = &cn_tun_v4->pcf;
+			pcr_v4 = &cn_tun_v4->pcr;
+
+			ppe_drv_tun_v4_port_stats_update(pcf_v4);
+			if (ppe_drv_v4_conn_flags_check(cn_tun_v4, PPE_DRV_V4_CONN_FLAG_RETURN_VALID)) {
+				ppe_drv_tun_v4_port_stats_update(pcr_v4);
+			}
+		}
+	}
+
+	/*
+	 * Update hw stats for tunnels associated with active v6 connections
+	 */
+	if (!list_empty(&p->conn_tun_v6)) {
+		list_for_each_entry(cn_tun_v6, &p->conn_tun_v6, list) {
+			pcf_v6 = &cn_tun_v6->pcf;
+			pcr_v6 = &cn_tun_v6->pcr;
+
+			ppe_drv_tun_v6_port_stats_update(pcf_v6);
+			if (ppe_drv_v6_conn_flags_check(cn_tun_v6, PPE_DRV_V6_CONN_FLAG_RETURN_VALID)) {
+				ppe_drv_tun_v6_port_stats_update(pcr_v6);
 			}
 		}
 	}
@@ -357,6 +387,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&p->conn_tun_v6);
 
 	p->toggled = false;
+	p->tun_toggled = false;
 
 	/*
 	 * Allocate tunnel specific entries

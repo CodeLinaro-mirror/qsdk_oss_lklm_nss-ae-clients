@@ -20,6 +20,71 @@
 #include <exports/ppe_drv_tun_public.h>
 #include <net/ipv6.h>
 #include <fal/fal_tunnel.h>
+#include <fal/fal_port_ctrl.h>
+
+/*
+ * ppe_drv_tun_v6_port_stats_update()
+ *	Updates flow instance's stats counter from PPE port Tx and Rx counters.
+ */
+void ppe_drv_tun_v6_port_stats_update(struct ppe_drv_v6_conn_flow *pcf)
+{
+	sw_error_t err;
+	uint32_t delta_pkts;
+	uint32_t delta_bytes;
+	struct ppe_drv_port *pp = NULL;
+	struct ppe_drv_v6_conn_flow *pcr;
+	fal_port_cnt_t port_cnt = {0};
+
+	/*
+	 * Check if its tx/rx port
+	 */
+	if (!ppe_drv_port_tun_get(pcf->tx_port)) {
+		pp = pcf->tx_port;
+	} else {
+		pp = pcf->rx_port;
+	}
+
+	err = fal_port_cnt_get(PPE_DRV_SWITCH_ID, pp->port, &port_cnt);
+	if (err != SW_OK) {
+		printk("%p: failed to get port stats at index: %u", pp, pp->port);
+		return;
+	}
+
+	/*
+	 * PPE stats are not clear on read, so we need to calculate the delta
+	 * between the latest counters and previously read counters.
+	 */
+	delta_pkts = (port_cnt.rx_pkt_cnt - pp->rx_packets + FAL_TUNNEL_DECAP_PKT_CNT_MASK + 1) & FAL_TUNNEL_DECAP_PKT_CNT_MASK;
+	delta_bytes = (port_cnt.rx_byte_cnt - pp->rx_bytes + FAL_TUNNEL_DECAP_BYTE_CNT_MASK + 1)
+		                                              & FAL_TUNNEL_DECAP_BYTE_CNT_MASK;
+
+	/*
+	 * Rx packets from the VP port would be Tx count for WAN port
+	 * hence updating from VP tx stats
+	 */
+	if (ppe_drv_v6_conn_flags_check(pcf->conn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID)) {
+		pcr = &pcf->conn->pcr;
+		ppe_drv_v6_conn_flow_rx_stats_add(pcr, delta_pkts, delta_bytes);
+	} else {
+		ppe_drv_v6_conn_flow_tx_stats_add(pcf, delta_pkts, delta_bytes);
+	}
+
+	pp->rx_packets = port_cnt.rx_pkt_cnt;
+	pp->rx_bytes = port_cnt.rx_byte_cnt;
+
+	delta_pkts = (port_cnt.tx_pkt_cnt - pp->tx_packets + FAL_TUNNEL_DECAP_PKT_CNT_MASK + 1) & FAL_TUNNEL_DECAP_PKT_CNT_MASK;
+	delta_bytes = (port_cnt.tx_byte_cnt - pp->tx_bytes + FAL_TUNNEL_DECAP_BYTE_CNT_MASK + 1)
+		                                              & FAL_TUNNEL_DECAP_BYTE_CNT_MASK;
+
+	/*
+	 * Tx packets from the VP port would be RX count for WAN port
+	 *  hence updating the VP tx stats to FLOW Rx
+	 */
+	ppe_drv_v6_conn_flow_rx_stats_add(pcf, delta_pkts, delta_bytes);
+
+	pp->tx_packets = port_cnt.tx_pkt_cnt;
+	pp->tx_bytes = port_cnt.tx_byte_cnt;
+}
 
 /*
  * ppe_drv_v6_conn_tun_conn_get()
@@ -154,7 +219,7 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
  *
  * Requires caller to hold lock on ppe_drv_gbl.
  */
-ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule)
+ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv_v6_conn_sync **cns_v6)
 {
 	struct ppe_drv_v6_rule_destroy *destroy = (struct ppe_drv_v6_rule_destroy *)vdestroy_rule;
 	ppe_drv_ret_t ret = PPE_DRV_RET_SUCCESS;
@@ -162,6 +227,13 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule)
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_v6_conn *cn;
+	struct ppe_drv_v6_conn_sync *cns;
+
+	cns = ppe_drv_v6_conn_stats_alloc();
+	if (!cns) {
+		ppe_drv_warn("%p: Could not allocate connection stats", destroy);
+		return PPE_DRV_RET_FAILURE_CREATE_OOM;
+	}
 
 	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 
@@ -169,6 +241,7 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule)
 	if (!cn) {
 		ppe_drv_stats_inc(&comm_stats->v6_destroy_conn_not_found);
 		ppe_drv_warn("%p: Could not find tunnel connection entry", destroy);
+		ppe_drv_v6_conn_stats_free(cns);
 		return PPE_DRV_RET_FAILURE_DESTROY_NO_CONN;
 	}
 
@@ -190,7 +263,13 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule)
 	 */
 	list_del(&cn->list);
 
+	/*
+	 * Capture remaining stats.
+	 */
+	ppe_drv_v6_conn_sync_one(cn, cns, PPE_DRV_STATS_SYNC_REASON_DESTROY);
+
 	ppe_drv_v6_conn_free(cn);
+	*cns_v6 =  cns;
 
 	return ret;
 }
@@ -364,7 +443,7 @@ ppe_drv_ret_t ppe_drv_v6_tun_add_ce_validate(void *vcreate_rule, struct ppe_drv_
 	/*
 	 * Set the toggle bit to mark this connection as due for stats update in next sync.
 	 */
-	cn->toggle = !p->toggled;
+	cn->toggle = !p->tun_toggled;
 
 	return PPE_DRV_RET_SUCCESS;
 

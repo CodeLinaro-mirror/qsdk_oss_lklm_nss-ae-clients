@@ -25,4 +25,5 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 ppe_drv_ret_t ppe_drv_v6_tun_add_ce_validate(void *vcreate_rule, struct ppe_drv_v6_conn *cn);
 ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv_v6_conn_sync **cns);
 bool ppe_drv_v6_tun_allow_tunnel_create(struct ppe_drv_v6_rule_create *create);
+bool ppe_drv_tun_v6_get_conn_flow(struct ppe_drv_v6_5tuple *tuple, struct ppe_drv_v6_conn_flow **pcf, struct ppe_drv_v6_conn_flow **pcr);
 #endif /* _PPE_DRV_TUN_V6_H_ */

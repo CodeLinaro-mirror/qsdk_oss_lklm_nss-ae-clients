@@ -189,6 +189,8 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	struct ppe_drv_flow *pf = pcf->pf;
 	fal_entry_counter_t flow_cntrs = {0};
 	struct ppe_drv_v4_conn *cn = pcf->conn;
+	struct ppe_drv_v6_conn_flow *mapt_pcf_v6, *mapt_pcr_v6;
+	struct ppe_drv_v6_conn *mapt_cn_v6;
 
 	ppe_drv_trace("%p: updating flow stats", pf);
 
@@ -219,6 +221,19 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 		 * ECM expects tx count to be incremented in the same cme.
 		 */
 		ppe_drv_v4_conn_flow_tx_stats_add(pcf, delta_pkts, delta_bytes);
+	}
+
+	if (pf->flags & PPE_DRV_FLOW_MAPT) {
+		mapt_pcf_v6 = pf->mapt_info.mapt_v6;
+		mapt_cn_v6 = mapt_pcf_v6->conn;
+
+		delta_bytes += delta_pkts * pf->mapt_info.len_adjust;
+		ppe_drv_v6_conn_flow_rx_stats_add(mapt_pcf_v6, delta_pkts, delta_bytes);
+
+		if (ppe_drv_v6_conn_flags_check(mapt_pcf_v6->conn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID)) {
+			mapt_pcr_v6 = (mapt_pcf_v6 == &mapt_cn_v6->pcf) ? &mapt_cn_v6->pcr : &mapt_cn_v6->pcf;
+			ppe_drv_v6_conn_flow_tx_stats_add(mapt_pcr_v6, delta_pkts, delta_bytes);
+		}
 	}
 
 	pf->pkts = flow_cntrs.matched_pkts;
@@ -1169,6 +1184,49 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	flow->pcf.v4 = pcf;
 	ppe_drv_trace("%p: flow_tbl entry added at index: %u", pcf, flow_cfg.entry_id);
 	return flow;
+}
+
+/*
+ * ppe_drv_flow_v4_attach_mapt_v6_conn
+ *	Attach v6 flow entry to the corresponding v4 flow entry for mapt.
+ */
+bool ppe_drv_flow_v4_attach_mapt_v6_conn(struct ppe_drv_v4_conn_flow *pcf_v4, struct ppe_drv_v6_conn_flow *pcf_v6, uint8_t length_adjust)
+{
+	struct ppe_drv_flow *pf = pcf_v4->pf;
+	struct ppe_drv_flow_mapt_info *mapt_info = &pf->mapt_info;
+
+	if (!(pf->flags & PPE_DRV_FLOW_V4)) {
+		ppe_drv_trace("%p: flow is invalid", pf);
+		return false;
+	}
+
+	mapt_info->mapt_v6 = pcf_v6;
+	mapt_info->len_adjust = length_adjust;
+	pf->flags |= PPE_DRV_FLOW_MAPT;
+
+	return true;
+}
+
+/*
+ * ppe_drv_flow_v4_detach_attach_mapt_v6_conn
+ *	detach v6 flow entry to the corresponding v4 flow entry for mapt.
+ */
+bool ppe_drv_flow_v4_detach_mapt_v6_conn(struct ppe_drv_v4_conn_flow *pcf_v4)
+{
+	struct ppe_drv_flow *pf = pcf_v4->pf;
+	struct ppe_drv_flow_mapt_info *mapt_info;
+
+	if (!pf || !(pf->flags & PPE_DRV_FLOW_MAPT)) {
+		ppe_drv_warn("%p: flow is invalid", pcf_v4);
+		return false;
+	}
+
+	mapt_info = &pf->mapt_info;
+	pf->flags &= ~PPE_DRV_FLOW_MAPT;
+	mapt_info->mapt_v6 = NULL;
+	mapt_info->len_adjust = 0;
+
+	return true;
 }
 
 /*

@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/ipv6.h>
 #include <ppe_drv_tun_cmn_ctx.h>
 #include <ppe_drv_tun_public.h>
 #include "ppe_drv_tun_encap.h"
@@ -25,6 +26,8 @@
 #define PPE_DRV_TUN_BIT(x)	(1UL << x)
 #define PPE_DRV_TUN_MAX_CTX	128
 #define PPE_DRV_TUN_PORT_STATS_RESERVED_COUNT 10  /* Number of slots reserved for tunnel statistics */
+#define PPE_DRV_TUN_MAPT_V6_LEN_ADJUST (sizeof(struct ipv6hdr) - sizeof (struct iphdr)) /* IP6 header length difference to be added for MAPT */
+
 /*
  * ppe_drv_tun_tl_action
  *	PPE TL action.
@@ -128,6 +131,14 @@ enum ppe_drv_tun_decap_entry_type {
 	PPE_DRV_TUN_DECAP_REMOTE_ENTRY	/**< MAP-T remote IPV6 address decap entry >*/
 };
 
+/* ppe_drv_tun_mapt
+ *	PPE driver tunnel mapt specific data
+ */
+struct ppe_drv_tun_mapt {
+	struct ppe_drv_v4_conn_flow *mapt_pcf_v4;		/**< MAPT V4 PCF > */
+	struct ppe_drv_v4_conn_flow *mapt_pcr_v4;		/**< MAPT V4 PCR > */
+};
+
 /* ppe_drv_tun
  *	PPE driver tunnel context
  */
@@ -147,6 +158,7 @@ struct ppe_drv_tun {
 	uint8_t tun_idx;					/**< Tunnel context ID >*/
 	uint8_t xmit_port;					/**< Egress I/O port for tunnel> */
 	bool tun_state;						/**< Tunnel status active >*/
+	struct ppe_drv_tun_mapt mapt;				/**< MAPT specific Tunnel structure > */
 };
 
 bool ppe_drv_tun_global_init(struct ppe_drv *p);
@@ -154,3 +166,8 @@ bool ppe_drv_tun_check_support(uint8_t protocol);
 void ppe_drv_tun_vxlan_deconfigure(struct ppe_drv *p);
 void ppe_drv_tun_v4_port_stats_update(struct ppe_drv_v4_conn_flow *pcf);
 void ppe_drv_tun_v6_port_stats_update(struct ppe_drv_v6_conn_flow *pcf);
+bool ppe_drv_tun_attach_mapt_v6_to_v4(struct ppe_drv_v6_conn *conn_tun_v6);
+bool ppe_drv_tun_attach_mapt_v4_to_v6(struct ppe_drv_v4_conn *cn);
+bool ppe_drv_tun_detach_mapt_v4_to_v6(struct ppe_drv_v4_conn *cn);
+bool ppe_drv_tun_detach_mapt_v6_to_v4(struct ppe_drv_tun *ptun);
+struct ppe_drv_tun *ppe_drv_tun_mapt_port_tun_get(struct ppe_drv_port *tx_port, struct ppe_drv_port *rx_port);

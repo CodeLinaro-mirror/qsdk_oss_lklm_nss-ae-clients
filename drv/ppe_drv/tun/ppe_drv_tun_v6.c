@@ -48,7 +48,7 @@ void ppe_drv_tun_v6_port_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 
 	err = fal_port_cnt_get(PPE_DRV_SWITCH_ID, pp->port, &port_cnt);
 	if (err != SW_OK) {
-		printk("%p: failed to get port stats at index: %u", pp, pp->port);
+		ppe_drv_warn("%p: failed to get port stats at index: %u", pp, pp->port);
 		return;
 	}
 
@@ -94,7 +94,7 @@ void ppe_drv_tun_v6_port_stats_update(struct ppe_drv_v6_conn_flow *pcf)
  *
  * Requires caller to hold lock on ppe_drv_gbl.
  */
-static struct ppe_drv_v6_conn *ppe_drv_v6_conn_tun_conn_get(struct ppe_drv_v6_5tuple *tuple)
+struct ppe_drv_v6_conn *ppe_drv_v6_conn_tun_conn_get(struct ppe_drv_v6_5tuple *tuple)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_v6_conn *cn;
@@ -113,6 +113,32 @@ static struct ppe_drv_v6_conn *ppe_drv_v6_conn_tun_conn_get(struct ppe_drv_v6_5t
 	}
 
 	return NULL;
+}
+
+/*
+ * ppe_drv_tun_v6_get_conn_flow()
+ *	Return flow object associated with the 5 tuple.
+ */
+bool ppe_drv_tun_v6_get_conn_flow(struct ppe_drv_v6_5tuple *tuple, struct ppe_drv_v6_conn_flow **pcf, struct ppe_drv_v6_conn_flow **pcr)
+{
+	struct ppe_drv_v6_conn *cn;
+
+	cn = ppe_drv_v6_conn_tun_conn_get(tuple);
+
+	if (!cn) {
+		return false;
+	}
+
+	if (ppe_drv_v6_addr_equal(cn->pcf.match_src_ip, tuple->flow_ip) &&
+			ppe_drv_v6_addr_equal(cn->pcf.match_dest_ip, tuple->return_ip)) {
+		*pcf = &cn->pcf;
+		*pcr = &cn->pcr;
+	} else {
+		*pcf = &cn->pcr;
+		*pcr = &cn->pcf;
+	}
+
+	return true;
 }
 
 /*
@@ -297,6 +323,7 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_v6_conn *cn;
 	struct ppe_drv_v6_conn_sync *cns;
+	struct ppe_drv_tun *ptun;
 
 	cns = ppe_drv_v6_conn_stats_alloc();
 	if (!cns) {
@@ -327,8 +354,15 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv
 	 */
 	ppe_drv_v6_if_walk_release(pcr);
 
+	ptun = ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port);
+	if (ptun) {
+		if (!ppe_drv_tun_detach_mapt_v6_to_v4(ptun)) {
+			ppe_drv_warn("%p: MAP-T v6 to v4 detach failed", ptun);
+		}
+	}
+
 	/*
-	 * Add connection entry to the active connection list.
+	 * Remove connection entry from the active connection list.
 	 */
 	list_del(&cn->list);
 

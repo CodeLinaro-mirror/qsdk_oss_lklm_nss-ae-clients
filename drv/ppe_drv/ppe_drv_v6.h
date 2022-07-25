@@ -19,7 +19,8 @@
  */
 #define PPE_DRV_V6_CONN_FLAG_RETURN_VALID 0x00000001
 					/* Return direction flow is valid. */
-
+#define PPE_DRV_V6_CONN_FLAG_TYPE_MAPT	0x00000002
+					/* Connection type is MAP-T */
 /*
  * Bit flags for flow entry.
  */

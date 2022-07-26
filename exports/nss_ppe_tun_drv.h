@@ -151,4 +151,20 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type);
  * Status of operation
  */
 bool ppe_tun_deconfigure(struct net_device *dev);
+
+/*
+ * ppe_tun_decap_disable()
+ *	Disable tunnel decapsulation
+ *
+ * @param type[IN] netdevice
+ */
+bool ppe_tun_decap_disable(struct net_device *dev);
+
+/*
+ * ppe_tun_decap_enable()
+ *	Enable tunnel decapsulation
+ *
+ * @param type[IN] netdevice
+ */
+bool ppe_tun_decap_enable(struct net_device *dev);
 #endif /* _NSS_PPE_TUN_DRV_H_ */

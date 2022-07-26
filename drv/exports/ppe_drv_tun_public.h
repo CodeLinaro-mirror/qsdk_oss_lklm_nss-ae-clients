@@ -18,7 +18,7 @@
 
 /**
  * ppe_drv_tun_add_ce_callback_t
- *      Register for tunnel outer rule entry addition callback.
+ *	Register for tunnel outer rule entry addition callback.
  *
  * @param[in] vp_num Virtual port number
  * @param[in] vcreate_rule pointer to create_rule
@@ -30,7 +30,7 @@ typedef bool (*ppe_drv_tun_add_ce_callback_t)(uint8_t vp_num, void *vcreate_rule
 
 /**
  * ppe_drv_tun_del_ce_callback_t
- *      Register for tunnel outer rule entry deletion callback.
+ *	Register for tunnel outer rule entry deletion callback.
  *
  * @param[in] vp_num Virtual port number
  * @param[in] vdestroy_rule pointer to destroy_rule
@@ -42,7 +42,7 @@ typedef bool (*ppe_drv_tun_del_ce_callback_t)(uint8_t vp_num, void *vdestroy_rul
 
 /**
  * ppe_drv_tun_configure
- *      Allocate a tunnel context in ppe
+ *	Allocate a tunnel context in ppe
  *
  * @param[in] port_num VP port number
  * @param[in] add_cb registered callback for tunnel entry addition
@@ -55,7 +55,7 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 
 /**
  * ppe_drv_tun_deactivate
- *      deactivate a tunnel context in ppe
+ *	deactivate a tunnel context in ppe
  *
  * @param[in] port_num VP port number
  * @param[in] vdestroy_rule pointer to connection entry
@@ -67,7 +67,7 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule);
 
 /**
  * ppe_drv_tun_activate
- *      Activate a tunnel context in ppe
+ *	Activate a tunnel context in ppe
  *
  * @param[in] port_num VP port number
  * @param[in] vcreate_rule pointer to connection entry
@@ -79,7 +79,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule);
 
 /**
  * ppe_drv_tun_deconfigure
- *     deconfigure tunnel entry encapsulation/decapsulation in ppe
+ *	deconfigure tunnel entry encapsulation/decapsulation in ppe
  *
  * @param[in] port_num VP port number
  *
@@ -87,4 +87,26 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule);
  * Success or failure.
  */
 bool ppe_drv_tun_deconfigure(uint16_t port_num);
+
+/**
+ * ppe_drv_tun_decap_disable_by_port_num
+ *	disable decapsulation in ppe
+ *
+ * @param[in] port_num VP port number
+ *
+ * @return
+ * Success or failure.
+ */
+bool ppe_drv_tun_decap_disable_by_port_num(uint16_t port_num);
+
+/**
+ * ppe_drv_tun_decap_enable_by_port_num
+ *	enable decapsulation in ppe
+ *
+ * @param[in] port_num VP port number
+ *
+ * @return
+ * Success or failure.
+ */
+bool ppe_drv_tun_decap_enable_by_port_num(uint16_t port_num);
 #endif /* _PPE_DRV_TUN_PUBLIC_H_ */

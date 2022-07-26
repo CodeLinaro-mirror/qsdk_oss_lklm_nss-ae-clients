@@ -77,6 +77,20 @@ static int nss_ppe_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned lon
 		ppe_tun_mtu_set(netdev, netdev->mtu);
 		break;
 
+	case NETDEV_BR_LEAVE:
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_LEAVE: event %lu name %s\n", netdev, event, netdev->name);
+		if (!ppe_tun_decap_disable(netdev)) {
+			nss_ppe_vxlanmgr_warn("%p: Failed disabling decap at index %s", netdev, netdev->name);
+		}
+		return NOTIFY_DONE;
+
+	case NETDEV_BR_JOIN:
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_JOIN: event %lu name %s\n", netdev, event, netdev->name);
+		if (!ppe_tun_decap_enable(netdev)) {
+			nss_ppe_vxlanmgr_warn("%p: Failed enabling decap at index %s", netdev, netdev->name);
+		}
+		return NOTIFY_DONE;
+
 	default:
 		nss_ppe_vxlanmgr_trace("%px: Unhandled notifier event %lu name %s\n", netdev, event, netdev->name);
 	}

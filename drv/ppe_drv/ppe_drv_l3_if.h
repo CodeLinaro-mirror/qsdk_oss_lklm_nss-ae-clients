@@ -47,6 +47,7 @@ struct ppe_drv_l3_if {
 };
 
 uint16_t ppe_drv_l3_if_get_index(struct ppe_drv_l3_if *l3_if);
+void ppe_drv_l3_if_dmac_check_set(struct ppe_drv_l3_if *l3_if, bool enable);
 
 bool ppe_drv_l3_if_mtu_mru_set(struct ppe_drv_l3_if *l3_if, uint16_t mtu, uint16_t mru);
 bool ppe_drv_l3_if_mtu_mru_clear(struct ppe_drv_l3_if *l3_if);

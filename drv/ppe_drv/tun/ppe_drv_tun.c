@@ -15,6 +15,7 @@
  */
 
 #include <net/vxlan.h>
+#include <fal/fal_ip.h>
 #include <fal_tunnel.h>
 #include <fal_mapt.h>
 #include <fal_port_ctrl.h>
@@ -86,6 +87,20 @@ static void ppe_drv_tun_free(struct kref *kref)
 		}
 	}
 
+	if (ptun->ptecxr) {
+		ppe_drv_tun_encap_xlate_rule_deref(ptun->ptecxr);
+	}
+
+	if (ptun->ptdcxr) {
+		ppe_drv_tun_decap_xlate_rule_deref(ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
+		ppe_drv_tun_decap_xlate_rule_deref(ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]);
+	}
+
+	if (ptun->ptdcm) {
+		ppe_drv_tun_decap_map_entry_deref(ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
+		ppe_drv_tun_decap_map_entry_deref(ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]);
+	}
+
 	kfree(ptun);
 }
 
@@ -104,6 +119,210 @@ static bool ppe_drv_tun_deref(struct ppe_drv_tun *ptun)
 
 	ppe_drv_trace("%p: tun_idx: %u ref dec:%u", ptun, ptun->tun_idx, kref_read(&ptun->ref));
 	return false;
+}
+
+/*
+ * ppe_drv_tun_deactivate_mapt
+ *	Deactivate PPE MAPT
+ */
+static bool ppe_drv_tun_deactivate_mapt(struct ppe_drv_tun *tun)
+{
+	sw_error_t err;
+	struct ppe_drv_tun_decap *ptdc = tun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY];
+
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, false);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: decap entry %d disable failed", ptdc, ptdc->tl_index);
+		return false;
+	}
+
+	ptdc = tun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY];
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, false);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: decap entry %d disable failed", ptdc, ptdc->tl_index);
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * ppe_drv_tun_activate_mapt
+ *	Activate PPE MAPT
+ */
+static bool ppe_drv_tun_activate_mapt(struct ppe_drv_tun *ptun, struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr)
+{
+	/*
+	 * Program Source IPv6 address in LPM table and
+	 * set it as local IP address.
+	 */
+	uint16_t rule_id;
+	bool status;
+	sw_error_t err;
+	struct ppe_drv_tun_decap *ptdc;
+	struct ppe_drv_tun_cmn_ctx *th = &ptun->th;
+	uint32_t tl_l3_if_idx = ppe_drv_tun_l3_if_get_index(ptun->pt_l3_if);
+
+	rule_id = ppe_drv_tun_decap_xlate_rule_get_index(ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
+	status = ppe_drv_tun_decap_map_configure(ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY], &th->l3.daddr[0],
+			th->tun.mapt.remote.ipv6_prefix_len, l2_hdr, true, ptun->vp_num, rule_id, false);
+	if (!status) {
+		ppe_drv_warn("%p: Failed to configure decap map table for rule index %d", ptun, rule_id);
+		return status;
+	}
+
+	ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]->tl_l3_if_idx = tl_l3_if_idx;
+	ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]->tl_l3_if_idx = tl_l3_if_idx;
+
+	rule_id = ppe_drv_tun_decap_xlate_rule_get_index(ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]);
+	status = ppe_drv_tun_decap_map_configure(ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY], &th->l3.saddr[0],
+			th->tun.mapt.local.ipv6_prefix_len, NULL, false, 0, rule_id, true);
+	if (!status) {
+		ppe_drv_warn("%p: decap map configure failed for rule_id %d", ptun, rule_id);
+		return status;
+	}
+
+	ptdc = ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY];
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, true);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
+		return false;
+	}
+
+	ptdc = ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY];
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, true);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * ppe_drv_tun_mapt_alloc
+ *	Create PPE MAP-T context
+ */
+static struct ppe_drv_tun *ppe_drv_tun_mapt_alloc(struct ppe_drv *p, struct ppe_drv_port *pp,
+						  struct ppe_drv_tun_cmn_ctx *th, void *add_cb, void *del_cb)
+{
+	struct ppe_drv_tun *ptun;
+	bool is_dmr = true;
+	bool is_src_ipv6 = true;
+	uint8_t vp_num;
+	uint8_t rule_id;
+	bool status;
+
+	ptun = kzalloc(sizeof(struct ppe_drv_tun), GFP_ATOMIC);
+	if (!ptun) {
+		ppe_drv_warn("%p: Couldn't allocate tun", p);
+		return NULL;
+	}
+
+	spin_lock_bh(&p->lock);
+	kref_init(&ptun->ref);
+
+	ptun->ptec = ppe_drv_tun_encap_alloc(p);
+	if (!ptun->ptec) {
+		ppe_drv_warn("%p: couldn't get free EG tunnel control instance", p);
+		goto err_exit;
+	}
+
+	ptun->ptec->port = pp;
+	ptun->ptecxr = ppe_drv_tun_encap_xlate_rule_alloc(p);
+	if (!ptun->ptecxr) {
+		ppe_drv_warn("%p: couldn't get free EG EDIT RULE instance", p);
+		goto err_exit;
+	}
+
+	/*
+	 * Remote entry should be the first table to be configured
+	 */
+	ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY] = ppe_drv_tun_decap_map_alloc(p);
+	if (!ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]) {
+		ppe_drv_warn("%p: couldn't get free TL MAP LPM table instance for remote", p);
+		goto err_exit;
+	}
+
+	ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY] = ppe_drv_tun_decap_map_alloc(p);
+	if (!ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]) {
+		ppe_drv_warn("%p: couldn't get free TL MAP LPM table instance for local", p);
+		goto err_exit;
+	}
+
+	ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY] = ppe_drv_tun_decap_xlate_rule_alloc(p);
+	if (!ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]) {
+		ppe_drv_warn("%p: couldn't get free TL MAP LPM table instance for remote", p);
+		goto err_exit;
+	}
+
+	ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY] = ppe_drv_tun_decap_xlate_rule_alloc(p);
+	if (!ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]) {
+		ppe_drv_warn("%p: couldn't get free TL MAP LPM table instance for local", p);
+		goto err_exit;
+	}
+
+	vp_num = ppe_drv_port_num_get(pp);
+	ptun->vp_num = vp_num;
+	memcpy(&ptun->th, th, sizeof(*th));
+	ptun->pp = pp;
+	ptun->add_cb = add_cb;
+	ptun->del_cb = del_cb;
+
+	/*
+	 * Following tables need to be programmed:
+	 *	Inbound tables:
+	 *		1. TL_MAP_LPM_TBL - remote & local
+	 *		2. TL_MAP_LPM_ACT - remote & local
+	 *		3. TL_MAP_RULE_TBL - remote & local
+	 *	Outbound tables:
+	 *		1. EG_HEADER_DATA
+	 *		2. EG_XLAT_TUN_CTRL
+	 *		3. EG_EDIT_RULE - remote
+	 */
+
+	/*
+	 * Configure remote entry parameters
+	 */
+	status = ppe_drv_tun_decap_xlate_rule_configure(ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY],
+							&th->tun.mapt.remote, is_src_ipv6, is_dmr);
+	if (!status) {
+		ppe_drv_warn("%p: decap xlate rule configure failed for remote entry", ptun);
+		goto err_exit;
+	}
+
+	/*
+	 * Configure local entry parameters
+	 */
+	is_src_ipv6 = false;
+	status = ppe_drv_tun_decap_xlate_rule_configure(ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY],
+							&th->tun.mapt.local,
+							is_src_ipv6, is_dmr);
+	if (!status) {
+		ppe_drv_warn("%p: decap xlate rule configure failed for local entry", ptun);
+		goto err_exit;
+	}
+
+	/*
+	 * Disable dmac check bit in l3_if configuration
+	 */
+	ppe_drv_l3_if_dmac_check_set(ptun->pp->port_l3_if, false);
+
+	rule_id = ppe_drv_tun_decap_xlate_rule_get_index(ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
+	ppe_drv_tun_decap_map_set_rule_id(ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY], rule_id);
+
+	rule_id = ppe_drv_tun_encap_xlate_rule_get_index(ptun->ptecxr);
+	ppe_drv_tun_encap_set_rule_id(ptun->ptec, rule_id);
+
+	ppe_drv_port_tun_set(pp, ptun);
+	spin_unlock_bh(&p->lock);
+	ppe_drv_trace("%p: tun context of type %u created, VP: %d", ptun, th->type, vp_num);
+
+	return ptun;
+err_exit:
+	ppe_drv_tun_deref(ptun);
+	spin_unlock_bh(&p->lock);
+	return NULL;
 }
 
 /*
@@ -390,6 +609,18 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 		}
 	}
 
+	/*
+	 * For MAP-T cases eg edit rule table is used for encapsulation
+	 */
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
+		if (!ppe_drv_tun_deactivate_mapt(ptun)) {
+			spin_unlock_bh(&p->lock);
+			return false;
+		}
+
+		goto disable_encap;
+	}
+
 	ppe_drv_trace("%p: Deactivating Tunnel %d at index %u", ptun, pth->type, ptun->tun_idx);
 
 	/*
@@ -401,6 +632,7 @@ bool ppe_drv_tun_deactivate(uint16_t port_num, void *vdestroy_rule)
 		goto error;
 	}
 
+disable_encap:
 	/*
 	 * Disable encapsulation
 	 */
@@ -516,7 +748,6 @@ bool ppe_drv_tun_deconfigure(uint16_t port_num)
 	}
 
 	pth = &ptun->th;
-
 	ppe_drv_trace("%p: Destroying Tunnel %d at index %u", ptun, pth->type, ptun->tun_idx);
 
 	/*
@@ -599,9 +830,9 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	struct ppe_drv_tun_cmn_ctx *pth;
 	struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr;
 	bool is_ipv6;
+	bool status;
 
 	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
-
 	spin_lock_bh(&p->lock);
 
 	pp = ppe_drv_port_from_port_num(port_num);
@@ -621,12 +852,17 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 		goto err_fail;
 	}
 
-	if (!ptun->ptdc) {
-		ppe_drv_warn("%p: tun decap is not initialized properly", ptun);
-		goto err_fail;
-	}
+	/*
+	 * ptdc is not used for MAP-T
+	 */
 
 	pth = &ptun->th;
+	if ((pth->type != PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) && (!ptun->ptdc)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: tun is not initialized properly", ptun);
+		return false;
+	}
+
 	l2_hdr = &pth->l2;
 	is_ipv6 = ppe_drv_tun_cmn_ctx_tun_is_ipv6(pth);
 
@@ -689,16 +925,23 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 		goto err_fail;
 	}
 
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
+		/*
+	 	* Program EG_EDIT RULE table
+	 	*/
+		status = ppe_drv_tun_encap_xlate_rule_configure(ptun->ptecxr, &pth->tun.mapt.remote, ppe_drv_tun_encap_get_len(ptun->ptec), true);
+		if (!status) {
+			ppe_drv_warn("%p: Failed to configure encap xlate map table", ptun);
+			goto err_fail;
+		}
+	}
+
 	/*
 	 * tunnel Counter configuration is already set during port alloc time
-	 */
-
-	/*
+	 *
 	 * TODO: Need API to enable VSI_TAG Mode on EG_VP_TBL
 	 * Check if EG_L3_IF table needs to be programmed
-	 */
-
-	/*
+	 *
 	 * TODO: Need to add PPPOE specific handling
 	 */
 	xmit_port = l2_hdr->xmit_port;
@@ -719,18 +962,16 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	 * Set TL_L3_IDX and transmit mac address in TL_PORT_VP_TBL
 	 */
 	ppe_drv_tun_decap_xmitport_cfg_set(ptun, xmit_port, l2_hdr, tl_l3_if_idx);
-	ppe_drv_tun_decap_set_tl_l3_idx(ptun->ptdc, tl_l3_if_idx);
-
 
 	if (pth->type != PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
+		ppe_drv_tun_decap_set_tl_l3_idx(ptun->ptdc, tl_l3_if_idx);
 		dc_cfg_status = ppe_drv_tun_decap_activate(ptun->ptdc, l2_hdr);
 	} else {
-		dc_cfg_status = false; /*TODO : MAP-T activate */
+		dc_cfg_status = ppe_drv_tun_activate_mapt(ptun, l2_hdr);
 	}
 
 	if (!dc_cfg_status) {
-		ppe_drv_warn("%p: Failed to activate decap entry for tun %d of type %d", ptun, ptun->tun_idx,
-								pth->type);
+		ppe_drv_warn("%p: Failed to activate decap entry for tun %d of type %d", ptun, ptun->tun_idx, pth->type);
 		goto err_fail;
 	}
 
@@ -738,8 +979,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	 * Activate tunnel in L2_VP_TBL
 	 */
 	if (!ppe_drv_tun_port_configure(ptun, xmit_port)) {
-		ppe_drv_warn("%p: Failed to configure VP tunnel port for tun %d of type %d", ptun,
-						ptun->tun_idx, pth->type);
+		ppe_drv_warn("%p: Failed to configure VP tunnel port for tun %d of type %d", ptun, ptun->tun_idx, pth->type);
 		goto err_fail;
 	}
 
@@ -789,9 +1029,13 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 	 * Check if the tunnel type is MAP-T, it requires separate tables
 	 */
 	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
-		/*
-		 * TODO: MAP-T alloc
-		 */
+		ptun =  ppe_drv_tun_mapt_alloc(p, pp, pth, add_cb, del_cb);
+		if (!ptun) {
+			ppe_drv_warn("%p: Couldn't allocate mapt tables", p);
+			return false;
+		}
+
+		return true;
 	}
 
 	/*

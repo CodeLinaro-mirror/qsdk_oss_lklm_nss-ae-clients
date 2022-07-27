@@ -335,10 +335,10 @@ bool ppe_drv_l3_if_deref(struct ppe_drv_l3_if *l3_if)
 }
 
 /*
- * ppe_drv_l3_if_set_dmac_check
+ * ppe_drv_l3_if_dmac_check_set
  *	Set DMAC check configuration in L3 interface.
  */
-void ppe_drv_l3_if_set_dmac_check(struct ppe_drv_l3_if *l3_if, bool enable)
+void ppe_drv_l3_if_dmac_check_set(struct ppe_drv_l3_if *l3_if, bool enable)
 {
 	fal_intf_entry_t in_l3_if_cfg = {0};
 	sw_error_t err;

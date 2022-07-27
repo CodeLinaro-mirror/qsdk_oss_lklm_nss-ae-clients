@@ -143,7 +143,7 @@ struct ppe_drv_tun_cmn_ctx_vxlan {
  * ppe_drv_tun_xlate_rule
  *	PPE tunnel transaltion rule for Map-t case
  */
-struct ppe_drv_tun_cmn_ctx_xlat_rule {
+struct ppe_drv_tun_cmn_ctx_xlate_rule {
 	uint32_t ipv6_prefix[4];        /**< IPv6 prefix >*/
 	uint32_t ipv4_prefix;           /**< IPv4 prefix >*/
 	uint32_t ipv6_prefix_len;       /**< IPv6 prefix length >*/
@@ -159,8 +159,8 @@ struct ppe_drv_tun_cmn_ctx_xlat_rule {
  *	MAP-T header parameters
  */
 struct ppe_drv_tun_cmn_ctx_mapt {
-	struct ppe_drv_tun_cmn_ctx_xlat_rule local;	/**< Local translation MAP rule >*/
-	struct ppe_drv_tun_cmn_ctx_xlat_rule remote;	/**< Remote translation MAP rule >*/
+	struct ppe_drv_tun_cmn_ctx_xlate_rule local;	/**< Local translation MAP rule >*/
+	struct ppe_drv_tun_cmn_ctx_xlate_rule remote;	/**< Remote translation MAP rule >*/
 };
 
 /*

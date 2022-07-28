@@ -89,6 +89,14 @@ bool nss_ppe_vxlanmgr_tunnel_parse_end_points(struct net_device *dev, struct ppe
 		memcpy(l3->saddr, &src_ip->sin6.sin6_addr, sizeof(struct in6_addr));
 		memcpy(l3->daddr, &rem_ip->sin6.sin6_addr, sizeof(struct in6_addr));
 
+		if (priv_flags & VXLAN_F_UDP_ZERO_CSUM6_TX) {
+			l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX;
+		}
+
+		if (priv_flags & VXLAN_F_UDP_ZERO_CSUM6_RX) {
+			l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX;
+		}
+
 		if (ipv6_addr_any(&src_ip->sin6.sin6_addr)) {
 			/*
 			 * Lookup
@@ -118,6 +126,10 @@ bool nss_ppe_vxlanmgr_tunnel_parse_end_points(struct net_device *dev, struct ppe
 		l3->flags = PPE_DRV_TUN_CMN_CTX_L3_IPV4 | PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP;
 		l3->saddr[0] = src_ip->sin.sin_addr.s_addr;
 		l3->daddr[0] = rem_ip->sin.sin_addr.s_addr;
+
+		if (priv_flags & VXLAN_F_UDP_ZERO_CSUM_TX) {
+			l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX;
+		}
 
 		if (src_ip->sin.sin_addr.s_addr == htonl(INADDR_ANY)) {
 			/*
@@ -177,22 +189,6 @@ static int nss_ppe_vxlanmgr_tunnel_fdb_event(struct notifier_block *nb, unsigned
 	}
 
 	return NOTIFY_DONE;
-}
-
-/*
- * nss_ppe_vxlanmgr_tunnel_flags_parse()
- *	Function to parse vxlan flags.
- */
-static uint32_t nss_ppe_vxlanmgr_tunnel_flags_parse(struct vxlan_dev *priv)
-{
-	uint32_t vx_flags = 0;
-	uint32_t vx_vni = 0;
-
-	vx_flags = VXLAN_HF_VNI;
-	vx_vni = vxlan_get_vni(priv);
-	vx_vni = vxlan_vni_field(vx_vni);
-
-	return vx_flags;
 }
 
 /*
@@ -305,25 +301,15 @@ int nss_ppe_vxlanmgr_tunnel_destroy(struct net_device *dev)
  */
 int nss_ppe_vxlanmgr_tunnel_create(struct net_device *dev)
 {
-	struct vxlan_dev *priv;
 	struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx;
-	uint32_t parse_flags;
+	struct vxlan_dev *priv;
 	uint32_t vni;
+	uint32_t priv_flags;
+	struct ppe_drv_tun_cmn_ctx_l3 *l3;
 
 	dev_hold(dev);
 	if (!ppe_tun_alloc(dev, PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN)) {
 		nss_ppe_vxlanmgr_warn("%px: PPE tunnel creation failed \n", dev);
-		goto ctx_alloc_fail;
-	}
-
-	priv = netdev_priv(dev);
-	parse_flags = nss_ppe_vxlanmgr_tunnel_flags_parse(priv);
-
-	/*
-	 * Check if the tunnel is supported.
-	 */
-	if (!parse_flags) {
-		nss_ppe_vxlanmgr_warn("%px: Tunnel offload not supported\n", dev);
 		goto ctx_alloc_fail;
 	}
 
@@ -349,16 +335,21 @@ int nss_ppe_vxlanmgr_tunnel_create(struct net_device *dev)
 		goto config_fail;
 	}
 
+	priv = netdev_priv(dev);
 	vni = vxlan_get_vni(priv);
 	tun_ctx->vni = vni << 16;
-	tun_ctx->tunnel_flags = parse_flags;
-
-
+	tun_ctx->tunnel_flags = VXLAN_HF_VNI;
 	tun_ctx->src_port_min = priv->cfg.port_min;
 	tun_ctx->src_port_max = priv->cfg.port_max;
 	tun_ctx->dest_port = priv->cfg.dst_port;
 	tun_ctx->tos = priv->cfg.tos;
 	tun_ctx->ttl = (priv->cfg.ttl ? priv->cfg.ttl : IPDEFTTL);
+
+	l3 = &tun_ctx->tun_hdr->l3;
+	priv_flags = priv->cfg.flags;
+	if (priv_flags & VXLAN_F_TTL_INHERIT) {
+		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL;
+	}
 
 	spin_lock_bh(&vxlan_ctx.tun_lock);
 	/*

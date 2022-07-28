@@ -91,13 +91,19 @@ static void ppe_drv_tun_free(struct kref *kref)
 		ppe_drv_tun_encap_xlate_rule_deref(ptun->ptecxr);
 	}
 
-	if (ptun->ptdcxr) {
+	if (ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]) {
 		ppe_drv_tun_decap_xlate_rule_deref(ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
+	}
+
+	if (ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]) {
 		ppe_drv_tun_decap_xlate_rule_deref(ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]);
 	}
 
-	if (ptun->ptdcm) {
+	if (ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]) {
 		ppe_drv_tun_decap_map_entry_deref(ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
+	}
+
+	if (ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]) {
 		ppe_drv_tun_decap_map_entry_deref(ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]);
 	}
 

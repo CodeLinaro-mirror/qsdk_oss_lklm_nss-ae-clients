@@ -211,6 +211,7 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	ret = ppe_drv_iface_ucast_queue_set(ppe_iface, 0);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		ppe_vp_warn("%px: port_num: %x, ppe vp ucast queue reset failed", pvb, port_num);
+		status = PPE_VP_STATUS_VP_QUEUE_SET_FAILED;
 		rcu_read_unlock();
 		goto free_fail;
 	}

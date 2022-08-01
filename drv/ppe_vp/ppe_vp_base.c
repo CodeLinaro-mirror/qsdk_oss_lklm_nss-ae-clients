@@ -283,8 +283,6 @@ static void ppe_vp_base_init(void)
 	 */
 	pvt = &pvb->vp_table;
 	for (i = 0; i < PPE_DRV_VIRTUAL_MAX; i++) {
-		RCU_INIT_POINTER(pvt->vp_allocator[i], NULL);
-		synchronize_rcu();
 		vp = &pvt->vp_pool[i];
 		spin_lock_init(&vp->lock);
 
@@ -309,8 +307,6 @@ static void ppe_vp_base_init(void)
 static int __init ppe_vp_base_module_init(void)
 {
 	struct ppe_vp_base *pvb = &vp_base;
-
-	memset(pvb, 0, sizeof(struct ppe_vp_base));
 
 	/*
 	 * Allocate the VP base infrastructure.

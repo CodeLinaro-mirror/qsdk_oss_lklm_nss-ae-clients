@@ -242,22 +242,33 @@ bool ppe_drv_tun_decap_activate(struct ppe_drv_tun_decap *ptdc, struct ppe_drv_t
 	 * Update SVLAN Parameters
 	 */
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_SVLAN_VALID) {
+		/*
+		 * Fill the SVLAN (primary VLAN)
+		 */
 		ftde.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_SVLAN_UPDATE);
 		ftde.verify_entry.verify_bmp |= FAL_TUNNEL_SVLAN_CHECK_EN;
 		ftde.verify_entry.svlan_fmt = PPE_DRV_TUN_FIELD_VALID;
-		ftde.verify_entry.svlan_id = l2_hdr->vlan[1].tci;
-		ppe_drv_trace("%p: TL_TBL SVLAN_ID: %d", ptdc, l2_hdr->vlan[1].tci);
-	}
+		ftde.verify_entry.svlan_id = l2_hdr->vlan[0].tci;
 
-	/*
-	 * Update CVLAN Parameters
-	 */
-	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID) {
+		/*
+		 * Fill the CVLAN (Secondary VLAN)
+		 */
+		ftde.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_CVLAN_UPDATE);
+		ftde.verify_entry.verify_bmp |= FAL_TUNNEL_CVLAN_CHECK_EN;
+		ftde.verify_entry.cvlan_fmt = PPE_DRV_TUN_FIELD_VALID;
+		ftde.verify_entry.cvlan_id = l2_hdr->vlan[1].tci;
+
+		ppe_drv_trace("%p: TL_TBL SVLAN_ID: %d", ptdc, ftde.verify_entry.svlan_id);
+		ppe_drv_trace("%p: TL_TBL CVLAN_ID: %d", ptdc, ftde.verify_entry.cvlan_id);
+	} else if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID) {
+		/*
+		 * Fill the CVLAN (Primary VLAN)
+		 */
 		ftde.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_CVLAN_UPDATE);
 		ftde.verify_entry.verify_bmp |= FAL_TUNNEL_CVLAN_CHECK_EN;
 		ftde.verify_entry.cvlan_fmt = PPE_DRV_TUN_FIELD_VALID;
 		ftde.verify_entry.cvlan_id = l2_hdr->vlan[0].tci;
-		ppe_drv_trace("%p: TL_TBL CVLAN_ID: %d", ptdc, l2_hdr->vlan[0].tci);
+		ppe_drv_trace("%p: TL_TBL CVLAN_ID: %d", ptdc, ftde.verify_entry.cvlan_id);
 	}
 
 	/*

@@ -259,6 +259,20 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 			ppe_tun_mtu_set(netdev, netdev->mtu);
 			break;
 
+		case NETDEV_BR_LEAVE:
+			nss_ppe_gretap_trace("%px: NETDEV_BR_LEAVE: name %s\n", netdev, netdev->name);
+			if (!ppe_tun_decap_disable(netdev)) {
+				nss_ppe_gretap_warning("%p: Failed disabling decap at index %s", netdev, netdev->name);
+			}
+			break;
+
+		case NETDEV_BR_JOIN:
+			nss_ppe_gretap_trace("%px: NETDEV_BR_JOIN: name %s\n", netdev,  netdev->name);
+			if (!ppe_tun_decap_enable(netdev)) {
+				nss_ppe_gretap_warning("%p: Failed enabling decap at index %s", netdev, netdev->name);
+			}
+			break;
+
 		default:
 			nss_ppe_gretap_trace("%px: Unhandled notifier dev %s event %x\n", netdev, netdev->name, (int)event);
 			break;

@@ -92,7 +92,9 @@ static const struct file_operations nss_ppe_vxlanmgr_tun_stats_ops = { \
  */
 void nss_ppe_vxlanmgr_tun_stats_dentry_remove(struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx)
 {
-	debugfs_remove(tun_ctx->dentry);
+	if (vxlan_ctx.dentry && tun_ctx->dentry) {
+		debugfs_remove(tun_ctx->dentry);
+	}
 }
 
 /*
@@ -120,6 +122,7 @@ bool nss_ppe_vxlanmgr_tun_stats_dentry_create(struct nss_ppe_vxlanmgr_tun_ctx *t
 void nss_ppe_vxlanmgr_tun_stats_dentry_deinit()
 {
 	debugfs_remove_recursive(vxlan_ctx.dentry);
+	vxlan_ctx.dentry = NULL;
 }
 
 /*

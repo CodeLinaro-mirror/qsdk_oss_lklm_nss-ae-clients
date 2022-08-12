@@ -17,6 +17,7 @@
 #include <linux/vmalloc.h>
 #include <linux/skbuff.h>
 #include <linux/in.h>
+#include <linux/etherdevice.h>
 #include "ppe_drv.h"
 
 /*
@@ -198,11 +199,12 @@ bool ppe_drv_cc_process_skbuff(uint8_t cc, struct sk_buff *skb)
 	 * 2. PPE uses 3 tuple rule for all ip protocol other than TCP, UDP & UDP_LITE,
 	 *    so we STOP_AT_ENCAP.
 	 */
+	skb->protocol = eth_type_trans(skb, skb->dev);
 	skb_reset_network_header(skb);
 	if (!skb_flow_dissect_flow_keys(skb, &keys,
 			FLOW_DISSECTOR_F_PARSE_1ST_FRAG | FLOW_DISSECTOR_F_STOP_AT_ENCAP)) {
 		ppe_drv_info("%p: dissection failed for skb:%p", p, skb);
-		goto done;
+		goto push;
 	}
 
 	/*
@@ -220,7 +222,8 @@ bool ppe_drv_cc_process_skbuff(uint8_t cc, struct sk_buff *skb)
 		default:
 			ppe_drv_info("%p: dissection failed for skb:%p", p, skb);
 	}
-
+push:
+	skb_push(skb, ETH_HLEN);
 done:
 	spin_lock_bh(&p->lock);
 	cb = pcc->cb;

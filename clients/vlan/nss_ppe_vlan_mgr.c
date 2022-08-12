@@ -444,6 +444,7 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 				nss_ppe_vlan_mgr_warn("%s: failed to set %d as core port\n", slave_dev->name, port_id);
 				goto delete_ppe_rule;
 			}
+			vlan_mgr_ctx.port_role[port_id] = FAL_QINQ_CORE_PORT;
 		}
 		rcu_read_unlock();
 		res = NSS_PPE_VLAN_MGR_PORT_ROLE_CHANGED;
@@ -563,6 +564,7 @@ static int nss_ppe_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_dev
 			nss_ppe_vlan_mgr_warn("%s: failed to set %d as core port\n", dev->name, v->port[0]);
 			goto delete_ppe_rule;
 		}
+		vlan_mgr_ctx.port_role[v->port[0]] = FAL_QINQ_CORE_PORT;
 		res = NSS_PPE_VLAN_MGR_PORT_ROLE_CHANGED;
 	}
 

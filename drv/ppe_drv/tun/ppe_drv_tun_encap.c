@@ -422,7 +422,11 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_ETHERNET;
 		header_ctrl.udp_sport_base = FAL_TUNNEL_UDP_ENTROPY_SPORT_BASE;
 		header_ctrl.udp_sport_mask = FAL_TUNNEL_UDP_ENTROPY_SPORT_MASK;
-		encap_cfg.l4_checksum_en = true;
+
+		if (!(th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX)) {
+			encap_cfg.l4_checksum_en = true;
+		}
+
 		err = fal_tunnel_encap_header_ctrl_set(0, &header_ctrl);
 		if (err != SW_OK) {
 			ppe_drv_warn("%p VXLAN: failed to configure encap header err: %d", ptec, err);

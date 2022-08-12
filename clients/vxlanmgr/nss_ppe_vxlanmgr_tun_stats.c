@@ -21,6 +21,9 @@
 #include "nss_ppe_vxlanmgr_priv.h"
 #include "nss_ppe_vxlanmgr_tun_stats.h"
 
+#define NSS_PPE_VXLAN_SPORT_BASE 49152
+#define NSS_PPE_VXLAN_SPORT_MASK 0xffff
+
 /*
  * VxLAN context
  */
@@ -46,15 +49,16 @@ static int nss_ppe_vxlanmgr_tun_stats_show(struct seq_file *m, void __attribute_
 
 	/*
 	 * Tunnel stats
+	 * PPE currently supports only the default source port range (49152 to 65535)
 	 */
 	seq_printf(m, "\n%s tunnel stats start:\n", tun_ctx->dev->name);
 
 	seq_printf(m, "\t%s configuration:\n", tun_ctx->dev->name);
-	seq_printf(m, "\t\tvni = %u\n", tun_ctx->vni);
+	seq_printf(m, "\t\tvni = %u\n", tun_ctx->vni >> 16);
 	seq_printf(m, "\t\ttunnel_flags = %x\n", tun_ctx->tunnel_flags);
-	seq_printf(m, "\t\tsrc_port_min = %u\n", tun_ctx->src_port_min);
-	seq_printf(m, "\t\tsrc_port_max = %u\n", tun_ctx->src_port_max);
-	seq_printf(m, "\t\tdest_port = %u\n", tun_ctx->dest_port);
+	seq_printf(m, "\t\tsrc_port_min = %u\n", NSS_PPE_VXLAN_SPORT_BASE);
+	seq_printf(m, "\t\tsrc_port_max = %u\n", NSS_PPE_VXLAN_SPORT_MASK);
+	seq_printf(m, "\t\tdest_port = %u\n", ntohs(tun_ctx->dest_port));
 	seq_printf(m, "\t\ttos = %u\n", tun_ctx->tos);
 	seq_printf(m, "\t\tttl = %u\n", tun_ctx->ttl);
 

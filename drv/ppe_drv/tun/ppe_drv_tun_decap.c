@@ -365,6 +365,20 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 					PPE_DRV_TUN_BIT(FAL_TUNNEL_KEY_DIP_EN) |
 					PPE_DRV_TUN_BIT(FAL_TUNNEL_KEY_L4PROTO_EN);
 
+	/*
+	 * Allow UDP checksum zero packets.
+	 * VXLAN IPV4 will always allow the UDP checksum zero packets but,
+	 * VXLAN IPV6 will allow UDP checksum zero packets only if PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX is set.
+	 */
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
+		ftde.decap_action.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_UDP_CSUM_ZERO_UPDATE);
+		if (pth->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_IPV4) {
+			ftde.decap_action.udp_csum_zero = true;
+		} else if ((pth->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_IPV6) && (pth->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX)) {
+			ftde.decap_action.udp_csum_zero = true;
+		}
+	}
+
 	err = fal_tunnel_decap_entry_add(PPE_DRV_SWITCH_ID, FAL_TUNNEL_OP_MODE_HASH, &ftde);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: unable to allocate decap entry", pp);

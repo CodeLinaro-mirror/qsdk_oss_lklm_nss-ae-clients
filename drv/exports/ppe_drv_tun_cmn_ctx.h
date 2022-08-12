@@ -37,6 +37,8 @@
 #define PPE_DRV_TUN_CMN_CTX_L3_IPV6		0x02	/**< Tunnel header is IPv6 >*/
 #define PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP	0x04	/**< Inherit DSCP from inner to outer >*/
 #define PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL	0x08	/**< Inherit TTL from inner to outer >*/
+#define PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX	0x10	/**< Set UDP Checksum to zero for VXLAN IPV4 and IPV6 tunnels >*/
+#define PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX	0x20	/**< Allow zero UDP Checksum for VXLAN IPV6 tunnel only >*/
 
 /*
  * GRE flags

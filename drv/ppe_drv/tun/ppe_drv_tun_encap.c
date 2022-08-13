@@ -272,9 +272,13 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 		}
 		l4_offset_valid = true;
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
-		struct udphdr udph = {0};
-		struct vxlanhdr vxh = {0};
-		struct vxlanhdr_gbp vxh_gbp = {0};
+		struct udphdr udph;
+		struct vxlanhdr vxh;
+		struct vxlanhdr_gbp vxh_gbp;
+
+		memset(&udph, 0, sizeof(struct udphdr));
+		memset(&vxh, 0, sizeof(struct vxlanhdr));
+		memset(&vxh_gbp, 0, sizeof(struct vxlanhdr_gbp));
 
 		udph.dest = th->tun.vxlan.dest_port;
 		memcpy((void *)tun_hdr, (void *)&udph, sizeof(udph));

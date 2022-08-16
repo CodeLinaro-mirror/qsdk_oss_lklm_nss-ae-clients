@@ -54,6 +54,7 @@ enum ppe_drv_iface_type {
 	PPE_DRV_IFACE_TYPE_VIRTUAL,		/**< Interface type virtual port. */
 	PPE_DRV_IFACE_TYPE_VP_L2_TUN,		/**< Interface type VP for hardware L2 tunnel. */
 	PPE_DRV_IFACE_TYPE_VP_L3_TUN,		/**< Interface type VP for hardware L3 tunnel. */
+	PPE_DRV_IFACE_TYPE_EIP,			/**< Interface type EIP. */
 	PPE_DRV_IFACE_TYPE_MAX,			/**< Interface type max. */
 };
 

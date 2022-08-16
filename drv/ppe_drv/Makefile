@@ -8,6 +8,7 @@ qca-nss-ppe-objs := ppe_drv.o
 qca-nss-ppe-objs += ppe_drv_br.o
 qca-nss-ppe-objs += ppe_drv_cc.o
 qca-nss-ppe-objs += ppe_drv_dp.o
+qca-nss-ppe-objs += ppe_drv_eip.o
 qca-nss-ppe-objs += ppe_drv_exception.o
 qca-nss-ppe-objs += ppe_drv_flow.o
 qca-nss-ppe-objs += ppe_drv_host.o

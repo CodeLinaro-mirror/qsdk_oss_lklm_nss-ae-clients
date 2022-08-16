@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/ip.h>
 #include <net/vxlan.h>
 #include <fal/fal_ip.h>
+#include <nat46/nat46-core.h>
+#include <nat46/nat46-netdev.h>
 #include <fal_tunnel.h>
 #include <fal_mapt.h>
 #include <fal_port_ctrl.h>
@@ -26,6 +29,7 @@
 #include "ppe_drv_tun.h"
 #include "ppe_drv_tun_v4.h"
 #include "ppe_drv_tun_v6.h"
+#include <linux/in.h>
 
 /*
  * ppe_drv_tun_check_support()
@@ -332,6 +336,19 @@ err_exit:
 }
 
 /*
+ *  ppe_drv_tun_mapt_port_tun_get
+ *	return ptun associated with the port for mapt
+ */
+struct ppe_drv_tun *ppe_drv_tun_mapt_port_tun_get(struct ppe_drv_port *tx_port, struct ppe_drv_port *rx_port)
+{
+	struct ppe_drv_tun *ptun;
+
+	ptun = ppe_drv_port_tun_get(tx_port) ? ppe_drv_port_tun_get(tx_port) : ppe_drv_port_tun_get(rx_port);
+
+	return (ptun && (ptun->th.type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT)) ? ptun : NULL;
+}
+
+/*
  * ppe_drv_tun_port_encap_disable
  * 	Disable encapsulation on tunnel virtual port
  */
@@ -562,6 +579,282 @@ bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: unable to set xmit port %d", ptun, xmit_port);
 		return false;
+	}
+
+	return true;
+}
+
+/*
+ *  ppe_drv_tun_detach_mapt_v4_to_v6
+ *	delete mapt v4 flow with v6 outer tunnel context
+ */
+bool ppe_drv_tun_detach_mapt_v4_to_v6(struct ppe_drv_v4_conn *cn)
+{
+	struct ppe_drv_v4_conn_flow *pcf = &cn->pcf;
+	struct ppe_drv_v4_conn_flow *pcr = &cn->pcr;
+	struct ppe_drv_tun *ptun;
+
+	ptun = ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port);
+
+	if (!ptun) {
+		return false;
+	}
+
+	if (ppe_drv_flow_v4_detach_mapt_v6_conn(pcf)) {
+		ptun->mapt.mapt_pcf_v4 = NULL;
+	}
+
+	if (ppe_drv_flow_v4_detach_mapt_v6_conn(pcr)) {
+		ptun->mapt.mapt_pcr_v4 = NULL;
+	}
+
+	return true;
+}
+
+/*
+ *  ppe_drv_tun_attach_mapt_v4_to_v6
+ *	Attach mapt v4 flow with v6 outer tunnel context
+ */
+bool ppe_drv_tun_attach_mapt_v4_to_v6(struct ppe_drv_v4_conn *cn)
+{
+	uint8_t len_adjust;
+	struct iphdr ip4 = {0};
+	uint16_t sport, dport;
+	uint32_t saddr_v6[4], daddr_v6[4];
+	struct ppe_drv_v6_5tuple tuple;
+	uint8_t tun_vp_port;
+	struct net_device *netdev;
+	struct ppe_drv_tun *ptun;
+	struct ppe_drv_port *pp;
+	struct ppe_drv_v6_conn_flow *pcf_v6, *pcr_v6;
+	struct ppe_drv_v4_conn_flow *pcr = &cn->pcr;
+	struct ppe_drv_v4_conn_flow *pcf = &cn->pcf;
+	uint8_t flow_xmit_port = pcf->tx_port->port;
+	uint8_t reverse_xmit_port = pcr->tx_port->port;
+	bool use_flow = true;
+
+	ptun = ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port);
+
+	if (!ptun) {
+		return false;
+	}
+
+	pp = ptun->pp;
+	tun_vp_port = pp->port;
+	netdev = pp->dev;
+
+	len_adjust = PPE_DRV_TUN_MAPT_V6_LEN_ADJUST;
+
+	if (tun_vp_port != flow_xmit_port) {
+		if (tun_vp_port != reverse_xmit_port) {
+			ppe_drv_trace("%p: ingress/egress interface is not MAP-T\n", pp);
+			return false;
+		}
+		use_flow = false;
+	}
+
+	if (use_flow) {
+		ip4.saddr = htonl(pcf->xlate_src_ip);
+		ip4.daddr = htonl(pcf->xlate_dest_ip);
+		sport = pcf->xlate_src_ident;
+		dport = pcf->xlate_dest_ident;
+	} else {
+		ip4.saddr = htonl(pcf->xlate_dest_ip);
+		ip4.daddr = htonl(pcf->xlate_src_ip);
+		sport = pcf->xlate_dest_ident;
+		dport = pcf->xlate_src_ident;
+	}
+
+	/*
+	 * xlate_4_to_6 expects the arguments to be in network byte order(big endian).
+	 * Source/Dest ip and port details in pcf are stored in little endian.
+	 * So need to convert it before passing it as an argument.
+	 */
+
+	if (!(xlate_4_to_6(netdev, &ip4, htons(sport), htons(dport), saddr_v6, daddr_v6))) {
+		ppe_drv_trace("%p: Could not find translation pair for v4 address\n", pp);
+		return false;
+	}
+
+	/*
+	 * The source and destination ip address received are in big endian format. Need to convert it
+	 * to little endian before fiiling the 5 tuple to match the cn
+	 */
+	saddr_v6[0] = ntohl(saddr_v6[0]);
+	saddr_v6[1] = ntohl(saddr_v6[1]);
+	saddr_v6[2] = ntohl(saddr_v6[2]);
+	saddr_v6[3] = ntohl(saddr_v6[3]);
+
+	daddr_v6[0] = ntohl(daddr_v6[0]);
+	daddr_v6[1] = ntohl(daddr_v6[1]);
+	daddr_v6[2] = ntohl(daddr_v6[2]);
+	daddr_v6[3] = ntohl(daddr_v6[3]);
+
+	memcpy(tuple.flow_ip, saddr_v6, sizeof(saddr_v6));
+	memcpy(tuple.return_ip, daddr_v6, sizeof(daddr_v6));
+	tuple.flow_ident = sport;
+	tuple.return_ident = dport;
+	tuple.protocol = pcf->match_protocol;
+
+	if (!ppe_drv_tun_v6_get_conn_flow(&tuple, &pcf_v6, &pcr_v6)) {
+		ppe_drv_trace("%p: could not find flow v6 entry\n", pp);
+		return false;
+	}
+
+	if (use_flow) {
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcf, pcf_v6, len_adjust);
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcr, pcr_v6, len_adjust);
+	} else {
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcr, pcf_v6, len_adjust);
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcf, pcr_v6, len_adjust);
+	}
+
+	return true;
+}
+
+/*
+ *  ppe_drv_tun_detach_mapt_v6_to_v4
+ *	delete mapt v6 tunnel context in v4 inner flow
+ */
+bool ppe_drv_tun_detach_mapt_v6_to_v4(struct ppe_drv_tun *ptun)
+{
+	struct ppe_drv_v4_conn_flow *pcf_v4, *pcr_v4;
+
+	if (!ptun) {
+		return false;
+	}
+
+	pcf_v4 = ptun->mapt.mapt_pcf_v4;
+	pcr_v4 = ptun->mapt.mapt_pcr_v4;
+
+	if (pcf_v4) {
+		ppe_drv_flow_v4_detach_mapt_v6_conn(pcf_v4);
+		ptun->mapt.mapt_pcf_v4 = NULL;
+	}
+	if (pcr_v4) {
+		ppe_drv_flow_v4_detach_mapt_v6_conn(pcr_v4);
+		ptun->mapt.mapt_pcr_v4 = NULL;
+	}
+
+
+	return true;
+}
+
+/*
+ *  ppe_drv_tun_attach_mapt_v6_to_v4
+ *	Attach mapt v6 tunnel context with v4 inner flow
+ */
+bool ppe_drv_tun_attach_mapt_v6_to_v4(struct ppe_drv_v6_conn *conn_tun_v6)
+{
+	uint8_t len_adjust;
+	struct ipv6hdr ip6;
+	uint16_t sport, dport;
+	uint32_t saddr_v4, daddr_v4;
+	uint32_t saddr_v6[4], daddr_v6[4];
+	struct ppe_drv_v4_5tuple tuple;
+	struct ppe_drv_tun *ptun;
+	struct ppe_drv_port *pp;
+	uint8_t tun_vp_port;
+	struct net_device *netdev;
+	struct ppe_drv_v4_conn *conn_v4;
+	struct ppe_drv_v4_conn_flow *pcf_v4, *pcr_v4;
+	struct ppe_drv_v6_conn_flow *pcf = &conn_tun_v6->pcf;
+	struct ppe_drv_v6_conn_flow *pcr = &conn_tun_v6->pcr;
+	uint8_t flow_xmit_port = pcf->tx_port->port;
+	uint8_t reverse_xmit_port = pcr->tx_port->port;
+	bool use_flow = true;
+	struct ppe_drv_flow *flow;
+
+	memset(&ip6, 0, sizeof(struct ipv6hdr));
+
+	ptun = ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port);
+
+	if (!ptun) {
+		return false;
+	}
+
+	pp = ptun->pp;
+	tun_vp_port = pp->port;
+	netdev = pp->dev;
+
+	len_adjust = PPE_DRV_TUN_MAPT_V6_LEN_ADJUST;
+
+	if (tun_vp_port != flow_xmit_port) {
+		if (tun_vp_port != reverse_xmit_port) {
+			ppe_drv_trace("%p: ingress/egress interface is not MAP-T\n", ptun);
+			return false;
+		}
+		use_flow = false;
+	}
+
+	if (use_flow) {
+		ppe_drv_v6_conn_flow_match_src_ip_get(pcf, saddr_v6);
+		ppe_drv_v6_conn_flow_match_dest_ip_get(pcf, daddr_v6);
+		sport = pcf->match_src_ident;
+		dport = pcf->match_dest_ident;
+	} else {
+		ppe_drv_v6_conn_flow_match_src_ip_get(pcf, daddr_v6);
+		ppe_drv_v6_conn_flow_match_dest_ip_get(pcf, saddr_v6);
+		sport = pcf->match_dest_ident;
+		dport = pcf->match_src_ident;
+	}
+
+	/*
+	 * xlate_6_to_4 expects the arguments to be in network byte order(big endian).
+	 * Source/Dest ip and protocol details in pcf are stored in little endian.
+	 * So need to convert it before passing it as an argument.
+	 */
+
+	ip6.saddr.in6_u.u6_addr32[0] = htonl(saddr_v6[0]);
+	ip6.saddr.in6_u.u6_addr32[1] = htonl(saddr_v6[1]);
+	ip6.saddr.in6_u.u6_addr32[2] = htonl(saddr_v6[2]);
+	ip6.saddr.in6_u.u6_addr32[3] = htonl(saddr_v6[3]);
+
+	ip6.daddr.in6_u.u6_addr32[0] = htonl(daddr_v6[0]);
+	ip6.daddr.in6_u.u6_addr32[1] = htonl(daddr_v6[1]);
+	ip6.daddr.in6_u.u6_addr32[2] = htonl(daddr_v6[2]);
+	ip6.daddr.in6_u.u6_addr32[3] = htonl(daddr_v6[3]);
+
+	if (!(xlate_6_to_4(netdev, &ip6, htonl(pcf->match_protocol), &saddr_v4, &daddr_v4))) {
+		ppe_drv_trace("%p: Could not find translation pair for v4 address\n", ptun);
+		return false;
+	}
+
+	tuple.flow_ip = ntohl(saddr_v4);
+	tuple.return_ip = ntohl(daddr_v4);
+	tuple.flow_ident = sport;
+	tuple.return_ident = dport;
+	tuple.protocol = pcf->match_protocol;
+
+	flow = ppe_drv_flow_v4_get(&tuple);
+
+	if (!flow) {
+		ppe_drv_trace("%p: Cflow not found for translated v4 address\n", ptun);
+		return false;
+	}
+
+	pcf_v4 = flow->pcf.v4;
+	conn_v4 = ppe_drv_v4_conn_flow_conn_get(pcf_v4);
+	pcr_v4 = (pcf_v4 == &conn_v4->pcf) ? &conn_v4->pcr : &conn_v4->pcf;
+
+	/*
+	 * Store v4 pcf/pcr in tun structure during tunnel add so it can be
+	 * retrieved later while deleting the outer flow
+	 */
+	if (!ptun->mapt.mapt_pcf_v4) {
+		ptun->mapt.mapt_pcf_v4 = pcf_v4;
+	}
+
+	if (!ptun->mapt.mapt_pcr_v4) {
+		ptun->mapt.mapt_pcr_v4 = pcr_v4;
+	}
+
+	if (use_flow) {
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcf_v4, pcf, len_adjust);
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcr_v4, pcr, len_adjust);
+	} else {
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcr_v4, pcf, len_adjust);
+		ppe_drv_flow_v4_attach_mapt_v6_conn(pcf_v4, pcr, len_adjust);
 	}
 
 	return true;
@@ -998,6 +1291,12 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 
 	if (cn_v6) {
 		list_add(&cn_v6->list, &p->conn_tun_v6);
+		if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
+			ppe_drv_v6_conn_flags_set(cn_v6, PPE_DRV_V6_CONN_FLAG_TYPE_MAPT);
+			if (!ppe_drv_tun_attach_mapt_v6_to_v4(cn_v6)) {
+				ppe_drv_trace("%p: MAP-T v6 to v4 attach failed", ptun);
+			}
+		}
 	} else if (cn_v4) {
 		list_add(&cn_v4->list, &p->conn_tun_v4);
 	}

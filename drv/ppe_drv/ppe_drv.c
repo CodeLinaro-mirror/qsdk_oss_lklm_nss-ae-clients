@@ -99,6 +99,14 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 	 */
 	if (!list_empty(&p->conn_tun_v6)) {
 		list_for_each_entry(cn_tun_v6, &p->conn_tun_v6, list) {
+			/*
+			 * Mapt outer rule for tunnel stats must not be updated as
+			 * it would be mapped to the innner v4 flow stats
+			 */
+			if (ppe_drv_v6_conn_flags_check(cn_tun_v6, PPE_DRV_V6_CONN_FLAG_TYPE_MAPT)) {
+				continue;
+			}
+
 			pcf_v6 = &cn_tun_v6->pcf;
 			pcr_v6 = &cn_tun_v6->pcr;
 

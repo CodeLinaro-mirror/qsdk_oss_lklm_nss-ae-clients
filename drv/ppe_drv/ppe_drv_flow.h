@@ -24,6 +24,7 @@
 #define PPE_DRV_FLOW_V4		0x0010
 #define PPE_DRV_FLOW_V6		0x0020
 #define PPE_DRV_FLOW_EIP	0x0040
+#define PPE_DRV_FLOW_MAPT	0x0080
 
 struct ppe_drv_v4_conn_flow;
 struct ppe_drv_v6_conn_flow;
@@ -35,6 +36,15 @@ struct ppe_drv_v6_conn_flow;
 enum ppe_drv_flow_pmtu_type {
         PPE_DRV_FLOW_PMTU_TYPE_L2,	/* L2 header is included in packet length for flow MTU */
         PPE_DRV_FLOW_PMTU_TYPE_L3	/* L3 packet length is used for flow MTU */
+};
+
+/*
+ * ppe_drv_flow_mapt_stats
+ * 	MAP-T specific flow information
+ */
+struct ppe_drv_flow_mapt_info {
+	uint8_t len_adjust;     		/* Packet length to be adjusted for statistics update */
+	struct ppe_drv_v6_conn_flow *mapt_v6;	/* MAP-T IPV6 tunnel flow to update tunnel port stats*/
 };
 
 /*
@@ -56,6 +66,7 @@ struct ppe_drv_flow {
 	uint16_t flags;			/* Connection flags */
 	uint8_t entry_type;		/* Flow type - 5 tuple or 3 tuple */
 	uint8_t service_code;		/* Service code used by this entry */
+	struct ppe_drv_flow_mapt_info mapt_info; /* MAP-T specific entries used for stats */
 };
 
 bool ppe_drv_flow_valid_set(struct ppe_drv_flow *pf, bool enable);
@@ -81,3 +92,5 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf,
 
 void ppe_drv_flow_entries_free(struct ppe_drv_flow *flow);
 struct ppe_drv_flow *ppe_drv_flow_entries_alloc(void);
+bool ppe_drv_flow_v4_detach_mapt_v6_conn(struct ppe_drv_v4_conn_flow *pcf_v4);
+bool ppe_drv_flow_v4_attach_mapt_v6_conn(struct ppe_drv_v4_conn_flow *pcf_v4, struct ppe_drv_v6_conn_flow *pcf_v6, uint8_t length_adjust);

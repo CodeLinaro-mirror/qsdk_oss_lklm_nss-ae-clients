@@ -616,6 +616,31 @@ bool ppe_tun_free(struct net_device *dev)
 EXPORT_SYMBOL(ppe_tun_free);
 
 /*
+ * ppe_tun_xcpn_mode_get()
+ *	Get the exception mode based on tunnel type.
+ */
+uint8_t ppe_tun_xcpn_mode_get(enum ppe_drv_tun_cmn_ctx_type type)
+{
+	uint8_t action = PPE_TUN_XCPN_MODE_0;
+
+	switch (type) {
+	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP:
+		action = ptp->xcpn_mode.gretap;
+		break;
+
+	case PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6:
+		action = ptp->xcpn_mode.ipip6;
+		break;
+
+	default:
+		ppe_tun_info("Tunnel type %u is invalid or doesn't support xcpn mode.", type);
+
+	}
+
+	return action;
+}
+
+/*
  * ppe_tun_alloc()
  *	Allocate a struct ppe_tun.
  */
@@ -625,6 +650,7 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	struct ppe_vp_ai vpai;
 	int32_t idx;
 	ppe_vp_num_t vp_num;
+	uint8_t action;
 
 	if (!atomic_read(&ptp->total_free)) {
 		ppe_tun_info("%p: Max tunnel %u limit reached", ptp, PPE_TUN_MAX);
@@ -669,6 +695,18 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	if (vp_num == -1) {
 		ppe_tun_warn("%p: vp alloc failed for dev %s", ptp, dev->name);
 		atomic_inc(&ptp->alloc_fail);
+		kfree(tun);
+		return false;
+	}
+
+	/*
+	 * Set exception mode.
+	 */
+	action = ppe_tun_xcpn_mode_get(type);
+	if (!ppe_drv_port_xcpn_mode_set(vp_num, action)) {
+		ppe_tun_warn("%p: xcpn_mode set failed for dev %s", ptp, dev->name);
+		atomic_inc(&ptp->alloc_fail);
+		ppe_vp_free(vp_num);
 		kfree(tun);
 		return false;
 	}
@@ -1036,6 +1074,104 @@ static const struct file_operations ppe_tun_stats_ops = {
 };
 
 /*
+ * ppe_tun_xcpn_gretap_read()
+ *	gretap xcpn read handler
+ */
+static ssize_t ppe_tun_xcpn_gretap_read(struct file *f, char *buf, size_t count, loff_t *offset)
+{
+	int len;
+	char lbuf[24];
+	uint8_t xcpn_mode = ptp->xcpn_mode.gretap;
+
+	len = snprintf(lbuf, sizeof(lbuf), "Gretap xcpn mode %u \n", xcpn_mode);
+
+	return simple_read_from_buffer(buf, count, offset, lbuf, len);
+}
+
+/*
+ * ppe_tun_xcpn_gretap_write()
+ *	gretap xcpn write handler
+ */
+static ssize_t ppe_tun_xcpn_gretap_write(struct file *f, const char *buffer, size_t len, loff_t *offset)
+{
+	ssize_t size;
+	char data[16];
+	bool res;
+	int status;
+
+	size = simple_write_to_buffer(data, sizeof(data), offset, buffer, len);
+	if (size < 0) {
+		ppe_tun_warn("%p: Error reading the input for gretap configuration", ptp);
+		return size;
+	}
+
+	status = kstrtobool(data, &res);
+	if (status) {
+		ppe_tun_warn("%p: Error reading the input for gretap configuration", ptp);
+		return status;
+	}
+
+	ptp->xcpn_mode.gretap = (uint8_t) res;
+
+	return len;
+}
+
+const struct file_operations ppe_tun_gretap_xcpn_file_fops = {
+	.owner = THIS_MODULE,
+	.write = ppe_tun_xcpn_gretap_write,
+	.read = ppe_tun_xcpn_gretap_read,
+};
+
+/*
+ * ppe_tun_xcpn_ipip6_read()
+ *	ipip6 xcpn read handler
+ */
+static ssize_t ppe_tun_xcpn_ipip6_read(struct file *f, char *buf, size_t count, loff_t *offset)
+{
+	int len;
+	char lbuf[24];
+	uint8_t xcpn_mode = ptp->xcpn_mode.ipip6;
+
+	len = snprintf(lbuf, sizeof(lbuf), "IPIP6 xcpn mode %u \n", xcpn_mode);
+
+	return simple_read_from_buffer(buf, count, offset, lbuf, len);
+}
+
+/*
+ * ppe_tun_xcpn_ipip6_write()
+ *	ipip6 xcpn write handler
+ */
+static ssize_t ppe_tun_xcpn_ipip6_write(struct file *f, const char *buffer, size_t len, loff_t *offset)
+{
+	ssize_t size;
+	char data[16];
+	bool res;
+	int status;
+
+	size = simple_write_to_buffer(data, sizeof(data), offset, buffer, len);
+	if (size < 0) {
+		ppe_tun_warn("%p: Error reading the input for ipip6 configuration", ptp);
+		return size;
+	}
+
+	status = kstrtobool(data, &res);
+	if (status) {
+		ppe_tun_warn("%p: Error reading the input for ipip6 configuration", ptp);
+		return status;
+	}
+
+	ptp->xcpn_mode.ipip6 = (uint8_t) res;
+
+	return len;
+}
+
+const struct file_operations ppe_tun_ipip6_xcpn_file_fops = {
+	.owner = THIS_MODULE,
+	.write = ppe_tun_xcpn_ipip6_write,
+	.read = ppe_tun_xcpn_ipip6_read,
+};
+
+/*
  * ppe_tun_module_init()
  *	module init for ppe tunnel driver
  */
@@ -1058,6 +1194,10 @@ static int __init ppe_tun_module_init(void)
 	ptp->tun_accel.ppe_tun_vxlan_accel = true;
 	ptp->tun_accel.ppe_tun_ipip6_accel = true;
 	ptp->tun_accel.ppe_tun_mapt_accel = true;
+
+	ptp->xcpn_mode.gretap = PPE_TUN_XCPN_MODE_1;
+	ptp->xcpn_mode.ipip6 = PPE_TUN_XCPN_MODE_1;
+
 
 	atomic_set(&ptp->total_free, PPE_TUN_MAX);
 
@@ -1099,6 +1239,22 @@ static int __init ppe_tun_module_init(void)
 	}
 	if (!debugfs_create_file("mapt", 0644, dir, NULL, &ppe_tun_mapt_file_fops)) {
 		ppe_tun_warn("Failed to create debugfs entry for mapt");
+	}
+
+	dir = debugfs_create_dir("xcpn_mode", ptp->dentry);
+	if(!dir) {
+		ppe_tun_warn("%p: Failed to create debugfs entry for xcpn_mode", ptp);
+		goto fail;
+	}
+
+	/*
+	 * Exception Mode Operation Nodes
+	 */
+	if (!debugfs_create_file("gretap", 0644, dir, NULL, &ppe_tun_gretap_xcpn_file_fops)) {
+		ppe_tun_warn("Failed to create debugfs entry for gretap");
+	}
+	if (!debugfs_create_file("ipip6", 0644, dir, NULL, &ppe_tun_ipip6_xcpn_file_fops)) {
+		ppe_tun_warn("Failed to create debugfs entry for ipip6");
 	}
 
 	ppe_tun_info("ppe tunnel driver initialized");

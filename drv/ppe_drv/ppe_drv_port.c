@@ -1297,6 +1297,41 @@ bool ppe_drv_port_src_profile_set(struct ppe_drv_port *pp, uint8_t src_profile)
 }
 
 /*
+ * ppe_drv_port_xcpn_mode_set()
+ *	Set exception mode for tunnel VP port.
+ */
+bool ppe_drv_port_xcpn_mode_set(uint16_t vp_num, uint8_t action)
+{
+	uint32_t port = vp_num;
+	sw_error_t err;
+	a_bool_t xcpn_mode = (bool) action;
+	struct ppe_drv_port *pp = ppe_drv_port_from_port_num(vp_num);
+
+	if (!pp) {
+		ppe_drv_warn("%p: Invalid port number %d", pp, port);
+		return false;
+	}
+
+	if (!ppe_drv_port_is_tunnel_vp(pp)) {
+		ppe_drv_warn("%p: VP %d is not tunnel VP", pp, port);
+		return false;
+	}
+
+	/*
+	* 0 - Mode0 (Full packet exception mode over CPU port)
+	* 1 - Mode1 (Decapsulated packet exception mode over VP port)
+	*/
+	err = fal_tunnel_exp_decap_set(PPE_DRV_SWITCH_ID, port, &xcpn_mode);
+	if (err != SW_OK) {
+		ppe_drv_warn("Failed to set xcpn mode config for vp port: %d", port);
+		return false;
+	}
+
+	return true;
+}
+EXPORT_SYMBOL(ppe_drv_port_xcpn_mode_set);
+
+/*
  * ppe_drv_port_alloc()
  *	Create a new virtual port in PPE.
  */
@@ -1311,7 +1346,6 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	fal_vport_state_t vp_state = {0};
 	fal_qos_pri_precedence_t pre = {0};
 	fal_vsi_invalidvsi_ctrl_t vsi_ctrl = {0};
-	a_bool_t xcpn_mode = A_FALSE;
 
 	/*
 	 * Allocate a free port
@@ -1441,26 +1475,6 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 		ppe_drv_warn("%p: failed to configure counter config for port: %u", p, pp->port);
 		ppe_drv_port_deref(pp);
 		return NULL;
-	}
-
-	if (tunnel_vp_cfg) {
-		/*
-		 * Set Decap exception mode to full packet mode by default for tunnel ports
-		 * Post tunnel decapsulation if packets exception, they can be done in two modes
-		 * Mode0 - Full (Pre decapsulated packet) packet exception;
-		 * Mode1 - Post decapsulated packet exception;
-		 * By default configure exception to full packet mode.
-		 */
-
-		/*
-		 * TODO: Add a config framework for changing exception mode from clients
-		 */
-		err = fal_tunnel_exp_decap_set(PPE_DRV_SWITCH_ID, port, &xcpn_mode);
-		if (err != SW_OK) {
-			ppe_drv_warn("%p: failed to set xcpn mode config for vp port%d", p, pp->port);
-			ppe_drv_port_deref(pp);
-			return NULL;
-		}
 	}
 
 	/*

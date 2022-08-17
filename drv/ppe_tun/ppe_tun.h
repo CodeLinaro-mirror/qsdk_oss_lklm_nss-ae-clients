@@ -70,6 +70,8 @@
 #define PPE_TUN_DISABLE	0
 #define PPE_TUN_ENABLE	1
 
+enum xcpn_mode {PPE_TUN_XCPN_MODE_0, PPE_TUN_XCPN_MODE_1};
+
 typedef bool(*ppe_tun_exception_method_t)(struct net_device *dev, struct sk_buff *skb);
 typedef void (*ppe_tun_stats_callback_t)(struct net_device *dev, struct ppe_drv_tun_cmn_ctx_stats *);
 
@@ -82,6 +84,15 @@ struct ppe_tun_accel {
 	bool ppe_tun_vxlan_accel;	/* Controls vxlan acceleration */
 	bool ppe_tun_ipip6_accel;	/* Controls ipip6 acceleration */
 	bool ppe_tun_mapt_accel;	/* Controls mapt acceleration */
+};
+
+/*
+ * ppe_tun_xcpn_mode
+ *	Enable / Disable xcpn_mode for tunnel type
+ */
+struct ppe_tun_xcpn_mode {
+	uint8_t gretap;	/* Controls gretap exception mode */
+	uint8_t ipip6;	/* Controls ipip6 exception mode */
 };
 
 /*
@@ -110,6 +121,7 @@ struct ppe_tun_priv {
 	spinlock_t lock;			/* Base lock */
 	struct dentry *dentry;			/* Debugfs entry */
 	struct ppe_tun_accel tun_accel;		/* Enable or disable acceleration per tunnel type */
+	struct ppe_tun_xcpn_mode xcpn_mode;	/* Toggle exception mode */
 	atomic_t total_free;			/* Number of available tunnel instance*/
 	atomic_t free_pending;			/* Number of tunnel delete pending */
 	atomic_t alloc_fail;			/* Number of tunnel alloc fails */

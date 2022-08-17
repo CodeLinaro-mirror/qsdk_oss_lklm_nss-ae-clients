@@ -112,4 +112,15 @@ int32_t ppe_drv_port_num_from_dev(struct net_device *dev);
  */
 struct net_device *ppe_drv_port_num_to_dev(uint8_t port);
 
+/**
+ * ppe_drv_port_xcpn_mode_set
+ *	Set exception mode.
+ *
+ * @param[in] port number, action.
+ *
+ * @return
+ * 1 for success, 0 for failure.
+ */
+bool ppe_drv_port_xcpn_mode_set(uint16_t vp_num, uint8_t action);
+
 #endif /* _PPE_DRV_PORT_H_ */

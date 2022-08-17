@@ -143,51 +143,72 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 	 * Create EG header buffer as seen on wire
 	 *	<DMAC><SMAC<VLAN_HDR><TYPE><IP_HDR>{<GRE_HDR>, <UDP_HDR><VxLAN_HDR>}
 	 */
-	uint8_t *tun_hdr = (uint8_t *)&ptec->hdr[0];
-	uint8_t tun_len = ETH_HLEN;
-	uint8_t l3_offset = ETH_HLEN;
-	uint8_t l4_offset = 0;
+	struct vlan_ethhdr *pri_vlan;
 	bool l4_offset_valid = false;
-	struct ppe_drv_vlan *vlan;
+	struct vlan_hdr *sec_vlan;
+	uint8_t l3_offset = 0;
+	uint8_t l4_offset = 0;
+	uint8_t tun_len = 0;
+	struct ethhdr *eth;
+	uint8_t *tun_hdr;
 
-	/*
-	 * Copy MAC header
-	 */
+	tun_hdr = (uint8_t *)&ptec->hdr[0];
 	memset((void *)tun_hdr, 0, sizeof(ptec->hdr));
-	memcpy((void *)tun_hdr, (void *)&l2_hdr->dmac, ETH_ALEN);
-	tun_hdr += ETH_ALEN;
-	memcpy((void *)tun_hdr, (void *)&l2_hdr->smac, ETH_ALEN);
-	tun_hdr += ETH_ALEN;
-
-	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID) {
-		vlan = (struct ppe_drv_vlan *)tun_hdr;
-		vlan->tpid = htons(l2_hdr->vlan[0].tpid);
-		vlan->tci = htons(l2_hdr->vlan[0].tci);
-		tun_len += sizeof(l2_hdr->vlan[0]);
-		tun_hdr += sizeof(l2_hdr->vlan[0]);
-		l3_offset += sizeof(l2_hdr->vlan[0]);
-	}
 
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_SVLAN_VALID) {
-		vlan = (struct ppe_drv_vlan *)tun_hdr;
-		vlan->tpid = htons(l2_hdr->vlan[1].tpid);
-		vlan->tci = htons(l2_hdr->vlan[1].tci);
-		tun_len += sizeof(l2_hdr->vlan[1]);
-		tun_hdr += sizeof(l2_hdr->vlan[1]);
-		l3_offset += sizeof(l2_hdr->vlan[1]);
-	}
+		/*
+		 * Fill the SVLAN (primary VLAN)
+		 */
+		pri_vlan = (struct vlan_ethhdr *)tun_hdr;
+		memcpy((void *)pri_vlan->h_dest, (void *)&l2_hdr->dmac, ETH_ALEN);
+		memcpy((void *)pri_vlan->h_source, (void *)&l2_hdr->smac, ETH_ALEN);
+		pri_vlan->h_vlan_proto = htons(l2_hdr->vlan[0].tpid);
+		pri_vlan->h_vlan_TCI = htons(l2_hdr->vlan[0].tci);
+		pri_vlan->h_vlan_encapsulated_proto = htons(l2_hdr->vlan[1].tpid);
+		tun_hdr += sizeof(*pri_vlan);
+		tun_len += sizeof(*pri_vlan);
 
-	memcpy((void *)tun_hdr, (void *)&l2_hdr->eth_type, sizeof(l2_hdr->eth_type));
-	tun_hdr += sizeof(l2_hdr->eth_type);
+		/*
+		 * Fill the CVLAN (Secondary VLAN)
+		 */
+		sec_vlan = (struct vlan_hdr *)tun_hdr;
+		sec_vlan->h_vlan_TCI = htons(l2_hdr->vlan[1].tci);
+		sec_vlan->h_vlan_encapsulated_proto = htons(l2_hdr->eth_type);
+		tun_hdr += sizeof(*sec_vlan);
+		tun_len += sizeof(*sec_vlan);
+	} else if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID) {
+		/*
+		 * fill the CVLAN (primary VLAN)
+		 */
+		pri_vlan = (struct vlan_ethhdr *)tun_hdr;
+		memcpy((void *)pri_vlan->h_dest, (void *)&l2_hdr->dmac, ETH_ALEN);
+		memcpy((void *)pri_vlan->h_source, (void *)&l2_hdr->smac, ETH_ALEN);
+		pri_vlan->h_vlan_proto = htons(l2_hdr->vlan[0].tpid);
+		pri_vlan->h_vlan_TCI = htons(l2_hdr->vlan[0].tci);
+		pri_vlan->h_vlan_encapsulated_proto = htons(l2_hdr->eth_type);
+		tun_hdr += sizeof(*pri_vlan);
+		tun_len += sizeof(*pri_vlan);
+	} else {
+		/*
+		 * Copy MAC header
+		 */
+		eth = (struct ethhdr *)tun_hdr;
+		memcpy((void *)eth->h_dest, (void *)&l2_hdr->dmac, ETH_ALEN);
+		memcpy((void *)eth->h_source, (void *)&l2_hdr->smac, ETH_ALEN);
+		eth->h_proto = htons(l2_hdr->eth_type);
+		tun_len += ETH_HLEN;
+		tun_hdr += ETH_HLEN;
+	}
 
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
 		memcpy((void *)tun_hdr, (void *)&l2_hdr->pppoe.ph, sizeof(l2_hdr->pppoe.ph));
 		tun_hdr += sizeof(l2_hdr->pppoe.ph);
-		l3_offset += PPPOE_SES_HLEN;
-		tun_len += PPPOE_SES_HLEN;
 		memcpy((void *)tun_hdr, (void *)&l2_hdr->pppoe.ppp_proto, sizeof(l2_hdr->pppoe.ppp_proto));
+		tun_len += PPPOE_SES_HLEN;
 		tun_hdr += sizeof(l2_hdr->pppoe.ppp_proto);
 	}
+
+	l3_offset = tun_len;
 
 	/*
 	 * Copy L3 header

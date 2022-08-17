@@ -230,7 +230,8 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
 	uint16_t xmit_port = PPE_DRV_PORTS_MAX;
 	struct ppe_drv_tun_cmn_ctx *pth;
-	struct ppe_drv_port *pp = NULL;
+	struct ppe_drv_vlan *vlan;
+	struct ppe_drv_port *pp;
 	struct ppe_drv_tun *tun;
 	uint8_t egress_vlan_cnt;
 	uint8_t *src_mac_addr;
@@ -259,9 +260,7 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 	memcpy(l2->smac, src_mac_addr, sizeof(l2->smac));
 	memcpy(l2->dmac, rule->return_mac, sizeof(l2->dmac));
 
-	l2->eth_type = htons(ETH_P_IPV6);
-
-	egress_vlan_cnt = pcf->egress_vlan_cnt;
+	l2->eth_type = ETH_P_IPV6;
 
 	/*
 	 * for MAP-T we need to get the source and destintion
@@ -285,16 +284,22 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 		pth->l3.daddr[3] = htonl(ip6_addr[3]);
 	}
 
+	egress_vlan_cnt = ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf);
+
 	if (egress_vlan_cnt == 2) {
-		l2->vlan[0].tpid = pcf->egress_vlan[0].tpid;
-		l2->vlan[0].tci = pcf->egress_vlan[0].tci;
+		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 0);
+		l2->vlan[0].tpid = vlan->tpid;
+		l2->vlan[0].tci = vlan->tci;
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_SVLAN_VALID;
-		l2->vlan[1].tpid = pcf->egress_vlan[1].tpid;
-		l2->vlan[1].tci = pcf->egress_vlan[1].tci;
+
+		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 1);
+		l2->vlan[1].tpid = vlan->tpid;
+		l2->vlan[1].tci = vlan->tci;
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID;
 	} else if (egress_vlan_cnt == 1) {
-		l2->vlan[0].tpid = pcf->egress_vlan[0].tpid;
-		l2->vlan[0].tci = pcf->egress_vlan[0].tci;
+		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 0);
+		l2->vlan[0].tpid = vlan->tpid;
+		l2->vlan[0].tci = vlan->tci;
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID;
 	}
 

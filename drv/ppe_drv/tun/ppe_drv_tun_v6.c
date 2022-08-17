@@ -33,20 +33,22 @@ void ppe_drv_tun_v6_port_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	sw_error_t err;
 	uint32_t delta_pkts;
 	uint32_t delta_bytes;
+	fal_port_t v_port;
 	struct ppe_drv_port *pp = NULL;
 	struct ppe_drv_v6_conn_flow *pcr;
-	fal_port_cnt_t port_cnt = {0};
+	fal_port_cnt_t port_cnt;
 
 	/*
 	 * Check if its tx/rx port
 	 */
-	if (!ppe_drv_port_tun_get(pcf->tx_port)) {
+	if (ppe_drv_port_tun_get(pcf->tx_port)) {
 		pp = pcf->tx_port;
 	} else {
 		pp = pcf->rx_port;
 	}
 
-	err = fal_port_cnt_get(PPE_DRV_SWITCH_ID, pp->port, &port_cnt);
+	v_port = FAL_PORT_ID(FAL_PORT_TYPE_VPORT, pp->port);
+	err = fal_port_cnt_get(PPE_DRV_SWITCH_ID, v_port, &port_cnt);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to get port stats at index: %u", pp, pp->port);
 		return;

@@ -51,6 +51,7 @@ void ppe_drv_l3_if_dmac_check_set(struct ppe_drv_l3_if *l3_if, bool enable);
 
 bool ppe_drv_l3_if_mtu_mru_set(struct ppe_drv_l3_if *l3_if, uint16_t mtu, uint16_t mru);
 bool ppe_drv_l3_if_mtu_mru_clear(struct ppe_drv_l3_if *l3_if);
+bool ppe_drv_l3_if_mtu_mru_disable(struct ppe_drv_l3_if *l3_if);
 
 bool ppe_drv_l3_if_eg_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *mac_addr);
 bool ppe_drv_l3_if_eg_mac_addr_clear(struct ppe_drv_l3_if *l3_if);

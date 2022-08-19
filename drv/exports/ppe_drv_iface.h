@@ -33,6 +33,7 @@
  */
 struct ppe_drv_iface;
 enum ppe_drv_ret;
+typedef enum ppe_drv_eip_service ppe_drv_eip_service_t;
 typedef enum ppe_drv_ret ppe_drv_ret_t;
 
 /**
@@ -57,6 +58,38 @@ enum ppe_drv_iface_type {
 	PPE_DRV_IFACE_TYPE_EIP,			/**< Interface type EIP. */
 	PPE_DRV_IFACE_TYPE_MAX,			/**< Interface type max. */
 };
+
+/*
+ * ppe_drv_iface_eip_set()
+ *	Configure EIP VP for a specific inline service.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ * ppe_drv_eip_service_t
+ * uint32_t
+ *
+ * @param[IN] iface  PPE interface.
+ * @param[IN] type   Type of EIP service.
+ * @param[IN] features    Requested features with EIP service.
+ *
+ * @return
+ * ppe_drv_ret_t
+ */
+ppe_drv_ret_t ppe_drv_iface_eip_set(struct ppe_drv_iface *iface, ppe_drv_eip_service_t type, uint32_t features);
+
+/*
+ * ppe_drv_iface_mtu_disable()
+ *	Disable MTU check for a given PPE interface.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[IN] iface   PPE interface.
+ *
+ * @return
+ * ppe_drv_ret_t
+ */
+ppe_drv_ret_t ppe_drv_iface_mtu_disable(struct ppe_drv_iface *iface);
 
 /*
  * ppe_drv_iface_mtu_set()

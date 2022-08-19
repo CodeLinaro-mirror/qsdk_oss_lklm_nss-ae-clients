@@ -168,6 +168,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_TUN_CE_DEL_FAILURE,		/**< Failure in removing tunnel connection entry */
 	PPE_DRV_RET_INVALID_VP_NUM,			/**< Invalid VP number */
 	PPE_DRV_RET_TUN_ADD_CE_NULL,			/**< Add connection entry callback is NULL */
+	PPE_DRV_RET_INVALID_EIP_SERVICE,		/**< Invalid inline EIP service */
 } ppe_drv_ret_t;
 
 /**

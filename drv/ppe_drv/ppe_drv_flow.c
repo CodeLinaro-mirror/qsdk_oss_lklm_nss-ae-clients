@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -630,6 +630,36 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 
 	flow_cfg.flow_qos.wifi_qos_en = wifi_qos_en;
 
+#ifdef NSS_PPE_IPQ53XX
+	/*
+	 * Get the Source interface index.
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK)) {
+		/*
+		 * Get the source interface index corresponding to flow.
+		 * For bridge flow = Rx port no.
+		 * For routed flow = ingress l3 if index.
+		 */
+		if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			struct ppe_drv_iface *in_port_if = ppe_drv_v6_conn_flow_in_port_if_get(pcf);
+			struct ppe_drv_port *port = ppe_drv_iface_port_get(in_port_if);
+			if (port) {
+				flow_cfg.src_intf_index = port->port;
+				flow_cfg.src_intf_valid = true;
+				ppe_drv_trace("%p: Bridged flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
+			}
+		} else {
+			struct ppe_drv_iface *in_l3_if = ppe_drv_v6_conn_flow_in_l3_if_get(pcf);
+			struct ppe_drv_l3_if *l3_if = ppe_drv_iface_l3_if_get(in_l3_if);
+			if (l3_if) {
+				flow_cfg.src_intf_index = l3_if->l3_if_index;
+				flow_cfg.src_intf_valid = true;
+				ppe_drv_trace("%p: Routed flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
+			}
+		}
+	}
+#endif
+
 	/*
 	 * Set forwarding type
 	 */
@@ -1198,6 +1228,36 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	}
 
 	flow_cfg.flow_qos.wifi_qos_en = wifi_qos_en;
+
+#ifdef NSS_PPE_IPQ53XX
+	/*
+	 * Get the Source interface index.
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK)) {
+		/*
+		 * Get the source interface index corresponding to flow.
+		 * For bridge flow = Rx port no.
+		 * For routed flow = ingress l3 if index.
+		 */
+		if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			struct ppe_drv_iface *in_port_if = ppe_drv_v4_conn_flow_in_port_if_get(pcf);
+			struct ppe_drv_port *port = ppe_drv_iface_port_get(in_port_if);
+			if (port) {
+				flow_cfg.src_intf_index = port->port;
+				flow_cfg.src_intf_valid = true;
+				ppe_drv_trace("%p: Bridged flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
+			}
+		} else {
+			struct ppe_drv_iface *in_l3_if = ppe_drv_v4_conn_flow_in_l3_if_get(pcf);
+			struct ppe_drv_l3_if *l3_if = ppe_drv_iface_l3_if_get(in_l3_if);
+			if (l3_if) {
+				flow_cfg.src_intf_index = l3_if->l3_if_index;
+				flow_cfg.src_intf_valid = true;
+				ppe_drv_trace("%p: Routed flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
+			}
+		}
+	}
+#endif
 
 	/*
 	 * Set forwarding type

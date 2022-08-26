@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -476,6 +476,15 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 		if (ppe_drv_port_flags_check(ppe_drv_v4_conn_flow_tx_port_get(pcf), PPE_DRV_PORT_FLAG_IIPSEC)) {
 			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_INLINE_IPSEC);
 		}
+
+#ifdef NSS_PPE_IPQ53XX
+		/*
+		 * Check source interface based on rule flags.
+		 */
+		if (rule_flags & PPE_DRV_V4_RULE_FLAG_SRC_INTERFACE_CHECK) {
+			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK);
+		}
+#endif
 	}
 
 	/*
@@ -588,6 +597,14 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLOW_FLAG_INLINE_IPSEC);
 		}
 
+#ifdef NSS_PPE_IPQ53XX
+		/*
+		 * Check source interface based on rule flags.
+		 */
+		if (rule_flags & PPE_DRV_V4_RULE_FLAG_SRC_INTERFACE_CHECK) {
+			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK);
+		}
+#endif
 		ppe_drv_v4_conn_flags_set(cn, PPE_DRV_V4_CONN_FLAG_RETURN_VALID);
 	}
 
@@ -620,13 +637,13 @@ void ppe_drv_v4_if_walk_release(struct ppe_drv_v4_conn_flow *pcf)
  * ppe_drv_v4_if_walk()
  *	Walk iface heirarchy to obtain egress L3_IF and VSI
  */
-bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if)
+bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if, ppe_drv_iface_t rx_if)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_iface *eg_vsi_if = NULL;
 	struct ppe_drv_iface *eg_l3_if = NULL;
-	struct ppe_drv_iface *iface, *top_iface = NULL;
-	struct ppe_drv_iface *tx_port_if = NULL;
+	struct ppe_drv_iface *iface, *top_iface = NULL, *top_rx_iface = NULL;
+	struct ppe_drv_iface *tx_port_if = NULL, *rx_port_if = NULL;
 	struct ppe_drv_vsi *vlan_vsi;
 	struct ppe_drv_l3_if *pppoe_l3_if;
 	uint32_t egress_vlan_inner = PPE_DRV_VLAN_NOT_CONFIGURED, egress_vlan_outer = PPE_DRV_VLAN_NOT_CONFIGURED;
@@ -647,7 +664,7 @@ bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_
 	}
 
 	/*
-	 * Should have a valid top interface.
+	 * Should have a valid bottom Tx interface.
 	 */
 	tx_port_if = ppe_drv_iface_get_by_idx(tx_if);
 	if (!tx_port_if) {
@@ -656,25 +673,44 @@ bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_
 	}
 
 	/*
+	 * Should have a valid bottom Rx interface.
+	 */
+	rx_port_if = ppe_drv_iface_get_by_idx(rx_if);
+	if (!rx_port_if) {
+		ppe_drv_warn("%p: No PPE interface corresponding to rx_if: %d", p, rx_if);
+		return false;
+	}
+
+	/*
 	 * if it's a bridge flow, hierarchy walk not needed.
 	 */
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
 		ppe_drv_v4_conn_flow_eg_port_if_set(pcf, ppe_drv_iface_ref(tx_port_if));
+		ppe_drv_v4_conn_flow_in_port_if_set(pcf, ppe_drv_iface_ref(rx_port_if));
 		ppe_drv_info("%p: No PPE interface corresponding\n", p);
 		return true;
 	}
 
 	/*
-	 * Should have a valid top interface.
+	 * Should have a valid top tx interface.
 	 */
 	iface = top_iface = ppe_drv_iface_get_by_idx(top_if->tx_if);
 	if (!iface) {
-		ppe_drv_warn("%p: No PPE interface corresponding\n", p);
+		ppe_drv_warn("%p: No PPE interface corresponding to top tx interface\n", p);
 		return false;
 	}
 
 	/*
-	 * Walk through if hierarchy.
+	 * Should have a valid top rx interface.
+	 */
+	top_rx_iface = ppe_drv_iface_get_by_idx(top_if->rx_if);
+	if (!top_rx_iface) {
+		ppe_drv_warn("%p: No PPE interface corresponding to top rx interface\n", p);
+		return false;
+	}
+
+	/*
+	 * Walk through Tx if hierarchy.
 	 */
 	while (iface) {
 		/*
@@ -740,6 +776,29 @@ bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_
 	pcf->eg_vsi_if = eg_vsi_if ? ppe_drv_iface_ref(eg_vsi_if) : NULL;
 	pcf->eg_l3_if = eg_l3_if ? ppe_drv_iface_ref(eg_l3_if) : NULL;
 	pcf->eg_port_if = ppe_drv_iface_ref(tx_port_if);
+
+#ifdef NSS_PPE_IPQ53XX
+	/*
+	 * If source interface check is requested, get the l3_if interface.
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK)) {
+
+		/*
+		 * If valid top rx interface, use l3 if of that iface.
+		 */
+		if ((top_rx_iface) && (ppe_drv_iface_l3_if_get(top_rx_iface))) {
+			ppe_drv_trace("Using top rx iface's l3 if");
+			ppe_drv_v4_conn_flow_in_l3_if_set(pcf, top_rx_iface);
+			return true;
+		}
+
+		/*
+		 * Use port's l3 if.
+		 */
+		ppe_drv_trace("Using port's l3 if");
+		ppe_drv_v4_conn_flow_in_l3_if_set(pcf, rx_port_if);
+	}
+#endif
 	return true;
 }
 
@@ -1805,7 +1864,7 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 	 */
 	top_if.rx_if = create->top_rule.rx_if;
 	top_if.tx_if = create->top_rule.tx_if;
-	if (!ppe_drv_v4_if_walk(&cn->pcf, &top_if, create->conn_rule.tx_if)) {
+	if (!ppe_drv_v4_if_walk(&cn->pcf, &top_if, create->conn_rule.tx_if, create->conn_rule.rx_if)) {
 		ppe_drv_stats_inc(&comm_stats->v4_create_fail_if_hierarchy);
 		ppe_drv_warn("%p: create failed invalid interface hierarchy: %p", p, create);
 		ret = PPE_DRV_RET_FAILURE_INVALID_HIERARCHY;
@@ -1819,7 +1878,7 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 	 */
 	top_if.rx_if = create->top_rule.tx_if;
 	top_if.tx_if = create->top_rule.rx_if;
-	if (!ppe_drv_v4_if_walk(&cn->pcr, &top_if, create->conn_rule.rx_if)) {
+	if (!ppe_drv_v4_if_walk(&cn->pcr, &top_if, create->conn_rule.rx_if, create->conn_rule.tx_if)) {
 		ppe_drv_stats_inc(&comm_stats->v4_create_fail_if_hierarchy);
 		ppe_drv_warn("%p: create failed invalid interface hierarchy: %p", p, create);
 		ret = PPE_DRV_RET_FAILURE_INVALID_HIERARCHY;

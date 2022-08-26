@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -47,6 +47,10 @@
                                         /* Flow is also pushed to FSE HW in Wifi */
 #define PPE_DRV_V4_CONN_FLAG_FLOW_VP_VALID 0x00000800
 					/* Flow is a VP flow */
+#ifdef NSS_PPE_IPQ53XX
+#define PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK 0x00001000
+					/* source interface check */
+#endif
 
 /*
  * ppe_drv_v4_addr_equal()
@@ -111,6 +115,12 @@ struct ppe_drv_v4_conn_flow {
 	 * SAWF information
 	 */
 	uint32_t sawf_mark;			/* SAWF related parameters */
+
+	/*
+	 * Ingress information
+	 */
+	struct ppe_drv_iface *in_port_if;
+	struct ppe_drv_iface *in_l3_if;
 
 	/*
 	 * Statistics for this flow entry
@@ -434,12 +444,30 @@ static inline struct ppe_drv_iface *ppe_drv_v4_conn_flow_eg_port_if_get(struct p
 }
 
 /*
+ * ppe_drv_v4_conn_flow_in_port_if_get()
+ *	Returns ingress port interface.
+ */
+static inline struct ppe_drv_iface *ppe_drv_v4_conn_flow_in_port_if_get(struct ppe_drv_v4_conn_flow *pcf)
+{
+        return pcf->in_port_if;
+}
+
+/*
  * ppe_drv_v4_conn_flow_eg_l3_if_get()
  *	Returns egress L3_IF interface.
  */
 static inline struct ppe_drv_iface *ppe_drv_v4_conn_flow_eg_l3_if_get(struct ppe_drv_v4_conn_flow *pcf)
 {
         return pcf->eg_l3_if;
+}
+
+/*
+ * ppe_drv_v4_conn_flow_in_l3_if_get()
+ *	Returns ingress L3_IF interface.
+ */
+static inline struct ppe_drv_iface *ppe_drv_v4_conn_flow_in_l3_if_get(struct ppe_drv_v4_conn_flow *pcf)
+{
+        return pcf->in_l3_if;
 }
 
 /*
@@ -660,6 +688,24 @@ static inline void ppe_drv_v4_conn_flow_eg_vsi_if_set(struct ppe_drv_v4_conn_flo
 }
 
 /*
+ * ppe_drv_v4_conn_flow_eg_port_if_set()
+ *	Sets ingress port interface.
+ */
+static inline void ppe_drv_v4_conn_flow_in_port_if_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_iface *in_port_if)
+{
+        pcf->in_port_if = in_port_if;
+}
+
+/*
+ * ppe_drv_v4_conn_flow_in_l3_if_set()
+ *	Sets ingress L3_IF interface.
+ */
+static inline void ppe_drv_v4_conn_flow_in_l3_if_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_iface *in_l3_if)
+{
+        pcf->in_l3_if = in_l3_if;
+}
+
+/*
  * ppe_drv_v4_conn_flow_flags_check()
  *      check the bit flags.
  */
@@ -771,4 +817,4 @@ void ppe_drv_v4_flow_vlan_set(struct ppe_drv_v4_conn_flow *pcf,
 		uint32_t primary_ingress_vlan_tag, uint32_t primary_egress_vlan_tag,
 		uint32_t secondary_ingress_vlan_tag, uint32_t secondary_egress_vlan_tag);
 void ppe_drv_v4_if_walk_release(struct ppe_drv_v4_conn_flow *pcf);
-bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if);
+bool ppe_drv_v4_if_walk(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if, ppe_drv_iface_t rx_if);

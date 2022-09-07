@@ -574,6 +574,7 @@ bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_
 	struct ppe_drv_iface *eg_l3_if = NULL;
 	struct ppe_drv_iface *iface, *top_iface = NULL, *top_rx_iface = NULL;
 	struct ppe_drv_iface *tx_port_if = NULL, *rx_port_if = NULL;
+	struct ppe_drv_iface *top_iface_parent = NULL;
 	struct ppe_drv_vsi *vlan_vsi;
 	struct ppe_drv_l3_if *pppoe_l3_if;
 	uint32_t egress_vlan_inner = PPE_DRV_VLAN_NOT_CONFIGURED, egress_vlan_outer = PPE_DRV_VLAN_NOT_CONFIGURED;
@@ -612,16 +613,6 @@ bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_
 	}
 
 	/*
-	 * if it's a bridge flow, hierarchy walk not needed.
-	 */
-	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
-		ppe_drv_v6_conn_flow_eg_port_if_set(pcf, ppe_drv_iface_ref(tx_port_if));
-		ppe_drv_v6_conn_flow_in_port_if_set(pcf, ppe_drv_iface_ref(rx_port_if));
-		ppe_drv_info("%p: No PPE interface corresponding\n", p);
-		return true;
-	}
-
-	/*
 	 * Should have a valid top tx interface.
 	 */
 	iface = top_iface = ppe_drv_iface_get_by_idx(top_if->tx_if);
@@ -637,6 +628,23 @@ bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_
 	if (!top_rx_iface) {
 		ppe_drv_warn("%p: No PPE interface corresponding to top rx interface\n", p);
 		return false;
+	}
+
+	/*
+	 * If it's a bridge flow, hierarchy walk not needed.
+	 * Set ingress and egress port information in pcf.
+	 * Set egress top VSI interface in pcf.
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+		ppe_drv_v6_conn_flow_eg_port_if_set(pcf, ppe_drv_iface_ref(tx_port_if));
+		ppe_drv_v6_conn_flow_in_port_if_set(pcf, ppe_drv_iface_ref(rx_port_if));
+
+		top_iface_parent = ppe_drv_iface_parent_get(top_iface);
+		if (top_iface_parent)
+			ppe_drv_v6_conn_flow_eg_top_vsi_set(pcf, ppe_drv_iface_vsi_get(top_iface_parent));
+
+		ppe_drv_info("%p: Return for v6 bridge flow", p);
+		return true;
 	}
 
 	/*
@@ -889,6 +897,12 @@ static struct ppe_drv_flow *ppe_drv_v6_flow_add(struct ppe_drv_v6_conn_flow *pcf
 	struct ppe_drv_host *host = NULL;
 	struct ppe_drv_port *tx_port = NULL;
 	struct ppe_drv_port *rx_port = NULL;
+#ifdef NSS_PPE_IPQ53XX
+	uint8_t vlan_cnt = 0;
+	struct ppe_drv_vsi *eg_top_vsi = NULL;
+	struct ppe_drv_port *pp_tx = NULL;
+	struct ppe_drv_port *pp_rx = NULL;
+#endif
 
 	/*
 	 * Fetch a new nexthop entry.
@@ -901,6 +915,45 @@ static struct ppe_drv_flow *ppe_drv_v6_flow_add(struct ppe_drv_v6_conn_flow *pcf
 			return NULL;
 		}
 	}
+
+#if defined(NSS_PPE_IPQ53XX)
+	/*
+	 * Fetch a new nexthop entry for bridged flows.
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+
+		vlan_cnt = ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf);
+		if (vlan_cnt) {
+			pp_tx = ppe_drv_v6_conn_flow_tx_port_get(pcf);
+			if (!pp_tx) {
+				ppe_drv_warn("%p: egress port invalid", pcf);
+				return NULL;
+			}
+
+			pp_rx = ppe_drv_v6_conn_flow_rx_port_get(pcf);
+			if (!pp_rx) {
+				ppe_drv_warn("%p: ingress port invalid", pcf);
+				return NULL;
+			}
+
+			eg_top_vsi = ppe_drv_v6_conn_flow_eg_top_vsi_get(pcf);
+			if (!eg_top_vsi) {
+				ppe_drv_warn("%p: no vsi configured on top iface", pcf);
+				return NULL;
+			}
+
+			ppe_drv_info("%p: ppe tx port: %d, rx port: %d", pcf, pp_tx->port, pp_rx->port);
+
+			if (!(eg_top_vsi->is_fdb_learn_enabled && pp_tx->is_fdb_learn_enabled && pp_rx->is_fdb_learn_enabled)) {
+				nh = ppe_drv_nexthop_v6_bridge_flow_get_and_ref(pcf);
+				if (!nh) {
+					ppe_drv_warn("%p: unable to allocate nexthop for bridge flow", pcf);
+					return NULL;
+				}
+			}
+		}
+	}
+#endif
 
 	/*
 	 * Add host table entry.

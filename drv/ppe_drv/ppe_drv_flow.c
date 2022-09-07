@@ -676,6 +676,19 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		flow_cfg.fwd_type = FAL_FLOW_BRIDGE;
 		ppe_drv_trace("%p: flow_tbl[fwd_type]: L2: %u", pcf, FAL_FLOW_BRIDGE);
 
+#ifdef NSS_PPE_IPQ53XX
+		/*
+		 * VLAN tag addition from NEXTHOP_TBL for flow based bridging.
+		 * With VLAN tagging capability from flow table for bridge flows,
+		 * we can avoid EG_VLAN_XLT_RULE based VLAN tagging. This would help
+		 * doing VLANs between different ingress and egress VSI.
+		 */
+		if (nh) {
+			flow_cfg.bridge_nexthop_valid = true;
+			flow_cfg.bridge_nexthop = nh->index;
+			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
+		}
+#endif
 		flow_cfg.port_valid = true;
 		flow_cfg.bridge_port = pp->port;
 		ppe_drv_trace("%p: xmit interface port: %d", pcf, pp->port);
@@ -1291,6 +1304,19 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		flow_cfg.fwd_type = FAL_FLOW_BRIDGE;
 		ppe_drv_trace("%p: flow_tbl[fwd_type]: L2: %u", pcf, FAL_FLOW_BRIDGE);
 
+#ifdef NSS_PPE_IPQ53XX
+		/*
+		 * VLAN tag addition from NEXTHOP_TBL for flow based bridging.
+		 * With VLAN tagging capability from flow table for bridge flows,
+		 * we can avoid EG_VLAN_XLT_RULE based VLAN tagging. This would help
+		 * doing VLANs between different ingress and egress VSI.
+		 */
+		if (nh) {
+			flow_cfg.bridge_nexthop_valid = true;
+			flow_cfg.bridge_nexthop = nh->index;
+			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
+		}
+#endif
 		flow_cfg.port_valid = true;
 		flow_cfg.bridge_port = pp->port;
 		ppe_drv_trace("%p: xmit interface port: %d", pcf, pp->port);

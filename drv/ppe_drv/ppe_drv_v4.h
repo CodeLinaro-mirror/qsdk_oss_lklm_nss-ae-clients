@@ -110,6 +110,7 @@ struct ppe_drv_v4_conn_flow {
 	struct ppe_drv_iface *eg_port_if;
 	struct ppe_drv_iface *eg_l3_if;
 	struct ppe_drv_iface *eg_vsi_if;
+	struct ppe_drv_vsi *eg_top_vsi;
 
 	/*
 	 * SAWF information
@@ -480,6 +481,15 @@ static inline struct ppe_drv_iface *ppe_drv_v4_conn_flow_eg_vsi_if_get(struct pp
 }
 
 /*
+ * ppe_drv_v4_conn_flow_eg_top_vsi_get()
+ *	Returns egress top iface VSI.
+ */
+static inline struct ppe_drv_vsi *ppe_drv_v4_conn_flow_eg_top_vsi_get(struct ppe_drv_v4_conn_flow *pcf)
+{
+	return pcf->eg_top_vsi;
+}
+
+/*
  * ppe_drv_v4_conn_flow_conn_set()
  *	Sets connection object.
  */
@@ -685,6 +695,15 @@ static inline void ppe_drv_v4_conn_flow_eg_l3_if_set(struct ppe_drv_v4_conn_flow
 static inline void ppe_drv_v4_conn_flow_eg_vsi_if_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_iface *eg_vsi_if)
 {
         pcf->eg_vsi_if = eg_vsi_if;
+}
+
+/*
+ * ppe_drv_v4_conn_flow_eg_top_vsi_set()
+ *	Sets egress top VSI interface.
+ */
+static inline void ppe_drv_v4_conn_flow_eg_top_vsi_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_vsi *eg_top_vsi)
+{
+	pcf->eg_top_vsi = eg_top_vsi;
 }
 
 /*

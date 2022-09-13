@@ -75,21 +75,11 @@ static void ppe_drv_tun_free(struct kref *kref)
 	 * Release all the tables reserved for this tunnel context
 	 */
 	if (ptun->ptec) {
-		if (ppe_drv_tun_encap_deref(ptun->ptec)) {
-			ptun->ptec = NULL;
-		}
+		ppe_drv_tun_encap_deref(ptun->ptec);
 	}
 
 	if (ptun->ptdc) {
-		if (ppe_drv_tun_decap_deref(ptun->ptdc)) {
-			ptun->ptdc = NULL;
-		}
-	}
-
-	if (ptun->pt_l3_if) {
-		if (ppe_drv_tun_l3_if_deref(ptun->pt_l3_if)) {
-			ptun->pt_l3_if = NULL;
-		}
+		ppe_drv_tun_decap_deref(ptun->ptdc);
 	}
 
 	if (ptun->ptecxr) {
@@ -520,16 +510,9 @@ struct ppe_drv_tun_l3_if *ppe_drv_tun_port_tl_l3_if_get(struct ppe_drv_tun *ptun
 
 	ppe_drv_tun_l3_if_configure(ptun_l3_if);
 
-	/*
-	 * Increase the reference count to tl_l3_if this would be used for
-	 * reference count decrement when port is getting destroyed
-	 */
 	ppe_drv_port_tl_l3_if_attach(pp, ptun_l3_if);
 
-	/*
-	 * Take additional reference count to decrement during tun deactivate
-	 */
-	return ppe_drv_port_tl_l3_if_get_n_ref(pp);
+	return ptun_l3_if;
 }
 
 /*

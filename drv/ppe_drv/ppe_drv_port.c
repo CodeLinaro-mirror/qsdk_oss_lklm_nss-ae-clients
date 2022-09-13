@@ -363,13 +363,10 @@ static void ppe_drv_port_destroy(struct kref *kref)
 
 /*
  * ppe_drv_port_get_n_ref_tl_l3_if
- *	Attach a tl l3 index to port
+ *	Get reference on tl_l3_if
  */
 struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *pp)
 {
-	/*
-	 * Attach tl_l3_if to port
-	 */
 	if (!pp->tl_l3_if) {
 		return NULL;
 	}
@@ -383,27 +380,36 @@ struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *p
  */
 void ppe_drv_port_tl_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_tun_l3_if *tl_l3_if)
 {
-	/*
-	 * Attach tl_l3_if to port
-	 */
-	pp->tl_l3_if = ppe_drv_tun_l3_if_ref(tl_l3_if);
-}
-
-/*
- * ppe_drv_port_tl_l3_if_detach
- * 	Detach a tl l3 index to port
- */
-void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp)
-{
-	if (!pp->tl_l3_if) {
+	if (pp->tl_l3_if) {
+		ppe_drv_assert(false, "%p: tl_l3if %p is already attached to ppe port", pp, pp->tl_l3_if);
 		return;
 	}
 
 	/*
-	 * Detach tl_l3_if to port
+	 * Attach tl_l3_if to port and get reference on port
 	 */
-	ppe_drv_tun_l3_if_deref(pp->tl_l3_if);
+	pp->tl_l3_if = tl_l3_if;
+	ppe_drv_port_ref(pp);
+	ppe_drv_info("%p: tl_l3_if %p attached to ppe port", pp, tl_l3_if);
+}
+
+/*
+ * ppe_drv_port_tl_l3_if_detach
+ * 	Detach a tunnel l3 interface from port
+ */
+void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp)
+{
+	if (!pp->tl_l3_if) {
+		ppe_drv_assert(false, "%p: tl_l3if is already detached from ppe port", pp);
+		return;
+	}
+
+	/*
+	 * Detach tl_l3_if from port and release reference on port
+	 */
+	ppe_drv_info("%p: tl_l3_if %p detached from ppe port", pp, pp->tl_l3_if);
 	pp->tl_l3_if = NULL;
+	ppe_drv_port_deref(pp);
 }
 
 /*
@@ -870,6 +876,32 @@ bool ppe_drv_port_clear_hw_vp_stats(int16_t port)
 	return true;
 }
 EXPORT_SYMBOL(ppe_drv_port_clear_hw_vp_stats);
+
+/*
+ * ppe_drv_port_from_tl_l3_if()
+ *	Get PPE port for corresponding tl_l3_if
+ */
+struct ppe_drv_port *ppe_drv_port_from_tl_l3_if(struct ppe_drv_tun_l3_if *tl_l3_if)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *pp;
+	uint16_t i;
+
+	for (i = 0; i < PPE_DRV_PORTS_MAX; i++) {
+		pp = &p->port[i];
+
+		if (!kref_read(&pp->ref_cnt)) {
+			continue;
+		}
+
+		if (pp->tl_l3_if == tl_l3_if) {
+			return pp;
+		}
+	}
+
+	ppe_drv_info("%p: No ppe port for tl_l3_if: %p", p, tl_l3_if);
+	return NULL;
+}
 
 /*
  * ppe_drv_port_from_dev()

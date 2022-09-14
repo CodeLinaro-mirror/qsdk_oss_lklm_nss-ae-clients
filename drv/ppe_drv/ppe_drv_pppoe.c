@@ -20,6 +20,7 @@
 #include <fal/fal_tunnel.h>
 #include <fal/fal_api.h>
 #include "ppe_drv.h"
+#include "tun/ppe_drv_tun.h"
 
 #if (PPE_DRV_DEBUG_LEVEL == 3)
 /*
@@ -98,13 +99,96 @@ struct ppe_drv_pppoe *ppe_drv_pppoe_ref(struct ppe_drv_pppoe *pppoe)
 bool ppe_drv_pppoe_deref(struct ppe_drv_pppoe *pppoe)
 {
 	if (kref_put(&pppoe->ref, ppe_drv_pppoe_free)) {
-		ppe_drv_trace("reference goes down to 0 for pppoe: %p\n", pppoe);
+		ppe_drv_trace("reference goes down to 0 for pppoe: %p", pppoe);
 		return true;
 	}
 
 	ppe_drv_trace("%p: pppoe: %u", pppoe, pppoe->index);
 
 	return false;
+}
+
+/*
+ * ppe_drv_pppoe_tl_l3_if_get
+ *	Get ti_l3_if and take reference on pppoe
+ */
+struct ppe_drv_tun_l3_if *ppe_drv_pppoe_tl_l3_if_get(struct ppe_drv_pppoe *pppoe)
+{
+	if (!pppoe->tl_l3_if) {
+		ppe_drv_trace("%p: No tl_l3_if found for PPPoE session %d", pppoe, pppoe->session_id);
+		return NULL;
+	}
+
+	ppe_drv_pppoe_ref(pppoe);
+
+	return pppoe->tl_l3_if;
+}
+
+/*
+ * ppe_drv_pppoe_tl_l3_if_detach
+ *	Detach tunnel L3 IF from pppoe session
+ */
+bool ppe_drv_pppoe_tl_l3_if_detach(struct ppe_drv_pppoe *pppoe)
+{
+	fal_intf_id_t pppoe_intf;
+	sw_error_t err;
+
+	if (!pppoe->tl_l3_if) {
+		ppe_drv_warn("%p: tl_l3_if is already detached from pppoe", pppoe);
+		return false;
+	}
+
+	memset(&pppoe_intf, 0, sizeof(fal_intf_id_t));
+
+	err = fal_pppoe_l3_intf_set(PPE_DRV_SWITCH_ID, pppoe->index, FAL_INTF_TYPE_TUNNEL, &pppoe_intf);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Failed to clear tl_l3_if for PPPoE", pppoe);
+		return false;
+	}
+
+	ppe_drv_info("%p: tl_l3_if %p detached from PPPoE", pppoe, pppoe->tl_l3_if);
+
+	pppoe->tl_l3_if = NULL;
+
+	ppe_drv_pppoe_deref(pppoe);
+
+	return true;
+}
+
+/*
+ * ppe_drv_pppoe_tl_l3_if_attach
+ *	Attach tunnel L3 IF to pppoe session
+ */
+bool ppe_drv_pppoe_tl_l3_if_attach(struct ppe_drv_pppoe *pppoe, struct ppe_drv_tun_l3_if *ptun_l3_if)
+{
+	uint16_t tl_l3_if_idx = ptun_l3_if->index;
+	fal_intf_id_t pppoe_intf;
+	sw_error_t err;
+
+	if (pppoe->tl_l3_if) {
+		ppe_drv_assert(false, "%p: tl_l3_if is already attached to pppoe %p", pppoe->tl_l3_if, pppoe);
+		return false;
+	}
+
+	memset(&pppoe_intf, 0, sizeof(fal_intf_id_t));
+
+	/*
+	 * Set tunnel L3 IF index in PPPoE session table.
+	 */
+	pppoe_intf.l3_if_index = tl_l3_if_idx;
+	pppoe_intf.l3_if_valid = true;
+	err = fal_pppoe_l3_intf_set(PPE_DRV_SWITCH_ID, pppoe->index, FAL_INTF_TYPE_TUNNEL, &pppoe_intf);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Failed to set tl_l3_if %d for PPPoE", pppoe, tl_l3_if_idx);
+		return false;
+	}
+
+	pppoe->tl_l3_if = ptun_l3_if;
+
+	ppe_drv_pppoe_ref(pppoe);
+
+	ppe_drv_info("%p: tl_l3_if %d attached to PPPoE index %d\n", pppoe, tl_l3_if_idx, pppoe->index);
+	return true;
 }
 
 /*
@@ -282,7 +366,7 @@ struct ppe_drv_l3_if *ppe_drv_pppoe_find_l3_if(uint16_t session_id, uint8_t *sma
 
 /*
  * ppe_pppoe_find_session()
- *	Find pppoe session given session ID and server MAC
+ *	Find pppoe session for given session ID and server MAC
  */
 struct ppe_drv_pppoe *ppe_drv_pppoe_find_session(uint16_t session_id, uint8_t *smac)
 {
@@ -290,21 +374,38 @@ struct ppe_drv_pppoe *ppe_drv_pppoe_find_session(uint16_t session_id, uint8_t *s
 	struct ppe_drv_pppoe *pppoe;
 	uint16_t i = 0;
 
-	ppe_drv_trace("%p: Searching for PPPoE session - session_id: %d, server MAC: %pM", p, session_id, smac);
-
-	/*
-	 * Get a free PPPOE
-	 */
 	for (i = 0; i < p->pppoe_session_max; i++) {
 		pppoe = &p->pppoe[i];
 		if (kref_read(&pppoe->ref) && !memcmp(pppoe->server_mac, smac, sizeof(pppoe->server_mac))
 				&& (pppoe->session_id == session_id)) {
-			ppe_drv_trace("%p: Found PPPoE idx(%d) for session_id(%d)", pppoe, i, session_id);
+			ppe_drv_trace("%p: Found PPPoE idx(%d) for session_id(%d) and server MAC: %pM", pppoe, i, session_id, smac);
 			return pppoe;
 		}
 	}
 
 	ppe_drv_warn("%p: pppoe session not found for session_id %d mac: %pM", p, session_id, smac);
+	return NULL;
+}
+
+/*
+ * ppe_pppoe_find_session()
+ *	Find pppoe session for given tl_l3_if
+ */
+struct ppe_drv_pppoe *ppe_drv_pppoe_find_session_by_tl_l3_if(struct ppe_drv_tun_l3_if *tl_l3_if)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_pppoe *pppoe;
+	uint16_t i = 0;
+
+	for (i = 0; i < p->pppoe_session_max; i++) {
+		pppoe = &p->pppoe[i];
+		if (kref_read(&pppoe->ref) && (pppoe->tl_l3_if == tl_l3_if)) {
+			ppe_drv_trace("%p: Found PPPoE(%p) idx(%d)", p, pppoe, i);
+			return pppoe;
+		}
+	}
+
+	ppe_drv_warn("%p: pppoe session not found for tl_l3_if %p", p, tl_l3_if);
 	return NULL;
 }
 

@@ -139,6 +139,7 @@ void ppe_drv_tun_v4_parse_l2_hdr(struct ppe_drv_v4_rule_create *create, struct p
 	struct ppe_drv_v4_conn_flow *pcf = &cn->pcf;
 	uint16_t xmit_port = PPE_DRV_PORTS_MAX;
 	struct ppe_drv_vlan *vlan;
+	uint8_t *pppoe_server_mac;
 	struct ppe_drv_port *pp;
 	uint8_t egress_vlan_cnt;
 	uint8_t *src_mac_addr;
@@ -189,9 +190,18 @@ void ppe_drv_tun_v4_parse_l2_hdr(struct ppe_drv_v4_rule_create *create, struct p
 		l2->pppoe.ph.type = 1;
 		l2->pppoe.ph.ver = 1;
 		l2->pppoe.ph.code = 0;
-		l2->pppoe.ph.sid = ppe_drv_v4_conn_flow_pppoe_session_id_get(pcf);
-		l2->pppoe.ppp_proto = PPP_IP;
+		l2->pppoe.ph.sid = htons(ppe_drv_v4_conn_flow_pppoe_session_id_get(pcf));
+		l2->pppoe.ppp_proto = htons(PPP_IP);
+		pppoe_server_mac = ppe_drv_v4_conn_flow_pppoe_server_mac_get(pcf);
+		memcpy(&l2->pppoe.server_mac, pppoe_server_mac, ETH_ALEN);
+
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID;
+
+		/*
+		 * Set the ethernet header type to PPPoE session
+		 */
+		l2->eth_type = ETH_P_PPP_SES;
+
 	}
 }
 

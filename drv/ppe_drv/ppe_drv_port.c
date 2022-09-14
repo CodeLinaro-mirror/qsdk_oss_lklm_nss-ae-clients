@@ -381,7 +381,7 @@ struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *p
 void ppe_drv_port_tl_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_tun_l3_if *tl_l3_if)
 {
 	if (pp->tl_l3_if) {
-		ppe_drv_assert(false, "%p: tl_l3if %p is already attached to ppe port", pp, pp->tl_l3_if);
+		ppe_drv_assert(false, "%p: tl_l3_if %p is already attached to ppe port", pp, pp->tl_l3_if);
 		return;
 	}
 
@@ -400,7 +400,7 @@ void ppe_drv_port_tl_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_tun_l3
 void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp)
 {
 	if (!pp->tl_l3_if) {
-		ppe_drv_assert(false, "%p: tl_l3if is already detached from ppe port", pp);
+		ppe_drv_assert(false, "%p: tl_l3_if is already detached from ppe port", pp);
 		return;
 	}
 

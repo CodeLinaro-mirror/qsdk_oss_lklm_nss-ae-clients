@@ -1281,7 +1281,7 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 
 	if (ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port)) {
 		if (!ppe_drv_tun_detach_mapt_v4_to_v6(cn)) {
-			ppe_drv_trace("%p: mapt v4 to v6 dettach failed\n", p);
+			ppe_drv_trace("%p: mapt v4 to v6 detach failed", p);
 		}
 	}
 

@@ -903,6 +903,11 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 		 * Skip if stats are already synced for this connection in previous iteration.
 		 */
 		return_flow_valid = ppe_drv_v6_conn_flags_check(cn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID);
+
+		/*
+		 * check if there are connections that need stats update; if yes then 
+		 * invoke stats_sync api for all those connections
+		 */
 		if (cn->toggle == p->tun_toggled || !(atomic_read(&cn->pcf.rx_packets) || atomic_read(&cn->pcf.tx_packets)
 					|| (return_flow_valid && atomic_read(&cn->pcr.rx_packets))
 					|| (return_flow_valid && atomic_read(&cn->pcr.tx_packets)))) {

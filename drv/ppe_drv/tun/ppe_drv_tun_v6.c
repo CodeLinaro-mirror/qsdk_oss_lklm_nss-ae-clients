@@ -102,10 +102,17 @@ struct ppe_drv_v6_conn *ppe_drv_v6_conn_tun_conn_get(struct ppe_drv_v6_5tuple *t
 			continue;
 		}
 
-		if ((ppe_drv_v6_addr_equal(cn->pcf.match_src_ip, tuple->flow_ip) &&
-			ppe_drv_v6_addr_equal(cn->pcf.match_dest_ip, tuple->return_ip)) ||
-			(ppe_drv_v6_addr_equal(cn->pcr.match_src_ip, tuple->flow_ip) &&
+		if (!(ppe_drv_v6_addr_equal(cn->pcf.match_src_ip, tuple->flow_ip) &&
+			ppe_drv_v6_addr_equal(cn->pcf.match_dest_ip, tuple->return_ip)) &&
+			!(ppe_drv_v6_addr_equal(cn->pcr.match_src_ip, tuple->flow_ip) &&
 			ppe_drv_v6_addr_equal(cn->pcr.match_dest_ip, tuple->return_ip))) {
+			continue;
+		}
+
+		if (((cn->pcf.match_src_ident == tuple->flow_ident) &&
+			(cn->pcf.match_dest_ident == tuple->return_ident)) ||
+			((cn->pcr.match_src_ident == tuple->flow_ident) &&
+			(cn->pcr.match_dest_ident == tuple->return_ident))) {
 			return cn;
 		}
 	}
@@ -331,7 +338,7 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
  *
  * Requires caller to hold lock on ppe_drv_gbl.
  */
-ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv_v6_conn_sync **cns_v6)
+ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv_v6_conn_sync **cns_v6, struct ppe_drv_v6_conn **cn_v6)
 {
 	struct ppe_drv_v6_rule_destroy *destroy = (struct ppe_drv_v6_rule_destroy *)vdestroy_rule;
 	ppe_drv_ret_t ret = PPE_DRV_RET_SUCCESS;
@@ -340,7 +347,6 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_v6_conn *cn;
 	struct ppe_drv_v6_conn_sync *cns;
-	struct ppe_drv_tun *ptun;
 
 	cns = ppe_drv_v6_conn_stats_alloc();
 	if (!cns) {
@@ -371,25 +377,8 @@ ppe_drv_ret_t ppe_drv_v6_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv
 	 */
 	ppe_drv_v6_if_walk_release(pcr);
 
-	ptun = ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port);
-	if (ptun) {
-		if (!ppe_drv_tun_detach_mapt_v6_to_v4(ptun)) {
-			ppe_drv_warn("%p: MAP-T v6 to v4 detach failed", ptun);
-		}
-	}
-
-	/*
-	 * Remove connection entry from the active connection list.
-	 */
-	list_del(&cn->list);
-
-	/*
-	 * Capture remaining stats.
-	 */
-	ppe_drv_v6_conn_sync_one(cn, cns, PPE_DRV_STATS_SYNC_REASON_DESTROY);
-
-	ppe_drv_v6_conn_free(cn);
 	*cns_v6 =  cns;
+	*cn_v6 = cn;
 
 	return ret;
 }

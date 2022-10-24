@@ -99,10 +99,17 @@ struct ppe_drv_v4_conn *ppe_drv_v4_conn_tun_conn_get(struct ppe_drv_v4_5tuple *t
 			continue;
 		}
 
-		if ((ppe_drv_v4_addr_equal(cn->pcf.match_src_ip, tuple->flow_ip) &&
-			ppe_drv_v4_addr_equal(cn->pcf.match_dest_ip, tuple->return_ip)) ||
-			(ppe_drv_v4_addr_equal(cn->pcr.match_src_ip, tuple->flow_ip) &&
-			ppe_drv_v4_addr_equal(cn->pcr.match_dest_ip, tuple->return_ip))) {
+		if (!(ppe_drv_v4_addr_equal(cn->pcf.match_src_ip, tuple->flow_ip) &&
+					ppe_drv_v4_addr_equal(cn->pcf.match_dest_ip, tuple->return_ip)) &&
+				!(ppe_drv_v4_addr_equal(cn->pcr.match_src_ip, tuple->flow_ip) &&
+					ppe_drv_v4_addr_equal(cn->pcr.match_dest_ip, tuple->return_ip))) {
+			continue;
+		}
+
+		if (((cn->pcf.match_src_ident == tuple->flow_ident) &&
+					(cn->pcf.match_dest_ident == tuple->return_ident)) ||
+				((cn->pcr.match_src_ident == tuple->flow_ident) &&
+				 (cn->pcr.match_dest_ident == tuple->return_ident))) {
 			return cn;
 		}
 	}
@@ -194,7 +201,7 @@ void ppe_drv_tun_v4_parse_l2_hdr(struct ppe_drv_v4_rule_create *create, struct p
  *
  * Requires caller to hold lock on ppe_drv_gbl.
  */
-ppe_drv_ret_t ppe_drv_v4_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv_v4_conn_sync **cns_v4)
+ppe_drv_ret_t ppe_drv_v4_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv_v4_conn_sync **cns_v4, struct ppe_drv_v4_conn **cn_v4)
 {
 	struct ppe_drv_v4_rule_destroy *destroy = (struct ppe_drv_v4_rule_destroy *)vdestroy_rule;
 	ppe_drv_ret_t ret = PPE_DRV_RET_SUCCESS;
@@ -233,18 +240,8 @@ ppe_drv_ret_t ppe_drv_v4_tun_del_ce_validate(void *vdestroy_rule, struct ppe_drv
 	 */
 	ppe_drv_v4_if_walk_release(pcr);
 
-	/*
-	 * Add connection entry to the active connection list.
-	 */
-	list_del(&cn->list);
-
-	/*
-	 * Capture remaining stats.
-	 */
-	ppe_drv_v4_conn_sync_one(cn, cns, PPE_DRV_STATS_SYNC_REASON_DESTROY);
-
-	ppe_drv_v4_conn_free(cn);
 	*cns_v4 = cns;
+	*cn_v4 = cn;
 
 	return ret;
 }

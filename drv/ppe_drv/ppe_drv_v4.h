@@ -45,6 +45,8 @@
 					/* SAWF marking is valid for the flow */
 #define PPE_DRV_V4_CONN_FLOW_FLAG_FSE 0x00000400
                                         /* Flow is also pushed to FSE HW in Wifi */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_VP_VALID 0x00000800
+					/* Flow is a VP flow */
 
 /*
  * ppe_drv_v4_addr_equal()

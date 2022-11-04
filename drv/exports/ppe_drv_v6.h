@@ -58,7 +58,9 @@
 #define PPE_DRV_V6_RULE_FLAG_VLAN_MARKING	0x0008		/**< Rule creation for VLAN marking */
 #define PPE_DRV_V6_RULE_FLAG_FLOW_VALID		0x0010		/**< Rule creation for flow direction */
 #define PPE_DRV_V6_RULE_FLAG_RETURN_VALID	0x0020		/**< Rule creation for return direction */
-#define PPE_DRV_V6_RULE_FLAG_PPPOE_VALID       	0x0040          /**< Rule creation for PPPoe */
+#define PPE_DRV_V6_RULE_FLAG_PPPOE_VALID	0x0040		/**< Rule creation for PPPoe */
+#define PPE_DRV_V6_RULE_FLAG_DS_FLOW		0x0080		/**< Rule creation for DS flow */
+#define PPE_DRV_V6_RULE_FLAG_VP_FLOW		0x0100		/**< Rule creation for VP flow */
 
 /*
  * v6 valid flags
@@ -69,7 +71,6 @@
 #define PPE_DRV_V6_VALID_FLAG_QOS		0x0008  /**< QoS fields are valid. */
 #define PPE_DRV_V6_VALID_FLAG_DSCP_MARKING	0x0010  /**< DSCP fields are valid. */
 #define PPE_DRV_V6_VALID_FLAG_SAWF		0x0020  /**< SAWF fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_DS                0x0040  /**< Direct switch flow. */
 
 #define PPE_DRV_V6_MAX_CONN_COUNT               1024
 

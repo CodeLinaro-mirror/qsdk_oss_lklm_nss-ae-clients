@@ -42,6 +42,8 @@
 					/* SAWF marking is valid for the flow */
 #define PPE_DRV_V6_CONN_FLOW_FLAG_FSE 0x00000100
 					/* Flow is also pushed to FSE HW in Wifi */
+#define PPE_DRV_V6_CONN_FLAG_FLOW_VP_VALID 0x00000200
+					/* Flow is VP valid when VP rule comes in DS user type */
 
 /*
  * ppe_drv_v6_conn_flow

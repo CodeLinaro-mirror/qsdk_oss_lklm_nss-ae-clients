@@ -329,6 +329,16 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 	}
 
 	/*
+	 * For DS flow if user type is not DS return invalid user type.
+	 */
+	if (rule_flags & PPE_DRV_V4_RULE_FLAG_DS_FLOW) {
+		if ((pp_tx->user_type != PPE_DRV_PORT_USER_TYPE_DS) && (pp_rx->user_type != PPE_DRV_PORT_USER_TYPE_DS)) {
+			ppe_drv_warn("%p: Invalid user type: %d", create, pp_tx->user_type);
+			return PPE_DRV_RET_INVALID_USER_TYPE;
+		}
+	}
+
+	/*
 	 * Bridge flow
 	 */
 	if (rule_flags & PPE_DRV_V4_RULE_FLAG_BRIDGE_FLOW) {
@@ -347,7 +357,6 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 		ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW);
 		ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW);
 	}
-
 
 	/*
 	 * Note: PPE can't support both SNAT and DNAT simultaneously.
@@ -402,6 +411,13 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_DSCP_MARKING) {
 			ppe_drv_v4_conn_flow_egress_dscp_set(pcf, dscp_rule->flow_dscp);
 			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_DSCP_MARKING);
+		}
+
+		/*
+		 * For VP flow if user type is DS, set conn rule VP valid.
+		 */
+		if ((rule_flags & PPE_DRV_V4_RULE_FLAG_VP_FLOW) && (pp_tx->user_type == PPE_DRV_PORT_USER_TYPE_DS)) {
+			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_VP_VALID);
 		}
 
 		/*
@@ -506,6 +522,13 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_DSCP_MARKING) {
 			ppe_drv_v4_conn_flow_egress_dscp_set(pcr, dscp_rule->return_dscp);
 			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLOW_FLAG_DSCP_MARKING);
+		}
+
+		/*
+		 * For VP flow if user type is DS, set conn rule VP valid.
+		 */
+		if ((rule_flags & PPE_DRV_V4_RULE_FLAG_VP_FLOW) && (pp_rx->user_type == PPE_DRV_PORT_USER_TYPE_DS)) {
+			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_VP_VALID);
 		}
 
 		/*
@@ -1648,14 +1671,21 @@ static bool ppe_drv_v4_fse_flow_configure(struct ppe_drv_v4_rule_create *create,
 	 * Check if Connection manager is setting DS flag in the rule; if yes then decision
 	 * space to choose pcf or pcr needs to be done only for DS VP else flow could also
 	 * be for active VP so decision logic need to be executed for both active and DS VP.
-	 * TODO: Enable support for per-flow flag for VP datapath.
 	 */
-	if ((create->valid_flags & PPE_DRV_V4_VALID_FLAG_DS)  == PPE_DRV_V4_VALID_FLAG_DS) {
+	if ((create->rule_flags & PPE_DRV_V4_RULE_FLAG_DS_FLOW)  == PPE_DRV_V4_RULE_FLAG_DS_FLOW) {
 		if (is_rx_ds && !is_tx_ds) {
 			ppe_drv_fill_fse_v4_tuple_info(pcf, &fse_info, true);
 			fse_cn = pcf;
 		} else if (is_tx_ds && !is_rx_ds) {
 			ppe_drv_fill_fse_v4_tuple_info(pcr, &fse_info, true);
+			fse_cn = pcr;
+		}
+	} else if ((create->rule_flags & PPE_DRV_V4_RULE_FLAG_VP_FLOW)  == PPE_DRV_V4_RULE_FLAG_VP_FLOW) {
+		if ((is_rx_ds && !is_tx_ds) || (is_rx_active_vp && !is_tx_active_vp)) {
+			ppe_drv_fill_fse_v4_tuple_info(pcf, &fse_info, false);
+			fse_cn = pcf;
+		} else if ((is_tx_ds && !is_rx_ds) || (is_tx_active_vp && !is_rx_active_vp)) {
+			ppe_drv_fill_fse_v4_tuple_info(pcr, &fse_info, false);
 			fse_cn = pcr;
 		}
 	} else {

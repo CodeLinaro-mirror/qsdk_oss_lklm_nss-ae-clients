@@ -1516,7 +1516,7 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_tun *ptun = NULL;
-	int16_t decap_hwidx = PPE_DRV_TUN_DECAP_INVALID_IDX;
+	uint16_t decap_hwidx = PPE_DRV_TUN_DECAP_INVALID_IDX;
 
 	struct ppe_drv_port *pp = ppe_drv_port_from_port_num(port_num);
 	if (!pp) {

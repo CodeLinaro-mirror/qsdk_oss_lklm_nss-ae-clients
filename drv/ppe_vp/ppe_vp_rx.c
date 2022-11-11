@@ -83,7 +83,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			}
 
 			ethh = (struct ethhdr *)skb->data;
-			skb->protocol = (ntohs(ethh->h_proto));
+			skb->protocol = ethh->h_proto;
 			skb_pull(skb, (sizeof(struct ethhdr)));
 		}
 
@@ -187,7 +187,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			}
 
 			ethh = (struct ethhdr *)skb->data;
-			skb->protocol = (ntohs(ethh->h_proto));
+			skb->protocol = ethh->h_proto;
 			skb_pull(skb, (sizeof(struct ethhdr)));
 		}
 

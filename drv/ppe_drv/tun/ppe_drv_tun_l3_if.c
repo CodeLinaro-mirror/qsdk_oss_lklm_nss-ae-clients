@@ -54,8 +54,11 @@ static void ppe_drv_tun_l3_if_dump(struct ppe_drv_tun_l3_if *tun_l3_if)
 static void ppe_drv_tun_l3_if_free(struct kref *kref)
 {
 	fal_tunnel_intf_t tun_l3_if_cfg = {0};
+	struct ppe_drv_tun_l3_if *tun_l3_if;
+	struct ppe_drv_port *pp;
 	sw_error_t err;
-	struct ppe_drv_tun_l3_if *tun_l3_if = container_of(kref, struct ppe_drv_tun_l3_if, ref);
+
+	tun_l3_if = container_of(kref, struct ppe_drv_tun_l3_if, ref);
 
 	/*
 	 * TL L3 interface instance is now free, there is no
@@ -65,6 +68,11 @@ static void ppe_drv_tun_l3_if_free(struct kref *kref)
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: port TL L3 configuration clear failed at index %u", tun_l3_if,
 							tun_l3_if->index);
+	}
+
+	pp = ppe_drv_port_from_tl_l3_if(tun_l3_if);
+	if (pp) {
+		ppe_drv_port_tl_l3_if_detach(pp);
 	}
 }
 

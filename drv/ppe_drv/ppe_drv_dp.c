@@ -50,13 +50,6 @@ ppe_drv_ret_t ppe_drv_dp_deinit(struct ppe_drv_iface *iface)
 	port->port_l3_if = NULL;
 	ppe_drv_l3_if_deref(l3_if);
 
-	/*
-	 * Detach tl_l3_if if attached
-	 * Attach of tl_l3_if is done during tunnel activate when outer
-	 * decap port is identified
-	 */
-	ppe_drv_port_tl_l3_if_detach(port);
-
 	ppe_drv_port_deref(port);
 
 	spin_unlock_bh(&p->lock);

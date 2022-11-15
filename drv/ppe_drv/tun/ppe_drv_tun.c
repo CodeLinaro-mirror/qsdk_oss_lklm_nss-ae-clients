@@ -16,21 +16,24 @@
 
 #include <linux/ip.h>
 #include <net/vxlan.h>
-#include <fal/fal_ip.h>
+#include <linux/in.h>
 #include <nat46/nat46-core.h>
 #include <nat46/nat46-netdev.h>
+
+#include <fal/fal_ip.h>
 #include <fal_tunnel.h>
 #include <fal_mapt.h>
 #include <fal_port_ctrl.h>
 #include <fal_vport.h>
-#include <ppe_drv/ppe_drv.h>
 #include <fal_vxlan.h>
+#include <fal/fal_pppoe.h>
+#include <fal/fal_tunnel_program.h>
+
+#include <ppe_drv/ppe_drv.h>
 #include <ppe_drv_tun_public.h>
 #include "ppe_drv_tun.h"
 #include "ppe_drv_tun_v4.h"
 #include "ppe_drv_tun_v6.h"
-#include <linux/in.h>
-#include <fal/fal_tunnel_program.h>
 
 /*
  * ppe_drv_tun_check_support()
@@ -472,14 +475,44 @@ bool ppe_drv_tun_port_configure(struct ppe_drv_tun *ptun, uint16_t xmit_port)
 }
 
 /*
+ * ppe_drv_tun_pppoe_tl_l3_if_get
+ * Get the tl_l3_if associated with pppoe instance
+ */
+struct ppe_drv_tun_l3_if *ppe_drv_tun_pppoe_tl_l3_if_get(struct ppe_drv_tun *ptun, struct ppe_drv_pppoe *pppoe)
+{
+	struct ppe_drv_tun_l3_if *ptun_l3_if;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	ptun_l3_if = ppe_drv_pppoe_tl_l3_if_get(pppoe);
+	if (ptun_l3_if) {
+		return ptun_l3_if;
+	}
+
+	ptun_l3_if = ppe_drv_tun_l3_if_alloc(p);
+	if (!ptun_l3_if) {
+		ppe_drv_warn("%p: Failed to allocate tl_l3_if to pppoe %p", ptun, pppoe);
+		return NULL;
+	}
+
+	ptun->pppoe = pppoe;
+
+	ppe_drv_tun_l3_if_configure(ptun_l3_if);
+
+	ppe_drv_pppoe_tl_l3_if_attach(pppoe, ptun_l3_if);
+
+	return ptun_l3_if;
+}
+
+
+/*
  * ppe_drv_tun_port_tl_l3_if_get
  * Get the tl_l3_if associated with port
  */
 struct ppe_drv_tun_l3_if *ppe_drv_tun_port_tl_l3_if_get(struct ppe_drv_tun *ptun, uint16_t xmit_port)
 {
-	struct ppe_drv_port *pp = NULL;
+	struct ppe_drv_tun_l3_if *ptun_l3_if;
 	struct ppe_drv *p = &ppe_drv_gbl;
-	struct ppe_drv_tun_l3_if *ptun_l3_if = NULL;
+	struct ppe_drv_port *pp;
 
 	/*
 	 * Get destination port
@@ -504,7 +537,7 @@ struct ppe_drv_tun_l3_if *ppe_drv_tun_port_tl_l3_if_get(struct ppe_drv_tun *ptun
 	 */
 	ptun_l3_if = ppe_drv_tun_l3_if_alloc(p);
 	if (!ptun_l3_if) {
-		ppe_drv_warn("%p: Failed to attach tl_l3_if to port %u", ptun, xmit_port);
+		ppe_drv_warn("%p: Failed to allocate tl_l3_if to port %u", ptun, xmit_port);
 		return NULL;
 	}
 
@@ -520,7 +553,7 @@ struct ppe_drv_tun_l3_if *ppe_drv_tun_port_tl_l3_if_get(struct ppe_drv_tun *ptun
  *	Port DECAP Configuration setup
  */
 bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_port,
-				       struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr, uint16_t tl_l3_if_idx)
+					struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr, uint16_t tl_l3_if_idx)
 {
 
 	fal_tunnel_port_intf_t port_tnl_cfg = {0};
@@ -541,18 +574,12 @@ bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_
 		return false;
 	}
 
-	/*
-	 * Get PPPoE profile and set xmit port configuration
-	 */
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
 		port_tnl_cfg.pppoe_en = PPE_DRV_TUN_FIELD_VALID;
-		/*
-		 * TODO: Check if any specific handling needed for PPPOE
-		 */
+	} else {
+		port_tnl_cfg.l3_if.l3_if_valid = true;
+		port_tnl_cfg.l3_if.l3_if_index = tl_l3_if_idx;
 	}
-
-	port_tnl_cfg.l3_if.l3_if_valid = true;
-	port_tnl_cfg.l3_if.l3_if_index = tl_l3_if_idx;
 
 	/*
 	 * Set MAC address of port on which tunnel is established.
@@ -1280,18 +1307,19 @@ EXPORT_SYMBOL(ppe_drv_tun_decap_enable_by_port_num);
  */
 bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
-	fal_port_t port_id;
-	uint16_t xmit_port;
-	uint16_t tl_l3_if_idx;
-	bool dc_cfg_status = false;
-	struct ppe_drv_port *pp;
-	struct ppe_drv_tun *ptun;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr;
 	struct ppe_drv_v4_conn *cn_v4 = NULL;
 	struct ppe_drv_v6_conn *cn_v6 = NULL;
-	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv_pppoe *pppoe = NULL;
+	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_tun_cmn_ctx *pth;
-	struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr;
+	bool dc_cfg_status = false;
+	struct ppe_drv_tun *ptun;
+	struct ppe_drv_port *pp;
+	uint16_t tl_l3_if_idx;
+	fal_port_t port_id;
+	uint16_t xmit_port;
 	bool is_ipv6;
 	bool status;
 
@@ -1418,10 +1446,24 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	 */
 	xmit_port = l2_hdr->xmit_port;
 
+	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
+		pppoe = ppe_drv_pppoe_find_session(ntohs(l2_hdr->pppoe.ph.sid), l2_hdr->pppoe.server_mac);
+		if (!pppoe) {
+			ppe_drv_warn("%p: Could not find pppoe session %x mac %pM", ptun, ntohs(l2_hdr->pppoe.ph.sid), l2_hdr->pppoe.server_mac);
+			goto err_fail;
+		}
+	}
+
 	/*
 	 * Get the tl_l3_if_index;
 	 */
-	ptun->pt_l3_if = ppe_drv_tun_port_tl_l3_if_get(ptun, xmit_port);
+
+	if (pppoe) {
+		ptun->pt_l3_if = ppe_drv_tun_pppoe_tl_l3_if_get(ptun, pppoe);
+	} else {
+		ptun->pt_l3_if = ppe_drv_tun_port_tl_l3_if_get(ptun, xmit_port);
+	}
+
 	if (ptun->pt_l3_if == NULL) {
 		ppe_drv_warn("%p: Failed to get active tl l3 index for tun %d of type %d",
 					ptun, ptun->tun_idx, pth->type);

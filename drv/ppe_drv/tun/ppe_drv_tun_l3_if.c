@@ -55,6 +55,7 @@ static void ppe_drv_tun_l3_if_free(struct kref *kref)
 {
 	fal_tunnel_intf_t tun_l3_if_cfg = {0};
 	struct ppe_drv_tun_l3_if *tun_l3_if;
+	struct ppe_drv_pppoe *pppoe;
 	struct ppe_drv_port *pp;
 	sw_error_t err;
 
@@ -73,6 +74,15 @@ static void ppe_drv_tun_l3_if_free(struct kref *kref)
 	pp = ppe_drv_port_from_tl_l3_if(tun_l3_if);
 	if (pp) {
 		ppe_drv_port_tl_l3_if_detach(pp);
+	} else {
+		pppoe = ppe_drv_pppoe_find_session_by_tl_l3_if(tun_l3_if);
+		if (pppoe) {
+			ppe_drv_pppoe_tl_l3_if_detach(pppoe);
+		}
+	}
+
+	if (!pp && !pppoe) {
+		ppe_drv_warn("%p: neither port nor pppoe attached for tl_l3_if", tun_l3_if);
 	}
 }
 

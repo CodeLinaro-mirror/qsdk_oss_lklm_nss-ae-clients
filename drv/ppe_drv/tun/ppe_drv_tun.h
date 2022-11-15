@@ -145,6 +145,7 @@ struct ppe_drv_tun_mapt {
 struct ppe_drv_tun {
 	struct ppe_drv_tun_cmn_ctx th;				/**< Tunnel header >*/
 	struct ppe_drv_port *pp;				/**< Assigned PPE port >*/
+	struct ppe_drv_pppoe *pppoe;				/**< Assigned PPPoE port >*/
 	struct ppe_drv_tun_l3_if *pt_l3_if;			/**< TL L3 interface instance >*/
 	struct ppe_drv_tun_encap *ptec;				/**< EG tunnel encapsulation >*/
 	struct ppe_drv_tun_decap *ptdc;				/**< TL decap entry >*/

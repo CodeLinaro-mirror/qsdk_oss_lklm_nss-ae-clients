@@ -92,7 +92,8 @@ struct ppe_drv_tun_cmn_ctx_l3 {
  */
 struct ppe_drv_tun_cmn_ctx_pppoe {
 	struct pppoe_hdr ph;	/**< PPPoE header >*/
-	uint16_t ppp_proto;	/**< PPPoE payload protocol >*/
+	__be16 ppp_proto;	/**< PPPoE payload protocol >*/
+	uint8_t server_mac[ETH_ALEN];	/** < PPPoE server mac >*/
 };
 
 /*

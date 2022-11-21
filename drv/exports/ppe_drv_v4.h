@@ -46,6 +46,7 @@
 #define PPE_DRV_V4_VALID_FLAG_VLAN		0x0004  /**< VLAN fields are valid. */
 #define PPE_DRV_V4_VALID_FLAG_QOS		0x0008  /**< QoS fields are valid. */
 #define PPE_DRV_V4_VALID_FLAG_DSCP_MARKING	0x0010  /**< DSCP fields are valid. */
+#define PPE_DRV_V4_VALID_FLAG_SAWF		0x0020  /**< SAWF fields are valid. */
 
 #define PPE_DRV_V4_MAX_CONN_COUNT		2048
 
@@ -95,6 +96,7 @@ struct ppe_drv_v4_rule_create {
 	struct ppe_drv_dscp_rule dscp_rule;		/**< DSCP-related acceleration parameters. */
 	struct ppe_drv_vlan_rule vlan_rule;		/**< VLAN-related acceleration parameters. */
 	struct ppe_drv_top_if_rule top_rule;		/**< Parameters related to the top interface in hierarchy. */
+	struct ppe_drv_service_class_rule sawf_rule;	/**< Service class related information. */
 };
 
 /**

@@ -22,6 +22,8 @@
 #ifndef _PPE_DRV_SC_H_
 #define _PPE_DRV_SC_H_
 
+#include <ppe_drv.h>
+
 struct ppe_drv;
 
 /*
@@ -92,6 +94,18 @@ extern void ppe_drv_sc_unregister_cb(ppe_drv_sc_t sc);
  * void
  */
 extern void ppe_drv_sc_register_cb(ppe_drv_sc_t sc, ppe_drv_sc_callback_t cb, void *app_data);
+
+/*
+ * ppe_drv_sc_nsm_stats_update()
+ *	Update stats in NSM for given service class
+ *
+ * @param[IN] nsm_stats		Pointer to stats structure in NSM.
+ * @param[IN] service_class	Service class corresponding to which stats are needed.
+ *
+ * @return
+ * Status of the API.
+ */
+extern bool ppe_drv_sc_nsm_stats_update(struct ppe_drv_nsm_stats *nsm_stats, uint8_t service_class);
 
 /** @} */ /* end_addtogroup ppe_drv_sc_subsystem */
 

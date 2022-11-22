@@ -22,6 +22,8 @@
 #ifndef _PPE_DRV_V4_H_
 #define _PPE_DRV_V4_H_
 
+#include <ppe_drv.h>
+
 /**
  * @addtogroup ppe_drv_v4_subsystem
  * @{
@@ -239,6 +241,18 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy);
  * Status of the create operation.
  */
 ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create);
+
+/**
+ * ppe_drv_v4_nsm_stats_update
+ *	Update stats in NSM for the given 5 tuple.
+ *
+ * @param[in] nsm_stats		Pointer to stats maintained in NSM.
+ * @param[in] tuple		Pointer to 5 tuple.
+ *
+ * @return
+ * Status of the API.
+ */
+extern bool ppe_drv_v4_nsm_stats_update(struct ppe_drv_nsm_stats *nsm_stats, struct ppe_drv_v4_5tuple *tuple);
 
 /** @} */ /* end_addtogroup ppe_drv_v4_subsystem */
 

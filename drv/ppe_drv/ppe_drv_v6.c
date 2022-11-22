@@ -1575,3 +1575,30 @@ fail:
 	return ret;
 }
 EXPORT_SYMBOL(ppe_drv_v6_create);
+
+/*
+ * ppe_drv_v6_nsm_stats_update()
+ *	Update nsm stats for the given 5 tuple flow.
+ */
+bool ppe_drv_v6_nsm_stats_update(struct ppe_drv_nsm_stats *nsm_stats, struct ppe_drv_v6_5tuple *tuple)
+{
+	struct ppe_drv_flow *flow;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	spin_lock_bh(&p->lock);
+	flow = ppe_drv_flow_v6_get(tuple);
+
+	if (!flow) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p : Flow not found for give tuple information", tuple);
+		return false;
+	}
+
+	nsm_stats->flow_stats.rx_bytes = flow->bytes;
+	nsm_stats->flow_stats.rx_packets = flow->pkts;
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_trace("nsm stats : packets = %llu bytes = %llu", nsm_stats->flow_stats.rx_packets, nsm_stats->flow_stats.rx_bytes);
+	return true;
+}
+EXPORT_SYMBOL(ppe_drv_v6_nsm_stats_update);

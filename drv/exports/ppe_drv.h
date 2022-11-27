@@ -114,6 +114,24 @@ struct ppe_drv_service_class_rule {
 };
 
 /*
+ * ppe_drv_nsm_sc_stats
+ *	Per-service class stats to be send to NSM.
+ */
+struct ppe_drv_nsm_sc_stats {
+	uint64_t rx_packets;		/**< Packets recieved on the ethernet port. */
+	uint64_t rx_bytes;		/**< Bytes recieved on the ethernet port. */
+	uint16_t flow_count;		/**< Number of flows per service class. */
+};
+
+/*
+ * ppe_drv_nsm_stats
+ *	Information to be send to NSM.
+ */
+struct ppe_drv_nsm_stats {
+	struct ppe_drv_nsm_sc_stats sc_stats;		/**< Per-service class stats. */
+};
+
+/*
  * ppe_drv_stats_sync_reason
  *	Stats sync reasons.
  */

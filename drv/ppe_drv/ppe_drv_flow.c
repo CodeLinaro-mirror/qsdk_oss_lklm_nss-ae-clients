@@ -139,6 +139,11 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	fal_entry_counter_t flow_cntrs = {0};
 	struct ppe_drv_v6_conn *cn = pcf->conn;
 
+	/*
+	 * Get service code corresponding to the service class from pcf.
+	 */
+	uint8_t service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
+
 	ppe_drv_trace("%p: updating flow stats", pf);
 
 	err = fal_flow_counter_get(PPE_DRV_SWITCH_ID, pf->index, &flow_cntrs);
@@ -173,6 +178,13 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	pf->pkts = flow_cntrs.matched_pkts;
 	pf->bytes = flow_cntrs.matched_bytes;
 
+	/*
+	 * Update stats if SAWF service code corresponds to a service class.
+	 */
+	if ((service_code >= PPE_DRV_SC_SAWF_START) && (service_code <= PPE_DRV_SC_SAWF_END)) {
+		ppe_drv_sc_stats_add(service_code, delta_pkts, delta_bytes);
+	}
+
 	ppe_drv_trace("%p: updating stats for flow [index:%u] - curr pkt:%u byte:%llu", pf, pf->index, pf->pkts, pf->bytes);
 }
 
@@ -191,6 +203,11 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	struct ppe_drv_v4_conn *cn = pcf->conn;
 	struct ppe_drv_v6_conn_flow *mapt_pcf_v6, *mapt_pcr_v6;
 	struct ppe_drv_v6_conn *mapt_cn_v6;
+
+	/*
+	 * Get service code corresponding to the service class from pcf.
+	 */
+	uint8_t service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
 
 	ppe_drv_trace("%p: updating flow stats", pf);
 
@@ -238,6 +255,13 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 
 	pf->pkts = flow_cntrs.matched_pkts;
 	pf->bytes = flow_cntrs.matched_bytes;
+
+	/*
+	 * Update stats if SAWF service code corresponds to a service class.
+	 */
+	if ((service_code >= PPE_DRV_SC_SAWF_START) && (service_code <= PPE_DRV_SC_SAWF_END)) {
+		ppe_drv_sc_stats_add(service_code, delta_pkts, delta_bytes);
+	}
 
 	ppe_drv_trace("%p: updating stats for flow [index:%u] - curr pkt:%u byte:%llu", pf, pf->index, pf->pkts, pf->bytes);
 }
@@ -522,6 +546,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 					struct ppe_drv_host *host, bool entry_valid)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_stats_sc *sc_stats;
 	fal_flow_entry_t flow_cfg = {0};
 	uint32_t match_dest_ip[4];
 	uint32_t match_protocol = ppe_drv_v6_conn_flow_match_protocol_get(pcf);
@@ -719,6 +744,15 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	flow = &p->flow[flow_cfg.entry_id];
 	ppe_drv_assert(!(flow->flags & PPE_DRV_FLOW_VALID), "%p: flow entry is already accelerated to PPE at index: %d",
 			pcf, flow_cfg.entry_id);
+
+	/*
+	 * Increment flow count if SAWF service code corresponds to a service class.
+	 */
+	if ((flow_cfg.sevice_code >= PPE_DRV_SC_SAWF_START) && (flow_cfg.sevice_code <= PPE_DRV_SC_SAWF_END)) {
+		sc_stats = &p->stats.sc_stats[flow_cfg.sevice_code];
+		ppe_drv_stats_inc(&sc_stats->sc_flow_count);
+		ppe_drv_trace("Stats Updated: service code %u : flow  %llu\n", flow_cfg.sevice_code, atomic64_read(&sc_stats->sc_flow_count));
+	}
 
 	/*
 	 * Update the shadow copy
@@ -1042,6 +1076,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 					struct ppe_drv_host *host, bool entry_valid)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_stats_sc *sc_stats;
 	fal_flow_entry_t flow_cfg = {0};
 	uint32_t match_src_ip = ppe_drv_v4_conn_flow_match_src_ip_get(pcf);
 	uint32_t match_dest_ip = ppe_drv_v4_conn_flow_match_dest_ip_get(pcf);
@@ -1266,6 +1301,15 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	flow = &p->flow[flow_cfg.entry_id];
 	ppe_drv_assert(!(flow->flags & PPE_DRV_FLOW_VALID), "%p: flow entry is already accelerated to PPE at index: %d",
 			pcf, flow_cfg.entry_id);
+
+	/*
+	 * Increment flow count if SAWF service code corresponds to a service class.
+	 */
+	if ((flow_cfg.sevice_code >= PPE_DRV_SC_SAWF_START) && (flow_cfg.sevice_code <= PPE_DRV_SC_SAWF_END)) {
+		sc_stats = &p->stats.sc_stats[flow_cfg.sevice_code];
+		ppe_drv_stats_inc(&sc_stats->sc_flow_count);
+		ppe_drv_trace("Stats Updated: service code %u : flow  %llu\n", flow_cfg.sevice_code, atomic64_read(&sc_stats->sc_flow_count));
+	}
 
 	/*
 	 * Update the shadow copy

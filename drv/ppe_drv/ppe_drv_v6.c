@@ -612,6 +612,11 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_flow *flow = pcf->pf;
 
+	/*
+	 * Get service code corresponding to the service class from pcf.
+	 */
+	uint8_t service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
+
 	ppe_drv_trace("%p, flow deletion request for flow-idx: %d host-idx: %u", pcf, flow->index, flow->host->index);
 
 	/*
@@ -658,6 +663,14 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 		ppe_drv_stats_dec(&p->stats.gen_stats.v6_l2_flows);
 	} else {
 		ppe_drv_stats_dec(&p->stats.gen_stats.v6_l3_flows);
+	}
+
+	/*
+	 * Decrement flow count if SAWF service code corresponds to a service class.
+	 */
+	if ((service_code >= PPE_DRV_SC_SAWF_START) && (service_code <= PPE_DRV_SC_SAWF_END)) {
+		ppe_drv_stats_dec(&p->stats.sc_stats[service_code].sc_flow_count);
+		ppe_drv_trace("Stats Updated: service code %u : flow  %llu\n", service_code, atomic64_read(&p->stats.sc_stats[service_code].sc_flow_count));
 	}
 
 	/*

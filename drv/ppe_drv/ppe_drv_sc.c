@@ -215,6 +215,19 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * Don't update service code in EDMA
 		 */
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+
+		break;
+
+	case PPE_DRV_SC_SAWF_START ... PPE_DRV_SC_SAWF_END:
+		/*
+		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
+		 * packets sent to PPE, with SPF bypass service code.
+		 */
+		sc_cfg.bypass_bitmap[1] = ((1 << SOURCE_FLTR_BYP)
+						| (1 << BRIDGING_FWD_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
+		sc_cfg.dest_port_valid = false;
+
 		break;
 
 	default:
@@ -332,6 +345,7 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_sc *sc;
+	int i = 0;
 
 	sc = vzalloc(sizeof(struct ppe_drv_sc) * p->sc_num);
 	if (!sc) {
@@ -360,6 +374,9 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_EDIT_REDIR_CORE2, PPE_DRV_SC_EDIT_REDIR_CORE2, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_EDIT_REDIR_CORE3, PPE_DRV_SC_EDIT_REDIR_CORE3, PPE_DRV_PORT_CPU);
 
+	for (i = PPE_DRV_SC_SAWF_START; i <= PPE_DRV_SC_SAWF_END; i++) {
+		ppe_drv_sc_config(i, i, PPE_DRV_PORT_CPU);
+	}
 
 	return sc;
 }

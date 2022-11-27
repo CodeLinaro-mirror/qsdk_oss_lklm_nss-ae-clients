@@ -104,6 +104,15 @@ struct ppe_drv_top_if_rule {
 	ppe_drv_iface_t tx_if;		/**< Top PPE interface for return direction */
 };
 
+/**
+ * ppe_drv_service_class_rule
+ *	Service class related information.
+ */
+struct ppe_drv_service_class_rule {
+	uint32_t flow_mark;		/**< Service class information in flow direction. */
+	uint32_t return_mark;		/**< Service class information in return direction. */
+};
+
 /*
  * ppe_drv_stats_sync_reason
  *	Stats sync reasons.

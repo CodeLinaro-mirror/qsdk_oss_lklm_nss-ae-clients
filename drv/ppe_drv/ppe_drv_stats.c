@@ -267,7 +267,7 @@ static int ppe_drv_conn_stats_sc_show(struct seq_file *m, void __attribute__((un
 
 	seq_puts(m, "\nPPE_sc_stats:\n\n");
 	stats_shadow = (uint64_t *)sc_stats;
-	for (i = 0; i < PPE_DRV_SC_MAX; i++) {
+	for (i = 0; i <= PPE_DRV_SC_EDIT_REDIR_CORE3; i++) {
 		uint64_t stats1 = *stats_shadow++;
 		uint64_t stats2 = *stats_shadow++;
 		uint64_t stats3 = *stats_shadow++;

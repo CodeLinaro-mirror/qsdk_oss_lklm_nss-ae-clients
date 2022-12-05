@@ -206,8 +206,6 @@ static bool ppe_tun_deactivate_with_conn_entry(uint8_t vp_num, void *vdestroy_ru
 		return false;
 	}
 
-	tun->phys_dev = NULL;
-
 	ppe_tun_deref(tun);
 
 	/*
@@ -311,6 +309,10 @@ static bool ppe_tun_exception_src_cb(struct net_device *dev, struct sk_buff *skb
 	 */
 	if (tun->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 		dev = tun->phys_dev;
+		if (unlikely(!dev)) {
+			ppe_tun_deref(tun);
+			goto free_skb;
+		}
 	}
 
 	ppe_tun_deref(tun);
@@ -425,8 +427,6 @@ bool ppe_tun_deactivate(struct net_device *dev)
 		ppe_tun_warn("%p: failed to deactivate tunnel for dev %s", tun, dev->name);
 		return false;
 	}
-
-	tun->phys_dev = NULL;
 
 	ppe_tun_deref(tun);
 
@@ -742,6 +742,7 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	tun->type = type;
 	tun->vp_num = vp_num;
 	tun->idx = idx;
+
 	kref_init(&tun->ref);
 
 	ptp->tun[idx] = tun;

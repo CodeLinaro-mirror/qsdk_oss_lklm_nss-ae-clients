@@ -40,6 +40,8 @@
 					/* Flow needs PPE assistance for RFS */
 #define PPE_DRV_V6_CONN_FLOW_FLAG_SAWF_MARKING 0x00000080
 					/* SAWF marking is valid for the flow */
+#define PPE_DRV_V6_CONN_FLOW_FLAG_FSE 0x00000100
+					/* Flow is also pushed to FSE HW in Wifi */
 
 /*
  * ppe_drv_v6_conn_flow

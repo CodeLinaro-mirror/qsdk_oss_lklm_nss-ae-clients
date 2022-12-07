@@ -49,6 +49,7 @@
 #define PPE_DRV_V4_VALID_FLAG_QOS		0x0008  /**< QoS fields are valid. */
 #define PPE_DRV_V4_VALID_FLAG_DSCP_MARKING	0x0010  /**< DSCP fields are valid. */
 #define PPE_DRV_V4_VALID_FLAG_SAWF		0x0020  /**< SAWF fields are valid. */
+#define PPE_DRV_V4_VALID_FLAG_DS		0x0040	/**< Direct switch flow. */
 
 #define PPE_DRV_V4_MAX_CONN_COUNT		2048
 

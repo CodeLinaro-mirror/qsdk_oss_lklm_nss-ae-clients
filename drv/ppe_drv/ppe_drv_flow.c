@@ -134,15 +134,12 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	sw_error_t err;
 	uint32_t delta_pkts;
 	uint32_t delta_bytes;
+	uint8_t service_code;
+	uint32_t sawf_tag;
 	struct ppe_drv_v6_conn_flow *pcr;
 	struct ppe_drv_flow *pf = pcf->pf;
 	fal_entry_counter_t flow_cntrs = {0};
 	struct ppe_drv_v6_conn *cn = pcf->conn;
-
-	/*
-	 * Get service code corresponding to the service class from pcf.
-	 */
-	uint8_t service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
 
 	ppe_drv_trace("%p: updating flow stats", pf);
 
@@ -179,9 +176,11 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	pf->bytes = flow_cntrs.matched_bytes;
 
 	/*
-	 * Update stats if SAWF service code corresponds to a service class.
+	 * Update the stats only if sawf tag is valid.
 	 */
-	if ((service_code >= PPE_DRV_SC_SAWF_START) && (service_code <= PPE_DRV_SC_SAWF_END)) {
+	sawf_tag = PPE_DRV_SAWF_TAG_GET(pcf->sawf_mark);
+	if (sawf_tag == PPE_DRV_SAWF_VALID_TAG) {
+		service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
 		ppe_drv_sc_stats_add(service_code, delta_pkts, delta_bytes);
 	}
 
@@ -197,17 +196,14 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	sw_error_t err;
 	uint32_t delta_pkts;
 	uint32_t delta_bytes;
+	uint32_t sawf_tag;
+	uint8_t service_code;
 	struct ppe_drv_v4_conn_flow *pcr;
 	struct ppe_drv_flow *pf = pcf->pf;
 	fal_entry_counter_t flow_cntrs = {0};
 	struct ppe_drv_v4_conn *cn = pcf->conn;
 	struct ppe_drv_v6_conn_flow *mapt_pcf_v6, *mapt_pcr_v6;
 	struct ppe_drv_v6_conn *mapt_cn_v6;
-
-	/*
-	 * Get service code corresponding to the service class from pcf.
-	 */
-	uint8_t service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
 
 	ppe_drv_trace("%p: updating flow stats", pf);
 
@@ -257,9 +253,11 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	pf->bytes = flow_cntrs.matched_bytes;
 
 	/*
-	 * Update stats if SAWF service code corresponds to a service class.
+	 * Update the stats only if sawf tag is valid.
 	 */
-	if ((service_code >= PPE_DRV_SC_SAWF_START) && (service_code <= PPE_DRV_SC_SAWF_END)) {
+	sawf_tag = PPE_DRV_SAWF_TAG_GET(pcf->sawf_mark);
+	if (sawf_tag == PPE_DRV_SAWF_VALID_TAG) {
+		service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
 		ppe_drv_sc_stats_add(service_code, delta_pkts, delta_bytes);
 	}
 

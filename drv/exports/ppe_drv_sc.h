@@ -22,9 +22,8 @@
 #ifndef _PPE_DRV_SC_H_
 #define _PPE_DRV_SC_H_
 
-#include <ppe_drv.h>
-
 struct ppe_drv;
+struct ppe_drv_nsm_stats;
 
 /*
  * ppe_drv_sc_type

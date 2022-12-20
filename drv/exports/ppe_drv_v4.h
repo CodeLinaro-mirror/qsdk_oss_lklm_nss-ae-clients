@@ -22,8 +22,6 @@
 #ifndef _PPE_DRV_V4_H_
 #define _PPE_DRV_V4_H_
 
-#include <ppe_drv.h>
-
 /**
  * @addtogroup ppe_drv_v4_subsystem
  * @{

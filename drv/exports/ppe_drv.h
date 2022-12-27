@@ -185,8 +185,8 @@ struct ppe_drv_nsm_sc_stats {
  *	Information to be send to NSM.
  */
 struct ppe_drv_nsm_stats {
-	struct ppe_drv_nsm_sc_stats sc_stats;		/**< Per-service class stats. */
-	struct ppe_drv_nsm_flow_stats flow_stats;	/**< Per-flow stats. */
+	struct ppe_drv_nsm_sc_stats sc_stats;			/**< Per-service class stats. */
+	struct ppe_drv_nsm_flow_stats flow_stats;		/**< Per-flow stats. */
 	struct ppe_drv_nsm_queue_drop_stats queue_stats;	/**< Per-queue stats. */
 };
 

@@ -758,11 +758,8 @@ static bool ppe_drv_v4_flow_del(struct ppe_drv_v4_conn_flow *pcf)
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_flow *flow = pcf->pf;
 	struct ppe_drv_fse_rule_info fse_info = {0};
-
-	/*
-	 * Get service code corresponding to the service class from pcf.
-	 */
-	uint8_t service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
+	uint8_t service_code;
+	uint32_t sawf_tag;
 
 	ppe_drv_trace("%p, flow deletion request for flow-idx: %d host-idx: %u", pcf, flow->index, flow->host->index);
 
@@ -813,13 +810,14 @@ static bool ppe_drv_v4_flow_del(struct ppe_drv_v4_conn_flow *pcf)
 	}
 
 	/*
-	 * Decrement flow count if SAWF service code corresponds to a service class.
+	 * Decrement flow count if sawf tag is valid.
 	 */
-	if ((service_code >= PPE_DRV_SC_SAWF_START) && (service_code <= PPE_DRV_SC_SAWF_END)) {
+	sawf_tag = PPE_DRV_SAWF_TAG_GET(pcf->sawf_mark);
+	if (sawf_tag == PPE_DRV_SAWF_VALID_TAG) {
+		service_code = PPE_DRV_SAWF_SERVICE_CLASS_GET(pcf->sawf_mark) + PPE_DRV_SC_SAWF_START;
 		ppe_drv_stats_dec(&p->stats.sc_stats[service_code].sc_flow_count);
 		ppe_drv_trace("Stats Updated: service code %u : flow  %llu\n",service_code, atomic64_read(&p->stats.sc_stats[service_code].sc_flow_count));
 	}
-
 
 	/*
 	 * Clear the flow entry in SW so that it can be reused.

@@ -40,6 +40,7 @@
 					/**< Bit is set if trustsec_tx tunnel rules are configured. */
 #define NSS_CAPWAPMGR_FEATURE_OUTER_TRUSTSEC_ENABLED	0x00000004	/**< Tunnel enabled outer trustsec. */
 
+#define NSS_CAPWAPMGR_FEATURE_DTLS_ENABLED              0x00000001      /* Tunnel enabled DTLS. */
 /**
  * nss_capwapmgr_response
  *	NSS FW response table to wakeup sync message caller.
@@ -60,6 +61,7 @@ struct nss_capwapmgr_response {
  *	Mapping table from tunnel-id to if_num and rule.
  */
 struct nss_capwapmgr_tunnel {
+	struct net_device *dtls_dev;		/**< DTLS netdevice */
 	struct net_device *internal_dev;	/**< Internal device for VP allocation. */
 	uint32_t if_num_inner;			/**< Interface number of the INNER CAPWAP node. */
 	uint32_t if_num_outer;			/**< Interface number of the OUTER CAPWAP node. */
@@ -154,6 +156,7 @@ typedef enum {
 	NSS_CAPWAPMGR_FAILURE_TRUSTSEC_VP_NUM_UPDATE,	/**< Failed to update TrustSec virtual port number. */
 	NSS_CAPWAPMGR_FAILURE_CONFIGURE_TRUSTSEC_TX,	/**< Failed to configure TrustSec Tx rule. */
 	NSS_CAPWAPMGR_FAILURE_DSCP_ACL_INIT,		/**< Failed to initialize DSCP ACL related objects. */
+	NSS_CAPWAPMGR_FAILURE_INVALID_DTLS_CFG,		/**< Invalid DTLS configuration. */
 } nss_capwapmgr_status_t;
 
 /**
@@ -175,18 +178,20 @@ extern struct net_device *nss_capwapmgr_netdev_create(void);
  * @datatypes
  * net_device \n
  * nss_ipv4_create \n
- * nss_capwap_rule_msg
+ * nss_capwap_rule_msg \n
+ * nss_dtlsmgr_config
  *
  * @param[in] netdevice	CAPWAP netdevice.
  * @param[in] tunnel_id	Tunnel ID of the tunnel.
  * @param[in] IPv4	IPv4 rule structure.
  * @param[in] CAPWAP	CAPWAP rule structure.
+ * @param[in] DTLS	DTLS config data.
  *
  * @return
  * nss_capwapmgr_status_t
  */
 extern nss_capwapmgr_status_t nss_capwapmgr_ipv4_tunnel_create(struct net_device *dev, uint8_t tunnel_id,
-			struct nss_ipv4_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule);
+			struct nss_ipv4_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule, struct nss_dtlsmgr_config *dtls_data);
 
 /**
  * nss_capwapmgr_ipv6_tunnel_create
@@ -195,18 +200,20 @@ extern nss_capwapmgr_status_t nss_capwapmgr_ipv4_tunnel_create(struct net_device
  * @datatypes
  * net_device \n
  * nss_ipv6_create \n
- * nss_capwap_rule_msg
+ * nss_capwap_rule_msg \n
+ * nss_dtlsmgr_config
  *
  * @param[in] netdevice	CAPWAP netdevice.
  * @param[in] tunnel_id	Tunnel ID of thethe tunnel.
  * @param[in] IPv6	IPv6 rule structure.
  * @param[in] CAPWAP	CAPWAP rule structure.
+ * @param[in] DTLS	DTLS config data.
  *
  * @return
  * nss_capwapmgr_status_t
  */
 extern nss_capwapmgr_status_t nss_capwapmgr_ipv6_tunnel_create(struct net_device *dev, uint8_t tunnel_id,
-			struct nss_ipv6_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule);
+			struct nss_ipv6_create *ip_rule, struct nss_capwap_rule_msg *capwap_rule, struct nss_dtlsmgr_config *dtls_data);
 
 /**
  * nss_capwapmgr_enable_tunnel
@@ -432,4 +439,108 @@ extern nss_capwapmgr_status_t nss_capwapmgr_tunnel_stats(struct net_device *dev,
  */
 extern struct net_device *nss_capwapmgr_get_netdev(void);
 #endif /* NSS_CAPWAPMGR_ONE_NETDEV */
+
+/**
+ * nss_capwapmgr_get_dtls_netdev
+ *	Get the DTLS net_device associated to the CAPWAP tunnel
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] netdevice
+ * @param[in] tunnel_id
+ *
+ * @return
+ * Pointer to struct net_device
+ *
+ * @note This API hold the NET_DEVICE reference; after use the caller must perform
+ * "dev_put" to release the reference.
+ */
+struct net_device *nss_capwapmgr_get_dtls_netdev(struct net_device *dev, uint8_t tunnel_id);
+
+/**
+ * nss_capwapmgr_configure_dtls
+ *	Configure dtls settings of a capwap tunnel.
+ *
+ * @datatypes
+ * net_device \n
+ * nss_dtlsmgr_config
+ *
+ * @param[in] netdevice.
+ * @param[in] tunnel_id.
+ * @param[in] enable or disable
+ * @param[in] dtls configuration
+ *
+ * @return
+ * nss_capwapmgr_status_t
+ */
+extern nss_capwapmgr_status_t nss_capwapmgr_configure_dtls(struct net_device *dev, uint8_t tunnel_id,
+		uint8_t enable_dtls, struct nss_dtlsmgr_config *in_data);
+
+/**
+ * nss_capwapmgr_dtls_rekey_rx_cipher_update
+ *	RX cipher update for a CAPWAP DTLS tunnel
+ *
+ * @datatypes
+ * net_device \n
+ * nss_dtlsmgr_config_update
+ *
+ * @param[in] netdevice
+ * @param[in] tunnel_id
+ * @param[in] dtls configuration update
+ *
+ * @return
+ * nss_capwapmgr_status_t
+ */
+extern nss_capwapmgr_status_t nss_capwapmgr_dtls_rekey_rx_cipher_update(struct net_device *dev, uint8_t tunnel_id,
+		struct nss_dtlsmgr_config_update *udata);
+
+/**
+ * nss_capwapmgr_dtls_rekey_tx_cipher_update
+ *	TX cipher update for a CAPWAP DTLS tunnel
+ *
+ * @datatypes
+ * net_device \n
+ * nss_dtlsmgr_config_update
+ *
+ * @param[in] netdevice
+ * @param[in] tunnel_id
+ * @param[in] dtls configuration update
+ *
+ * @return
+ * nss_capwapmgr_status_t
+ */
+extern nss_capwapmgr_status_t nss_capwapmgr_dtls_rekey_tx_cipher_update(struct net_device *dev, uint8_t tunnel_id,
+		struct nss_dtlsmgr_config_update *udata);
+
+/**
+ * nss_capwapmgr_dtls_rekey_rx_cipher_switch
+ *	RX cipher switch for a CAPWAP DTLS tunnel
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] netdevice
+ * @param[in] tunnel_id
+ *
+ * @return
+ * nss_capwapmgr_status_t
+ */
+extern nss_capwapmgr_status_t nss_capwapmgr_dtls_rekey_rx_cipher_switch(struct net_device *dev, uint8_t tunnel_id);
+
+/**
+ * nss_capwapmgr_dtls_rekey_tx_cipher_switch
+ *	TX cipher switch for a CAPWAP DTLS tunnel
+ *
+ * @datatypes
+ * net_device
+ *
+ * @param[in] netdevice
+ * @param[in] tunnel_id
+ *
+ * @return
+ * nss_capwapmgr_status_t
+ */
+extern nss_capwapmgr_status_t nss_capwapmgr_dtls_rekey_tx_cipher_switch(struct net_device *dev, uint8_t tunnel_id);
+
 #endif /* __NSS_CAPWAPMGR_H */

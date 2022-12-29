@@ -47,7 +47,11 @@
 #include <crypto/skcipher.h>
 #include <crypto/hash.h>
 
+#include <ppe_vp_public.h>
+#include <ppe_drv_iface.h>
+
 #include <nss_api_if.h>
+#include <nss_dp_api_if.h>
 #include <nss_dynamic_interface.h>
 
 #include <nss_cryptoapi.h>
@@ -376,26 +380,24 @@ static int nss_dtlsmgr_ctx_create_encap(struct nss_dtlsmgr_ctx *ctx, uint32_t if
 	 */
 	switch (data->flags & (NSS_DTLSMGR_HDR_IPV6 | NSS_DTLSMGR_HDR_CAPWAP)) {
 	case NSS_DTLSMGR_HDR_IPV6 | NSS_DTLSMGR_HDR_CAPWAP:
-		data->dest_ifnum = NSS_IPV6_RX_INTERFACE;
 		data->headroom += sizeof(struct ipv6hdr);
 		data->headroom += NSS_DTLSMGR_CAPWAP_DTLS_HDR_SZ;
 		data->headroom += NSS_DTLSMGR_SGT_HDR_SZ;
 		break;
 	case NSS_DTLSMGR_HDR_IPV6:
-		data->dest_ifnum = NSS_IPV6_RX_INTERFACE;
 		data->headroom += sizeof(struct ipv6hdr);
 		break;
 	case NSS_DTLSMGR_HDR_CAPWAP:
-		data->dest_ifnum = NSS_IPV4_RX_INTERFACE;
 		data->headroom += sizeof(struct iphdr);
 		data->headroom += NSS_DTLSMGR_CAPWAP_DTLS_HDR_SZ;
 		data->headroom += NSS_DTLSMGR_SGT_HDR_SZ;
 		break;
 	default:
-		data->dest_ifnum = NSS_IPV4_RX_INTERFACE;
 		data->headroom += sizeof(struct iphdr);
 		break;
 	}
+
+	data->dest_ifnum = NSS_EDMA_LITE_INTERFACE;
 
 	/*
 	 * Header size is same for UDP and UDPLite
@@ -565,6 +567,37 @@ static bool nss_dtlsmgr_session_switch(struct nss_dtlsmgr_ctx *ctx, struct nss_d
 }
 
 /*
+ * nss_dtlsmgr_update_vp_num()
+ *	Function to send update vp message.
+ */
+static nss_tx_status_t nss_dtlsmgr_update_vp_num(struct nss_dtlsmgr_ctx_data *data, uint32_t if_num, int16_t vp_num)
+{
+	enum nss_dtls_cmn_error resp = NSS_DTLS_CMN_ERROR_NONE;
+	const uint32_t type = NSS_DTLS_CMN_MSG_TYPE_UPDATE_VP;
+	struct nss_ctx_instance *ctx = data->nss_ctx;
+	struct nss_dtls_cmn_msg dtlsmsg;
+	nss_tx_status_t status;
+
+	BUG_ON(in_atomic());
+
+	/*
+	 * Prepare the tunnel configuration parameter to send to NSS FW
+	 */
+	memset(&dtlsmsg, 0, sizeof(struct nss_dtls_cmn_msg));
+	dtlsmsg.msg.update_vp.vp_num = vp_num;
+
+	/*
+	 * Send DTLS tunnel command to NSS
+	 */
+	status = nss_dtls_cmn_tx_msg_sync(ctx, if_num, type, sizeof(struct nss_dtls_cmn_update_vp_num), &dtlsmsg, &resp);
+	if (status != NSS_TX_SUCCESS) {
+		nss_dtlsmgr_warn("%px: ctx: CMD: %d Tunnel error : %d \n", ctx, type, status);
+	}
+
+	return status;
+}
+
+/*
  * nss_dtlsmgr_session_create()
  *	Create DTLS session and associated crypto sessions.
  */
@@ -573,8 +606,11 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 	struct nss_dtlsmgr *drv = &g_dtls;
 	struct nss_dtlsmgr_ctx *ctx = NULL;
 	struct net_device *dev;
+	nss_tx_status_t status;
+	struct ppe_vp_ai vpai;
 	int32_t encap_ifnum;
 	int32_t decap_ifnum;
+	ppe_vp_num_t vp_num;
 	int error;
 
 	if (!atomic_read(&drv->is_configured)) {
@@ -652,7 +688,41 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 		goto destroy_decap;
 	}
 
+	/*
+	 * Allocate a new VP.
+	 */
+	memset(&vpai, 0, sizeof(struct ppe_vp_ai));
+	vpai.type = PPE_VP_TYPE_SW_PO;
+	vpai.queue_num = edma_cfg_rx_point_offload_ring_queue_get();
+
+	/*
+	 * Allocate a PPE VP
+	 */
+	vp_num = ppe_vp_alloc(dev, &vpai);
+	if (vp_num == -1) {
+		nss_dtlsmgr_warn("%px: VP alloc failed", dev);
+		goto unregister;
+	}
+
 	dev->mtu = dev->mtu - (ctx->encap.headroom + ctx->encap.tailroom);
+
+	/*
+	 * Update the VP->pnode mapping.
+	 */
+	status = nss_dtlsmgr_update_vp_num(&ctx->encap, encap_ifnum, vp_num);
+	if (status != NSS_TX_SUCCESS) {
+		nss_dtlsmgr_warn("%px: %d VP number update failed %d", ctx, vp_num, status);
+		goto unregister;
+	}
+
+	/*
+	 * Update the VP->pnode mapping.
+	 */
+	status = nss_dtlsmgr_update_vp_num(&ctx->decap, decap_ifnum, vp_num);
+	if (status != NSS_TX_SUCCESS) {
+		nss_dtlsmgr_warn("%px: %d VP number update failed %d", ctx, vp_num, status);
+		goto unregister;
+	}
 
 	nss_dtlsmgr_trace("%px: dtls session(%s) created, encap(%u), decap(%u)",
 			  ctx, dev->name, ctx->encap.ifnum, ctx->decap.ifnum);
@@ -661,7 +731,16 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 		nss_dtlsmgr_warn("Failed to create debugfs for ctx(%px)", ctx);
 	}
 
+	/*
+	 * Save the vp number.
+	 */
+	ctx->vp_num = vp_num;
+
 	return dev;
+
+unregister:
+	unregister_netdev(dev);
+	ppe_vp_free(vp_num);
 
 destroy_decap:
 	nss_dtlsmgr_ctx_deconfigure(ctx, &ctx->decap);
@@ -880,3 +959,13 @@ int32_t nss_dtlsmgr_get_interface(struct net_device *dev, enum nss_dtlsmgr_inter
 	return nss_dtls_cmn_get_ifnum(ifnum);
 }
 EXPORT_SYMBOL(nss_dtlsmgr_get_interface);
+
+/*
+ * nss_dtlsmgr_encap_overhead(dtls_dev)
+ *	Returns the dtls overhead.
+ */
+uint32_t nss_dtlsmgr_encap_overhead(struct net_device *dev)
+{
+	return dev->needed_headroom + dev->needed_tailroom;
+}
+EXPORT_SYMBOL(nss_dtlsmgr_encap_overhead);

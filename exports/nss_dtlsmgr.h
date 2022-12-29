@@ -81,6 +81,7 @@ typedef enum nss_dtlsmgr_status {
 	NSS_DTLSMGR_INVALID_VERSION,	/**< Invalid DTLS version. */
 	NSS_DTLSMGR_INVALID_ALGO,	/**< Invalid algorithm. */
 	NSS_DTLSMGR_INVALID_KEYLEN,	/**< Invalid key length for cipher/auth. */
+	NSS_DTLSMGR_FAIL_VP_ALLOC	/**< Failed to alloca VP for dtls. */
 } nss_dtlsmgr_status_t;
 
 /**
@@ -469,5 +470,16 @@ bool nss_dtlsmgr_session_switch_decap(struct net_device *dev);
  * @return interface number for success
  */
 int32_t nss_dtlsmgr_get_interface(struct net_device *dev, enum nss_dtlsmgr_interface_type type);
+
+/**
+ * nss_dtlsmgr_encap_overhead
+ *	Get the DTLS overhead.
+ *
+ * @param dev[in] DTLS network device
+ *
+ * @return Overhead for dtls netdevice
+ */
+uint32_t nss_dtlsmgr_encap_overhead(struct net_device *dev);
+
 #endif /* __KERNEL__ */
 #endif /* _NSS_DTLSMGR_H_ */

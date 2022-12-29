@@ -24,6 +24,8 @@
 #ifndef __NSS_DTLSMGR_PRIVATE_H_
 #define __NSS_DTLSMGR_PRIVATE_H_
 
+#include <ppe_vp_public.h>
+
 #define NSS_DTLSMGR_DEBUG_LEVEL_ERROR 1
 #define NSS_DTLSMGR_DEBUG_LEVEL_WARN 2
 #define NSS_DTLSMGR_DEBUG_LEVEL_INFO 3
@@ -161,6 +163,7 @@ struct nss_dtlsmgr_ctx {
 	void *app_data;				/* Opaque data for callback */
 	nss_dtlsmgr_notify_callback_t notify_cb;/* Statistics notification callback. */
 	nss_dtlsmgr_data_callback_t data_cb;	/* Data callback. */
+	ppe_vp_num_t vp_num;			/**< VP number associated with the tunnel. */
 
 #if defined (NSS_DTLSMGR_DEBUG)
 	uint32_t magic;				/* Magic check. */

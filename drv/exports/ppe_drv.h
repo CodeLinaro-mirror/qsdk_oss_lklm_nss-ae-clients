@@ -38,6 +38,12 @@
 #define PPE_DRV_FSE_DS 0x00000004	/**< Indicate if flow is Direct switch. */
 
 /*
+ * PPE INT PRI Min/Max values
+ */
+#define PPE_DRV_INT_PRI_MIN 0
+#define PPE_DRV_INT_PRI_MAX 15
+
+/*
  * ppe_drv_ip_type
  *	Types of IP addresses handled
  */

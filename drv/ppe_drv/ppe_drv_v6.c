@@ -377,12 +377,13 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 			if (sawf_tag == PPE_DRV_SAWF_VALID_TAG) {
 				ppe_drv_v6_conn_flow_sawf_set(pcf, sawf_rule->flow_mark);
 				ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_SAWF_MARKING);
-
-				if (valid_flags & PPE_DRV_V6_VALID_FLAG_QOS) {
-					ppe_drv_v6_conn_flow_int_pri_set(pcf, qos_rule->flow_qos_tag);
-					ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_QOS_VALID);
-				}
 			}
+		}
+
+		if (valid_flags & PPE_DRV_V6_VALID_FLAG_QOS) {
+			qos_rule->flow_qos_tag = (qos_rule->flow_qos_tag > PPE_DRV_INT_PRI_MAX) ? PPE_DRV_INT_PRI_MAX : qos_rule->flow_qos_tag;
+			ppe_drv_v6_conn_flow_int_pri_set(pcf, qos_rule->flow_qos_tag);
+			ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_QOS_VALID);
 		}
 
 		if (valid_flags & PPE_DRV_V6_VALID_FLAG_VLAN) {
@@ -480,12 +481,13 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 			if (sawf_tag == PPE_DRV_SAWF_VALID_TAG) {
 				ppe_drv_v6_conn_flow_sawf_set(pcr, sawf_rule->return_mark);
 				ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLOW_FLAG_SAWF_MARKING);
-
-				if (valid_flags & PPE_DRV_V6_VALID_FLAG_QOS) {
-					ppe_drv_v6_conn_flow_int_pri_set(pcr, qos_rule->return_qos_tag);
-					ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLOW_FLAG_QOS_VALID);
-				}
 			}
+		}
+
+		if (valid_flags & PPE_DRV_V6_VALID_FLAG_QOS) {
+			qos_rule->return_qos_tag = (qos_rule->return_qos_tag > PPE_DRV_INT_PRI_MAX) ? PPE_DRV_INT_PRI_MAX : qos_rule->return_qos_tag;
+			ppe_drv_v6_conn_flow_int_pri_set(pcr, qos_rule->return_qos_tag);
+			ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLOW_FLAG_QOS_VALID);
 		}
 
 		if (valid_flags & PPE_DRV_V6_VALID_FLAG_VLAN) {

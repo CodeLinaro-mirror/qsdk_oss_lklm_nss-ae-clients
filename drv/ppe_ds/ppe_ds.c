@@ -441,7 +441,6 @@ bool ppe_ds_wlan_inst_register(ppe_ds_wlan_handle_t *wlan_handle, struct ppe_ds_
 	edma_handle->reo2ppe_ba = reg_info->reo2ppe_ba;
 	edma_handle->ppe2tcl_num_desc = reg_info->ppe2tcl_num_desc;
 	edma_handle->reo2ppe_num_desc = reg_info->reo2ppe_num_desc;
-	edma_handle->eth_txcomp_budget = PPE_DS_TXCMPL_BUDGET;
 	edma_handle->polling_for_idx_update = polling_for_idx_update;
 
 	if ((ppe2tcl_rxfill_num_desc < PPE_DS_RXFILL_NUM_DESC_MIN) ||
@@ -463,6 +462,13 @@ bool ppe_ds_wlan_inst_register(ppe_ds_wlan_handle_t *wlan_handle, struct ppe_ds_
 			reg_info->ppe2tcl_num_desc >> PPE_DS_RXFILL_LOW_THRES_DIVISOR;
 	} else {
 		edma_handle->eth_rxfill_low_thr = rxfill_low_threshold;
+	}
+
+	if ((txcmpl_budget < PPE_DS_TXCMPL_MIN_BUDGET) ||
+			(txcmpl_budget > edma_handle->reo2ppe_num_desc)) {
+		edma_handle->eth_txcomp_budget = PPE_DS_TXCMPL_DEF_BUDGET;
+	} else {
+		edma_handle->eth_txcomp_budget = txcmpl_budget;
 	}
 
 	ppe_ds_info(" ppe2tcl num desc: %d, reo2ppe num desc: %d, txcmpl budget: %d"

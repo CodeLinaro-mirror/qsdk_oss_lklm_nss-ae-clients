@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -39,14 +39,6 @@ MODULE_PARM_DESC(polling_for_idx_update, "Enable/Disable PPE DS poll mode");
 unsigned int idx_mgmt_freq = 32768;
 module_param(idx_mgmt_freq, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(idx_mgmt_freq, "Idx Management hrtimer freq");
-
-/*
- * Maximum PPE2TCL producer index count to be indicated to the Waikiki
- * hardware to handle its slow Tx complete
- */
-unsigned int max_move = 1024;
-module_param(max_move, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-MODULE_PARM_DESC(max_move, "Max movement of the Prod idx that is allowed");
 
 unsigned int cpu_mask_2g = 0x2;
 module_param(cpu_mask_2g, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);

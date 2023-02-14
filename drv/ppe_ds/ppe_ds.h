@@ -76,7 +76,6 @@
 
 extern unsigned int polling_for_idx_update;
 extern unsigned int idx_mgmt_freq;
-extern unsigned int max_move;
 extern unsigned int cpu_mask_2g;
 extern unsigned int cpu_mask_5g;
 extern unsigned int cpu_mask_6g;

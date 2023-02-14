@@ -100,13 +100,6 @@ static enum hrtimer_restart ppe_ds_timer(struct hrtimer *hrtimer)
 	move = (prod_idx - cons_idx  + ppe2tcl_ring_size) &
 						(ppe2tcl_ring_size - 1);
 	if (move > 0) {
-		/*
-		 * Limit Tx because of the slow TxComp
-		 */
-		if (move > max_move) {
-			prod_idx = (cons_idx + max_move) &
-						(ppe2tcl_ring_size - 1);
-		}
 		node->wlan_ops->set_tcl_prod_idx(wlan_handle, prod_idx);
 	}
 
@@ -174,14 +167,6 @@ int ppe_ds_ppe2tcl_wlan_handle_intr(void *ctxt)
 
 		move = (prod_idx - cons_idx  + ppe2tcl_ring_size) &
 				(ppe2tcl_ring_size - 1);
-		/*
-		 * Limit Tx because of the slow TxComp
-		 */
-		if (move > max_move) {
-			prod_idx = (cons_idx + max_move) &
-							(ppe2tcl_ring_size - 1);
-			move = max_move;
-		}
 		atomic64_add(move, &ppe_ds_node_stats[node->node_cfg_idx].tx_pkts);
 		/*
 		 * Move Producer Idx

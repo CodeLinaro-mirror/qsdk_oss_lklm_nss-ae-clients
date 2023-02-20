@@ -448,6 +448,14 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	p->sc_num = cap.service_code_caps;
 	p->iface_num = p->l3_if_num + p->port_num + p->pppoe_session_max;
 
+	/*
+	 * Initialize locks
+	 * Initialize locks before its first usage in "ppe_drv_tun_global_init".
+	 */
+	spin_lock_init(&p->lock);
+	spin_lock_init(&p->stats_lock);
+
+
 	if (!ppe_drv_hash_init()) {
 		return -1;
 	}
@@ -533,12 +541,6 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		ppe_drv_warn("%p: failed to initialize physical port base queue\n", p);
 		goto fail;
 	}
-
-	/*
-	 * Initialize locks
-	 */
-	spin_lock_init(&p->lock);
-	spin_lock_init(&p->stats_lock);
 
 	/*
 	 *

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -52,9 +52,7 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_EDIT_REDIR_CORE2,	/* Service code to re-direct packets to core 2 with editing required for regular forwarding */
 	PPE_DRV_SC_EDIT_REDIR_CORE3,	/* Service code to re-direct packets to core 3 with editing required for regular forwarding */
 	PPE_DRV_SC_VP_RPS,		/* Service code to allow RPS for special VP flows when user type is DS and core_mask is 0 */
-	PPE_DRV_SC_SAWF_START = 128,	/* First SAWF telemetry based service code */
-	PPE_DRV_SC_SAWF_END = 255,	/* Last SAWF telemetry based service code */
-	PPE_DRV_SC_MAX,			/* Max service code */
+	PPE_DRV_SC_MAX = 256,		/* Max service code */
 } ppe_drv_sc_t;
 
 /*
@@ -106,18 +104,6 @@ extern void ppe_drv_sc_unregister_cb(ppe_drv_sc_t sc);
  * void
  */
 extern void ppe_drv_sc_register_cb(ppe_drv_sc_t sc, ppe_drv_sc_callback_t cb, void *app_data);
-
-/*
- * ppe_drv_sc_nsm_stats_update()
- *	Update stats in NSM for given service class
- *
- * @param[IN] nsm_stats		Pointer to stats structure in NSM.
- * @param[IN] service_class	Service class corresponding to which stats are needed.
- *
- * @return
- * Status of the API.
- */
-extern bool ppe_drv_sc_nsm_stats_update(struct ppe_drv_nsm_stats *nsm_stats, uint8_t service_class);
 
 /*
  * ppe_drv_sc_unregister_vp_cb()

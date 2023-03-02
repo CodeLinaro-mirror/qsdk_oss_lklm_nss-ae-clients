@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,6 +15,5 @@
  */
 
 struct nss_dp_vp_rx_info;
-bool ppe_vp_rx_sawf_cb(void *appdata, struct sk_buff *skb, void *sc_data);
 void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rx_info);
 bool ppe_vp_rx_process_cb(struct net_device *rxdev, struct sk_buff *skb, void *cb_data);

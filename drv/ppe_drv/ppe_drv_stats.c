@@ -246,8 +246,11 @@ static const char * const ppe_drv_comm_stats_tun_conn_str[] = {
  */
 static const char *ppe_drv_stats_sc_str[] = {
 	"sc_cb_unregister",		/* Per service-code counter for callback not registered */
-	"sc_cb_success",		/* Per service-code coutner for successful callback */
-	"sc_cb_failure",		/* Per service-code counter for failure callback */
+	"sc_cb_packet_consumed",	/* Per service-code coutner for successful packet consumption in callback */
+	"sc_cb_packet_processed",	/* Per service-code counter for packet processed in callback */
+	"sc_vp_cb_unregister",		/* Per service-code counter for vp callback not registered */
+	"sc_vp_cb_packet_consumed",	/* Per service-code coutner for successful packet consumption in vp callback */
+	"sc_vp_cb_packet_processed",	/* Per service-code counter for packet processed in vp callback */
 	"sc_rx_packets",		/* Per service-class counter for packets recieved on the ethernet port */
 	"sc_rx_bytes",			/* Per service-class counter for bytes recieved on the ethernet port */
 	"sc_flow_count",		/* Per service-class counter for number of flows present */
@@ -283,7 +286,10 @@ static int ppe_drv_conn_stats_sc_show(struct seq_file *m, void __attribute__((un
 		uint64_t stats4 = *stats_shadow++;
 		uint64_t stats5 = *stats_shadow++;
 		uint64_t stats6 = *stats_shadow++;
-		seq_printf(m, "\t\t %s\t %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu\n", ppe_drv_stats_sc_name_str[i], ppe_drv_stats_sc_str[0], stats1, ppe_drv_stats_sc_str[1], stats2, ppe_drv_stats_sc_str[2], stats3, ppe_drv_stats_sc_str[3], stats4, ppe_drv_stats_sc_str[4], stats5, ppe_drv_stats_sc_str[5], stats6);
+		uint64_t stats7 = *stats_shadow++;
+		uint64_t stats8 = *stats_shadow++;
+		uint64_t stats9 = *stats_shadow++;
+		seq_printf(m, "\t\t %s\t %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu %s:%llu %s:%llu %s:%llu\n", ppe_drv_stats_sc_name_str[i], ppe_drv_stats_sc_str[0], stats1, ppe_drv_stats_sc_str[1], stats2, ppe_drv_stats_sc_str[2], stats3, ppe_drv_stats_sc_str[3], stats4, ppe_drv_stats_sc_str[4], stats5, ppe_drv_stats_sc_str[5], stats6, ppe_drv_stats_sc_str[6], stats7, ppe_drv_stats_sc_str[7], stats8, ppe_drv_stats_sc_str[8], stats9);
 	}
 
 	/*
@@ -298,7 +304,10 @@ static int ppe_drv_conn_stats_sc_show(struct seq_file *m, void __attribute__((un
 		uint64_t stats4 = *stats_shadow++;
 		uint64_t stats5 = *stats_shadow++;
 		uint64_t stats6 = *stats_shadow++;
-		seq_printf(m, "\t\t %s:%u\t %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu\n", ppe_drv_stats_sc_name_str[sawf_stats_idx], i, ppe_drv_stats_sc_str[0], stats1, ppe_drv_stats_sc_str[1], stats2, ppe_drv_stats_sc_str[2], stats3, ppe_drv_stats_sc_str[3], stats4, ppe_drv_stats_sc_str[4], stats5, ppe_drv_stats_sc_str[5], stats6);
+		uint64_t stats7 = *stats_shadow++;
+		uint64_t stats8 = *stats_shadow++;
+		uint64_t stats9 = *stats_shadow++;
+		seq_printf(m, "\t\t %s:%u\t %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu  %s:%llu %s:%llu %s:%llu %s:%llu\n", ppe_drv_stats_sc_name_str[sawf_stats_idx], i, ppe_drv_stats_sc_str[0], stats1, ppe_drv_stats_sc_str[1], stats2, ppe_drv_stats_sc_str[2], stats3, ppe_drv_stats_sc_str[3], stats4, ppe_drv_stats_sc_str[4], stats5, ppe_drv_stats_sc_str[5], stats6, ppe_drv_stats_sc_str[6], stats7, ppe_drv_stats_sc_str[7], stats8, ppe_drv_stats_sc_str[8], stats9);
 	}
 
 	kfree(sc_stats);

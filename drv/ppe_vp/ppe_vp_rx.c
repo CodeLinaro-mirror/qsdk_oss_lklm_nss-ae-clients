@@ -22,6 +22,29 @@
 extern struct ppe_vp_base vp_base;
 
 /*
+ * ppe_vp_rx_sawf_cb
+ *	VP callback for SAWF service codes processing.
+ *	Construct SAWF mark for WiFi driver processing. Tree ID from EDMA descriptor
+ *	interpreted as Peer ID, wifi_qos represents MSDUQ information.
+ *	With this we create a 32 bit as follows :
+ * 	--------------------------------------------------------------------
+ *	| SAWF TAG (0xAA) |   Service class   |   Peer ID   |  MSDUQ	   |
+ *	--------------------------------------------------------------------
+ * 		8 bits 		8 bits 		    10 bits 	  6 bits
+ * 	Also put the skb->priority coming form int_pri field of EDMA descriptor.
+ */
+bool ppe_vp_rx_sawf_cb(void *appdata, struct sk_buff *skb, void *sc_data)
+{
+	struct ppe_drv_sc_metadata *sc;
+	sc = (struct ppe_drv_sc_metadata *) sc_data;
+	skb->mark = PPE_VP_SAWF_MARK_CONSTRUCT((sc->service_code - PPE_DRV_SC_SAWF_START),
+					sc->tree_id, sc->wifi_qos);
+	skb->priority = sc->int_pri;
+	ppe_vp_info("%px: skb, vp %u skb->mark %x priority %u", skb, sc->vp_num, skb->mark, skb->priority);
+	return false;
+}
+
+/*
  * ppe_vp_rx_process_cb
  * 	Standard Rx handler for packets with Rx VP
  */

@@ -162,8 +162,11 @@ struct ppe_drv_comm_stats {
  */
 struct ppe_drv_stats_sc {
 	atomic64_t sc_cb_unregister;	/* Per service-code counter for callback not registered */
-	atomic64_t sc_cb_success;	/* Per service-code coutner for successful callback */
-	atomic64_t sc_cb_failure;	/* Per service-code counter for failure callback */
+	atomic64_t sc_cb_packet_consumed;	/* Per service-code coutner for successful packet consumption in callback */
+	atomic64_t sc_cb_packet_processed;	/* Per service-code counter for packet processed in callback */
+	atomic64_t sc_vp_cb_unregister;		/* Per service-code counter for vp callback not registered */
+	atomic64_t sc_vp_cb_packet_consumed;	/* Per service-code coutner for vp successful packet consumption in callback */
+	atomic64_t sc_vp_cb_packet_processed;	/* Per service-code counter for vp packet processed in callback */
 	atomic64_t sc_rx_packets;	/* Per service-class counter for packets recieved on ethernet port */
 	atomic64_t sc_rx_bytes;		/* Per service-class counter for bytes recieved on ethernet port */
 	atomic64_t sc_flow_count;	/* Per service-class counter for total number of flows present */

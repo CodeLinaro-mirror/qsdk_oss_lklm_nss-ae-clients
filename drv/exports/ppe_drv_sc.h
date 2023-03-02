@@ -57,19 +57,31 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_MAX,			/* Max service code */
 } ppe_drv_sc_t;
 
-typedef bool (*ppe_drv_sc_callback_t)(void *app_data, struct sk_buff *skb);
+/*
+ * ppe_drv_sc_metadata
+ *	metadata for service codes.
+ */
+struct ppe_drv_sc_metadata {
+	uint32_t tree_id;		/* Tree id from EDMA descriptor */
+	uint32_t wifi_qos;		/* WiFi-qos from EDMA descriptor*/
+	uint32_t int_pri;		/* Priority from EDMA descriptor*/
+	uint8_t vp_num;			/* Destination VP number */
+	uint8_t service_code;		/* Service code from EDMA descriptor*/
+};
+
+typedef bool (*ppe_drv_sc_callback_t)(void *app_data, struct sk_buff *skb, void *sc_data);
 
 /*
  * ppe_drv_sc_process_skbuff()
  *	Register callback for a specific service code
  *
- * @param[IN] sc   Service code number.
+ * @param[IN] sc   Service code related metadata.
  * @param[IN] skb  Socket buffer with service code.
  *
  * @return
  * true if packet is consumed by the API or false if the packet is not consumed.
  */
-extern bool ppe_drv_sc_process_skbuff(uint8_t sc, struct sk_buff *skb);
+extern bool ppe_drv_sc_process_skbuff(struct ppe_drv_sc_metadata *sc, struct sk_buff *skb);
 
 /*
  * ppe_drv_sc_unregister_cb()
@@ -106,6 +118,32 @@ extern void ppe_drv_sc_register_cb(ppe_drv_sc_t sc, ppe_drv_sc_callback_t cb, vo
  * Status of the API.
  */
 extern bool ppe_drv_sc_nsm_stats_update(struct ppe_drv_nsm_stats *nsm_stats, uint8_t service_class);
+
+/*
+ * ppe_drv_sc_unregister_vp_cb()
+ *	Unregister vp callback for a specific service code
+ *
+ * @param[IN] sc   Service code number.
+ * @param[IN] vp_num   Virtual port number unregistering the callback.
+ *
+ * @return
+ * void
+ */
+extern void ppe_drv_sc_unregister_vp_cb(ppe_drv_sc_t sc, uint16_t vp_num);
+
+/*
+ * ppe_drv_sc_register_vp_cb()
+ *	Register vp callback for a specific service code
+ *
+ * @param[IN] sc   Service code number.
+ * @param[IN] cb   Callback API.
+ * @param[IN] app_data   Application data to be passed to callback.
+ * @param[IN] vp_num     Virtual port number registering the callback.
+ *
+ * @return
+ * void
+ */
+extern bool ppe_drv_sc_register_vp_cb(ppe_drv_sc_t sc, ppe_drv_sc_callback_t cb, void *app_data, uint16_t vp_num);
 
 /** @} */ /* end_addtogroup ppe_drv_sc_subsystem */
 

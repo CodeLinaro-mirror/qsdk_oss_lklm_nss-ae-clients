@@ -231,6 +231,7 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	struct ppe_drv_iface *ppe_iface;
 	struct net_device *netdev;
 	struct ppe_vp *vp;
+	int service_code;
 	ppe_vp_stats_callback_t stats_cb;
 	ppe_vp_hw_stats_t hw_stats;
 	ppe_drv_ret_t ret;
@@ -306,6 +307,13 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	rcu_read_unlock();
 
 	/*
+	 * De-register SAWF service codes callbacks.
+	 */
+	for (service_code = PPE_DRV_SC_SAWF_START; service_code <= PPE_DRV_SC_SAWF_END; service_code++) {
+		ppe_drv_sc_unregister_vp_cb(service_code, port_num);
+	}
+
+	/*
 	 * Free the VP.
 	 * Returning from this status of failure should not lead to recalling of this API.
 	 * The VP is already freed.
@@ -333,6 +341,7 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 	struct ppe_drv_iface *ppe_iface;
 	enum ppe_drv_iface_type ppe_type;
 	int32_t pp_num;
+	int service_code;
 	ppe_drv_ret_t ret;
 
 	if (!netdev) {
@@ -472,6 +481,17 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 	}
 
 	spin_unlock_bh(&vp->lock);
+
+	/*
+	 * Register VP callback for SAWF service codes - for WiFi VP's.
+	 */
+	if (vpai->net_dev_type == PPE_VP_NET_DEV_TYPE_WIFI) {
+		for (service_code = PPE_DRV_SC_SAWF_START; service_code <= PPE_DRV_SC_SAWF_END; service_code++) {
+			if (!ppe_drv_sc_register_vp_cb(service_code, ppe_vp_rx_sawf_cb, NULL, pp_num)) {
+				ppe_vp_warn("%px: Unable to register a service code callback for service code %d VP %d", vp, service_code, pp_num);
+			}
+		}
+	}
 
 	return pp_num;
 

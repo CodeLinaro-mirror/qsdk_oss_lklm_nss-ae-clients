@@ -20,6 +20,17 @@ struct ppe_vp_base;
 #define PPE_VP_FLAG_VP_FAST_XMIT	0x02	/* Enable fast_xmit when delivering to VP interface */
 #define PPE_VP_HW_PORT_STATS_MS		1000
 
+#define PPE_VP_SAWF_VALID_TAG		0xAA
+#define PPE_VP_SAWF_TAG_SHIFT		0x18
+#define PPE_VP_SAWF_SERVICE_CLASS_SHIFT	0x10
+#define PPE_VP_SAWF_PEER_ID_SHIFT	0x6
+
+
+#define PPE_VP_SAWF_MARK_CONSTRUCT(x, y, z) ((PPE_VP_SAWF_VALID_TAG << PPE_VP_SAWF_TAG_SHIFT) | \
+						(x << PPE_VP_SAWF_SERVICE_CLASS_SHIFT) | \
+						(y << PPE_VP_SAWF_PEER_ID_SHIFT) | \
+						(z))
+
 /*
  * ppe_vp_rx_info
  *	Data structure for sending data to VP from EDMA.

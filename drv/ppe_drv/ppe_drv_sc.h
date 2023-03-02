@@ -39,10 +39,21 @@ enum ppe_drv_sc_in_l2_off_sel {
 };
 
 /*
+ * ppe_drv_sc_vp_info
+ * 	VP info for a service code
+ */
+struct ppe_drv_sc_vp_info {
+	ppe_drv_sc_callback_t cb;	/* sc registered callback of VP*/
+	void *app_data;			/* Associated app data */
+};
+
+/*
  * ppe_drv_sc
  *	Instance structure for service code management
  */
 struct ppe_drv_sc {
+	struct ppe_drv_sc_vp_info __rcu *vp_info[PPE_DRV_VIRTUAL_MAX];
+					/* Per VP info for the service code */
 	ppe_drv_sc_callback_t cb;	/* Per sc registered callback */
 	void *app_data;			/* Associated app data */
 };

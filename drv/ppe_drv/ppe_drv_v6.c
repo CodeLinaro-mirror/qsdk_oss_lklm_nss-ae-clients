@@ -1099,13 +1099,13 @@ static bool ppe_drv_v6_passive_vp_flow(struct ppe_drv_v6_rule_create *create) {
 	if_rx = ppe_drv_iface_get_by_idx(create->conn_rule.rx_if);
 	if (!if_rx) {
 		ppe_drv_warn("%p: No PPE interface corresponding to rx_if: %d", create, create->conn_rule.rx_if);
-		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
+		return false;
 	}
 
 	if_tx = ppe_drv_iface_get_by_idx(create->conn_rule.tx_if);
 	if (!if_tx) {
 		ppe_drv_warn("%p: No PPE interface corresponding to tx_if: %d", create, create->conn_rule.tx_if);
-		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
+		return false;
 	}
 
 	tx_pp = ppe_drv_iface_port_get(if_tx);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
 #include <fal/fal_ip.h>
 #include <fal/fal_init.h>
 #include <fal/fal_pppoe.h>
@@ -121,7 +122,14 @@ struct ppe_drv_tun_l3_if *ppe_drv_pppoe_tl_l3_if_get(struct ppe_drv_pppoe *pppoe
 
 	ppe_drv_pppoe_ref(pppoe);
 
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	return ppe_drv_tun_l3_if_ref(pppoe->tl_l3_if);
+#else
+	return NULL;
+#endif
 }
 
 /*

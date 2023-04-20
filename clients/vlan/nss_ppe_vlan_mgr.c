@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -26,12 +26,12 @@
 #include <linux/proc_fs.h>
 #include <linux/sysctl.h>
 #include <linux/module.h>
+#include <linux/version.h>
 #include <net/bonding.h>
 #include <ppe_drv_public.h>
 #include <nss_ppe_vlan_mgr.h>
 #include <ref/ref_vsi.h>
 #include "nss_ppe_vlan_mgr_priv.h"
-
 
 static struct nss_ppe_vlan_mgr_context vlan_mgr_ctx;
 
@@ -861,7 +861,7 @@ static int nss_ppe_vlan_mgr_changeaddr_event(struct netdev_notifier_info *info)
 		return NOTIFY_BAD;
 	}
 
-	ret = ppe_drv_iface_mac_addr_set(v->iface, dev->dev_addr);
+	ret = ppe_drv_iface_mac_addr_set(v->iface, (uint8_t *)dev->dev_addr);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_vlan_mgr_warn("%s: Failed to change MAC address, error = %d\n", dev->name, ret);
 		nss_ppe_vlan_mgr_instance_deref(v);

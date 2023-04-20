@@ -547,7 +547,7 @@ static int nss_ppe_bridge_mgr_changeaddr_event(struct netdev_notifier_info *info
 		return NOTIFY_DONE;
 	}
 
-	ret = ppe_drv_iface_mac_addr_set(b_pvt->iface, dev->dev_addr);
+	ret = ppe_drv_iface_mac_addr_set(b_pvt->iface, (uint8_t *)dev->dev_addr);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to set mac_addr, error = %d \n", dev, ret);
 		return NOTIFY_DONE;

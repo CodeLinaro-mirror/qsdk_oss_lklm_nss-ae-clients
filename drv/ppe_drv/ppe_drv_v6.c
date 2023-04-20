@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
 #include "ppe_drv.h"
 #include "tun/ppe_drv_tun.h"
 #include "tun/ppe_drv_tun_v6.h"
@@ -1637,6 +1638,11 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	struct ppe_drv_v6_conn_flow *pcr;
 	struct ppe_drv_v6_conn_sync *cns;
 	struct ppe_drv_v6_conn *cn;
+
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	ppe_drv_ret_t ret;
 
 	/*
@@ -1650,7 +1656,7 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 
 		return ret;
 	}
-
+#endif
 	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
 
 	/*
@@ -1978,6 +1984,10 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 
 	spin_unlock_bh(&p->lock);
 
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (ppe_drv_v6_tun_allow_tunnel_create(create)) {
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v6_create_req);
@@ -1990,6 +2000,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 
 		return PPE_DRV_RET_SUCCESS;
 	}
+#endif
 
 	/*
 	 * Update stats

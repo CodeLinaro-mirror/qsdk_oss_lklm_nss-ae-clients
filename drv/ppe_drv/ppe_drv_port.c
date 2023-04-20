@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,6 +16,7 @@
 
 #include <linux/netdevice.h>
 #include <linux/if_ether.h>
+#include <linux/version.h>
 #include <fal/fal_fdb.h>
 #include <fal/fal_ip.h>
 #include <fal/fal_misc.h>
@@ -372,7 +373,14 @@ struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *p
 		return NULL;
 	}
 
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	return ppe_drv_tun_l3_if_ref(pp->tl_l3_if);
+#else
+	return NULL;
+#endif
 }
 
 /*

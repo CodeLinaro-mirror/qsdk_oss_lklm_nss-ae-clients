@@ -14,10 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/version.h>
+#include <net/vxlan.h>
 #include "ppe_drv.h"
 #include "tun/ppe_drv_tun.h"
 #include "tun/ppe_drv_tun_v4.h"
-#include <net/vxlan.h>
 
 /*
  * ppe_drv_fill_fse_v4_tuple_info()
@@ -1700,21 +1701,40 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 	struct ppe_drv_v4_conn_flow *pcr;
 	struct ppe_drv_v4_conn_sync *cns;
 	struct ppe_drv_v4_conn *cn;
+
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	int ret;
+#endif
 
 	/*
 	 * PPE accelearation is only supported for default port currently.
 	 */
+
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (ppe_drv_tun_check_support(destroy->tuple.protocol) || destroy->tuple.flow_ident == IANA_VXLAN_UDP_PORT || destroy->tuple.return_ident == IANA_VXLAN_UDP_PORT) {
+#else
+	if (destroy->tuple.flow_ident == IANA_VXLAN_UDP_PORT || destroy->tuple.return_ident == IANA_VXLAN_UDP_PORT) {
+#endif
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v4_destroy_req);
+
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		ret = ppe_drv_v4_tun_del_ce_notify(destroy);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			ppe_drv_warn("%p: Tunnel destroy failed with error %d", destroy, ret);
 			ppe_drv_stats_inc(&comm_stats->v4_destroy_fail);
 			return ret;
 		}
-
+#endif
 		return PPE_DRV_RET_SUCCESS;
 	}
 
@@ -1769,11 +1789,16 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 	 */
 	ppe_drv_v4_if_walk_release(pcr);
 
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port)) {
 		if (!ppe_drv_tun_detach_mapt_v4_to_v6(cn)) {
 			ppe_drv_trace("%p: mapt v4 to v6 detach failed", p);
 		}
 	}
+#endif
 
 	/*
 	 * Delete connection entry from the active connection list.
@@ -2062,6 +2087,11 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 	/*
 	 * PPE accelearation is only supported for default port currently.
 	 */
+
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (ppe_drv_v4_tun_allow_tunnel_create(create)) {
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v4_create_req);
@@ -2074,6 +2104,7 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 
 		return PPE_DRV_RET_SUCCESS;
 	}
+#endif
 
 	/*
 	 * Update stats
@@ -2176,12 +2207,16 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 	pcf->conn = cn;
 	pcr->conn = cn;
 
-
+/*
+ * TODO: Remove the following check when Tunnel support is added for PPE
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port)) {
 		if (!ppe_drv_tun_attach_mapt_v4_to_v6(cn)) {
 			ppe_drv_trace("%p: mapt attach v4 to v6 failed", p);
 		}
 	}
+#endif
 
 	/*
 	 * We maintain reference per connection on main ppe context.

@@ -59,7 +59,7 @@ bool ppe_vp_tx_to_ppe(int32_t vp_num, struct sk_buff *skb)
 
 	if (svp->vp_type == PPE_VP_TYPE_SW_L3) {
 		dptxi.fake_mac = true;
-		skb_put(skb, ETH_HLEN);
+		skb_push(skb, ETH_HLEN);
 	}
 
 	rcu_read_unlock();

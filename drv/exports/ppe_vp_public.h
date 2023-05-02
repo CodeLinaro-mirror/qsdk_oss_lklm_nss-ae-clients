@@ -93,6 +93,19 @@ struct ppe_vp_cb_info {
 typedef bool(*ppe_vp_callback_t)(struct ppe_vp_cb_info *, void *cb_data);
 
 /**
+ * Callback function for VP Rx list.
+ *
+ * @datatypes
+ * net_device
+ * sk_buff
+ *
+ * @param[in] net_device  	Pointer to the net device.
+ * @param[in] sk_buff_head	Pointer to the skb list head.
+ * @param[in] cb_data     	Pointer to the callback data.
+ */
+typedef bool(*ppe_vp_list_callback_t)(struct net_device *, struct sk_buff_head *, void *cb_data);
+
+/**
  * ppe_vp_type
  *	Types of VPs
  */
@@ -154,6 +167,7 @@ enum ppe_vp_net_dev_pvt_flags {
 struct ppe_vp_ai {
 	ppe_vp_type_t type;		/**< VP type */
 	ppe_vp_callback_t dst_cb;	/**< VP dst callback */
+	ppe_vp_list_callback_t dst_list_cb;	/**< VP dst callback */
 	void *dst_cb_data;		/**< VP dst callback data */
 	ppe_vp_callback_t src_cb;	/**< VP src callback */
 	void *src_cb_data;		/**< VP src callback data */

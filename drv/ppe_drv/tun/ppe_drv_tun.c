@@ -114,7 +114,7 @@ static void ppe_drv_tun_free(struct kref *kref)
  */
 static bool ppe_drv_tun_deref(struct ppe_drv_tun *ptun)
 {
-	uint8_t tun_idx = ptun->tun_idx;
+	uint8_t tun_idx __maybe_unused = ptun->tun_idx;
 
 	ppe_drv_assert(kref_read(&ptun->ref), "%p: ref count under run for tun", ptun);
 

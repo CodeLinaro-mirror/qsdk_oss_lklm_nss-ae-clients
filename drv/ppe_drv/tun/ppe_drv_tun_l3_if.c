@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -92,7 +92,7 @@ static void ppe_drv_tun_l3_if_free(struct kref *kref)
  */
 bool ppe_drv_tun_l3_if_deref(struct ppe_drv_tun_l3_if *tun_l3_if)
 {
-	uint8_t index = tun_l3_if->index;
+	uint8_t index __maybe_unused = tun_l3_if->index;
 	ppe_drv_assert(kref_read(&tun_l3_if->ref), "%p: ref count under run for tun_l3_if", tun_l3_if);
 
 	if (kref_put(&tun_l3_if->ref, ppe_drv_tun_l3_if_free)) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -71,7 +71,7 @@ static void ppe_drv_tun_decap_free(struct kref *kref)
  */
 bool ppe_drv_tun_decap_deref(struct ppe_drv_tun_decap *ptdc)
 {
-	uint8_t index = ptdc->index;
+	uint8_t index __maybe_unused = ptdc->index;
 
 	ppe_drv_assert(kref_read(&ptdc->ref), "%p: ref count under run for ptdc", ptdc);
 

@@ -85,7 +85,7 @@ static void ppe_drv_tun_encap_xlate_rule_free(struct kref *kref)
  */
 bool ppe_drv_tun_encap_xlate_rule_deref(struct ppe_drv_tun_encap_xlate_rule *ptecxr)
 {
-	uint8_t rule_index = ptecxr->rule_index;
+	uint8_t rule_index __maybe_unused = ptecxr->rule_index;
 
 	ppe_drv_assert(kref_read(&ptecxr->ref), "%p: ref count under run for encap_xlate_rule", ptecxr);
 	if (kref_put(&ptecxr->ref, ppe_drv_tun_encap_xlate_rule_free)) {

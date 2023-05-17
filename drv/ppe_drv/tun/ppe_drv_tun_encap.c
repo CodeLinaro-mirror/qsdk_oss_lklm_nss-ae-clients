@@ -95,7 +95,7 @@ void ppe_drv_tun_encap_free(struct kref *kref)
  */
 bool ppe_drv_tun_encap_deref(struct ppe_drv_tun_encap *ptec)
 {
-	uint8_t tun_idx = ptec->tun_idx;
+	uint8_t tun_idx __maybe_unused = ptec->tun_idx;
 
 	ppe_drv_assert(kref_read(&ptec->ref), "%p: ref count under run for ptec", ptec);
 

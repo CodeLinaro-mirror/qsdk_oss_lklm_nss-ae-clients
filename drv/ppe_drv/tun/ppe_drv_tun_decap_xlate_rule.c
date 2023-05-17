@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -84,7 +84,7 @@ static void ppe_drv_tun_decap_xlate_rule_free(struct kref *kref)
  */
 bool ppe_drv_tun_decap_xlate_rule_deref(struct ppe_drv_tun_decap_xlate_rule *ptdxrule)
 {
-	uint8_t index = ptdxrule->index;
+	uint8_t index __maybe_unused = ptdxrule->index;
 
 	ppe_drv_assert(kref_read(&ptdxrule->ref), "%p: ref count under run for tun_decap_xlate_rule", ptdxrule);
 

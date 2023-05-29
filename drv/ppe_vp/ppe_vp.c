@@ -356,7 +356,7 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 		goto pp_num_fail;
 	}
 
-	ret = ppe_drv_iface_mac_addr_set(ppe_iface, netdev->dev_addr);
+	ret = ppe_drv_iface_mac_addr_set(ppe_iface, (uint8_t *)netdev->dev_addr);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		ppe_vp_warn("%px: netdev: %px, ppe iface %px PPE VP MAC set to %pM failed, Err code %d", pvb, netdev, ppe_iface, netdev->dev_addr, ret);
 		vpai->status = PPE_VP_STATUS_MAC_SET_FAIL;

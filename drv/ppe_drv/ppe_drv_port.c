@@ -16,7 +16,6 @@
 
 #include <linux/netdevice.h>
 #include <linux/if_ether.h>
-#include <linux/version.h>
 #include <linux/if_vlan.h>
 #include <fal/fal_fdb.h>
 #include <fal/fal_ip.h>
@@ -374,14 +373,7 @@ struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *p
 		return NULL;
 	}
 
-/*
- * TODO: Remove the following check when Tunnel support is added for PPE
- */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	return ppe_drv_tun_l3_if_ref(pp->tl_l3_if);
-#else
-	return NULL;
-#endif
 }
 
 /*
@@ -1411,7 +1403,7 @@ uint8_t ppe_drv_port_ucast_queue_get(struct ppe_drv_port *pp)
  * ppe_drv_port_mac_addr_set()
  *	Set MAC addr of a given port in PPE.
  */
-void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, uint8_t *mac_addr)
+void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, const uint8_t *mac_addr)
 {
 	sw_error_t err;
 	fal_macaddr_entry_t macaddr = {0};

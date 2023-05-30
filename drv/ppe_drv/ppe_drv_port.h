@@ -100,7 +100,7 @@ struct net_device *ppe_drv_port_to_dev(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_from_dev(struct net_device *dev);
 struct ppe_drv_port *ppe_drv_port_from_tl_l3_if(struct ppe_drv_tun_l3_if *tl_l3_if);
 
-void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, uint8_t *mac_addr);
+void ppe_drv_port_mac_addr_set(struct ppe_drv_port *pp, const uint8_t *mac_addr);
 void ppe_drv_port_mac_addr_clear(struct ppe_drv_port *pp);
 
 bool ppe_drv_port_pp_mtu_cfg(struct ppe_drv_port *pp, bool enable);

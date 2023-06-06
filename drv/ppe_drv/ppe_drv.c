@@ -713,6 +713,18 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->pgm = ppe_drv_tun_prgm_prsr_alloc(p);
+	if (!p->pgm) {
+		ppe_drv_warn("%p: failed to allocate program parser entries", p);
+		goto fail;
+	}
+
+	p->pgm_udf = ppe_drv_tun_udf_alloc(p);
+	if (!p->pgm_udf) {
+		ppe_drv_warn("%p: failed to allocate tunnel udf entries", p);
+		goto fail;
+	}
+
 	/*
 	 * Take a reference
 	 */
@@ -828,6 +840,16 @@ fail:
 		p->cc = NULL;
 	}
 
+	if (p->pgm) {
+		ppe_drv_tun_prgm_prsr_free(p->pgm);
+		p->pgm = NULL;
+	}
+
+	if (p->pgm_udf) {
+		ppe_drv_tun_udf_free(p->pgm_udf);
+		p->pgm_udf = NULL;
+	}
+
 	return -1;
 }
 
@@ -940,6 +962,16 @@ static int ppe_drv_remove(struct platform_device *pdev)
 
 	if (p->fse_ops) {
 		ppe_drv_warn("FSE ops still registered while ppe module getting removed\n");
+	}
+
+	if (p->pgm) {
+		ppe_drv_tun_prgm_prsr_free(p->pgm);
+		p->pgm = NULL;
+	}
+
+	if (p->pgm_udf) {
+		ppe_drv_tun_udf_free(p->pgm_udf);
+		p->pgm_udf = NULL;
 	}
 
 	return 0;

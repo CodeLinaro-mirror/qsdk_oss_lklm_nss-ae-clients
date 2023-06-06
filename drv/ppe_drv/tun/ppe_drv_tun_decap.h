@@ -35,6 +35,7 @@ struct ppe_drv_tun_decap {
 	uint32_t tl_l3_if_idx;	/* Tunnel l3 interface index */
 	uint16_t tl_index;	/* Decap entry table index in HW */
 	uint8_t rule_id;	/* Edit rule index associated to this decap for MAP-T */
+	struct ppe_drv_tun_prgm_prsr *pgm_prsr;	/* Programable parser instance */
 	/* end */
 #else
 	struct_group(ppe_drv_tun_decap_group,
@@ -43,6 +44,7 @@ struct ppe_drv_tun_decap {
 		uint32_t tl_l3_if_idx;	/* Tunnel l3 interface index */
 		uint16_t tl_index;	/* Decap entry table index in HW */
 		uint8_t rule_id;	/* Edit rule index associated to this decap for MAP-T */
+		struct ppe_drv_tun_prgm_prsr *pgm_prsr;	/* Programable parser instance */
 	);			        /* end of ppe_drv_tun_decap_group group */
 #endif
 };

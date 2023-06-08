@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,15 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __NSS_PPE_VXLANMGR_TUN_STATS_H
-#define __NSS_PPE_VXLANMGR_TUN_STATS_H
-
 /*
- * VxLAN statistics APIs
+ * nss_ppe_bridge_mgr.h
  */
-extern void nss_ppe_vxlanmgr_tun_stats_dentry_deinit(void);
-extern bool nss_ppe_vxlanmgr_tun_dentry_init(void);
-extern void nss_ppe_vxlanmgr_tun_stats_dentry_remove(struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx);
-extern bool nss_ppe_vxlanmgr_tun_stats_dentry_create(struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx);
 
-#endif /* __NSS_PPE_VXLANMGR_TUN_STATS_H */
+#ifndef __NSS_PPE_BRIDGE_MGR_H
+#define __NSS_PPE_BRIDGE_MGR_H
+/*
+ * Bridge-manager functionality APIs exported
+ */
+int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *bridge_dev);
+int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *bridge_dev);
+#endif /* __NSS_PPE_BRIDGE_MGR_H */

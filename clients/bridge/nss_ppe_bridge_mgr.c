@@ -607,17 +607,17 @@ static int nss_ppe_bridge_mgr_changeupper_event(struct netdev_notifier_info *inf
 	}
 
 	if (cu_info->linking) {
-		nss_ppe_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", b_pvt, dev->name, master_dev->name);
-		if (nss_ppe_bridge_mgr_join_bridge(dev, b_pvt)) {
-			nss_ppe_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", b_pvt, dev->name, master_dev->name);
+		nss_ppe_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", dev, dev->name, master_dev->name);
+		if (nss_ppe_bridge_mgr_join_bridge(dev, master_dev)) {
+			nss_ppe_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", dev, dev->name, master_dev->name);
 		}
 
 		return NOTIFY_DONE;
 	}
 
-	nss_ppe_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", b_pvt, dev->name, master_dev->name);
-	if (nss_ppe_bridge_mgr_leave_bridge(dev, b_pvt)) {
-		nss_ppe_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", b_pvt, dev->name, master_dev->name);
+	nss_ppe_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", dev, dev->name, master_dev->name);
+	if (nss_ppe_bridge_mgr_leave_bridge(dev, master_dev)) {
+		nss_ppe_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", dev, dev->name, master_dev->name);
 	}
 
 	return NOTIFY_DONE;
@@ -1010,13 +1010,20 @@ struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_find_instance(struct net_devic
  * nss_ppe_bridge_mgr_leave_bridge()
  *	Netdevice leave bridge.
  */
-int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridge_mgr_pvt *b_pvt)
+int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *bridge_dev)
 {
 	int res;
 	bool is_wan = false;
 	struct net_device *real_dev;
 	ppe_drv_ret_t ret;
 	struct ppe_drv_iface *iface;
+	struct nss_ppe_bridge_mgr_pvt *b_pvt;
+
+	b_pvt = nss_ppe_bridge_mgr_find_instance(bridge_dev);
+	if (!b_pvt) {
+		nss_ppe_bridge_mgr_warn("%px: failed to find bridge instance\n", dev);
+		return -ENOENT;
+	}
 
 	if (!is_vlan_dev(dev)) {
 
@@ -1120,16 +1127,24 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct nss_ppe_bridg
 	ppe_drv_br_stp_state_set(b_pvt->iface, dev, FAL_STP_DISABLED);
 	return -1;
 }
+EXPORT_SYMBOL(nss_ppe_bridge_mgr_leave_bridge);
 
 /*
  * nss_ppe_bridge_mgr_join_bridge()
  *	Netdevice join bridge.
  */
-int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge_mgr_pvt *b_pvt)
+int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *bridge_dev)
 {
 	ppe_drv_ret_t ret;
 	struct net_device *real_dev;
 	struct ppe_drv_iface *iface;
+	struct nss_ppe_bridge_mgr_pvt *b_pvt;
+
+	b_pvt = nss_ppe_bridge_mgr_find_instance(bridge_dev);
+	if (!b_pvt) {
+		nss_ppe_bridge_mgr_warn("%px: failed to find bridge instance\n", dev);
+		return -ENOENT;
+	}
 
 	/*
 	 * If device is VLAN, we need get real_dev.
@@ -1238,6 +1253,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct nss_ppe_bridge
 	nss_ppe_bridge_mgr_warn("%px: failed to join bridge\n", b_pvt);
 	return -EIO;
 }
+EXPORT_SYMBOL(nss_ppe_bridge_mgr_join_bridge);
 
 /*
  * nss_ppe_bridge_mgr_unregister_br()

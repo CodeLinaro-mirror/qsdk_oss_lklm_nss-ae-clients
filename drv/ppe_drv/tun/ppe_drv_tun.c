@@ -1674,17 +1674,54 @@ err_exit:
 EXPORT_SYMBOL(ppe_drv_tun_configure);
 
 /*
+ * ppe_drv_tun_configure_vxlan_and_dport
+ *	Configure the VXLAN destination port.
+ */
+bool ppe_drv_tun_configure_vxlan_and_dport(uint16_t dport)
+{
+	fal_tunnel_udp_entry_t ftue = {0};
+	fal_vxlan_type_t type = FAL_VXLAN;
+	sw_error_t err;
+
+	ppe_drv_gbl.vxlan_dport = dport;
+
+	/*
+	 * VxLAN Decap port number match for IPV4 tunnel.
+	 */
+	ftue.ip_ver = FAL_TUNNEL_IP_VER_V4;
+	ftue.udp_type = FAL_TUNNEL_L4_TYPE_UDP;
+	ftue.l4_port_type = FAL_TUNNEL_L4_PORT_TYPE_DST;
+	ftue.l4_port = dport;
+	err = fal_vxlan_entry_add(0, type, &ftue);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p failed to add UDP entry for IPV4. err: %d", &ftue, err);
+		return false;
+	}
+
+	/*
+	 * VxLAN Decap port number match for IPV6 tunnel.
+	 */
+	ftue.ip_ver = FAL_TUNNEL_IP_VER_V6;
+	err = fal_vxlan_entry_add(0, type, &ftue);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p failed to add UDP entry for IPV6. err: %d", &ftue, err);
+		return false;
+	}
+
+	return true;
+}
+EXPORT_SYMBOL(ppe_drv_tun_configure_vxlan_and_dport);
+
+/*
  * ppe_drv_tun_global_init
  *	Initialize tables with values that does not require changes
  */
 bool ppe_drv_tun_global_init(struct ppe_drv *p)
 {
 	sw_error_t err;
-	fal_vxlan_type_t type = FAL_VXLAN;
 	fal_tunnel_decap_key_t ptdkcfg =  {0};
 	fal_tunnel_global_cfg_t ptglcfg =  {0};
 	fal_mapt_decap_ctrl_t ptmapglcfg = {0};
-	fal_tunnel_udp_entry_t ftue = {0};
 	fal_tunnel_program_entry_t pgm = {0};
 	fal_tunnel_program_cfg_t cfg = {0};
 	fal_tunnel_type_t tunnel_type;
@@ -1789,31 +1826,6 @@ bool ppe_drv_tun_global_init(struct ppe_drv *p)
 	if (err != SW_OK) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: Tunnel Decap key set failure for VxlanGPEIPV6", p);
-		return false;
-	}
-
-	/*
-	 * VxLAN Decap port number match for IPV4 tunnel.
-	 */
-	ftue.ip_ver = FAL_TUNNEL_IP_VER_V4;
-	ftue.udp_type = FAL_TUNNEL_L4_TYPE_UDP;
-	ftue.l4_port_type = FAL_TUNNEL_L4_PORT_TYPE_DST;
-	ftue.l4_port = IANA_VXLAN_UDP_PORT;
-	err = fal_vxlan_entry_add(0, type, &ftue);
-	if (err != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p failed to add UDP entry for IPV4. err: %d", p, err);
-		return false;
-	}
-
-	/*
-	 * VxLAN Decap port number match for IPV6 tunnel.
-	 */
-	ftue.ip_ver = FAL_TUNNEL_IP_VER_V6;
-	err = fal_vxlan_entry_add(0, type, &ftue);
-	if (err != SW_OK) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p failed to add UDP entry for IPV6. err: %d", p, err);
 		return false;
 	}
 

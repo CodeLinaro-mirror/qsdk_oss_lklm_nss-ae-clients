@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,7 +34,26 @@ struct ppe_tun_priv *ptp;
  */
 bool ppe_tun_stats(struct net_device *dev, ppe_vp_hw_stats_t *stats)
 {
-	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+	struct pcpu_sw_netstats *tstats;
+	struct net_device *pdev;
+	int ifindex;
+
+	tstats = this_cpu_ptr(dev->tstats);
+
+	/*
+	 * For VXLAN device add the stats to the parent netdevice instead of nss_netdev.
+	 */
+	if (unlikely(strncmp(dev->name, "ppe_vxlan_tun", 13) == 0)) {
+		ifindex = *(int *)netdev_priv(dev);
+		pdev = dev_get_by_index(&init_net, ifindex);
+		if (!pdev) {
+			ppe_tun_warn("%p: Parent dev of the nss-netdev %s is not present.", dev, dev->name);
+			return true;
+		}
+
+		tstats = this_cpu_ptr(pdev->tstats);
+		dev_put(pdev);
+	}
 
 	u64_stats_update_begin(&tstats->syncp);
 	tstats->tx_bytes += stats->tx_byte_cnt;
@@ -56,7 +75,6 @@ bool ppe_tun_stats(struct net_device *dev, ppe_vp_hw_stats_t *stats)
 
 	atomic_long_add(stats->tx_drop_pkt_cnt, &dev->tx_dropped);
 	atomic_long_add(stats->rx_drop_pkt_cnt, &dev->rx_dropped);
-
 	return true;
 }
 
@@ -821,6 +839,7 @@ bool ppe_tun_decap_disable(struct net_device *dev)
 		ppe_tun_warn("%p, Failed to disable the decap for %s", tun, dev->name);
 	}
 
+	ppe_tun_trace("%px: Successfully enabled decap for nss_dev %s", tun, dev->name);
 	ppe_tun_deref(tun);
 	return ret;
 }
@@ -846,10 +865,22 @@ bool ppe_tun_decap_enable(struct net_device *dev)
 		ppe_tun_warn("%p, Failed to disable the decap for %s", tun, dev->name);
 	}
 
+	ppe_tun_trace("%px: Successfully enabled decap for nss_dev %s", tun, dev->name);
 	ppe_tun_deref(tun);
 	return ret;
 }
 EXPORT_SYMBOL(ppe_tun_decap_enable);
+
+/*
+ * ppe_tun_configure_vxlan_dport()
+ *	Configure the VXLAN destination port
+ */
+bool ppe_tun_configure_vxlan_dport(uint16_t dport)
+{
+	ppe_tun_trace("Configuring the destination port of VXLAN dport: %u", dport);
+	return ppe_drv_tun_configure_vxlan_and_dport(dport);
+}
+EXPORT_SYMBOL(ppe_tun_configure_vxlan_dport);
 
 /*
  * ppe_tun_gretap_read()

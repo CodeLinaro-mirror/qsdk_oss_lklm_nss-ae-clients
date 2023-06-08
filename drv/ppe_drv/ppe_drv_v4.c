@@ -1763,6 +1763,7 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	int ret;
+	int vxlan_dport = ppe_drv_get_vxlan_dport();
 #endif
 
 	/*
@@ -1773,7 +1774,7 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
  * TODO: Remove the following check when Tunnel support is added for PPE
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-	if (ppe_drv_tun_check_support(destroy->tuple.protocol) || destroy->tuple.flow_ident == IANA_VXLAN_UDP_PORT || destroy->tuple.return_ident == IANA_VXLAN_UDP_PORT) {
+	if (ppe_drv_tun_check_support(destroy->tuple.protocol) || (destroy->tuple.flow_ident == vxlan_dport && destroy->tuple.return_ident == vxlan_dport)) {
 #else
 	if (destroy->tuple.flow_ident == IANA_VXLAN_UDP_PORT || destroy->tuple.return_ident == IANA_VXLAN_UDP_PORT) {
 #endif

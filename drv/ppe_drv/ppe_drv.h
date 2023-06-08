@@ -261,6 +261,7 @@ struct ppe_drv {
 	struct list_head conn_tun_v6;		/* List of v6 tunnel connection in PPE */
 	struct ppe_drv_fse_ops *fse_ops;        /* Wi-Fi FSE block operations */
 	struct kref fse_ops_ref;		/* FSE Reference count */
+	int vxlan_dport;			/* VXLAN destination port */
 	bool fse_enable;			/* FSE enabled */
 	bool is_wifi_fse_up;			/* Wi-FI FSE ops registered with PPE */
 
@@ -280,6 +281,7 @@ static inline ppe_drv_tree_id_type_t ppe_drv_tree_id_type_get(struct ppe_drv_flo
 	return flow_metadata->tree_id_data.type;
 }
 
+extern int ppe_drv_get_vxlan_dport(void);
 void ppe_drv_fse_ops_free(struct kref *kref);
 extern struct ppe_drv ppe_drv_gbl;
 extern uint32_t if_bm_to_offload;

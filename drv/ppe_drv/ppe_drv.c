@@ -45,6 +45,15 @@ uint32_t if_bm_to_offload = PPE_DRV_PORT_OFFLOAD_DEF_VAL;
 struct ppe_drv ppe_drv_gbl;
 
 /*
+ * ppe_drv_get_vxlan_dport()
+ * Get the VXLAN destination port.
+ */
+int ppe_drv_get_vxlan_dport(void)
+{
+	return ppe_drv_gbl.vxlan_dport;
+}
+
+/*
  * ppe_drv_hw_stats_sync()
  *	Sync PPE HW stats
  */

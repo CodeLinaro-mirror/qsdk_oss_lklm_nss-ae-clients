@@ -680,6 +680,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	}
 #endif
 
+	p->acl = ppe_drv_acl_entries_alloc();
+	if (!p->acl) {
+		ppe_drv_warn("%p: failed to allocate ACL entries", p);
+		goto fail;
+	}
+
 	/*
 	 * Take a reference
 	 */
@@ -734,6 +740,11 @@ fail:
 		p->ptun_l3_if = NULL;
 	}
 #endif
+
+	if (p->acl) {
+		ppe_drv_acl_entries_free(p->acl);
+		p->acl = NULL;
+	}
 
 	if (p->pub_ip) {
 		ppe_drv_pub_ip_entries_free(p->pub_ip);
@@ -890,6 +901,11 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->decap_xlate_rules) {
 		ppe_drv_tun_decap_xlate_rule_entries_free(p->decap_xlate_rules);
 		p->decap_xlate_rules = NULL;
+	}
+
+	if (p->acl) {
+		ppe_drv_acl_entries_free(p->acl);
+		p->acl = NULL;
 	}
 
 	ppe_drv_tun_vxlan_deconfigure(p);

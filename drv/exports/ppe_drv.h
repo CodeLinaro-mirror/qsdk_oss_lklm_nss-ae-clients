@@ -53,6 +53,14 @@
 #define PPE_DRV_VALID_FLAG_RETURN_PPE_QOS	0x02	/**< PPE QOS is enabled in return direction. */
 
 /*
+ * ACL/POLICER VALID FLAGS
+ */
+#define PPE_DRV_VALID_FLAG_FLOW_ACL		0x01	/**< ACL is enabled in flow direction. */
+#define PPE_DRV_VALID_FLAG_RETURN_ACL		0x02	/**< ACL is enabled in return direction. */
+#define PPE_DRV_VALID_FLAG_FLOW_POLICER		0x01	/**< Policer is enabled in flow direction. */
+#define PPE_DRV_VALID_FLAG_RETURN_POLICER	0x02	/**< Policer is enabled in return direction. */
+
+/*
  * ppe_drv_ip_type
  *	Types of IP addresses handled
  */
@@ -231,6 +239,38 @@ struct ppe_drv_nsm_stats {
 };
 
 /*
+ * ppe_drv_acl_policer_rule_type
+ *	Rule type to indicate flow+acl or flow+policer combination.
+ */
+typedef enum ppe_drv_acl_policer_rule_type {
+	PPE_DRV_RULE_TYPE_FLOW_ACL,		/**< Flow needs to be combined with ACL. */
+	PPE_DRV_RULE_TYPE_FLOW_POLICER,		/**< Flow needs to be combined with Policer. */
+} ppe_drv_acl_policer_rule_t;
+
+/*
+ * ppe_drv_acl_policer_rule
+ *	ACL/POLICER rule ID for each direction
+ *
+ * Note: This is used when the packets matching the flow need to be rate-limited (policed)
+ * 	or filtered by an ACL rule, post flow processing.
+ */
+struct ppe_drv_acl_policer_rule {
+	ppe_drv_acl_policer_rule_t type;	/**< Whether ACL or Policer rule? */
+	union {
+		struct {
+			uint8_t flags;			/**< Valid flag. */
+			uint32_t flow_acl_id;		/**< ACL rule ID in flow direction. */
+			uint32_t return_acl_id;		/**< ACL rule ID in return direction. */
+		} acl;
+		struct {
+			uint8_t flags;			/**< Valid flag. */
+			uint32_t flow_policer_id;	/**< Policer ID in flow direction. */
+			uint32_t return_policer_id;	/**< Policer ID in return direction. */
+		} policer;
+	} rule_id;
+};
+
+/*
  * ppe_drv_stats_sync_reason
  *	Stats sync reasons.
  */
@@ -351,6 +391,9 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_QOS_SHAPER_CFG_FAIL,		/**< QoS shaper configuration failed. */
 	PPE_DRV_RET_QOS_PORT_CFG_FAIL,			/**< QoS port configuration failed. */
 	PPE_DRV_RET_PORT_NO_OFFLOAD,			/**< Offload is disabled on the PPE port */
+	PPE_DRV_RET_ACL_RULE_INVALID,			/**< ACL rule invalid */
+	PPE_DRV_RET_ACL_RULE_ADD_FAIL,			/**< Failed to add ACL rule */
+	PPE_DRV_RET_ACL_RULE_BIND_FAIL,			/**< Failed to bind ACL rule to src */
 } ppe_drv_ret_t;
 
 /**

@@ -89,8 +89,8 @@ struct nss_ppe_vxlanmgr_remote_info {
  */
 struct nss_ppe_vxlanmgr_rtm_neigh_event_data {
 	struct  net_device *parent_netdev;	/* Parent/linux netdevice of the tunnel */
-	union vxlan_addr rip;			/* Remote IP address received in RTM_NEWNEIGH event */
-	uint8_t event;	/* RTM_NEWNEIGH or RTM_DELNEIGH event */
+	union vxlan_addr rip;			/* Remote IP address received in SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE event */
+	uint8_t event;	/* SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE or SWITCHDEV_VXLAN_FDB_DEL_TO_DEVICE event */
 	struct list_head rtm_event_list;	/* list to maintain the RTM events */
 };
 

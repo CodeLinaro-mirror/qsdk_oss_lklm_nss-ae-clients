@@ -40,7 +40,7 @@ int nss_ppe_vxlanmgr_tun_stats_show(struct seq_file *m, void __attribute__((unus
 
 	tun_ctx = kzalloc(sizeof(struct nss_ppe_vxlanmgr_tun_ctx), GFP_KERNEL);
 	if (!tun_ctx) {
-		nss_ppe_vxlanmgr_warn("Failed to allocate memory for tun_ctx\n");
+		nss_ppe_vxlanmgr_warn("Failed to allocate memory for tun_ctx");
 		return -ENOMEM;
 	}
 
@@ -150,7 +150,7 @@ static const struct file_operations nss_ppe_vxlanmgr_nack_ops = { \
 bool nss_ppe_vxlanmgr_tun_nack_dentry_create(struct dentry *vxlanmgr)
 {
 	if (!debugfs_create_file("nack_limit", 0644, vxlanmgr, NULL, &nss_ppe_vxlanmgr_nack_ops)) {
-		nss_ppe_vxlanmgr_warn("Debugfs file creation failed for nack limit\n");
+		nss_ppe_vxlanmgr_warn("Debugfs file creation failed for nack limit");
 		return false;
 	}
 	return true;
@@ -179,7 +179,7 @@ bool nss_ppe_vxlanmgr_tun_stats_dentry_create(struct nss_ppe_vxlanmgr_tun_ctx *t
 	tun_ctx->dentry = debugfs_create_file(dentry_name, S_IRUGO,
 			vxlan_ctx.dentry, tun_ctx, &nss_ppe_vxlanmgr_tun_stats_ops);
 	if (!tun_ctx->dentry) {
-		nss_ppe_vxlanmgr_warn("Debugfs file creation failed for tun %s\n", tun_ctx->parent_dev->name);
+		nss_ppe_vxlanmgr_warn("Debugfs file creation failed for tun %s", tun_ctx->parent_dev->name);
 		return false;
 	}
 	return true;
@@ -193,7 +193,7 @@ bool nss_ppe_vxlanmgr_tun_stats_dentry_init(struct dentry *clients)
 {
 	vxlan_ctx.dentry = debugfs_create_dir("vxlanmgr", clients);
 	if (!vxlan_ctx.dentry) {
-		nss_ppe_vxlanmgr_warn("Creating debug directory failed\n");
+		nss_ppe_vxlanmgr_warn("Creating debug directory failed");
 		return false;
 	}
 

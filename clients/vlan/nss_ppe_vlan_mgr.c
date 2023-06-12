@@ -667,7 +667,7 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_create_instance(
 		return NULL;
 	}
 
-	v = kzalloc(sizeof(*v), GFP_ATOMIC);
+	v = kzalloc(sizeof(*v), GFP_KERNEL);
 	if (!v) {
 		nss_ppe_vlan_mgr_warn("%px: Allocation to private structure failed: %s\n",
 						dev, dev->name);
@@ -978,7 +978,6 @@ static int nss_ppe_vlan_mgr_netdevice_event(struct notifier_block *unused,
 				unsigned long event, void *ptr)
 {
 	struct netdev_notifier_info *info = (struct netdev_notifier_info *)ptr;
-	int ret;
 
 	switch (event) {
 	case NETDEV_CHANGEADDR:
@@ -986,15 +985,9 @@ static int nss_ppe_vlan_mgr_netdevice_event(struct notifier_block *unused,
 	case NETDEV_CHANGEMTU:
 		return nss_ppe_vlan_mgr_changemtu_event(info);
 	case NETDEV_REGISTER:
-		spin_lock(&vlan_mgr_ctx.v_lock);
-		ret = nss_ppe_vlan_mgr_register_event(info);
-		spin_unlock(&vlan_mgr_ctx.v_lock);
-		return ret;
+		return nss_ppe_vlan_mgr_register_event(info);
 	case NETDEV_UNREGISTER:
-		spin_lock(&vlan_mgr_ctx.v_lock);
-		ret = nss_ppe_vlan_mgr_unregister_event(info);
-		spin_unlock(&vlan_mgr_ctx.v_lock);
-		return ret;
+		return nss_ppe_vlan_mgr_unregister_event(info);
 	}
 
 	/*
@@ -1186,10 +1179,10 @@ static struct ctl_table nss_vlan_root_dir[] = {
 };
 
 /*
- * _nss_ppe_vlan_mgr_leave_bridge()
+ * nss_ppe_vlan_mgr_leave_bridge()
  *	update ingress and egress vlan translation rule to restore vlan
  */
-static int _nss_ppe_vlan_mgr_leave_bridge(struct net_device *dev, struct ppe_drv_iface *bridge_iface)
+int nss_ppe_vlan_mgr_leave_bridge(struct net_device *dev, struct ppe_drv_iface *bridge_iface)
 {
 	struct nss_vlan_pvt *v = nss_ppe_vlan_mgr_instance_find_and_ref(dev);
 	struct net_device *real_dev;
@@ -1285,26 +1278,13 @@ static int _nss_ppe_vlan_mgr_leave_bridge(struct net_device *dev, struct ppe_drv
 	nss_ppe_vlan_mgr_instance_deref(v);
 	return 0;
 }
-
-/*
- * Wrapper API for _nss_ppe_vlan_mgr_leave_bridge()
- */
-int nss_ppe_vlan_mgr_leave_bridge(struct net_device *dev, struct ppe_drv_iface *bridge_iface)
-{
-	int ret;
-
-	spin_lock(&vlan_mgr_ctx.v_lock);
-	ret = _nss_ppe_vlan_mgr_leave_bridge(dev, bridge_iface);
-	spin_unlock(&vlan_mgr_ctx.v_lock);
-	return ret;
-}
 EXPORT_SYMBOL(nss_ppe_vlan_mgr_leave_bridge);
 
 /*
- * _nss_ppe_vlan_mgr_join_bridge()
+ * nss_ppe_vlan_mgr_join_bridge()
  *	update ingress and egress vlan translation rule to use bridge iface
  */
-static int _nss_ppe_vlan_mgr_join_bridge(struct net_device *dev, struct ppe_drv_iface *bridge_iface)
+int nss_ppe_vlan_mgr_join_bridge(struct net_device *dev, struct ppe_drv_iface *bridge_iface)
 {
 	struct net_device *real_dev;
 	int res;
@@ -1388,25 +1368,13 @@ static int _nss_ppe_vlan_mgr_join_bridge(struct net_device *dev, struct ppe_drv_
 	nss_ppe_vlan_mgr_instance_deref(v);
 	return 0;
 }
-
-/*
- * Wrapper API for _nss_ppe_vlan_mgr_join_bridge()
- */
-int nss_ppe_vlan_mgr_join_bridge(struct net_device *dev, struct ppe_drv_iface *bridge_iface)
-{
-	int ret;
-
-	spin_lock(&vlan_mgr_ctx.v_lock);
-	ret = _nss_ppe_vlan_mgr_join_bridge(dev, bridge_iface);
-	spin_unlock(&vlan_mgr_ctx.v_lock);
-	return ret;
-}
 EXPORT_SYMBOL(nss_ppe_vlan_mgr_join_bridge);
+
 /*
- * _nss_ppe_vlan_mgr_delete_bond_slave()
+ * nss_ppe_vlan_mgr_delete_bond_slave()
  *	Delete new slave port from bond_vlan
  */
-static int _nss_ppe_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
+int nss_ppe_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
 {
 	struct nss_vlan_pvt *v;
 	int32_t port_id;
@@ -1447,26 +1415,13 @@ static int _nss_ppe_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
 	spin_unlock(&vlan_mgr_ctx.lock);
 	return 0;
 }
-
-/*
- * Wrapper API for _nss_ppe_vlan_mgr_delete_bond_slave()
- */
-int nss_ppe_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
-{
-	int ret;
-
-	spin_lock(&vlan_mgr_ctx.v_lock);
-	ret = _nss_ppe_vlan_mgr_delete_bond_slave(slave_dev);
-	spin_unlock(&vlan_mgr_ctx.v_lock);
-	return ret;
-}
 EXPORT_SYMBOL(nss_ppe_vlan_mgr_delete_bond_slave);
 
 /*
- * _nss_ppe_vlan_mgr_add_bond_slave()
+ * nss_ppe_vlan_mgr_add_bond_slave()
  *	Add new slave port to bond_vlan
  */
-static int _nss_ppe_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
+int nss_ppe_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 			struct net_device *slave_dev)
 {
 	struct nss_vlan_pvt *v;
@@ -1535,19 +1490,6 @@ static int _nss_ppe_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 
 	spin_unlock(&vlan_mgr_ctx.lock);
 	return 0;
-}
-
-/*
- * Wrapper API for _nss_ppe_vlan_mgr_add_bond_slave()
- */
-int nss_ppe_vlan_mgr_add_bond_slave(struct net_device *bond_dev, struct net_device *slave_dev)
-{
-	int ret;
-
-	spin_lock(&vlan_mgr_ctx.v_lock);
-	ret = _nss_ppe_vlan_mgr_add_bond_slave(bond_dev, slave_dev);
-	spin_unlock(&vlan_mgr_ctx.v_lock);
-	return ret;
 }
 EXPORT_SYMBOL(nss_ppe_vlan_mgr_add_bond_slave);
 

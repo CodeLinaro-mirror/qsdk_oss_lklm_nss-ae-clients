@@ -177,6 +177,52 @@ static bool ppe_drv_v4_vxlan_tunnel(struct ppe_drv_v4_rule_create *create, struc
 }
 
 /*
+ * ppe_drv_v4_l2tp_tunnel()
+ *	Check if create request for l2tp tunnel.
+ */
+bool ppe_drv_v4_l2tp_tunnel(uint8_t protocol, uint32_t flow_ident, uint32_t return_ident)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	if ((protocol == IPPROTO_UDP) &&
+		(((flow_ident == p->l2tp_sport) && (return_ident == p->l2tp_dport)) ||
+		 ((flow_ident == p->l2tp_dport) && (return_ident == p->l2tp_sport)))) {
+		return true;
+	}
+
+	return false;
+}
+
+/*
+ * ppe_drv_v4_tun_allow_tunnel_destroy()
+ *	Check if the destroy rule is received for tunnel
+ *
+ * Requires caller to hold lock on ppe_drv_gbl.
+ */
+bool ppe_drv_v4_tun_allow_tunnel_destroy(struct ppe_drv_v4_rule_destroy *destroy)
+{
+	int vxlan_dport = ppe_drv_get_vxlan_dport();
+
+	/*
+	 * PPE accelearation is only supported for default port currently.
+	 */
+	if (ppe_drv_tun_check_support(destroy->tuple.protocol)) {
+		return true;
+	}
+
+       if ((destroy->tuple.flow_ident == vxlan_dport && destroy->tuple.return_ident == vxlan_dport)) {
+		return true;
+       }
+
+       if (ppe_drv_v4_l2tp_tunnel(destroy->tuple.protocol,
+			       destroy->tuple.flow_ident, destroy->tuple.return_ident)) {
+		return true;
+       }
+
+	return false;
+}
+
+/*
  * ppe_drv_v4_tun_allow_tunnel_create()
  *	Check if the create rule is received for tunnel activation
  *
@@ -192,6 +238,14 @@ bool ppe_drv_v4_tun_allow_tunnel_create(struct ppe_drv_v4_rule_create *create)
 	 * Check if the rule is for GRE or IPIP6
 	 */
 	if (ppe_drv_tun_check_support(create->tuple.protocol)) {
+		return true;
+	}
+
+	/*
+	 * Check if rule is for a L2TP tunnel.
+	 */
+	if (ppe_drv_v4_l2tp_tunnel(create->tuple.protocol, create->tuple.flow_ident,
+					create->tuple.return_ident)) {
 		return true;
 	}
 

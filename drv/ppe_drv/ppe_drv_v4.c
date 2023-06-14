@@ -2296,16 +2296,13 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 	struct ppe_drv_v4_conn_sync *cns;
 	struct ppe_drv_v4_conn *cn;
 	int ret;
-	int vxlan_dport = ppe_drv_get_vxlan_dport();
 
 	/*
 	 * PPE accelearation is only supported for default port currently.
 	 */
-
-	if (ppe_drv_tun_check_support(destroy->tuple.protocol) || (destroy->tuple.flow_ident == vxlan_dport && destroy->tuple.return_ident == vxlan_dport)) {
+	if (ppe_drv_v4_tun_allow_tunnel_destroy(destroy)) {
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v4_destroy_req);
-
 		ret = ppe_drv_v4_tun_del_ce_notify(destroy);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			ppe_drv_warn("%p: Tunnel destroy failed with error %d", destroy, ret);

@@ -45,6 +45,5 @@ enum nss_ppe_vxlanmgr_vp_creation {
 /*
  * VXLAN tunnel functionality APIs exported
  */
-int nss_ppe_vxlanmgr_get_ppe_netdev_idx(struct net_device *netdev, uint32_t *remote_ip, uint8_t ip_type);
-enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type);
+enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type, int *ifindex);
 #endif

@@ -1061,50 +1061,10 @@ void nss_ppe_vxlanmgr_delete_all_remotes()
 }
 
 /*
- * nss_ppe_vxlanmgr_get_ppe_netdev_idx()
- *	Get the nss_netdev ifindex.
- */
-int nss_ppe_vxlanmgr_get_ppe_netdev_idx(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type)
-{
-	struct nss_ppe_vxlanmgr_tun_ctx *curr_tun_ctx;
-	struct vxlan_dev *priv;
-	uint32_t vni_key;
-	union vxlan_addr vxlan_remote_ip = {0};
-	struct net_device *nss_netdev;
-
-	nss_ppe_vxlanmgr_assert(netif_is_vxlan(dev));
-
-	if (!remote_ip) {
-		nss_ppe_vxlanmgr_trace("%px: remote IP is null", dev);
-		return -1;
-	}
-
-	nss_ppe_vxlanmgr_convert_to_vxlan_addr(&vxlan_remote_ip, remote_ip, ip_type);
-	nss_ppe_vxlanmgr_trace("%px: VXLAN remote ip_type: %d", dev, ip_type);
-
-	priv = netdev_priv(dev);
-	vni_key = vxlan_vni_field(priv->cfg.vni);
-
-	spin_lock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
-	hash_for_each_possible(nss_ppe_vxlanmgr_tunnel_tbl, curr_tun_ctx, node, vni_key) {
-		if ((curr_tun_ctx->vp_status == NSS_PPE_VXLANMGR_VP_CREATION_SUCCESS) && (curr_tun_ctx->vni == vni_key) && (nss_ppe_vxlanmgr_addr_equal(&curr_tun_ctx->remote_info.remote_ip, &vxlan_remote_ip))) {
-			nss_netdev = curr_tun_ctx->remote_info.nss_netdev;
-			nss_ppe_vxlanmgr_trace("%px: nss_netdev is:%s if_index:%d", dev, nss_netdev->name, nss_netdev->ifindex);
-			spin_unlock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
-			return nss_netdev->ifindex;
-		}
-	}
-
-	spin_unlock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
-	return -1;
-}
-EXPORT_SYMBOL(nss_ppe_vxlanmgr_get_ppe_netdev_idx);
-
-/*
- * nss_ppe_vxlanmgr_get_vp_status()
+ * nss_ppe_vxlanmgr_get_ifindex_and_vp_status()
  *	Find the parent/host netdevice using the parent ndetdevice and the remote IP address.
  */
-enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type)
+enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type, int *ifindex)
 {
 	struct nss_ppe_vxlanmgr_tun_ctx *curr_tun_ctx, *remote_tun_ctx;
 	struct vxlan_dev *priv;
@@ -1133,11 +1093,15 @@ enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_vp_status(struct net_devi
 	/*
 	 * CASE 1: When the Remote IP (RIP) is found in the Data-Base (DB)
 	 */
+	*ifindex = -1;
 	spin_lock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
 	hash_for_each_possible(nss_ppe_vxlanmgr_tunnel_tbl, curr_tun_ctx, node, vni_key) {
 		if (curr_tun_ctx->vni == vni_key && nss_ppe_vxlanmgr_addr_equal(&curr_tun_ctx->remote_info.remote_ip, &vxlan_remote_ip)) {
 			vp_status = curr_tun_ctx->vp_status;
 			remote_tun_ctx = curr_tun_ctx;
+			if (vp_status == NSS_PPE_VXLANMGR_VP_CREATION_SUCCESS) {
+				*ifindex = curr_tun_ctx->remote_info.nss_netdev->ifindex;
+			}
 			nss_ppe_vxlanmgr_trace("%px: Found VP in the database", dev);
 			break;
 		}
@@ -1181,7 +1145,7 @@ enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_vp_status(struct net_devi
 	 */
 	return vp_status;
 }
-EXPORT_SYMBOL(nss_ppe_vxlanmgr_get_vp_status);
+EXPORT_SYMBOL(nss_ppe_vxlanmgr_get_ifindex_and_vp_status);
 
 /*
  * nss_ppe_vxlanmgr_get_parent_netdev()

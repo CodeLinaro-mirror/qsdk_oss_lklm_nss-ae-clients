@@ -336,56 +336,24 @@ static int nss_ppe_bridge_mgr_add_bond_slave(struct net_device *bond_master,
 }
 
 /*
- * nss_ppe_bridge_mgr_bond_master_join()
- *	Add a bond interface to bridge
+ * nss_ppe_bridge_mgr_bond_fdb_join()
+ *      Update FDB state when a bond interface joining bridge.
  */
-static int nss_ppe_bridge_mgr_bond_master_join(struct net_device *bond_master,
-		struct nss_ppe_bridge_mgr_pvt *b_pvt)
+static bool nss_ppe_bridge_mgr_bond_fdb_join(struct nss_ppe_bridge_mgr_pvt *b_pvt)
 {
-	struct slave *slave;
-	struct list_head *iter;
-	struct bonding *bond;
-	ppe_drv_ret_t ret;
-
-	nss_ppe_bridge_mgr_assert(netif_is_bond_master(bond_master));
-	bond = netdev_priv(bond_master);
-
-	ASSERT_RTNL();
-
-	if (nss_ppe_bridge_mgr_bridge_vlan_interfaces_get(b_pvt)) {
-		nss_ppe_bridge_mgr_warn("Bond interface %s not allowed to be added in VLAN over bridge "
-				"%s", bond_master->name, b_pvt->dev->name);
-		return NOTIFY_DONE;
-	}
-
-	/*
-	 * Join each of the bonded slaves to the VSI group
-	 */
-	bond_for_each_slave(bond, slave, iter) {
-		if (nss_ppe_bridge_mgr_add_bond_slave(bond_master, slave->dev, b_pvt)) {
-			nss_ppe_bridge_mgr_warn("%px: Failed to add slave (%s) state in Bridge\n", b_pvt, slave->dev->name);
-			goto cleanup;
-		}
-	}
-
 	/*
 	 * If already other bond devices are attached to bridge,
 	 * only increment bond_slave_num,
 	 */
 	spin_lock(&br_mgr_ctx.lock);
-	ret = ppe_drv_br_join(b_pvt->iface, bond_master);
-	if (ret != PPE_DRV_RET_SUCCESS) {
+	if (b_pvt->bond_slave_num) {
+		b_pvt->bond_slave_num++;
 		spin_unlock(&br_mgr_ctx.lock);
-		nss_ppe_bridge_mgr_warn("%px: Unable to join bridge %s\n", b_pvt, bond_master->name);
-		goto cleanup;
+		return true;
 	}
 
-	b_pvt->bond_slave_num++;
-
-	if (!b_pvt->fdb_lrn_enabled) {
-		spin_unlock(&br_mgr_ctx.lock);
-		return NOTIFY_DONE;
-	}
+	b_pvt->bond_slave_num = 1;
+	spin_unlock(&br_mgr_ctx.lock);
 
 	/*
 	 * This is the first bond device being attached to bridge. In order to enforce Linux
@@ -394,19 +362,48 @@ static int nss_ppe_bridge_mgr_bond_master_join(struct net_device *bond_master,
 	 */
 	if (ppe_drv_br_fdb_lrn_ctrl(b_pvt->iface, false) != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: Failed to disable FDB learning\n", b_pvt);
+		return false;
 	}
 
+	return true;
+}
+
+/*
+ * nss_ppe_bridge_mgr_bond_fdb_leave()
+ *      Update FDB state when a bond interface leaving bridge.
+ */
+static bool nss_ppe_bridge_mgr_bond_fdb_leave(struct nss_ppe_bridge_mgr_pvt *b_pvt)
+{
+	nss_ppe_bridge_mgr_assert(b_pvt->bond_slave_num == 0);
+
+	/*
+	 * If already other bond devices are attached to bridge,
+	 * only increment bond_slave_num,
+	 */
+	spin_lock(&br_mgr_ctx.lock);
+	if (b_pvt->bond_slave_num > 1) {
+		b_pvt->bond_slave_num--;
+		spin_unlock(&br_mgr_ctx.lock);
+		return true;
+	}
+
+	b_pvt->bond_slave_num = 0;
 	spin_unlock(&br_mgr_ctx.lock);
-	return NOTIFY_DONE;
 
-cleanup:
-	bond_for_each_slave(bond, slave, iter) {
-		if (nss_ppe_bridge_mgr_del_bond_slave(bond_master, slave->dev, b_pvt)) {
-			nss_ppe_bridge_mgr_warn("%px: Failed to remove slave (%s) from Bridge\n", b_pvt, slave->dev->name);
-		}
+	if (ovs_enabled || fdb_disabled) {
+		return true;
 	}
 
-	return NOTIFY_DONE;
+	/*
+	 * This is the last bond device being detached from the bridge. Enable the FDB
+	 * learning to allow fdb based bridging.
+	 */
+	if (ppe_drv_br_fdb_lrn_ctrl(b_pvt->iface, true) != PPE_DRV_RET_SUCCESS) {
+		nss_ppe_bridge_mgr_warn("%px: Failed to enable FDB learning\n", b_pvt);
+		return false;
+	}
+
+	return true;
 }
 
 /*
@@ -445,6 +442,57 @@ static int nss_ppe_bridge_mgr_bond_slave_changeupper(struct netdev_notifier_chan
 		if (nss_ppe_bridge_mgr_del_bond_slave(cu_info->upper_dev, bond_slave, b_pvt)) {
 			nss_ppe_bridge_mgr_warn("%px: Failed to remove slave (%s) state in Bridge %s\n", b_pvt,
 					cu_info->upper_dev->name, master->name);
+		}
+	}
+
+	return NOTIFY_DONE;
+}
+
+/*
+ * nss_ppe_bridge_mgr_bond_master_join()
+ *	Add a bond interface to bridge
+ */
+static int nss_ppe_bridge_mgr_bond_master_join(struct net_device *bond_master,
+		struct nss_ppe_bridge_mgr_pvt *b_pvt)
+{
+	struct slave *slave;
+	struct list_head *iter;
+	struct bonding *bond;
+	ppe_drv_ret_t ret;
+
+	ASSERT_RTNL();
+
+	nss_ppe_bridge_mgr_assert(netif_is_bond_master(bond_master));
+	bond = netdev_priv(bond_master);
+
+	/*
+	 * Join each of the bonded slaves to the VSI group
+	 */
+	bond_for_each_slave(bond, slave, iter) {
+		if (nss_ppe_bridge_mgr_add_bond_slave(bond_master, slave->dev, b_pvt)) {
+			nss_ppe_bridge_mgr_warn("%px: Failed to add slave (%s) state in Bridge\n", b_pvt, slave->dev->name);
+			goto cleanup;
+		}
+	}
+
+	spin_lock(&br_mgr_ctx.lock);
+	ret = ppe_drv_br_join(b_pvt->iface, bond_master);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		spin_unlock(&br_mgr_ctx.lock);
+		nss_ppe_bridge_mgr_warn("%px: Unable to join bridge %s\n", b_pvt, bond_master->name);
+		goto cleanup;
+	}
+
+	spin_unlock(&br_mgr_ctx.lock);
+
+	if (nss_ppe_bridge_mgr_bond_fdb_join(b_pvt)) {
+		return NOTIFY_DONE;
+	}
+
+cleanup:
+	bond_for_each_slave(bond, slave, iter) {
+		if (nss_ppe_bridge_mgr_del_bond_slave(bond_master, slave->dev, b_pvt)) {
+			nss_ppe_bridge_mgr_warn("%px: Failed to remove slave (%s) from Bridge\n", b_pvt, slave->dev->name);
 		}
 	}
 
@@ -492,34 +540,10 @@ static int nss_ppe_bridge_mgr_bond_master_leave(struct net_device *bond_master,
 		}
 	}
 
-	/*
-	 * If more than one bond devices are attached to bridge,
-	 * only decrement the bond_slave_num
-	 */
-	spin_lock(&br_mgr_ctx.lock);
-	b_pvt->bond_slave_num--;
-	if (b_pvt->bond_slave_num > 1) {
-		spin_unlock(&br_mgr_ctx.lock);
-		return NOTIFY_DONE;
-	}
-
-	if (ovs_enabled || fdb_disabled) {
-		spin_unlock(&br_mgr_ctx.lock);
-		return NOTIFY_DONE;
-	}
-
-	/*
-	 * The last bond device is removed from the bridge, we can switch back FDB
-	 * learning mode.
-	 */
-	if (ppe_drv_br_fdb_lrn_ctrl(b_pvt->iface, true) != PPE_DRV_RET_SUCCESS) {
-		nss_ppe_bridge_mgr_warn("%px: Failed to enable FDB learning\n", b_pvt);
-	} else {
+	if (nss_ppe_bridge_mgr_bond_fdb_leave(b_pvt)) {
 		b_pvt->fdb_lrn_enabled = true;
+		return NOTIFY_DONE;
 	}
-
-	spin_unlock(&br_mgr_ctx.lock);
-	return NOTIFY_DONE;
 
 cleanup:
 	bond_for_each_slave(bond, slave, iter) {
@@ -1165,7 +1189,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 		/*
 		 * Remove the bond_master from bridge.
 		 */
-		if (nss_ppe_bridge_mgr_bond_master_leave(real_dev, b_pvt) != NOTIFY_DONE) {
+		if (!nss_ppe_bridge_mgr_bond_fdb_leave(b_pvt)) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s leave bridge failed\n", b_pvt, real_dev->name);
 			nss_ppe_vlan_mgr_join_bridge(dev, b_pvt->iface);
 			return -1;
@@ -1306,9 +1330,8 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 
 		/*
 		 * Add the bond_master to bridge.
-		 * TODO: This is not needed. Needs to be updated separetely.
 		 */
-		if (nss_ppe_bridge_mgr_bond_master_join(real_dev, b_pvt) != NOTIFY_DONE) {
+		if (!nss_ppe_bridge_mgr_bond_fdb_join(b_pvt)) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s join bridge failed\n", b_pvt, real_dev->name);
 			nss_ppe_vlan_mgr_leave_bridge(dev, b_pvt->iface);
 			return -EINVAL;
@@ -1327,7 +1350,6 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 
 		/*
 		 * Add the bond_master to bridge.
-		 * TODO: This is not needed. Needs to be updated separetely.
 		 */
 		if (nss_ppe_bridge_mgr_bond_master_leave(real_dev, b_pvt) != NOTIFY_DONE) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s leave bridge failed\n", b_pvt, real_dev->name);

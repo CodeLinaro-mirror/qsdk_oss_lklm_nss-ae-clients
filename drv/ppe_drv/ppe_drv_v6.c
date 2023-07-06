@@ -15,6 +15,7 @@
  */
 
 #include <linux/version.h>
+#include <linux/if_vlan.h>
 #include "ppe_drv.h"
 #include "tun/ppe_drv_tun.h"
 #include "tun/ppe_drv_tun_v6.h"
@@ -817,6 +818,7 @@ bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_
 	struct ppe_drv_l3_if *pppoe_l3_if;
 	uint32_t egress_vlan_inner = PPE_DRV_VLAN_NOT_CONFIGURED, egress_vlan_outer = PPE_DRV_VLAN_NOT_CONFIGURED;
 	uint8_t vlan_cnt = ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf);
+	bool is_vlan_as_vp;
 
 	switch (vlan_cnt) {
 	case 2:
@@ -930,9 +932,11 @@ bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_
 	}
 
 	/*
-	 * For create request with egress-VLAN, there must be a corresponding egress-VSI IF.
+	 * For create request with egress-VLAN, there must be a corresponding egress-VSI / VLAN as VP IF.
 	 */
-	if (ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf) && !eg_vsi_if) {
+	is_vlan_as_vp = is_vlan_dev(tx_port_if->dev) && (tx_port_if->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+
+	if (vlan_cnt && !is_vlan_as_vp && !eg_vsi_if) {
 		ppe_drv_warn("%p: not able to find a matching vlan-if", pcf);
 		return false;
 	}

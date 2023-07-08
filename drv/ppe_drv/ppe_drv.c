@@ -686,6 +686,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	p->pol_ctx = ppe_drv_policer_entries_alloc();
+	if (!p->pol_ctx) {
+		ppe_drv_warn("%p: failed to allocate global policer context", p);
+		goto fail;
+	}
+
 	/*
 	 * Take a reference
 	 */
@@ -740,6 +746,10 @@ fail:
 		p->ptun_l3_if = NULL;
 	}
 #endif
+	if (p->pol_ctx) {
+		ppe_drv_policer_entries_free(p->pol_ctx);
+		p->pol_ctx = NULL;
+	}
 
 	if (p->acl) {
 		ppe_drv_acl_entries_free(p->acl);
@@ -908,8 +918,13 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		p->acl = NULL;
 	}
 
+
 	ppe_drv_tun_vxlan_deconfigure(p);
 #endif
+	if (p->pol_ctx) {
+		ppe_drv_policer_entries_free(p->pol_ctx);
+		p->pol_ctx = NULL;
+	}
 
 	if (p->fse_ops) {
 		ppe_drv_warn("FSE ops still registered while ppe module getting removed\n");

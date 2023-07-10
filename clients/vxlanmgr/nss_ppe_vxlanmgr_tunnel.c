@@ -231,7 +231,7 @@ static void nss_ppe_vxlanmgr_nss_netdev_setup(struct net_device *nss_dev)
  *	Nss-netdevice join bridge.
  *
  * When the parent netdevice is added to the bridge the child/dummy nss-netdev should also be added to the bridge.
- * Therefore the API is called When the new remote joins the VXLAN network. i.e RTM_NEWNEIGH event.
+ * Therefore the API is called When the new remote joins the VXLAN network. i.e SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE event.
  */
 static bool nss_ppe_vxlanmgr_br_join_nss_netdev(struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx)
 {
@@ -265,7 +265,7 @@ static bool nss_ppe_vxlanmgr_br_join_nss_netdev(struct nss_ppe_vxlanmgr_tun_ctx 
  *	Nss-netdevice leave bridge.
  *
  * When the parent netdevice is removed from the bridge the child/dummy nss-netdev should also be removed from the bridge.
- * Therefore API is called When the new remote leaves the VXLAN network. i.e RTM_DELNEIGH event.
+ * Therefore API is called When the new remote leaves the VXLAN network. i.e SWITCHDEV_VXLAN_FDB_DEL_TO_DEVICE event.
  */
 static bool nss_ppe_vxlanmgr_br_leave_nss_netdev(struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx)
 {
@@ -517,7 +517,7 @@ static void nss_ppe_vxlanmgr_delete_remote(struct kref *kref)
 
 	tun_ctx = nss_ppe_vxlanmgr_tunnel_ctx_dev_get_safe(nss_dev);
 	if (!tun_ctx) {
-		nss_ppe_vxlanmgr_warn("%px: Failed to get tunnel context. Invalid tunnel context\n", nss_dev);
+		nss_ppe_vxlanmgr_warn("%px: Failed to get tunnel context. Invalid tunnel context", nss_dev);
 		return;
 	}
 
@@ -613,7 +613,7 @@ static bool nss_ppe_vxlanmgr_tunnel_parse_end_points(struct net_device *dev, str
 
 			rt = ip_route_output_key(priv->net, &fl4);
 			if (IS_ERR(rt)) {
-				nss_ppe_vxlanmgr_warn("%px: No route available.\n", dev);
+				nss_ppe_vxlanmgr_warn("%px: No route available", dev);
 				return false;
 			}
 		}
@@ -625,46 +625,61 @@ static bool nss_ppe_vxlanmgr_tunnel_parse_end_points(struct net_device *dev, str
  * nss_ppe_vxlanmgr_tunnel_fdb_event()
  *	Event handler for VXLAN fdb updates.
  */
-static int nss_ppe_vxlanmgr_tunnel_fdb_event(struct notifier_block *nb, unsigned long event, void *data)
+static int nss_ppe_vxlanmgr_switchdev_fdb_event(struct notifier_block *nb_unused, unsigned long event, void *data)
 {
-	struct vxlan_fdb_event *vfe;
-	struct net_device *dev;
-	struct vxlan_dev *priv;
-	bool restart_work = false;
+	struct switchdev_notifier_vxlan_fdb_info *fdb_info;
+	struct switchdev_notifier_info *info = data;
 	struct nss_ppe_vxlanmgr_rtm_neigh_event_data *rtm_neigh_event_data;
+	struct vxlan_dev *priv;
+	struct net_device *dev;
+	bool restart_work = false;
 
-	vfe = (struct vxlan_fdb_event *)data;
-	dev = vfe->dev;
+	if (!((event == SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE) || (event == SWITCHDEV_VXLAN_FDB_DEL_TO_DEVICE))) {
+		return NOTIFY_DONE;
+	}
 
-	if (is_zero_ether_addr(vfe->eth_addr)) {
-		nss_ppe_vxlanmgr_trace("%px: received a zero mac address", dev);
+	dev = info->dev;
+	if (!netif_is_vxlan(dev)) {
+		nss_ppe_vxlanmgr_warn("%px: It is not VXLAN netdevice dev:%s", info, dev->name);
 		return NOTIFY_DONE;
 	}
 
 	priv = netdev_priv(dev);
 	if (dstport != ntohs(priv->cfg.dst_port)) {
-		nss_ppe_vxlanmgr_trace("%px: VXLAN: configured PPE dport: %u is not-equal to user given dport:%dn", dev, dstport, ntohs(priv->cfg.dst_port));
+		nss_ppe_vxlanmgr_trace("%px: VXLAN: configured PPE dport: %u is not-equal to user given dport:%dn", fdb_info, dstport, ntohs(priv->cfg.dst_port));
+		return NOTIFY_DONE;
+	}
+
+	fdb_info = container_of(info, struct switchdev_notifier_vxlan_fdb_info, info);
+	if (!fdb_info) {
+		nss_ppe_vxlanmgr_warn("%px: VXLAN FDB information not present", info);
+		return NOTIFY_DONE;
+	}
+
+	if (is_zero_ether_addr(fdb_info->eth_addr)) {
+		nss_ppe_vxlanmgr_warn("%px: received a zero mac address", fdb_info);
 		return NOTIFY_DONE;
 	}
 
 	rtm_neigh_event_data = kzalloc(sizeof(struct nss_ppe_vxlanmgr_rtm_neigh_event_data), GFP_ATOMIC);
 	if (!rtm_neigh_event_data) {
-		nss_ppe_vxlanmgr_warn("alloc failed for rtm_neigh_event_data");
-		return -1;
-	}
-
-	/*
-	 * Consider only RTM_NEWNEIGH and RTM_DELNEIGH events.
-	 */
-	if (!((event != RTM_DELNEIGH) || (event != RTM_NEWNEIGH))) {
-		nss_ppe_vxlanmgr_warn("%px: Unknown FDB event received. event:%lu\n", dev, event);
+		nss_ppe_vxlanmgr_warn("%px: Alloc failed for rtm_neigh_event_data", fdb_info);
 		return NOTIFY_DONE;
 	}
 
-	nss_ppe_vxlanmgr_trace("%px: FDB event received %s\n", dev, (event==RTM_NEWNEIGH)?"RTM_NEWNEIGH":"RTM_DELNEIGH" );
+	nss_ppe_vxlanmgr_trace("%px: FDB event received %s", fdb_info, (event==SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE)?"SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE":"SWITCHDEV_VXLAN_FDB_DEL_TO_DEVICE" );
+
+	if (fdb_info->remote_ip.sa.sa_family == AF_INET6) {
+		nss_ppe_vxlanmgr_trace("%px: Remote_ip: %pI6h",fdb_info, &fdb_info->remote_ip.sin6.sin6_addr);
+	} else {
+		nss_ppe_vxlanmgr_trace("%px: Remote_ip: %pI4h",fdb_info, &fdb_info->remote_ip.sin.sin_addr.s_addr);
+	}
+	nss_ppe_vxlanmgr_trace("%px: MAC address: %pM",fdb_info, fdb_info->eth_addr);
+
+
 	rtm_neigh_event_data->event = event;
 	rtm_neigh_event_data->parent_netdev = dev;
-	memcpy(&rtm_neigh_event_data->rip, &vfe->rdst->remote_ip, sizeof(union vxlan_addr));
+	memcpy(&rtm_neigh_event_data->rip, &fdb_info->remote_ip, sizeof(union vxlan_addr));
 
 	/*
 	 * The list is empty, so we need to restart the work queue
@@ -682,7 +697,7 @@ static int nss_ppe_vxlanmgr_tunnel_fdb_event(struct notifier_block *nb, unsigned
 
 	if (restart_work) {
 		queue_work(nss_ppe_vxlanmgr_rtm_neigh_event_wq, &rtm_neigh_event_work);
-		nss_ppe_vxlanmgr_trace("%px: RTM_EVENT_WORK: started the work-queue \n", dev);
+		nss_ppe_vxlanmgr_trace("%px: RTM_EVENT_WORK: started the work-queue", dev);
 	}
 
 	return NOTIFY_DONE;
@@ -691,8 +706,8 @@ static int nss_ppe_vxlanmgr_tunnel_fdb_event(struct notifier_block *nb, unsigned
 /*
  * Notifier to receive fdb events from VxLAN
  */
-struct notifier_block nss_ppe_vxlanmgr_tunnel_fdb_notifier = {
-	.notifier_call = nss_ppe_vxlanmgr_tunnel_fdb_event,
+struct notifier_block nss_ppe_vxlanmgr_switchdev_fdb_notifier = {
+	.notifier_call = nss_ppe_vxlanmgr_switchdev_fdb_event,
 };
 
 /*
@@ -788,7 +803,7 @@ static int nss_ppe_vxlanmgr_tunnel_configure(struct net_device *dev, struct nss_
 static int nss_ppe_vxlanmgr_tunnel_create(struct net_device *dev, struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx)
 {
 	if (!ppe_tun_alloc(dev, PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN)) {
-		nss_ppe_vxlanmgr_warn("%px: PPE tunnel creation failed \n", dev);
+		nss_ppe_vxlanmgr_warn("%px: PPE tunnel creation failed.", dev);
 		return -1;
 	}
 
@@ -834,14 +849,14 @@ static void nss_ppe_vxlanmgr_rtm_newneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 		return;
 	}
 
-	nss_ppe_vxlanmgr_trace("%px: Tunnel will be created for the new remote\n", rtm_newneigh_info);
+	nss_ppe_vxlanmgr_trace("%px: Tunnel will be created for the new remote", rtm_newneigh_info);
 
 	/*
 	 * Allocate ppe tunnel context.
 	 */
 	tun_ctx = kzalloc(sizeof(struct nss_ppe_vxlanmgr_tun_ctx), GFP_KERNEL);
 	if (!tun_ctx) {
-		nss_ppe_vxlanmgr_warn("%px: Failed to allocate memory for tun_ctx\n", rtm_newneigh_info);
+		nss_ppe_vxlanmgr_warn("%px: Failed to allocate memory for tun_ctx", rtm_newneigh_info);
 		dev_put(pdev);
 		return;
 	}
@@ -871,7 +886,7 @@ static void nss_ppe_vxlanmgr_rtm_newneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 
 	status = rtnl_is_locked() ? register_netdevice(nss_netdev) : register_netdev(nss_netdev);
 	if (status) {
-		nss_ppe_vxlanmgr_warn("%px: VXLAN nss-netdev register Failed \n", rtm_newneigh_info);
+		nss_ppe_vxlanmgr_warn("%px: VXLAN nss-netdev register Failed.", rtm_newneigh_info);
 		goto dealloc_netdev;
 	}
 
@@ -891,7 +906,7 @@ static void nss_ppe_vxlanmgr_rtm_newneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 	 */
 	tun_ctx->tun_hdr = kzalloc(sizeof(struct ppe_drv_tun_cmn_ctx), GFP_KERNEL);
 	if (!tun_ctx->tun_hdr) {
-		nss_ppe_vxlanmgr_warn("%px: Failed to allocate memory for tun_hdr\n", rtm_newneigh_info);
+		nss_ppe_vxlanmgr_warn("%px: Failed to allocate memory for tun_hdr", rtm_newneigh_info);
 		goto dealloc_tunnel;
 	}
 
@@ -968,14 +983,14 @@ static void nss_ppe_vxlanmgr_rtm_delneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 	struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx;
 	struct net_device *pdev = rtm_delneigh_info->parent_netdev;
 
-	nss_ppe_vxlanmgr_trace("%px: Executing the RTM_DELNEIGH handler pdev:%s", rtm_delneigh_info, pdev->name);
+	nss_ppe_vxlanmgr_trace("%px: Executing the SWITCHDEV_VXLAN_FDB_DEL_TO_DEVICE handler pdev:%s", rtm_delneigh_info, pdev->name);
 
 	/*
 	 * Remote that does-not exists in the database.
 	 */
 	dev_hold(pdev);
 	if (nss_ppe_vxlanmgr_new_remote(pdev, &rtm_delneigh_info->rip)) {
-		nss_ppe_vxlanmgr_trace("%px: Executing the RTM_DELNEIGH handler pdev:%s", rtm_delneigh_info, pdev->name);
+		nss_ppe_vxlanmgr_trace("%px: It is the new remote. pdev:%s", rtm_delneigh_info, pdev->name);
 		dev_put(pdev);
 		return;
 	}
@@ -1018,7 +1033,7 @@ static void nss_ppe_vxlanmgr_rtm_event_handler(struct work_struct *neigh_event_w
 	spin_unlock_bh(&rtm_neigh_event_list_lock);
 
 	event = rtm_neigh_event_info->event;
-	if (event == RTM_NEWNEIGH) {
+	if (event == SWITCHDEV_VXLAN_FDB_ADD_TO_DEVICE) {
 		nss_ppe_vxlanmgr_rtm_newneigh_handler(rtm_neigh_event_info);
 	} else {
 		nss_ppe_vxlanmgr_rtm_delneigh_handler(rtm_neigh_event_info);
@@ -1209,7 +1224,7 @@ int nss_ppe_vxlanmgr_wq_init(void)
 	nss_ppe_vxlanmgr_rtm_neigh_event_wq = create_singlethread_workqueue("wq_rtm_newneigh");
 
 	if (!nss_ppe_vxlanmgr_rtm_neigh_event_wq){
-		nss_ppe_vxlanmgr_warn("work queue allocation failed for RTM_NEWNEIGH event");
+		nss_ppe_vxlanmgr_warn("work queue allocation failed for VXLAN switchdev events");
 		return -1;
 	}
 

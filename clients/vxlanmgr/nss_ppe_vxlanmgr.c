@@ -47,7 +47,7 @@ struct nss_ppe_vxlanmgr_ctx vxlan_ctx;
 /*
  * Extern variable for VXLAN fdb notifier.
  */
-extern struct notifier_block nss_ppe_vxlanmgr_tunnel_fdb_notifier;
+extern struct notifier_block nss_ppe_vxlanmgr_switchdev_fdb_notifier;
 
 /*
  * nss_ppe_vxlanmgr_netdev_event()
@@ -66,24 +66,24 @@ int nss_ppe_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned long event
 
 	switch (event) {
 	case NETDEV_CHANGEMTU:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_CHANGEMTU: name %s\n", netdev, netdev->name);
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_CHANGEMTU: name %s", netdev, netdev->name);
 		nss_ppe_vxlanmgr_all_remotes_set_mtu(netdev, netdev->mtu);
 		break;
 
 	case NETDEV_BR_LEAVE:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_LEAVE: name %s\n", netdev, netdev->name);
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_LEAVE: name %s", netdev, netdev->name);
 		nss_ppe_vxlanmgr_all_remotes_decap_disable(netdev);
 		nss_ppe_vxlanmgr_all_remotes_leave_bridge(netdev);
 		break;
 
 	case NETDEV_BR_JOIN:
-		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_JOIN: name %s\n", netdev, netdev->name);
+		nss_ppe_vxlanmgr_trace("%px: NETDEV_BR_JOIN: name %s", netdev, netdev->name);
 		nss_ppe_vxlanmgr_all_remotes_join_bridge(netdev);
 		nss_ppe_vxlanmgr_all_remotes_decap_enable(netdev);
 		break;
 
 	default:
-		nss_ppe_vxlanmgr_trace("%px: Unhandled notifier event %lu name %s\n", netdev, event, netdev->name);
+		nss_ppe_vxlanmgr_trace("%px: Unhandled notifier event %lu name %s", netdev, event, netdev->name);
 	}
 	return NOTIFY_DONE;
 }
@@ -104,7 +104,7 @@ void __exit nss_ppe_vxlanmgr_exit_module(void)
 	int ret;
 
 	if (!ppe_tun_conf_accel(PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN, false)) {
-		nss_ppe_vxlanmgr_warn("failed to disable the VXLAN tunnels.\n");
+		nss_ppe_vxlanmgr_warn("failed to disable the VXLAN tunnels.");
 	}
 
 	nss_ppe_vxlanmgr_tun_stats_dentry_deinit();
@@ -113,13 +113,13 @@ void __exit nss_ppe_vxlanmgr_exit_module(void)
 
 	ret = unregister_netdevice_notifier(&nss_ppe_vxlanmgr_netdev_notifier);
 	if (ret) {
-		nss_ppe_vxlanmgr_warn("failed to unregister netdevice notifier: error %d\n", ret);
+		nss_ppe_vxlanmgr_warn("failed to unregister netdevice notifier: error %d", ret);
 	}
 
-	vxlan_fdb_unregister_notify(&nss_ppe_vxlanmgr_tunnel_fdb_notifier);
+	unregister_switchdev_notifier(&nss_ppe_vxlanmgr_switchdev_fdb_notifier);
 	nss_ppe_vxlanmgr_wq_exit();
 
-	nss_ppe_vxlanmgr_info("disabled all vxlan tunnels. VXLAN module unloaded\n");
+	nss_ppe_vxlanmgr_info("disabled all vxlan tunnels. VXLAN module unloaded");
 }
 
 /*
@@ -143,24 +143,24 @@ int __init nss_ppe_vxlanmgr_init_module(void)
 	}
 
 	if (nss_ppe_vxlanmgr_wq_init() < 0) {
-		nss_ppe_vxlanmgr_warn("Failed to initialize work queue\n");
+		nss_ppe_vxlanmgr_warn("Failed to initialize work queue");
 		return -1;
 	}
 
 	if (!nss_ppe_vxlanmgr_tun_dentry_init()) {
-		nss_ppe_vxlanmgr_warn("Failed to create debugfs entry\n");
+		nss_ppe_vxlanmgr_warn("Failed to create debugfs entry");
 		goto wq_exit;
 	}
 
 	ret = register_netdevice_notifier(&nss_ppe_vxlanmgr_netdev_notifier);
 	if (ret) {
-		nss_ppe_vxlanmgr_warn("Failed to register netdevice notifier: error %d\n", ret);
+		nss_ppe_vxlanmgr_warn("Failed to register netdevice notifier: error %d", ret);
 		goto stats_dentry_deinit;
 	}
 
-	vxlan_fdb_register_notify(&nss_ppe_vxlanmgr_tunnel_fdb_notifier);
+	register_switchdev_notifier(&nss_ppe_vxlanmgr_switchdev_fdb_notifier);
 
-	nss_ppe_vxlanmgr_info("Module %s loaded\n", NSS_PPE_BUILD_ID);
+	nss_ppe_vxlanmgr_info("Module %s loaded", NSS_PPE_BUILD_ID);
 
 	return 0;
 

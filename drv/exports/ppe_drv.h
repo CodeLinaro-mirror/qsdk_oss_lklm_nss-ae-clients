@@ -400,6 +400,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_ACL_RULE_BIND_FAIL,			/**< Failed to bind ACL rule to src */
 	PPE_DRV_RET_BASE_DEV_NOT_FOUND,			/**< Base Device not found */
 	PPE_DRV_RET_BASE_PORT_NOT_FOUND,		/**< Base Port not found */
+	PPE_DRV_RET_FAILURE_FLOW_CONFIGURE_FAIL,	/**< Failure due to FSE flow configuration failed */
 } ppe_drv_ret_t;
 
 /**

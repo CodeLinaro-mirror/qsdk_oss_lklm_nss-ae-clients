@@ -23,6 +23,7 @@
 
 #include <net/ipv6.h>
 #include <net/vxlan.h>
+#include <linux/ppp_defs.h>
 
 /*
  * ppe_drv_tun_v6_port_stats_update()

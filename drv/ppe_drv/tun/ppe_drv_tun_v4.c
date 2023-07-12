@@ -21,6 +21,7 @@
 #include <fal/fal_port_ctrl.h>
 #include "ppe_drv_tun.h"
 #include <net/vxlan.h>
+#include <linux/ppp_defs.h>
 
 #include <net/vxlan.h>
 

@@ -19,7 +19,7 @@
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include <linux/netdevice.h>
-
+#include <linux/version.h>
 #include <ppe_drv_port.h>
 #include <ppe_vp_public.h>
 #include <ppe_drv_tun_cmn_ctx.h>
@@ -56,25 +56,43 @@ bool ppe_tun_stats(struct net_device *dev, ppe_vp_hw_stats_t *stats)
 	}
 
 	u64_stats_update_begin(&tstats->syncp);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	tstats->tx_bytes += stats->tx_byte_cnt;
 	tstats->tx_packets += stats->tx_pkt_cnt;
 	tstats->rx_bytes += stats->rx_byte_cnt;
 	tstats->rx_packets += stats->rx_pkt_cnt;
-
+#else
+        u64_stats_add(&tstats->tx_bytes, stats->tx_byte_cnt);
+	u64_stats_add(&tstats->tx_packets,  stats->tx_pkt_cnt);
+	u64_stats_add(&tstats->rx_bytes, stats->rx_byte_cnt);
+	u64_stats_add(&tstats->rx_packets,  stats->rx_pkt_cnt);
+#endif
 	/*
 	 * For Map-t device we need to update the rx and tx stats separately.
 	 */
 	if (unlikely(dev->priv_flags_ext & IFF_EXT_MAPT)) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		tstats->rx_bytes += stats->tx_byte_cnt;
 		tstats->rx_packets += stats->tx_pkt_cnt;
 		tstats->tx_bytes += stats->rx_byte_cnt;
 		tstats->tx_packets += stats->rx_pkt_cnt;
+#else
+	        u64_stats_add(&tstats->rx_bytes, stats->tx_byte_cnt);
+		u64_stats_add(&tstats->rx_packets,  stats->tx_pkt_cnt);
+	        u64_stats_add(&tstats->tx_bytes, stats->rx_byte_cnt);
+                u64_stats_add(&tstats->tx_packets,  stats->rx_pkt_cnt);
+#endif
 	}
 
 	u64_stats_update_end(&tstats->syncp);
-
+/*
+ * TODO: Remove the following check when net_device support for
+ * drop counters is added from Kernel for PPE Tunnel stats.
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	atomic_long_add(stats->tx_drop_pkt_cnt, &dev->tx_dropped);
 	atomic_long_add(stats->rx_drop_pkt_cnt, &dev->rx_dropped);
+#endif
 	return true;
 }
 

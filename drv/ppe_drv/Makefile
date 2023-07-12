@@ -37,11 +37,6 @@ qca-nss-ppe-objs += ppe_drv_vp.o
 qca-nss-ppe-objs += ppe_drv_vsi.o
 qca-nss-ppe-objs += ppe_drv_v4.o
 qca-nss-ppe-objs += ppe_drv_v6.o
-
-#
-# TODO: Following can be enabled when the tunnel support is added for PPE
-#
-ifeq ($(findstring 6.1, $(KERNELVERSION)),)
 qca-nss-ppe-objs += tun/ppe_drv_tun.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_encap.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_encap_xlate_rule.o
@@ -51,6 +46,5 @@ qca-nss-ppe-objs += tun/ppe_drv_tun_decap.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_l3_if.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v6.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v4.o
-endif
 ccflags-y += -Wall -Werror
 ccflags-y += -DPPE_DRV_DEBUG_LEVEL=3

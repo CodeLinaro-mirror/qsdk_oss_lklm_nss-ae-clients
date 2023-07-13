@@ -1,4 +1,4 @@
-# Makefile for PPE modules
+# Makefile for PPE test modules
 
 ccflags-y := -I$(obj) -I$(obj)/..
 ccflags-y += -Wall -Werror
@@ -12,4 +12,5 @@ obj-y += drv/
 
 obj-y += clients/
 obj-$(netlink) += netlink/
+obj-$(ppe-mirror-test) += test/
 obj ?= .

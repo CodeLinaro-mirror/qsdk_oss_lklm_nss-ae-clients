@@ -208,7 +208,8 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 
 /**
  * ppe_drv_v6_rfs_destroy
- *	Destroys IPv6 RFS connection rule in PPE.
+ * 	Destroys IPv6 RFS connection rule in PPE.
+ *	This function is deprecated, pls use ppe_drv_v6_assist_rule_destroy() instead
  *
  * @datatypes
  * ppe_drv_v6_rfs_destroy
@@ -222,7 +223,8 @@ ppe_drv_ret_t ppe_drv_v6_rfs_destroy(struct ppe_drv_v6_rule_destroy *destroy);
 
 /**
  * ppe_drv_v6_rfs_create
- *	Creates IPv6 RFS connection rule in PPE.
+ *      Creates IPv6 RFS connection rule in PPE.
+ *	This function is deprecated, pls use ppe_drv_v6_assist_rule_create() instead
  *
  * @datatypes
  * ppe_drv_v6_rfs_create
@@ -233,6 +235,30 @@ ppe_drv_ret_t ppe_drv_v6_rfs_destroy(struct ppe_drv_v6_rule_destroy *destroy);
  * Status of the create operation.
  */
 ppe_drv_ret_t ppe_drv_v6_rfs_create(struct ppe_drv_v6_rule_create *create);
+
+/**
+ * ppe_drv_v6_assist_rule_destroy
+ *	Destroys IPv6 Assist connection rule in PPE.
+ *
+ * @param[in] rule_type PPE Assist rule type.
+ * @param[in] destroy   Pointer to the NSS PPE IPv6 destroy rule message.
+ *
+ * @return
+ * Status of the destroy operation.
+ */
+ppe_drv_ret_t ppe_drv_v6_assist_rule_destroy(struct ppe_drv_v6_rule_destroy *destroy);
+
+/**
+ * ppe_drv_v6_assist_rule_create
+ *	Creates IPv6 Assist connection rule in PPE.
+ *
+ * @param[in] create	Pointer to the NSS PPE ASSIST IPv6 create rule message.
+ * @param[in] feature 	PPE Assist feature type.
+ *
+ * @return
+ * Status of the create operation.
+ */
+ppe_drv_ret_t ppe_drv_v6_assist_rule_create(struct ppe_drv_v6_rule_create *create, uint32_t feature);
 
 /**
  * ppe_drv_v6_policer_flow_create

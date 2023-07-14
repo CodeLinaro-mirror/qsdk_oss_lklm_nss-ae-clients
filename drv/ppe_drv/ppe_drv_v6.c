@@ -425,6 +425,45 @@ ppe_drv_ret_t ppe_drv_v6_rfs_conn_fill(struct ppe_drv_v6_rule_create *create,  s
 }
 
 /*
+ * ppe_drv_v6_priority_conn_fill()
+ *	Populate single direction flow object rule.
+ */
+ppe_drv_ret_t ppe_drv_v6_priority_conn_fill(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn,
+				   enum ppe_drv_conn_type flow_type)
+{
+	struct ppe_drv_v6_connection_rule *conn = &create->conn_rule;
+	struct ppe_drv_v6_5tuple *tuple = &create->tuple;
+	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	comm_stats = &p->stats.comm_stats[flow_type];
+
+	ppe_drv_v6_conn_flow_conn_set(pcf, cn);
+
+	/*
+	 * Set 5-tuple.
+	 */
+	ppe_drv_v6_conn_flow_match_protocol_set(pcf, tuple->protocol);
+	ppe_drv_v6_conn_flow_match_src_ip_set(pcf, tuple->flow_ip);
+	ppe_drv_v6_conn_flow_match_src_ident_set(pcf, tuple->flow_ident);
+	ppe_drv_v6_conn_flow_match_dest_ip_set(pcf, tuple->return_ip);
+	ppe_drv_v6_conn_flow_match_dest_ident_set(pcf, tuple->return_ident);
+
+	/*
+	 * Set flow MTU.
+	 */
+	ppe_drv_v6_conn_flow_xmit_interface_mtu_set(pcf, conn->flow_mtu);
+
+	ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST);
+	ppe_drv_v6_conn_flow_int_pri_set(pcf, create->qos_rule.flow_qos_tag);
+	ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_QOS_VALID);
+
+	return PPE_DRV_RET_SUCCESS;
+}
+
+
+/*
  * ppe_drv_v6_conn_flow_metadata_set()
  *	Sets metadata associated with flow.
  */
@@ -1306,6 +1345,16 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 		ppe_drv_stats_dec(&p->stats.gen_stats.v6_l3_flows);
 	}
 
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		/*
+		 * For flows which are added to PPE for only priority queue selection.
+		 * Tx/Rx ports would be invalid and stats for the same is not saved.
+		 * Hence exit from here after deleting flow entry.
+		 */
+		return true;
+	}
+
+
 	tx_port = ppe_drv_v6_conn_flow_tx_port_get(pcf);
 	rx_port = ppe_drv_v6_conn_flow_rx_port_get(pcf);
 
@@ -1382,10 +1431,13 @@ static struct ppe_drv_flow *ppe_drv_v6_flow_add(struct ppe_drv_v6_conn_flow *pcf
 
 	/*
 	 * Fetch a new nexthop entry.
-	 * Note: NEXTHOP entry is not required for bridged and RFS flows.
+	 * Note: NEXTHOP entry is not required for bridged flows.
+	 * Nexthop is not valid for priority assist as the packet is not required
+	 * to be forwarded in PPE and is expected to be exceptioned to host.
 	 */
 	if (!(ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW) ||
-	     ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST))) {
+		ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST) ||
+		ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST))) {
 		nh = ppe_drv_nexthop_v6_get_and_ref(pcf);
 		if (!nh) {
 			ppe_drv_warn("%p: unable to allocate nexthop", pcf);
@@ -1477,6 +1529,15 @@ static struct ppe_drv_flow *ppe_drv_v6_flow_add(struct ppe_drv_v6_conn_flow *pcf
 	if (!ppe_drv_flow_valid_set(flow, true)) {
 		ppe_drv_warn("%p: flow entry valid set failed for flow: %p", pcf, flow);
 		goto flow_add_fail;
+	}
+
+	/*
+	 * PPE priority assist flow requires only flow entry, QOS and flow valid to be set.
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		ppe_drv_host_dump(flow->host);
+		ppe_drv_flow_dump(flow);
+		return flow;
 	}
 
 	/*
@@ -1909,7 +1970,10 @@ ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
 
 /*
  * ppe_drv_v6_rfs_destroy()
- *	Destroy a rfs connection entry in PPE.
+ * 	Destroy a rfs connection entry in PPE.
+ *
+ * This function is deprecated, Please use "ppe_drv_v6_assist_rule_destroy"
+ * API to destroy RFS flows
  */
 ppe_drv_ret_t ppe_drv_v6_rfs_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 {
@@ -1962,6 +2026,62 @@ ppe_drv_ret_t ppe_drv_v6_rfs_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	return PPE_DRV_RET_SUCCESS;
 }
 EXPORT_SYMBOL(ppe_drv_v6_rfs_destroy);
+
+/*
+ * ppe_drv_v6_assist_rule_destroy()
+ *	Destroy a connection entry in PPE.
+ */
+ppe_drv_ret_t ppe_drv_v6_assist_rule_destroy(struct ppe_drv_v6_rule_destroy *destroy)
+{
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_flow *flow = NULL;
+	struct ppe_drv_v6_conn_flow *pcf;
+	struct ppe_drv_v6_conn *cn;
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
+
+	/*
+	 * Update stats
+	 */
+	ppe_drv_stats_inc(&comm_stats->v6_assist_rule_destroy_req);
+
+	/*
+	 * Get flow table entry.
+	 */
+	spin_lock_bh(&p->lock);
+	flow = ppe_drv_flow_v6_get(&destroy->tuple);
+	if (!flow) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_stats_inc(&comm_stats->v6_assist_rule_destroy_conn_not_found);
+		ppe_drv_warn("%p: flow entry not found", p);
+		return PPE_DRV_RET_FAILURE_DESTROY_NO_CONN;
+	}
+
+	pcf = flow->pcf.v6;
+	cn = ppe_drv_v6_conn_flow_conn_get(pcf);
+	if (!ppe_drv_v6_flow_del(pcf)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_stats_inc(&comm_stats->v6_assist_rule_destroy_fail);
+		ppe_drv_warn("%p: deletion of flow failed: %p", p, pcf);
+		return PPE_DRV_RET_FAILURE_DESTROY_FAIL;
+	}
+
+	if (pcf->eg_port_if) {
+		ppe_drv_iface_deref_internal(pcf->eg_port_if);
+		pcf->eg_port_if = NULL;
+	}
+
+	spin_unlock_bh(&p->lock);
+
+	/*
+	 * Free the connection entry memory.
+	 */
+	ppe_drv_v6_conn_free(cn);
+
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_v6_assist_rule_destroy);
 
 /*
  * ppe_drv_v6_policer_flow_destroy()
@@ -2296,7 +2416,10 @@ EXPORT_SYMBOL(ppe_drv_v6_destroy);
 
 /*
  * ppe_drv_v6_rfs_create()
- *	Adds a connection entry in PPE.
+ *      Adds a connection entry in PPE.
+ *
+ * This function is deprecated, Please use "ppe_drv_v6_assist_rule_create"
+ * API for configuring RFS flows
  */
 ppe_drv_ret_t ppe_drv_v6_rfs_create(struct ppe_drv_v6_rule_create *create)
 {
@@ -2350,7 +2473,7 @@ ppe_drv_ret_t ppe_drv_v6_rfs_create(struct ppe_drv_v6_rule_create *create)
 	}
 
 	pcf = &cn->pcf;
-	ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST);
+	ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST);
 
 	/*
 	 * Add flow direction flow entry
@@ -2361,7 +2484,7 @@ ppe_drv_ret_t ppe_drv_v6_rfs_create(struct ppe_drv_v6_rule_create *create)
 		ppe_drv_warn("%p: acceleration of flow failed: %p", p, pcf);
 		ppe_drv_iface_deref_internal(pcf->eg_port_if);
 		ret = PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL;
-		ppe_drv_v6_conn_flow_flags_clear(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST);
+		ppe_drv_v6_conn_flow_flags_clear(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST);
 		goto fail;
 	}
 
@@ -2375,6 +2498,119 @@ fail:
 	return ret;
 }
 EXPORT_SYMBOL(ppe_drv_v6_rfs_create);
+
+/*
+ * ppe_drv_v6_assist_rule_create()
+ *	Adds a connection entry in PPE.
+ */
+ppe_drv_ret_t ppe_drv_v6_assist_rule_create(struct ppe_drv_v6_rule_create *create, uint32_t feature)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v6_conn_flow *pcf = NULL;
+	struct ppe_drv_comm_stats *comm_stats;
+	struct ppe_drv_v6_conn *cn = NULL;
+	ppe_drv_ret_t ret;
+	struct ppe_drv_top_if_rule top_if = {0};
+
+	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
+
+	/*
+	 * Update stats
+	 */
+	ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_req);
+
+	/*
+	 * PPE_DRV_ASSIST_FEATURE_PRIORITY flag must be set for flows which only require priority assist.
+	 * To configure priority for RFS flows qos_tag information must be updated for RFS rule.
+	 */
+	if (!(ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS) ||
+			ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_PRIORITY))) {
+		ppe_drv_warn("%p:Invalid assist type configuration %d\n", p, feature);
+		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
+	}
+
+	/*
+	 * Allocate a new connection entry
+	 */
+	cn = ppe_drv_v6_conn_alloc();
+	if (!cn) {
+		ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_fail_mem);
+		ppe_drv_warn("%p: failed to allocate connection memory: %p", p, create);
+		return PPE_DRV_RET_FAILURE_CREATE_OOM;
+	}
+
+	/*
+	 * Fill the connection entry.
+	 */
+	spin_lock_bh(&p->lock);
+
+	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS)) {
+		ppe_drv_stats_inc(&comm_stats->v6_create_rfs_req);
+		top_if.rx_if = create->top_rule.rx_if;
+		top_if.tx_if = create->top_rule.tx_if;
+		ret = ppe_drv_v6_rfs_conn_fill(create, &top_if, cn, PPE_DRV_CONN_TYPE_FLOW);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_rfs_fail_conn);
+			ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
+			goto fail;
+		}
+	} else if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_PRIORITY)) {
+		ppe_drv_stats_inc(&comm_stats->v6_create_priority_req);
+		ret = ppe_drv_v6_priority_conn_fill(create, cn, PPE_DRV_CONN_TYPE_FLOW);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_priority_fail_conn);
+			ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
+			goto fail;
+		}
+	}
+
+	/*
+	 * Ensure either direction flow is not already offloaded by us.
+	 */
+	if (ppe_drv_v6_flow_check(&cn->pcf)) {
+		ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_fail_collision);
+		ppe_drv_warn("%p: create collision detected: %p", p, create);
+		ret = PPE_DRV_RET_FAILURE_CREATE_COLLISSION;
+		goto fail;
+	}
+
+	pcf = &cn->pcf;
+	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS)) {
+		ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST);
+	}
+
+	/*
+	 * Add flow direction flow entry
+	 */
+	pcf->pf = ppe_drv_v6_flow_add(pcf);
+	if (!pcf->pf) {
+		ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_fail);
+		ppe_drv_warn("%p: acceleration of flow failed: %p", p, pcf);
+		ret = PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL;
+		goto fail;
+	}
+
+	pcf->conn = cn;
+	cn->pcr.pf = NULL;
+	spin_unlock_bh(&p->lock);
+
+	return PPE_DRV_RET_SUCCESS;
+fail:
+	if (cn->pcf.eg_port_if) {
+		ppe_drv_iface_deref_internal(cn->pcf.eg_port_if);
+	}
+
+	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS)) {
+		ppe_drv_v6_conn_flow_flags_clear(&cn->pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST);
+	} else if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_PRIORITY)) {
+		ppe_drv_v6_conn_flow_flags_clear(&cn->pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST);
+	}
+
+	spin_unlock_bh(&p->lock);
+	kfree(cn);
+	return ret;
+}
+EXPORT_SYMBOL(ppe_drv_v6_assist_rule_create);
 
 /*
  * ppe_drv_v6_fse_flow_configure()

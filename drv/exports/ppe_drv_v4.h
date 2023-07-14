@@ -192,20 +192,6 @@ bool ppe_drv_v4_stats_callback_register(ppe_drv_v4_sync_callback_t cb, void *app
 void ppe_drv_v4_conn_sync_many(struct ppe_drv_v4_conn_sync_many *cn_syn, uint8_t num_conn);
 
 /**
- * ppe_drv_v4_rfs_destroy
- *	Destroy IPv4 RFS rule in PPE.
- *
- * @datatypes
- * ppe_drv_v4_rule_destroy
- *
- * @param[in] destroy   Pointer to the NSS PPE IPv4 destroy rule message.
- *
- * @return
- * Status of the destroy operation.
- */
-ppe_drv_ret_t ppe_drv_v4_rfs_destroy(struct ppe_drv_v4_rule_destroy *destroy);
-
-/**
  * ppe_drv_v4_policer_create
  *	Creates IPv4 policer rule in PPE.
  *
@@ -234,9 +220,24 @@ ppe_drv_ret_t ppe_drv_v4_policer_flow_create(struct ppe_drv_v4_rule_create *crea
 ppe_drv_ret_t ppe_drv_v4_policer_flow_destroy(struct ppe_drv_v4_rule_destroy *destroy);
 
 /**
- * ppe_drv_v4_rfs_create
- *	Creates IPv4 RFS rule in PPE.
+ * ppe_drv_v4_rfs_destroy
+ * 	Destroy IPv4 RFS rule in PPE.
+ *	This function is deprecated, pls use ppe_drv_v4_assist_rule_destroy() instead
  *
+ * @datatypes
+ * ppe_drv_v4_rule_destroy
+ *
+ * @param[in] destroy   Pointer to the NSS PPE IPv4 destroy rule message.
+ *
+ * @return
+ * Status of the destroy operation.
+ */
+ppe_drv_ret_t ppe_drv_v4_rfs_destroy(struct ppe_drv_v4_rule_destroy *destroy);
+
+/**
+ * ppe_drv_v4_rfs_create
+ * 	Creates IPv4 RFS rule in PPE.
+ *	This function is deprecated, pls use ppe_drv_v4_assist_rule_create() instead
  * @datatypes
  * ppe_drv_v4_rule_create
  *
@@ -246,6 +247,29 @@ ppe_drv_ret_t ppe_drv_v4_policer_flow_destroy(struct ppe_drv_v4_rule_destroy *de
  * Status of the create operation.
  */
 ppe_drv_ret_t ppe_drv_v4_rfs_create(struct ppe_drv_v4_rule_create *create);
+
+/**
+ * ppe_drv_v4_assist_rule_destroy
+ *	Destroy IPv4 RFS rule in PPE.
+ *
+ * @param[in] destroy   Pointer to the NSS PPE ASSIST IPv4 destroy rule message.
+ *
+ * @return
+ * Status of the destroy operation.
+ */
+ppe_drv_ret_t ppe_drv_v4_assist_rule_destroy(struct ppe_drv_v4_rule_destroy *destroy);
+
+/**
+ * ppe_drv_v4_assist_rule_create
+ *	Creates IPv4 assist rule in PPE.
+ *
+ * @param[in] create   Pointer to the  PPE ASSIST IPv4 create rule message.
+ * @param[in] feature  Assist feature type.
+ *
+ * @return
+ * Status of the create operation.
+ */
+ppe_drv_ret_t ppe_drv_v4_assist_rule_create(struct ppe_drv_v4_rule_create *create, uint32_t feature);
 
 /**
  * ppe_drv_v4_destroy
@@ -286,7 +310,6 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create);
  * Status of the API.
  */
 extern bool ppe_drv_v4_nsm_stats_update(struct ppe_drv_nsm_stats *nsm_stats, struct ppe_drv_v4_5tuple *tuple);
-
 /** @} */ /* end_addtogroup ppe_drv_v4_subsystem */
 
 #endif /* _PPE_DRV_V4_H_ */

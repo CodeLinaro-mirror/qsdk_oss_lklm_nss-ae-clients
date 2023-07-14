@@ -39,7 +39,7 @@
 					/* QoS valid */
 #define PPE_DRV_V4_CONN_FLOW_FLAG_INLINE_IPSEC 0x00000080
 					/* Inline IPSec flow */
-#define PPE_DRV_V4_CONN_FLAG_FLOW_PPE_ASSIST 0x00000100
+#define PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST 0x00000100
 					/* Flow needs PPE assistance for RFS */
 #define PPE_DRV_V4_CONN_FLOW_METADATA_TYPE_SAWF 0x00000200
 					/* Flow metadata will be used for SAWF */
@@ -65,6 +65,8 @@
 					/* Flow + Policer combination match */
 #define PPE_DRV_V4_CONN_FLAG_FLOW_PPE_POLICER_ASSIST 0x0010000
 					/* Flow + Policer Assist */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST 0x00020000
+					/* Flow needs PPE assistance for Priority setting */
 
 /*
  * ppe_drv_v4_addr_equal()

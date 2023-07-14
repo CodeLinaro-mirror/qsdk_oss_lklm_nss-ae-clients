@@ -61,6 +61,7 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_VP_RPS,		/* Service code to allow RPS for special VP flows when user type is DS and core_mask is 0 */
 	PPE_DRV_SC_NOEDIT_ACL_POLICER,  /* Service code to allow Policing but no packet editing */
 	PPE_DRV_SC_L2_TUNNEL_EXCEPTION,  /* Service code to allow decapsulated VXLAN/GRE tunnel exception. */
+	PPE_DRV_SC_NOEDIT_PRIORITY_SET, /* Service code to redirect packets without editing */
 
 	PPE_DRV_SC_FLOW_ACL_FIRST = PPE_DRV_SC_FLOW_ACL_START,
 					/* First service code for combining flow and ACL rule */

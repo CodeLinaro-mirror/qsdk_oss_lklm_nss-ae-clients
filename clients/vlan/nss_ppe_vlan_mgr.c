@@ -287,6 +287,9 @@ static int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_add(struct ppe_drv_i
 								struct nss_vlan_pvt *v)
 {
 	int ret = 0;
+	struct net_device *lower_dev;
+	struct list_head *iter;
+	int32_t port_id;
 
 	if (ppe_drv_vlan_over_bridge_add_ig_rule(slave_iface, v->iface) != PPE_DRV_RET_SUCCESS) {
 		ret = -1;
@@ -298,9 +301,17 @@ static int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_add(struct ppe_drv_i
 	 * Double VLAN case
 	 */
 	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) {
-		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, v->port[0], FAL_QINQ_CORE_PORT)) {
-			ret = -1;
-			nss_ppe_vlan_mgr_warn("failed to set %d as core port\n", v->port[0]);
+		netdev_for_each_lower_dev(v->br_net_dev, lower_dev, iter) {
+			port_id = nss_ppe_vlan_mgr_get_port_id(lower_dev);
+			if (port_id == NSS_PPE_VLAN_MGR_INVALID_PORT) {
+				nss_ppe_vlan_mgr_warn("Port Id is invalid for %s continue for next slave\n",
+						      lower_dev->name);
+				continue;
+			}
+			if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port_id, FAL_QINQ_CORE_PORT)) {
+				ret = -1;
+				nss_ppe_vlan_mgr_warn("failed to set (%s) %d as core port\n", lower_dev->name, port_id);
+			}
 		}
 	}
 	return ret;
@@ -314,6 +325,9 @@ static int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_del(struct ppe_drv_i
 								struct nss_vlan_pvt *v)
 {
 	int ret = 0;
+	struct net_device *lower_dev;
+	struct list_head *iter;
+	int32_t port_id;
 
 	if (ppe_drv_vlan_over_bridge_del_ig_rule(slave_iface, v->iface) != PPE_DRV_RET_SUCCESS) {
 		ret = -1;
@@ -325,9 +339,17 @@ static int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_del(struct ppe_drv_i
 	 * Double VLAN case
 	 */
 	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) {
-		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, v->port[0], FAL_QINQ_EDGE_PORT)) {
-			ret = -1;
-			nss_ppe_vlan_mgr_warn("failed to set %d as core port\n", v->port[0]);
+		netdev_for_each_lower_dev(v->br_net_dev, lower_dev, iter) {
+			port_id = nss_ppe_vlan_mgr_get_port_id(lower_dev);
+			if (port_id == NSS_PPE_VLAN_MGR_INVALID_PORT) {
+				nss_ppe_vlan_mgr_warn("Port ID is invalid for %s continue for next slave\n",
+						lower_dev->name);
+				continue;
+			}
+			if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port_id, FAL_QINQ_EDGE_PORT)) {
+				ret = -1;
+				nss_ppe_vlan_mgr_warn("failed to set (%s) %d as edge port\n", lower_dev->name, port_id);
+			}
 		}
 	}
 	return ret;
@@ -682,7 +704,7 @@ static int nss_ppe_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_dev
 	ppe_drv_ret_t ret;
 	struct list_head *iter;
 	struct ppe_drv_iface *slave_iface;
-	enum NSS_PPE_VLAN_MGR_BR_VLAN br_action = NSS_PPE_VLAN_MGR_BR_VLAN_INC;
+	enum nss_ppe_vlan_mgr_vlan br_action = NSS_PPE_VLAN_MGR_BR_VLAN_INC;
 
 	v->iface = ppe_drv_iface_alloc(PPE_DRV_IFACE_TYPE_VLAN, dev);
 	if (!v->iface) {
@@ -723,7 +745,7 @@ static int nss_ppe_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_dev
 		/*
 		 * VLAN over bridge case
 		 */
-		netdev_for_each_lower_dev(base_dev, lower_dev, iter) {
+		netdev_for_each_lower_dev(v->br_net_dev, lower_dev, iter) {
 			slave_iface = ppe_drv_iface_get_by_dev(lower_dev);
 			if (slave_iface) {
 				nss_ppe_vlan_mgr_trace("Installing ingress rule for %s master %s\n", lower_dev->name,
@@ -739,7 +761,7 @@ static int nss_ppe_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_dev
 			}
 		}
 
-		if (!vlan_mgr_ctx.vlan_over_bridge_cb(base_dev, br_action)) {
+		if (!vlan_mgr_ctx.vlan_over_bridge_cb(v->br_net_dev, br_action)) {
 			nss_ppe_vlan_mgr_warn("Update to bridge mgr failed\n");
 		}
 		nss_ppe_vlan_mgr_trace("VLAN init success for VLAN over bridge case dev %p (%s) base %p (%s) res %d"
@@ -818,7 +840,7 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 	struct net_device *lower_dev;
 	struct ppe_drv_iface *slave_iface;
 	struct list_head *iter;
-	enum NSS_PPE_VLAN_MGR_BR_VLAN br_action = NSS_PPE_VLAN_MGR_BR_VLAN_DEC;
+	enum nss_ppe_vlan_mgr_vlan br_action = NSS_PPE_VLAN_MGR_BR_VLAN_DEC;
 	struct nss_vlan_pvt *v = container_of(kref, struct nss_vlan_pvt, ref);
 
 	if (v->is_vlan_over_bridge) {
@@ -963,19 +985,39 @@ static bool nss_ppe_vlan_mgr_interface_supported(struct net_device *dev)
 		master_dev = netdev_master_upper_dev_get(real_dev);
 		if (master_dev) {
 			nss_ppe_vlan_mgr_trace("Master dev %s real dev %s VLAN %s\n", master_dev->name,
-					real_dev->name, dev->name);
+					       real_dev->name, dev->name);
 			list_for_each_entry(v, &vlan_mgr_ctx.list, list) {
 				nss_ppe_vlan_mgr_trace("%px Iterating for VLAN interfaces vid %d vlan_over_bridge %d "
 						       " bridge name %s\n", v, v->vid, v->is_vlan_over_bridge,
 						       v->br_net_dev->name);
 				if ((v->is_vlan_over_bridge) && (v->br_net_dev == master_dev) && (vid == v->vid)) {
 					nss_ppe_vlan_mgr_trace("VLAN %s on %s is not supported\n", dev->name,
-							real_dev->name);
+							       real_dev->name);
 					ret = false;
 					goto result;
 				}
 			}
 		}
+	}
+
+	if (is_vlan_dev(real_dev)) {
+		/*
+		 * Changing the real dev for double VLAN case in VLAN over bridge scenario
+		 * For instance, creating br-wan1.100.200 over br-wan1.100
+		 */
+		real_iface = ppe_drv_iface_get_by_dev(real_dev);
+
+		/*
+		 * If PPE representation is not present for br-wan1.100, the double VLAN is not supported
+		 */
+		if (!real_iface) {
+			nss_ppe_vlan_mgr_warn("iface not present for %s double VLAN %s\n", real_dev->name, dev->name);
+			ret = false;
+			goto result;
+		}
+		real_dev = nss_ppe_vlan_mgr_get_real_dev(real_dev);
+		nss_ppe_vlan_mgr_trace("Double VLAN case and updated real dev as %s for dev %s", real_dev->name,
+				       dev->name);
 	}
 
 	/*
@@ -1090,13 +1132,12 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_create_instance(struct net_device *
 	real_v = nss_ppe_vlan_mgr_instance_find_and_ref(real_dev);
 
 	/*
-	 * TODO: QinQ topology will be supported for VLAN over bridge and VLAN over VP case
+	 * TODO: QinQ topology will be supported VLAN over VP case
 	 */
 	if (real_v) {
-		if ((real_v->is_vlan_as_vp_iface) || (real_v->is_vlan_over_bridge)) {
-			nss_ppe_vlan_mgr_warn("QinQ not supported for dev %s on dev %s VLAN over VP %d"
-					      " VLAN over bridge %d\n", dev->name, real_dev->name,
-					      real_v->is_vlan_as_vp_iface, real_v->is_vlan_over_bridge);
+		if ((real_v->is_vlan_as_vp_iface)) {
+			nss_ppe_vlan_mgr_warn("QinQ not supported for dev %s on dev %s VLAN over VP %d" , dev->name,
+					      real_dev->name, real_v->is_vlan_as_vp_iface);
 			nss_ppe_vlan_mgr_instance_deref(real_v);
 			return NULL;
 		}
@@ -1361,6 +1402,7 @@ static int nss_ppe_vlan_mgr_register_event(struct netdev_notifier_info *info)
 	if (netif_is_bridge_master(real_dev)) {
 		v->is_vlan_over_bridge = true;
 		v->br_net_dev = real_dev;
+		nss_ppe_vlan_mgr_trace("Updated br_net for bridge VLAN netdev %s base %s\n", dev->name, real_dev->name);
 	}
 
 	if (!is_bond_master) {
@@ -2101,7 +2143,7 @@ EXPORT_SYMBOL(nss_ppe_vlan_mgr_add_vlan_rule);
  * 	Add or Delete the ingress rule
  */
 int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule(struct ppe_drv_iface *slave_iface, struct net_device *bridge_dev,
-						     enum NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE rule_action)
+						     enum nss_ppe_vlan_mgr_ingress_br_vlan_rule rule_action)
 {
 	struct nss_vlan_pvt *v;
 	int ret = 0;

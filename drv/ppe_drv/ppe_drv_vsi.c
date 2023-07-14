@@ -301,8 +301,9 @@ bool ppe_drv_vsi_set_vlan(struct ppe_drv_vsi *vsi, uint32_t vlan_id, struct ppe_
 		return false;
 	}
 
-	ppe_drv_trace("%p: vsi configuration done for vlan_id(%d) and interface_type(%d) dev name %s\n", vsi,
-		      vlan_id, nh_iface->type, nh_iface->dev->name);
+	ppe_drv_trace("%p: vsi configuration done for outer vlan_id(%d) inner vlan_id(%d) and interface_type(%d)\n"
+		      "dev(%s) flag %d\n", vsi, vsi->vlan.outer_vlan, vsi->vlan.inner_vlan, nh_iface->type,
+		      nh_iface->dev->name, nh_iface->flags);
 	return true;
 }
 

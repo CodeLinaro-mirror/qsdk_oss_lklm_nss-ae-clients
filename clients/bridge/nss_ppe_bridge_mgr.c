@@ -200,7 +200,7 @@ static int nss_ppe_bridge_mgr_bridge_vlan_interfaces_get(struct nss_ppe_bridge_m
  *	API for incrementing and decrementing the number of VLAN over bridge interfaces present in the bridge
  */
 bool nss_ppe_bridge_mgr_vlan_over_bridge_notfication(struct net_device *bridge_dev,
-						     enum NSS_PPE_VLAN_MGR_BR_VLAN br_action)
+						     enum nss_ppe_vlan_mgr_vlan br_action)
 {
 	struct nss_ppe_bridge_mgr_pvt *b_pvt;
 	bool ret = true;
@@ -1096,7 +1096,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 	ppe_drv_ret_t ret;
 	struct ppe_drv_iface *iface;
 	struct nss_ppe_bridge_mgr_pvt *b_pvt;
-	enum NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE rule_action = NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_DEL;
+	enum nss_ppe_vlan_mgr_ingress_br_vlan_rule rule_action = NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_DEL;
 
 	b_pvt = nss_ppe_bridge_mgr_find_instance(bridge_dev);
 	if (!b_pvt) {
@@ -1238,7 +1238,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 	struct net_device *real_dev;
 	struct ppe_drv_iface *iface;
 	struct nss_ppe_bridge_mgr_pvt *b_pvt;
-	enum NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE rule_action = NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_ADD;
+	enum nss_ppe_vlan_mgr_ingress_br_vlan_rule rule_action = NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_ADD;
 
 	b_pvt = nss_ppe_bridge_mgr_find_instance(bridge_dev);
 	if (!b_pvt) {

@@ -642,7 +642,7 @@ ppe_drv_ret_t ppe_drv_vlan_over_bridge_del_ig_rule(struct ppe_drv_iface *slave_i
 
 	spin_unlock_bh(&p->lock);
 
-	ppe_drv_trace("Delete ingress success rule svid %d cvid %d fal_port %d dev %s port_id %d\n",
+	ppe_drv_trace("Delete ingress success rule Outer VID %d Inner VID %d fal_port %d dev %s port_id %d\n",
 		       vsi->vlan.outer_vlan, vsi->vlan.inner_vlan, fal_port, slave_iface->dev->name, port_id);
 
 	return PPE_DRV_RET_SUCCESS;
@@ -715,8 +715,8 @@ ppe_drv_ret_t ppe_drv_vlan_over_bridge_add_ig_rule(struct ppe_drv_iface *slave_i
 
 	spin_unlock_bh(&p->lock);
 
-	ppe_drv_trace("Add ingress rule success svid %d cvid %d fal_port %d dev %s port_id %d\n",
-		      vsi->vlan.outer_vlan, xlt_rule.c_vid, fal_port, slave_iface->dev->name, port_id);
+	ppe_drv_trace("Add ingress rule success Outer VID %d Inner VID %d fal_port %d dev %s port_id %d\n",
+		      vsi->vlan.outer_vlan, vsi->vlan.inner_vlan, fal_port, slave_iface->dev->name, port_id);
 
 	return PPE_DRV_RET_SUCCESS;
 }
@@ -797,9 +797,11 @@ ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *ppe_iface, struct net_devi
 	}
 
 	if (vlan_over_bridge) {
-		ppe_drv_trace("VLAN over bridge baseif dev %s iface dev %s base_dev %s vlan_id %d\n",
-			      base_if->dev->name, ppe_iface->dev->name, base_dev->name, vlan_id);
-		base_if->flags |= PPE_DRV_IFACE_VLAN_OVER_BRIDGE;
+		ppe_drv_trace("VLAN over bridge baseif dev %s iface dev %s base_dev %s vlan_id %d type %d\n",
+			      base_if->dev->name, ppe_iface->dev->name, base_dev->name, vlan_id, base_if->type);
+		if (!is_vlan_dev(base_dev)) {
+			base_if->flags |= PPE_DRV_IFACE_VLAN_OVER_BRIDGE;
+		}
 	}
 
 	ppe_drv_iface_vsi_set(ppe_iface, vsi);

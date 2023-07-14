@@ -25,27 +25,21 @@
 #define _NSS_PPE_VLAN_MGR_H_
 
 /*
- * NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE
+ * enum nss_ppe_vlan_mgr_ingress_br_vlan_rule
  *	Enum for creating and deleting ingress rule for VLAN over bridge topology
- *
- * @param NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_ADD - Used for adding the ingress rules
- * @param NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_DEL - Used for deleting the ingress rules
  */
-enum NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE {
-	NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_ADD,
-	NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_DEL,
+enum nss_ppe_vlan_mgr_ingress_br_vlan_rule {
+	NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_ADD,	/**< Used for adding the ingress rules. */
+	NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE_DEL,	/**< Used for deleting the ingress rules. */
 };
 
 /*
- * NSS_PPE_VLAN_MGR_BR_VLAN
+ * enum nss_ppe_vlan_mgr_vlan
  *	Enum for incrementing and decreasing the number of bridge VLAN netdev in bridge mgr
- *
- * @param NSS_PPE_VLAN_MGR_BR_VLAN_INC - Used for incrementing the number of bridge VLAN netdev
- * @param NSS_PPE_VLAN_MGR_BR_VLAN_DEC - Used for decrementing the number of bridge VLAN netdev
  */
-enum NSS_PPE_VLAN_MGR_BR_VLAN {
-	NSS_PPE_VLAN_MGR_BR_VLAN_INC,
-	NSS_PPE_VLAN_MGR_BR_VLAN_DEC,
+enum nss_ppe_vlan_mgr_vlan {
+	NSS_PPE_VLAN_MGR_BR_VLAN_INC,	/**< Used for incrementing the number of bridge VLAN netdev. */
+	NSS_PPE_VLAN_MGR_BR_VLAN_DEC,	/**< Used for decrementing the number of bridge VLAN netdev. */
 };
 
 /*
@@ -56,7 +50,7 @@ enum NSS_PPE_VLAN_MGR_BR_VLAN {
  * @param br_action[IN] Add or delete the ingress rule
  * @return true for success, false for failure
  */
-typedef bool (*nss_ppe_vlan_mgr_br_vlan_cb_t)(struct net_device *bridge_dev, enum NSS_PPE_VLAN_MGR_BR_VLAN br_action);
+typedef bool (*nss_ppe_vlan_mgr_br_vlan_cb_t)(struct net_device *bridge_dev, enum nss_ppe_vlan_mgr_vlan br_action);
 
 /*
  * nss_ppe_vlan_mgr_leave_bridge()
@@ -154,5 +148,5 @@ void nss_ppe_vlan_mgr_vlan_over_bridge_register_cb(nss_ppe_vlan_mgr_br_vlan_cb_t
  * @return 0 for success, -1 for failure
  */
 int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule(struct ppe_drv_iface *slave_iface, struct net_device *bridge_dev,
-						     enum NSS_PPE_VLAN_MGR_INGRESS_BR_VLAN_RULE rule_action);
+						     enum nss_ppe_vlan_mgr_ingress_br_vlan_rule rule_action);
 #endif /* _NSS_PPE_VLAN_MGR_H_ */

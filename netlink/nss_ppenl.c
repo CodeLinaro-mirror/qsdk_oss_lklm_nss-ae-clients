@@ -169,6 +169,7 @@ static int __init nss_ppenl_init(void)
 {
 	struct nss_ppenl_family *family = NULL;
 	int i = 0;
+	bool status;
 
 	nss_ppenl_info("NSS Netlink manager loaded: %s\n", NSS_CLIENT_BUILD_ID);
 
@@ -181,20 +182,19 @@ static int __init nss_ppenl_init(void)
 	for (i = 0; i < NSS_PPENL_FAMILY_HANDLER_SZ; i++, family++) {
 		/*
 		 * Check if the family exists
-		 * TODO: Check and BUG_ON if entry is not valid
 		 */
-		if (!family->valid || !family->entry) {
+		if (family->valid) {
+			BUG_ON(!family->entry);
+			status = family->entry();
+			if (status) {
+				nss_ppenl_info("attaching family:%s\n", family->name);
+			} else {
+				return -1;
+			}
+		} else {
 			nss_ppenl_info("skipping family:%s\n", family->name);
 			nss_ppenl_info("valid = %d, entry = %d\n", family->valid, !!family->entry);
-			continue;
 		}
-
-		nss_ppenl_info("attaching family:%s\n", family->name);
-
-		/*
-		 * TODO: handle return value of function
-		 */
-		family->entry();
 	}
 
 	return 0;
@@ -208,6 +208,7 @@ static void __exit nss_ppenl_exit(void)
 {
 	struct nss_ppenl_family *family = NULL;
 	int i = 0;
+	bool status;
 
 	nss_ppenl_info("NSS Netlink manager unloaded\n");
 
@@ -217,22 +218,16 @@ static void __exit nss_ppenl_exit(void)
 	family = &family_handlers[0];
 
 	for (i = 0; i < NSS_PPENL_FAMILY_HANDLER_SZ; i++, family++) {
-		/*
-		 * Check if the family exists
-		 * TODO: Check and BUG_ON if entry is not valid
-		 */
-		if (!family->valid || !family->exit) {
+		if (family->valid) {
+			BUG_ON(!family->exit);
+			status = family->exit();
+			if (status) {
+				nss_ppenl_info("attaching family:%s\n", family->name);
+			}
+		} else {
 			nss_ppenl_info("skipping family:%s\n", family->name);
-			nss_ppenl_info("valid = %d, exit = %d\n", family->valid, !!family->exit);
-			continue;
+			nss_ppenl_info("valid = %d, entry = %d\n", family->valid, !!family->entry);
 		}
-
-		nss_ppenl_info("detaching family:%s\n", family->name);
-
-		/*
-		 * TODO: handle return value of function
-		 */
-		family->exit();
 	}
 }
 

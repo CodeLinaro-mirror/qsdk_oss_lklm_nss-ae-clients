@@ -163,6 +163,12 @@ enum ppe_rfs_ret ppe_rfs_ipv6_rule_create(struct ppe_rfs_ipv6_rule_create_msg *c
 		pd6rc.conn_rule.tx_if = tx_if;
 		pd6rc.top_rule.tx_if = top_tx_if;
 
+		if (create_ipv6->valid_flags & PPE_DRV_V6_VALID_FLAG_QOS) {
+			pd6rc.qos_rule.flow_qos_tag = create_ipv6->qos_rule.flow_qos_tag;
+			pd6rc.qos_rule.return_qos_tag = create_ipv6->qos_rule.return_qos_tag;
+			pd6rc.valid_flags |= PPE_DRV_V6_VALID_FLAG_QOS;
+		}
+
 	} else if (rx_rfs_enabled) {
 		memcpy(pd6rc.tuple.flow_ip, create_ipv6->tuple.return_ip, sizeof(create_ipv6->tuple.return_ip));
 		pd6rc.tuple.flow_ident = create_ipv6->tuple.return_ident;
@@ -178,6 +184,12 @@ enum ppe_rfs_ret ppe_rfs_ipv6_rule_create(struct ppe_rfs_ipv6_rule_create_msg *c
 		pd6rc.top_rule.rx_if = top_tx_if;
 		pd6rc.conn_rule.tx_if = rx_if;
 		pd6rc.top_rule.tx_if = top_rx_if;
+
+		if (create_ipv6->valid_flags & PPE_DRV_V6_VALID_FLAG_QOS) {
+			pd6rc.qos_rule.flow_qos_tag = create_ipv6->qos_rule.return_qos_tag;
+			pd6rc.qos_rule.return_qos_tag = create_ipv6->qos_rule.flow_qos_tag;
+			pd6rc.valid_flags |= PPE_DRV_V6_VALID_FLAG_QOS;
+		}
 	}
 
 	pd6rc.rule_flags |= PPE_DRV_V6_RULE_FLAG_FLOW_VALID;
@@ -331,6 +343,13 @@ enum ppe_rfs_ret ppe_rfs_ipv4_rule_create(struct ppe_rfs_ipv4_rule_create_msg *c
 		pd4rc.top_rule.rx_if = top_rx_if;
 		pd4rc.conn_rule.tx_if = tx_if;
 		pd4rc.top_rule.tx_if = top_tx_if;
+
+		if (create_ipv4->valid_flags & PPE_DRV_V4_VALID_FLAG_QOS) {
+			pd4rc.qos_rule.flow_qos_tag = create_ipv4->qos_rule.flow_qos_tag;
+			pd4rc.qos_rule.return_qos_tag = create_ipv4->qos_rule.return_qos_tag;
+			pd4rc.valid_flags |= PPE_DRV_V4_VALID_FLAG_QOS;
+		}
+
 	} else if (rx_rfs_enabled) {
 		pd4rc.tuple.flow_ip = create_ipv4->conn_rule.return_ip_xlate;
 		pd4rc.tuple.flow_ident = create_ipv4->conn_rule.return_ident_xlate;
@@ -354,6 +373,12 @@ enum ppe_rfs_ret ppe_rfs_ipv4_rule_create(struct ppe_rfs_ipv4_rule_create_msg *c
 		pd4rc.top_rule.rx_if = top_tx_if;
 		pd4rc.conn_rule.tx_if = rx_if;
 		pd4rc.top_rule.tx_if = top_rx_if;
+
+		if (create_ipv4->valid_flags & PPE_DRV_V4_VALID_FLAG_QOS) {
+			pd4rc.qos_rule.flow_qos_tag = create_ipv4->qos_rule.return_qos_tag;
+			pd4rc.qos_rule.return_qos_tag = create_ipv4->qos_rule.flow_qos_tag;
+			pd4rc.valid_flags |= PPE_DRV_V4_VALID_FLAG_QOS;
+		}
 	}
 
 	if (create_ipv4->rule_flags & PPE_RFS_V4_RULE_FLAG_BRIDGE_FLOW) {

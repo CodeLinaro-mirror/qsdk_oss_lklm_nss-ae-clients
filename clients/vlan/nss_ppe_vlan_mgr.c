@@ -1000,7 +1000,7 @@ static bool nss_ppe_vlan_mgr_interface_supported(struct net_device *dev)
 		}
 	}
 
-	if (is_vlan_dev(real_dev)) {
+	if (real_dev && is_vlan_dev(real_dev)) {
 		/*
 		 * Changing the real dev for double VLAN case in VLAN over bridge scenario
 		 * For instance, creating br-wan1.100.200 over br-wan1.100
@@ -1031,7 +1031,7 @@ static bool nss_ppe_vlan_mgr_interface_supported(struct net_device *dev)
 	 * b) VID of VLAN present in VLAN manager is same as the VLAN ID of new VLAN
 	 * if above condns are satified, then VLAN interface is not supported and set ret as false
 	 */
-	if (netif_is_bridge_master(real_dev)) {
+	if (real_dev && netif_is_bridge_master(real_dev)) {
 		/*
 		 * If PPE representation is not present for br-wan1, then not allowing to create br-wan1.100
 		 */

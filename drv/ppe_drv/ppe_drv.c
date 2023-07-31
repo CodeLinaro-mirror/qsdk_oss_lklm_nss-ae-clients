@@ -221,7 +221,7 @@ static bool ppe_drv_hash_init(void)
 	config.hash_fin_inner[4] = (PPE_DRV_HASH_FIN_INNER_OUTER_4 & PPE_DRV_HASH_FIN_MASK);
 	config.hash_fin_outer[4] = ((PPE_DRV_HASH_FIN_INNER_OUTER_4 >> 5) & PPE_DRV_HASH_FIN_MASK);
 
-	if (fal_rss_hash_config_set(0, mode, &config) != SW_OK) {
+	if (fal_rss_hash_config_set(PPE_DRV_SWITCH_ID, mode, &config) != SW_OK) {
 		ppe_drv_warn("IPv4 hash register initialization failed\n");
 		return false;
 	}
@@ -236,7 +236,7 @@ static bool ppe_drv_hash_init(void)
 	config.hash_sip_mix[3] = PPE_DRV_HASH_SIPV6_MIX_3;
 	config.hash_dip_mix[3] = PPE_DRV_HASH_DIPV6_MIX_3;
 
-	if (fal_rss_hash_config_set(0, mode, &config) != SW_OK) {
+	if (fal_rss_hash_config_set(PPE_DRV_SWITCH_ID, mode, &config) != SW_OK) {
 		ppe_drv_warn("IPv6 hash register initialization failed\n");
 		return false;
 	}
@@ -359,12 +359,12 @@ static bool ppe_drv_l3_route_ctrl_init(struct ppe_drv *p)
 	cfg.mtu_nonfrag_fail_action = FAL_MAC_RDT_TO_CPU;
 	cfg.mtu_df_deacclr_en = false;
 
-	if (fal_ip_global_ctrl_set(0, &cfg) != SW_OK) {
+	if (fal_ip_global_ctrl_set(PPE_DRV_SWITCH_ID, &cfg) != SW_OK) {
 		ppe_drv_warn("%p: IP global control configuration failed\n", p);
 		return false;
 	}
 
-	if (fal_ip_route_mismatch_action_set(0, FAL_MAC_RDT_TO_CPU) != SW_OK) {
+	if (fal_ip_route_mismatch_action_set(PPE_DRV_SWITCH_ID, FAL_MAC_RDT_TO_CPU) != SW_OK) {
 		ppe_drv_warn("%p: IP route mismatch action configuration failed\n", p);
 		return false;
 	}
@@ -482,7 +482,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 
 	np = of_node_get(pdev->dev.of_node);
 
-	fal_ppe_capacity_get(0, &cap);
+	fal_ppe_capacity_get(PPE_DRV_SWITCH_ID, &cap);
 
 	/*
 	 * Fill number of table entries

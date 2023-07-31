@@ -27,7 +27,7 @@ static void ppe_drv_tun_l3_if_dump(struct ppe_drv_tun_l3_if *tun_l3_if)
 	fal_tunnel_intf_t tun_l3_if_cfg = {0};
 	sw_error_t err;
 
-	err = fal_tunnel_intf_get(0, tun_l3_if->index, &tun_l3_if_cfg);
+	err = fal_tunnel_intf_get(PPE_DRV_SWITCH_ID, tun_l3_if->index, &tun_l3_if_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Failed to get TL_L3_IF config at index %u", tun_l3_if, tun_l3_if->index);
 		return;

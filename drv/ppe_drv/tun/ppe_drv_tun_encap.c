@@ -454,7 +454,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 			encap_cfg.l4_checksum_en = true;
 		}
 
-		err = fal_tunnel_encap_header_ctrl_set(0, &header_ctrl);
+		err = fal_tunnel_encap_header_ctrl_set(PPE_DRV_SWITCH_ID, &header_ctrl);
 		if (err != SW_OK) {
 			ppe_drv_warn("%p VXLAN: failed to configure encap header err: %d", ptec, err);
 			return false;

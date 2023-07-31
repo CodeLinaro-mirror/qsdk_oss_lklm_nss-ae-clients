@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -203,7 +203,6 @@ bool ppe_drv_cc_process_skbuff(struct ppe_drv_cc_metadata *cc_info, struct sk_bu
 	struct ppe_drv_cc *pcc;
 	struct flow_keys keys = {0};
 	ppe_drv_cc_callback_t cb;
-	ppe_drv_cc_t exp_code;
 	void *app_data;
 	bool ret = false;
 	uint16_t cc = cc_info->cpu_code;
@@ -211,21 +210,15 @@ bool ppe_drv_cc_process_skbuff(struct ppe_drv_cc_metadata *cc_info, struct sk_bu
 	ppe_drv_assert((cc > 0) && (cc < PPE_DRV_CC_MAX), "%p: invalid cpu code %u", p, cc);
 
 	/*
-	 * Map CPU code to exception code
-	 */
-	exp_code = PPE_DRV_CC_TO_EXP(cc);
-
-	/*
 	 * Check if this CPU code needs flush.
 	 */
-	pcc = &p->cc[exp_code];
+	pcc = &p->cc[cc];
 	if (!pcc->flush) {
 		goto done;
 	}
 
 	/*
 	 * Extract flow key from skbuff
-	 *
 	 * We are using skb flow dissect and ignoring its performance impact,
 	 * since PPE generate explicit CPU code only for first packet which is
 	 * responsible for auto flow deceleration in PPE, all subsequent packets
@@ -251,11 +244,11 @@ bool ppe_drv_cc_process_skbuff(struct ppe_drv_cc_metadata *cc_info, struct sk_bu
 	 */
 	switch (keys.control.addr_type) {
 		case FLOW_DISSECTOR_KEY_IPV4_ADDRS:
-			ppe_drv_cc_process_v4(exp_code, &keys);
+			ppe_drv_cc_process_v4((ppe_drv_cc_t)cc, &keys);
 			break;
 
 		case FLOW_DISSECTOR_KEY_IPV6_ADDRS:
-			ppe_drv_cc_process_v6(exp_code, &keys);
+			ppe_drv_cc_process_v6((ppe_drv_cc_t)cc, &keys);
 			break;
 
 		default:
@@ -269,8 +262,8 @@ done:
 	app_data = pcc->app_data;
 	spin_unlock_bh(&p->lock);
 
-	ppe_drv_trace("%p: processing skb:%p cc:%u exp_code: %u cb:%p app:%p",
-			p, skb, cc, exp_code, cb, app_data);
+	ppe_drv_trace("%p: processing skb:%p cc:%u cb:%p app:%p",
+			p, skb, cc, cb, app_data);
 
 
 	if (cb) {
@@ -363,6 +356,15 @@ struct ppe_drv_cc *ppe_drv_cc_entries_alloc(void)
 		pcc = &cc[cpu_code];
 		pcc->flush = true;
 	}
+
+	pcc = &cc[PPE_DRV_CC_L2_EXP_MTU_FAIL];
+	pcc->flush = true;
+
+	pcc = &cc[PPE_DRV_CC_L3_EXP_MTU_FAIL];
+	pcc->flush = true;
+
+	pcc = &cc[PPE_DRV_CC_L3_EXP_FLOW_MTU_FAIL];
+	pcc->flush = true;
 
 	return cc;
 }

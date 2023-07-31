@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,185 +19,187 @@
 
 /*
  * ppe_drv_exception_list
- *	PPE exception list to be enabled.
+ *        PPE exception list to be enabled.
+ *
+ * Note: Exception list is defined using CPU codes.
  */
 struct ppe_drv_exception ppe_drv_exception_list[] = {
 	{
-		PPE_DRV_CC_EXP_UNKNOWN_L2_PROT,
+		PPE_DRV_CC_UNKNOWN_L2_PROT,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_PPPOE_WRONG_VER_TYPE,
+		PPE_DRV_CC_PPPOE_WRONG_VER_TYPE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_PPPOE_WRONG_CODE,
+		PPE_DRV_CC_PPPOE_WRONG_CODE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_PPPOE_UNSUPPORTED_PPP_PROT,
+		PPE_DRV_CC_PPPOE_UNSUPPORTED_PPP_PROT,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_SMALL_IHL,
+		PPE_DRV_CC_IPV4_SMALL_IHL,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_WITH_OPTION,
+		PPE_DRV_CC_IPV4_WITH_OPTION,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_HDR_INCOMPLETE,
+		PPE_DRV_CC_IPV4_HDR_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_BAD_TOTAL_LEN,
+		PPE_DRV_CC_IPV4_BAD_TOTAL_LEN,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_DATA_INCOMPLETE,
+		PPE_DRV_CC_IPV4_DATA_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_FRAG,
+		PPE_DRV_CC_IPV4_FRAG,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_SMALL_TTL,
+		PPE_DRV_CC_IPV4_SMALL_TTL,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_CHECKSUM_ERR,
+		PPE_DRV_CC_IPV4_CHECKSUM_ERR,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV4_ESP_HDR_INCOMPLETE,
+		PPE_DRV_CC_IPV4_ESP_HDR_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV6_HDR_INCOMPLETE,
+		PPE_DRV_CC_IPV6_HDR_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV6_BAD_PAYLOAD_LEN,
+		PPE_DRV_CC_IPV6_BAD_PAYLOAD_LEN,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV6_DATA_INCOMPLETE,
+		PPE_DRV_CC_IPV6_DATA_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV6_SMALL_HOP_LIMIT,
+		PPE_DRV_CC_IPV6_SMALL_HOP_LIMIT,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV6_FRAG,
+		PPE_DRV_CC_IPV6_FRAG,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_IPV6_ESP_HDR_INCOMPLETE,
+		PPE_DRV_CC_IPV6_ESP_HDR_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_TCP_HDR_INCOMPLETE,
+		PPE_DRV_CC_TCP_HDR_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_TCP_SMALL_DATA_OFFSET,
+		PPE_DRV_CC_TCP_SMALL_DATA_OFFSET,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_TCP_FLAGS_0,
+		PPE_DRV_CC_TCP_FLAGS_0,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_TCP_FLAGS_1,
+		PPE_DRV_CC_TCP_FLAGS_1,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_TCP_FLAGS_2,
+		PPE_DRV_CC_TCP_FLAGS_2,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_UDP_HDR_INCOMPLETE,
+		PPE_DRV_CC_UDP_HDR_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
 	{
-		PPE_DRV_CC_EXP_UDP_LITE_HDR_INCOMPLETE,
+		PPE_DRV_CC_UDP_LITE_HDR_INCOMPLETE,
 		FAL_MAC_RDT_TO_CPU,
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
@@ -240,6 +242,21 @@ const uint8_t ppe_drv_exception_tcpflag_max()
 }
 
 /*
+ * ppe_drv_exception_cc2exp()
+ *	CPU codes to Exception codes
+ */
+static inline uint8_t ppe_drv_exception_cc2exp(uint8_t cpu_code)
+{
+	if (cpu_code <= PPE_DRV_CC_RANGE1) {
+		return (cpu_code - PPE_DRV_EXP_RANGE1_BASE);
+	} else if (cpu_code >= PPE_DRV_CC_RANGE2 && cpu_code <= PPE_DRV_CC_RANGE3) {
+		return (cpu_code - PPE_DRV_EXP_RANGE2_BASE);
+	}
+
+	return cpu_code;
+}
+
+/*
  * ppe_drv_exception_init()
  *	Initialize PPE exceptions
  */
@@ -253,6 +270,7 @@ void ppe_drv_exception_init(void)
 	fal_l3_excep_ctrl_t except_ctrl = {0};
 	sw_error_t err;
 	uint32_t i;
+	uint8_t exp_code;
 
 	/*
 	 * Traverse through exception list and configure each exception
@@ -260,8 +278,21 @@ void ppe_drv_exception_init(void)
 	for (i = 0; i < exception_max; i++) {
 		struct ppe_drv_exception *pe = &ppe_drv_exception_list[i];
 
+		/*
+		 * Since our exception list is now defined using CPU code, we need to
+		 * Convert CPU code into exception code for exception configuration.
+		 * l3_excep_ctrl table only configures exceptions till number 71, hence
+		 * We need to do necessary check to avoid configuring exception
+		 * Table above 71.
+		 */
+		exp_code = ppe_drv_exception_cc2exp(pe->code);
+		if (exp_code > ppe_drv_exception_cc2exp(PPE_DRV_CC_UDP_LITE_CHECKSUM_ERR) + 4) {
+			ppe_drv_trace("%p: exception code greater than 71 not configured in l3 exception control table: %d\n", p, exp_code);
+			continue;
+		}
+
 		ppe_drv_trace("%p: configuring exception code: %u flow_type: 0x%x",
-				p, pe->code, pe->flow_type);
+				p, exp_code, pe->flow_type);
 
 		/*
 		 * Enable Exception
@@ -339,9 +370,9 @@ void ppe_drv_exception_init(void)
 		/*
 		 * Configure specific exception in PPE through SSDK.
 		 */
-		err = fal_sec_l3_excep_ctrl_set(PPE_DRV_SWITCH_ID, pe->code, &except_ctrl);
+		err = fal_sec_l3_excep_ctrl_set(PPE_DRV_SWITCH_ID, exp_code, &except_ctrl);
 		if (err != SW_OK) {
-			ppe_drv_warn("%p: failed to configure L3 exception: %d", p, pe->code);
+			ppe_drv_warn("%p: failed to configure L3 exception: %d", p, exp_code);
 		}
 	}
 

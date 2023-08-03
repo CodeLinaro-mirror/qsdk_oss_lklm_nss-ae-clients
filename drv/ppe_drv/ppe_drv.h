@@ -89,6 +89,16 @@
 #define PPE_DRV_REDIR_PROFILE_ID	9
 
 /*
+ * MAX queue priority
+ */
+#define PPE_DRV_MAX_PRIORITY		16
+
+/*
+ * Maximum queue priority supported per core
+ */
+#define PPE_DRV_MAX_PRIORITY_PER_CORE	8
+
+/*
  * PPE Hash seed and mask
  *
  * Note: we don't initialize the seed value with a random value

@@ -37,6 +37,7 @@ module_param(ipfrag_2tuple_hash, bool, 0644);
 MODULE_PARM_DESC(ipfrag_2tuple_hash, "RSS hash for IP fragments based on SIP & DIP");
 
 uint32_t if_bm_to_offload;
+uint8_t ppe_drv_redir_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 
 /*
  * Define the filename to be used for assertions.
@@ -471,6 +472,38 @@ static const struct of_device_id ppe_drv_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, ppe_drv_dt_ids);
 
 /*
+ * ppe_drv_confgiure_ucast_prio_map_tbl
+ *	Configure unicast priority map table for RFS/DS flows
+ */
+static bool ppe_drv_confgiure_ucast_prio_map_tbl(struct ppe_drv *p, uint8_t profile_id, uint8_t *prio_map)
+{
+	uint8_t pri_class;
+	uint8_t int_pri;
+	sw_error_t ret;
+
+	/*
+	 * Set the priority class value for every possible priority.
+	 */
+	for (int_pri = 0; int_pri < PPE_DRV_MAX_PRIORITY; int_pri++) {
+		pri_class = prio_map[int_pri];
+
+		/*
+		 * Configure priority class for Profile 9 used by RFS and DS.
+		 */
+		ret = fal_ucast_priority_class_set(PPE_DRV_SWITCH_ID, profile_id, int_pri, pri_class);
+		if (ret != SW_OK) {
+			ppe_drv_warn("%p Failed to configure ucast priority class for profile_id %d, int_pri: %d with err: %d\n",
+					p, profile_id, int_pri, ret);
+			return false;
+		}
+
+		ppe_drv_info("profile_id: %d, int_priority: %d, pri_class: %d\n", profile_id, int_pri, pri_class);
+	}
+
+	return true;
+}
+
+/*
  * ppe_drv_probe()
  *	probe the PPE driver
  */
@@ -590,6 +623,11 @@ static int ppe_drv_probe(struct platform_device *pdev)
 
 	if (!ppe_drv_phy_port_base_queue_init(p)) {
 		ppe_drv_warn("%p: failed to initialize physical port base queue\n", p);
+		goto fail;
+	}
+
+	if (!ppe_drv_confgiure_ucast_prio_map_tbl(p, PPE_DRV_REDIR_PROFILE_ID, ppe_drv_redir_prio_map)) {
+		ppe_drv_warn("%p: failed to configure ucast priority class setting\n", p);
 		goto fail;
 	}
 

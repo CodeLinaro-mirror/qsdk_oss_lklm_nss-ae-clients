@@ -1124,6 +1124,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 		 */
 		if ((b_pvt->wan_if_enabled) && (b_pvt->wan_netdev == dev)) {
 			is_wan = true;
+			ppe_drv_br_wanif_clear(dev);
 		}
 
 		res = nss_ppe_bridge_mgr_ppe_leave_br(b_pvt, dev, is_wan);
@@ -1272,6 +1273,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 		if (br_mgr_ctx.wan_netdev == dev) {
 			b_pvt->wan_if_enabled = true;
 			b_pvt->wan_netdev = dev;
+			ppe_drv_br_wanif_set(dev);
 			nss_ppe_bridge_mgr_info("Netdev %px (%s) is added as WAN interface \n", dev, dev->name);
 			return 0;
 		}

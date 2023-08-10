@@ -303,6 +303,15 @@ static inline ppe_drv_tree_id_type_t ppe_drv_tree_id_type_get(struct ppe_drv_flo
 	return flow_metadata->tree_id_data.type;
 }
 
+/*
+ * ppe_drv_assist_feature_type_check()
+ *      Checks assist feature type.
+ */
+static inline bool ppe_drv_assist_feature_type_check(uint32_t feature, uint32_t flag)
+{
+	return !!(feature & flag);
+}
+
 extern int ppe_drv_get_vxlan_dport(void);
 void ppe_drv_fse_ops_free(struct kref *kref);
 extern struct ppe_drv ppe_drv_gbl;

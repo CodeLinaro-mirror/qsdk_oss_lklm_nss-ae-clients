@@ -505,6 +505,21 @@ bool ppe_drv_flow_v6_service_code_get(struct ppe_drv_v6_conn_flow *pcf, struct p
 	ppe_drv_sc_t sc = PPE_DRV_SC_NONE;
 	int next_core;
 
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		/*
+		 * Service code to set priority for PPE assisted flows.
+		 * No other service code is supported if priority assist is active.
+		 */
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_NOEDIT_PRIORITY_SET)) {
+			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+						pcf, service_code, PPE_DRV_SC_NOEDIT_PRIORITY_SET);
+			return false;
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
 	/*
 	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
 	 */
@@ -720,24 +735,31 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	uint8_t vlan_hdr_cnt = ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf);
 	uint8_t service_class;
 	struct ppe_drv_iface *port_if = ppe_drv_v6_conn_flow_eg_port_if_get(pcf);
-	struct ppe_drv_port *pp;
+	struct ppe_drv_port *pp = NULL;
 	struct ppe_drv_flow *flow;
 	bool tuple_3 = false;
 	bool wifi_qos_en = false;
 	uint16_t xmit_mtu;
 	sw_error_t err;
 
-	if (!port_if) {
-		ppe_drv_warn("%p: Invalid egress port_if", pcf);
-		return NULL;
+	/*
+	 * PPE port reference is not taken for priority assist in PPE. PPE is
+	 * used only for priority queue selection. Hence Port would not be valid
+	 */
+	if (!ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		if (!port_if) {
+			ppe_drv_warn("%p: Invalid egress port_if", pcf);
+			return NULL;
+		}
+
+		pp = ppe_drv_iface_port_get(port_if);
+		if (!pp) {
+			ppe_drv_warn("%p: Invalid egress port", pcf);
+			return NULL;
+		}
 	}
 
 	ppe_drv_v6_conn_flow_match_dest_ip_get(pcf, &match_dest_ip[0]);
-	pp = ppe_drv_iface_port_get(port_if);
-	if (!pp) {
-		ppe_drv_warn("%p: Invalid egress port", pcf);
-		return NULL;
-	}
 
 	ppe_drv_trace("%p: flow_tbl[host_idx]: %u", pcf, host->index);
 	flow_cfg.host_addr_type = PPE_DRV_HOST_LAN;
@@ -823,10 +845,16 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		flow_cfg.fwd_type = ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW) ?
 					FAL_FLOW_BRIDGE: FAL_FLOW_ROUTE;
 		ppe_drv_trace("%p: Policer enabled flow\n", pcf);
-	} else if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST)) {
+	} else if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST)) {
 		flow_cfg.fwd_type = ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW) ?
 				    FAL_FLOW_BRIDGE: FAL_FLOW_ROUTE;
 		ppe_drv_trace("%p: RFS enabled flow\n", pcf);
+	} else if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		/*
+		 * Case PPE is used only to Assist in priority marking of packets
+		 */
+		flow_cfg.fwd_type = FAL_FLOW_FORWARD;
+		ppe_drv_trace("%p: flow_tbl[fwd_type]: Priority Assist: %u", pcf, FAL_FLOW_FORWARD);
 	} else if (ipv6_addr_is_multicast((struct in6_addr *)match_dest_ip)) {
 		/*
 		 * Multicast flow
@@ -1180,6 +1208,21 @@ bool ppe_drv_flow_v4_service_code_get(struct ppe_drv_v4_conn_flow *pcf, struct p
 	ppe_drv_sc_t sc = PPE_DRV_SC_NONE;
 	int next_core;
 
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		/*
+		 * Service code to set priority for PPE assisted flows.
+		 * No other service code is supported if priority assist is active.
+		 */
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_NOEDIT_PRIORITY_SET)) {
+			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+						pcf, service_code, PPE_DRV_SC_NOEDIT_PRIORITY_SET);
+			return false;
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
 	/*
 	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
 	 */
@@ -1427,22 +1470,28 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	uint8_t vlan_hdr_cnt = ppe_drv_v4_conn_flow_egress_vlan_cnt_get(pcf);
 	uint8_t service_class;
 	struct ppe_drv_iface *port_if = ppe_drv_v4_conn_flow_eg_port_if_get(pcf);
-	struct ppe_drv_port *pp;
+	struct ppe_drv_port *pp = NULL;
 	struct ppe_drv_flow *flow;
 	bool tuple_3 = false;
 	bool wifi_qos_en = false;
 	uint16_t xmit_mtu;
 	sw_error_t err;
 
-	if (!port_if) {
-		ppe_drv_warn("%p: Invalid egress port_if", pcf);
-		return NULL;
-	}
+	/*
+	 * PPE port reference is not taken for priority assist in PPE as PPE is
+	 * used only for priority queue selection. Hence port would not be valid
+	 */
+	if (!ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		if (!port_if) {
+			ppe_drv_warn("%p: Invalid egress port_if", pcf);
+			return NULL;
+		}
 
-	pp = ppe_drv_iface_port_get(port_if);
-	if (!pp) {
-		ppe_drv_warn("%p: Invalid egress port", pcf);
-		return NULL;
+		pp = ppe_drv_iface_port_get(port_if);
+		if (!pp) {
+			ppe_drv_warn("%p: Invalid egress port", pcf);
+			return NULL;
+		}
 	}
 
 	/*
@@ -1535,10 +1584,16 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		flow_cfg.fwd_type = ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW) ?
 				    FAL_FLOW_BRIDGE: FAL_FLOW_ROUTE;
 		ppe_drv_trace("%p: Policer enabled flow\n", pcf);
-	} else if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_PPE_ASSIST)) {
+	} else if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST)) {
 		flow_cfg.fwd_type = ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW) ?
 				    FAL_FLOW_BRIDGE: FAL_FLOW_ROUTE;
 		ppe_drv_trace("%p: RFS enabled flow\n", pcf);
+	} else if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
+		/*
+		 * Case PPE is used only to Assist in priority marking of packets
+		 */
+		flow_cfg.fwd_type = FAL_FLOW_FORWARD;
+		ppe_drv_trace("%p: flow_tbl[fwd_type]: Priority Assist: %u", pcf, FAL_FLOW_FORWARD);
 	} else if (ipv4_is_multicast(htonl(match_dest_ip))) {
 		/*
 		 * Multicast flow

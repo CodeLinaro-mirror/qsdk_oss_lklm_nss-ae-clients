@@ -259,7 +259,30 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
 		sc_cfg.bypass_bitmap[1] = (1 << BRIDGING_FWD_BYP);
 		sc_cfg.dest_port_valid = false;
+		break;
 
+	case  PPE_DRV_SC_NOEDIT_PRIORITY_SET:
+		/*
+		 * Don't update destination information and service code in EDMA
+		 */
+		sc_cfg.field_update_bitmap = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
+
+		/*
+		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
+		 * packets sent to PPE, with SPF bypass service code.
+		 */
+		sc_cfg.bypass_bitmap[1] = ((1 << SOURCE_FLTR_BYP)
+						| (1 << BRIDGING_FWD_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
+		/*
+		 * Avoid any packet editing
+		 */
+		sc_cfg.bypass_bitmap[1] |= ((1 << L2_PKT_EDIT_BYP) | (1 << L3_PKT_EDIT_BYP));
+
+		/*
+		 * Enable ring selection based on int_pri value
+		 */
+		sc_cfg.dest_port_valid = false;
 		break;
 
 	case PPE_DRV_SC_FLOW_ACL_FIRST ... PPE_DRV_SC_FLOW_ACL_LAST:
@@ -544,6 +567,7 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_VP_RPS, PPE_DRV_SC_VP_RPS, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_ACL_POLICER, PPE_DRV_SC_NOEDIT_ACL_POLICER, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_L2_TUNNEL_EXCEPTION, PPE_DRV_SC_L2_TUNNEL_EXCEPTION, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_PRIORITY_SET, PPE_DRV_SC_NOEDIT_PRIORITY_SET, PPE_DRV_PORT_CPU);
 
 	/*
 	 * Initialize FLOW ACL service code

@@ -36,7 +36,7 @@
 					/* QoS valid */
 #define PPE_DRV_V6_CONN_FLOW_FLAG_INLINE_IPSEC 0x00000020
 					/* Inline IPSec flow */
-#define PPE_DRV_V6_CONN_FLAG_FLOW_PPE_ASSIST 0x00000040
+#define PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST 0x00000040
 					/* Flow needs PPE assistance for RFS */
 #define PPE_DRV_V6_CONN_FLOW_METADATA_TYPE_SAWF 0x00000080
 					/* SAWF marking is valid for the flow */
@@ -60,6 +60,9 @@
 #define PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID 0x00002000
 #define PPE_DRV_V6_CONN_FLAG_FLOW_PPE_POLICER_ASSIST 0x00004000
 					/* Policer for NoEdit */
+#define PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST 0x00008000
+					/* Flow needs PPE assistance for Priority setting */
+
 /*
  * ppe_drv_v6_conn_flow
  *	Structure for individual flow direction
@@ -161,6 +164,21 @@ static inline bool ppe_drv_v6_addr_equal(uint32_t *a1, uint32_t *a2)
 		(a1[2] ^ a2[2]) |
 		(a1[3] ^ a2[3])) == 0;
 }
+
+/**
+ * ppe_drv_v6_assist_stats_type
+ * 	PPE ASSIST Stats type
+ */
+enum ppe_drv_v6_assist_stats_type {
+	PPE_DRV_V6_ASSIST_CREATE_REQ,
+	PPE_DRV_V6_ASSIST_CREATE_MEM_FAIL,
+	PPE_DRV_V6_ASSIST_CREATE_CONN_FAIL,
+	PPE_DRV_V6_ASSIST_CREATE_FLOW_COLL,
+	PPE_DRV_V6_ASSIST_CREATE_FLOW_FAIL,
+	PPE_DRV_V6_ASSIST_DESTROY_REQ,
+	PPE_DRV_V6_ASSIST_DESTROY_FLOW_NOT_FOUND,
+	PPE_DRV_V6_ASSIST_DESTROY_FLOW_FAIL,
+};
 
 /*
  * ppe_drv_v6_conn_alloc()

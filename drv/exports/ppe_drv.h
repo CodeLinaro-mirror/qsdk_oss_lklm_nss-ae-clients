@@ -44,6 +44,12 @@
 #define PPE_DRV_INT_PRI_MIN 0
 #define PPE_DRV_INT_PRI_MAX 15
 
+/*
+ * PPE Assist feature flags
+ */
+#define PPE_DRV_ASSIST_FEATURE_RFS      0x00000001      /* PPE Assist feature to configure RFS */
+#define PPE_DRV_ASSIST_FEATURE_PRIORITY 0x00000002      /* PPE Assist feature to configure Priority */
+
 #define PPE_DRV_SERVICE_CLASS_IS_VALID(sc)	((sc >= PPE_DRV_SAWF_SC_START) && (sc <= PPE_DRV_SAWF_SC_END))
 
 /*

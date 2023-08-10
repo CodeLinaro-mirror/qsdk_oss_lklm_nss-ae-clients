@@ -34,3 +34,9 @@ qca-nss-ppe-rule-objs += ppe_mirror/ppe_mirror.o
 qca-nss-ppe-rule-objs += ppe_mirror/ppe_mirror_stats.o
 ccflags-y += -DPPE_MIRROR_DEBUG_LEVEL=3
 endif
+
+ifeq ($(PPE_PRIORITY_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_priority/ppe_priority.o
+qca-nss-ppe-rule-objs += ppe_priority/ppe_priority_stats.o
+ccflags-y += -DPPE_PRIORITY_DEBUG_LEVEL=3
+endif

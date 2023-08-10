@@ -2378,6 +2378,8 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 	struct ppe_drv_v4_conn_flow *pcr;
 	struct ppe_drv_v4_conn_sync *cns;
 	struct ppe_drv_v4_conn *cn;
+
+#ifdef PPE_TUNNEL_ENABLE
 	int ret;
 
 	ret = ppe_drv_v4_tun_del_ce_notify(destroy);
@@ -2388,6 +2390,7 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 
 		return ret;
 	}
+#endif
 
 	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
 
@@ -2440,11 +2443,13 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 	 */
 	ppe_drv_v4_if_walk_release(pcr);
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port)) {
 		if (!ppe_drv_tun_detach_mapt_v4_to_v6(cn)) {
 			ppe_drv_trace("%p: mapt v4 to v6 detach failed", p);
 		}
 	}
+#endif
 
 	/*
 	 * Delete connection entry from the active connection list.
@@ -3006,6 +3011,7 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 	 * PPE accelearation is only supported for default port currently.
 	 */
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (ppe_drv_v4_tun_allow_tunnel_create(create)) {
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v4_create_req);
@@ -3018,6 +3024,7 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 
 		return PPE_DRV_RET_SUCCESS;
 	}
+#endif
 
 	/*
 	 * Update stats
@@ -3129,11 +3136,13 @@ ppe_drv_ret_t ppe_drv_v4_create(struct ppe_drv_v4_rule_create *create)
 	pcf->conn = cn;
 	pcr->conn = cn;
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (ppe_drv_tun_mapt_port_tun_get(pcf->tx_port, pcf->rx_port)) {
 		if (!ppe_drv_tun_attach_mapt_v4_to_v6(cn)) {
 			ppe_drv_trace("%p: mapt attach v4 to v6 failed", p);
 		}
 	}
+#endif
 
 	/*
 	 * We maintain reference per connection on main ppe context.

@@ -713,12 +713,6 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
-	p->acl_tbl = ppe_drv_acl_tbl_entries_alloc();
-	if (!p->acl_tbl) {
-		ppe_drv_warn("%p: failed to allocate ACL callback entries", p);
-		goto fail;
-	}
-
 	/*
 	 * Take a reference
 	 */
@@ -777,11 +771,6 @@ fail:
 	if (p->acl) {
 		ppe_drv_acl_entries_free(p->acl);
 		p->acl = NULL;
-	}
-
-	if (p->acl_tbl) {
-		ppe_drv_acl_tbl_entries_free(p->acl_tbl);
-		p->acl_tbl = NULL;
 	}
 
 	if (p->pub_ip) {
@@ -940,11 +929,6 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->acl) {
 		ppe_drv_acl_entries_free(p->acl);
 		p->acl = NULL;
-	}
-
-	if (p->acl_tbl) {
-		ppe_drv_acl_tbl_entries_free(p->acl_tbl);
-		p->acl_tbl = NULL;
 	}
 
 	ppe_drv_tun_vxlan_deconfigure(p);

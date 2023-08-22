@@ -638,6 +638,12 @@ static int nss_ppe_vxlanmgr_switchdev_fdb_event(struct notifier_block *nb_unused
 		return NOTIFY_DONE;
 	}
 
+	fdb_info = container_of(info, struct switchdev_notifier_vxlan_fdb_info, info);
+	if (!fdb_info) {
+		nss_ppe_vxlanmgr_warn("%px: VXLAN FDB information not present", info);
+		return NOTIFY_DONE;
+	}
+
 	dev = info->dev;
 	if (!netif_is_vxlan(dev)) {
 		nss_ppe_vxlanmgr_warn("%px: It is not VXLAN netdevice dev:%s", info, dev->name);
@@ -647,12 +653,6 @@ static int nss_ppe_vxlanmgr_switchdev_fdb_event(struct notifier_block *nb_unused
 	priv = netdev_priv(dev);
 	if (dstport != ntohs(priv->cfg.dst_port)) {
 		nss_ppe_vxlanmgr_trace("%px: VXLAN: configured PPE dport: %u is not-equal to user given dport:%dn", fdb_info, dstport, ntohs(priv->cfg.dst_port));
-		return NOTIFY_DONE;
-	}
-
-	fdb_info = container_of(info, struct switchdev_notifier_vxlan_fdb_info, info);
-	if (!fdb_info) {
-		nss_ppe_vxlanmgr_warn("%px: VXLAN FDB information not present", info);
 		return NOTIFY_DONE;
 	}
 

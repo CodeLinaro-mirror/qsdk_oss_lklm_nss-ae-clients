@@ -15,6 +15,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/version.h>
 #include <ppe_drv_public.h>
 #include <ppe_acl.h>
 #include "ppe_acl_stats.h"

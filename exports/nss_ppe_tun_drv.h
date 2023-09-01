@@ -180,4 +180,27 @@ bool ppe_tun_decap_enable(struct net_device *dev);
  */
 bool ppe_tun_configure_vxlan_dport(uint16_t dport);
 
+/*
+ *  ppe_tun_l2tp_port_set
+ *      Set L2TP source and destination port
+ *
+ * @param type[IN] sport  l2tp source port
+ * @param type[IN] dport  l2tp destination port
+ *
+ * @return
+ * Status of operation
+ */
+bool ppe_tun_l2tp_port_set(uint16_t sport, uint16_t dport);
+
+/*
+ *  ppe_tun_l2tp_port_get
+ *      Get L2TP source and destination port
+ *
+ * @param type[IN] sport  l2tp source port pointer
+ * @param type[IN] dport  l2tp destination port pointer
+ *
+ * @return
+ * Status of operation
+ */
+bool ppe_tun_l2tp_port_get(uint16_t *sport, uint16_t *dport);
 #endif /* _NSS_PPE_TUN_DRV_H_ */

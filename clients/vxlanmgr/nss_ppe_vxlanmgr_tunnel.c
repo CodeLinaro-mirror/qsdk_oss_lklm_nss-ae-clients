@@ -35,6 +35,63 @@
 #include <nss_ppe_bridge_mgr.h>
 
 /*
+ * nss_ppe_vxlan_dev_stats_update()
+ *	Update vxlan dev statistics
+ */
+static bool nss_ppe_vxlan_dev_stats_update(struct net_device *dev, ppe_tun_hw_stats *stats, ppe_tun_data *tun_cb_data)
+{
+	struct pcpu_sw_netstats *tstats;
+	struct net_device *pdev;
+	int ifindex;
+
+	if (!dev) {
+		return false;
+	}
+
+	tstats = this_cpu_ptr(dev->tstats);
+
+	/*
+	 * For VXLAN device add the stats to the parent netdevice instead of nss_netdev.
+	 */
+	if (unlikely(strncmp(dev->name, "ppe_vxlan_tun", 13) == 0)) {
+		ifindex = *(int *)netdev_priv(dev);
+		pdev = dev_get_by_index(&init_net, ifindex);
+		if (!pdev) {
+			nss_ppe_vxlanmgr_warn("%p: Parent dev of the nss-netdev %s is not present.", dev, dev->name);
+			return true;
+		}
+
+		tstats = this_cpu_ptr(pdev->tstats);
+		dev_put(pdev);
+	}
+
+	u64_stats_update_begin(&tstats->syncp);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	tstats->tx_bytes += stats->tx_byte_cnt;
+	tstats->tx_packets += stats->tx_pkt_cnt;
+	tstats->rx_bytes += stats->rx_byte_cnt;
+	tstats->rx_packets += stats->rx_pkt_cnt;
+#else
+	u64_stats_add(&tstats->tx_bytes, stats->tx_byte_cnt);
+	u64_stats_add(&tstats->tx_packets,  stats->tx_pkt_cnt);
+	u64_stats_add(&tstats->rx_bytes, stats->rx_byte_cnt);
+	u64_stats_add(&tstats->rx_packets,  stats->rx_pkt_cnt);
+#endif
+
+	u64_stats_update_end(&tstats->syncp);
+
+/*
+ * TODO: Remove the following check when net_device support for
+ * drop counters is added from Kernel for PPE Tunnel stats.
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+	atomic_long_add(stats->tx_drop_pkt_cnt, &dev->tx_dropped);
+	atomic_long_add(stats->rx_drop_pkt_cnt, &dev->rx_dropped);
+#endif
+	return true;
+}
+
+/*
  * 2^8 = 256 is the size of the hash table.
  */
 #define NSS_PPE_VXLANMGR_HASH_TABLE_SIZE 8
@@ -714,7 +771,7 @@ struct notifier_block nss_ppe_vxlanmgr_switchdev_fdb_notifier = {
  * nss_ppe_vxlan_src_exception()
  * handle the source VP exception.
  */
-static bool nss_ppe_vxlan_src_exception(struct net_device *dev, struct sk_buff *skb)
+static bool nss_ppe_vxlan_src_exception(struct net_device *dev, struct sk_buff *skb, ppe_tun_data *tun_data)
 {
 	nss_ppe_vxlanmgr_warn("%px: Dropping the skb for dev:%s", dev, dev->name);
 
@@ -729,6 +786,7 @@ static bool nss_ppe_vxlanmgr_tunnel_header_config(struct net_device *dev, struct
 {
 	bool ret;
 	struct ppe_drv_tun_cmn_ctx *tun_hdr = tun_ctx->tun_hdr;
+	struct ppe_tun_excp tun_cb = {0};
 
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN;
 	tun_hdr->l3.ttl = tun_ctx->ttl;
@@ -742,7 +800,11 @@ static bool nss_ppe_vxlanmgr_tunnel_header_config(struct net_device *dev, struct
 	tun_hdr->l3.dscp = 0;
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN;
 
-	ret = ppe_tun_configure(dev, tun_hdr, nss_ppe_vxlan_src_exception, NULL);
+	tun_cb.src_excp_method = nss_ppe_vxlan_src_exception;
+	tun_cb.stats_update_method = nss_ppe_vxlan_dev_stats_update;
+
+	ret = ppe_tun_configure(dev, tun_hdr, &tun_cb);
+
 	nss_ppe_vxlanmgr_info("%px: destport: tun_hdr->tun.vxlan.dest_port:%u tunnel_flags:%u nss_dev_name:%s", dev, tun_hdr->tun.vxlan.dest_port, tun_ctx->tunnel_flags, dev->name);
 
 	return ret;

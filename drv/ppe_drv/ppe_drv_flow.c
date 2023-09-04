@@ -845,7 +845,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		/*
 		 * Case PPE is used only to Assist in priority marking of packets
 		 */
-		flow_cfg.fwd_type = FAL_FLOW_FORWARD;
+		flow_cfg.fwd_type = FAL_FLOW_RDT_TO_CPU;
 		ppe_drv_trace("%p: flow_tbl[fwd_type]: Priority Assist: %u", pcf, FAL_FLOW_FORWARD);
 	} else if (ipv6_addr_is_multicast((struct in6_addr *)match_dest_ip)) {
 		/*
@@ -1584,7 +1584,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		/*
 		 * Case PPE is used only to Assist in priority marking of packets
 		 */
-		flow_cfg.fwd_type = FAL_FLOW_FORWARD;
+		flow_cfg.fwd_type = FAL_FLOW_RDT_TO_CPU;
 		ppe_drv_trace("%p: flow_tbl[fwd_type]: Priority Assist: %u", pcf, FAL_FLOW_FORWARD);
 	} else if (ipv4_is_multicast(htonl(match_dest_ip))) {
 		/*

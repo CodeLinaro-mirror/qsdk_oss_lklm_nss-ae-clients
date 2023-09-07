@@ -113,6 +113,35 @@ bool ppe_drv_iface_is_physical(struct ppe_drv_iface *iface)
 EXPORT_SYMBOL(ppe_drv_iface_is_physical);
 
 /*
+ * ppe_drv_dev_get_by_iface_idx
+ *	Get Netdev by PPE interface index.
+ */
+struct net_device *ppe_drv_dev_get_by_iface_idx(ppe_drv_iface_t index)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_iface *iface;
+	struct net_device *dev = NULL;
+
+	spin_lock_bh(&p->lock);
+	if (index < 0 || index >= p->iface_num) {
+		ppe_drv_warn("Index out of bounds %d\n", index);
+		goto error;
+	}
+
+	iface = &p->iface[index];
+	if (!kref_read(&iface->ref) || ((iface->flags & PPE_DRV_IFACE_FLAG_VALID) != PPE_DRV_IFACE_FLAG_VALID)) {
+		ppe_drv_warn("Invalid iface index %d\n", index);
+		goto error;
+	}
+
+	dev = iface->dev;
+error:
+	spin_unlock_bh(&p->lock);
+	return dev;
+}
+EXPORT_SYMBOL(ppe_drv_dev_get_by_iface_idx);
+
+/*
  * ppe_drv_iface_idx_get_by_dev()
  *	Get PPE interface by netdev
  */

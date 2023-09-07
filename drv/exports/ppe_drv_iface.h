@@ -194,6 +194,17 @@ bool ppe_drv_iface_deref(struct ppe_drv_iface *ppe_iface);
 struct ppe_drv_iface *ppe_drv_iface_get_by_dev(struct net_device *dev);
 
 /**
+ * ppe_drv_dev_get_by_iface_idx
+ *	Get net device by PPE Interface index.
+ *
+ *  @param[in] index    PPE interface index.
+ *
+ * @return
+ * Net device if lookup is successful else NULL for failure.
+ */
+struct net_device *ppe_drv_dev_get_by_iface_idx(ppe_drv_iface_t index);
+
+/**
  * ppe_drv_iface_port_idx_get
  *	Get port index from PPE interface.
  *

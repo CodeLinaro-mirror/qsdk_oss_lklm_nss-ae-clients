@@ -2194,7 +2194,7 @@ static nss_capwapmgr_status_t nss_capwapmgr_tunnel_create_common(struct net_devi
 	 * Allocate a internal net_device for every tunnel.
 	 */
 	internal_dev = alloc_netdev(0,"capwapint%d",
-				NET_NAME_ENUM, nss_capwapmgr_dummy_netdev_setup);
+				NET_NAME_UNKNOWN, nss_capwapmgr_dummy_netdev_setup);
 	if (!internal_dev) {
 		nss_capwapmgr_warn("Error allocating internal netdev\n");
 		return NSS_CAPWAPMGR_FAILRUE_INTERNAL_NETDEV_ALLOC_FAILED;
@@ -2733,7 +2733,7 @@ struct net_device *nss_capwapmgr_netdev_create()
 	int err;
 
 	ndev = alloc_netdev(sizeof(struct nss_capwapmgr_priv),
-					"nsscapwap%d", NET_NAME_ENUM, nss_capwapmgr_dummy_netdev_setup);
+					"nsscapwap%d", NET_NAME_UNKNOWN, nss_capwapmgr_dummy_netdev_setup);
 	if (!ndev) {
 		nss_capwapmgr_warn("Error allocating netdev\n");
 		return NULL;

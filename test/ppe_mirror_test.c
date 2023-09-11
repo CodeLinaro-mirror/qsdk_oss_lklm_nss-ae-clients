@@ -18,6 +18,7 @@
 #include <linux/debugfs.h>
 #include <linux/debugfs.h>
 #include <linux/module.h>
+#include <linux/version.h>
 #include "ppe_mirror_test.h"
 
 /*
@@ -643,10 +644,14 @@ static int ppe_mirror_test_config_params(struct ctl_table *ctl, int write, void 
 
 	pfree = buffer;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (copy_from_user(buffer, buf, count)) {
 		vfree(pfree);
 		return -EFAULT;
 	}
+#else
+	memcpy((void *)buffer, (void *)buf, count);
+#endif
 
 	/*
 	 * Get the first argument of the command which is

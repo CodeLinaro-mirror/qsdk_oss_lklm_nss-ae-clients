@@ -1377,10 +1377,14 @@ bool ppe_acl_dump_init(struct dentry *dentry)
 	struct ppe_acl_base *acl_g = &ppe_acl_gbl;
 	int dev_id = -1;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	if (!debugfs_create_u32("ppe_acl_dump", S_IRUGO, acl_g->dentry, (u32 *)&acl_g->acl_dump_major_id)) {
 		ppe_acl_warn("%p: Failed to create ppe state dev major file in debugfs\n", acl_g);
 		return false;
 	}
+#else
+	debugfs_create_u32("ppe_acl_dump", S_IRUGO, acl_g->dentry, (u32 *)&acl_g->acl_dump_major_id);
+#endif
 
 	/*
 	 * Register a character device to dump the output

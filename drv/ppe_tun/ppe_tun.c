@@ -1417,10 +1417,8 @@ const struct file_operations ppe_tun_l2tp_xcpn_file_fops = {
 static int __init ppe_tun_module_init(void)
 {
 	struct dentry *dir;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	ppe_acl_ret_t ret;
 	struct ppe_acl_rule rule = {0};
-#endif
 
 	ptp = kzalloc(sizeof(struct ppe_tun_priv), GFP_ATOMIC);
 	if (!ptp) {
@@ -1509,7 +1507,6 @@ static int __init ppe_tun_module_init(void)
 		ppe_tun_warn("failed to create debugfs entry for l2tp");
 	}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	rule.cmn.cmn_flags = rule.cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_NO_RULEID;
 	rule.stype = PPE_ACL_RULE_SRC_TYPE_SC;
 	rule.action.fwd_cmd = PPE_ACL_FWD_CMD_REDIR;
@@ -1523,7 +1520,6 @@ static int __init ppe_tun_module_init(void)
 	}
 
 	ptp->ppe_tun_l2_tunnel_rule_id = rule.rule_id;
-#endif
 
 	ppe_tun_info("ppe tunnel driver initialized");
 	return 0;
@@ -1547,9 +1543,7 @@ static void __exit ppe_tun_module_exit(void)
 {
 	debugfs_remove_recursive(ptp->dentry);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	ppe_acl_rule_destroy(ptp->ppe_tun_l2_tunnel_rule_id);
-#endif
 
 	kfree(ptp);
 }

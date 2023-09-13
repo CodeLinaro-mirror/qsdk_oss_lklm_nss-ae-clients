@@ -24,7 +24,6 @@
 #if defined(CONFIG_DYNAMIC_DEBUG)
 /*
  * If dynamic debug is enabled, use pr_debug.
- * TODO: Convert pr_debug to relevant debug levels
  */
 #define nss_ppenl_warn(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define nss_ppenl_info(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)

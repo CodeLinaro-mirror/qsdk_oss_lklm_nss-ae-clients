@@ -379,6 +379,8 @@ ppe_vp_num_t ppe_ds_wlan_vp_alloc(ppe_ds_wlan_handle_t *wlan_handle, struct net_
 	ppe_ds_info("%px: PPE-DS node mapped start queue-id: %d", node, ppe_queue_start);
 
 	vpai->queue_num = ppe_queue_start;
+	vpai->xmit_port = PPE_DRV_PORT_CPU;
+
 	return ppe_vp_alloc(dev, vpai);
 }
 EXPORT_SYMBOL(ppe_ds_wlan_vp_alloc);

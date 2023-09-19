@@ -695,6 +695,7 @@ struct net_device *nss_dtlsmgr_session_create(struct nss_dtlsmgr_config *cfg)
 	memset(&vpai, 0, sizeof(struct ppe_vp_ai));
 	vpai.type = PPE_VP_TYPE_SW_PO;
 	vpai.queue_num = edma_cfg_rx_point_offload_ring_queue_get();
+	vpai.xmit_port = PPE_DRV_PORT_CPU;
 
 	/*
 	 * Allocate a PPE VP

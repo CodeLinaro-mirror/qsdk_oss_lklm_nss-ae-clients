@@ -783,6 +783,13 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	vpai.dst_cb_data = NULL;
 	vpai.src_cb_data = NULL;
 	vpai.stats_cb = ppe_tun_stats;
+
+	/*
+	 * For Tunnel VP the xmit port is determined during outer rule push. hence
+	 * setting it as invalid
+	 */
+	vpai.xmit_port = PPE_DRV_PORT_ID_INVALID;
+
 	vp_num = ppe_vp_alloc(dev, &vpai);
 	if (vp_num == -1) {
 		ppe_tun_warn("%p: vp alloc failed for dev %s", ptp, dev->name);

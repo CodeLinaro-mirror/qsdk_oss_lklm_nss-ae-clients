@@ -744,6 +744,8 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	 */
 	ppe_drv_stats_debugfs_init();
 
+	ppe_drv_flow_dump_init(p->dentry);
+
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
 
 fail:
@@ -857,6 +859,8 @@ fail:
 		ppe_drv_tun_encap_hdr_ctrl_free(p->ecap_hdr_ctrl);
 		p->ecap_hdr_ctrl = NULL;
 	}
+
+	ppe_drv_flow_dump_exit();
 
 	return -1;
 }
@@ -986,6 +990,8 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		ppe_drv_tun_encap_hdr_ctrl_free(p->ecap_hdr_ctrl);
 		p->ecap_hdr_ctrl = NULL;
 	}
+
+	ppe_drv_flow_dump_exit();
 
 	return 0;
 }

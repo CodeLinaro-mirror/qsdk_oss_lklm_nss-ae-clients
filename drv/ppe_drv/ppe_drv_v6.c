@@ -427,6 +427,12 @@ ppe_drv_ret_t ppe_drv_v6_rfs_conn_fill(struct ppe_drv_v6_rule_create *create,  s
 	ppe_drv_v6_conn_flow_match_dest_ident_set(pcf, tuple->return_ident);
 
 	/*
+	 * Host order IP addr.
+	 */
+	ppe_drv_v6_conn_flow_dump_match_src_ip_set(pcf, pcf->match_src_ip);
+	ppe_drv_v6_conn_flow_dump_match_dest_ip_set(pcf, pcf->match_dest_ip);
+
+	/*
 	 * Flow MTU and transmit MAC address.
 	 */
 	ppe_drv_v6_conn_flow_xmit_interface_mtu_set(pcf, conn->flow_mtu);
@@ -459,6 +465,12 @@ ppe_drv_ret_t ppe_drv_v6_priority_conn_fill(struct ppe_drv_v6_rule_create *creat
 	ppe_drv_v6_conn_flow_match_src_ident_set(pcf, tuple->flow_ident);
 	ppe_drv_v6_conn_flow_match_dest_ip_set(pcf, tuple->return_ip);
 	ppe_drv_v6_conn_flow_match_dest_ident_set(pcf, tuple->return_ident);
+
+	/*
+	 * Host order IP addr.
+	 */
+	ppe_drv_v6_conn_flow_dump_match_src_ip_set(pcf, pcf->match_src_ip);
+	ppe_drv_v6_conn_flow_dump_match_dest_ip_set(pcf, pcf->match_dest_ip);
 
 	/*
 	 * Set flow MTU.
@@ -673,6 +685,12 @@ ppe_drv_ret_t ppe_drv_v6_policer_conn_fill(struct ppe_drv_v6_rule_create *create
 		ppe_drv_v6_conn_flow_match_dest_ident_set(pcf, tuple->return_ident);
 
 		/*
+		 * Host order IP addr.
+		 */
+		ppe_drv_v6_conn_flow_dump_match_src_ip_set(pcf, pcf->match_src_ip);
+		ppe_drv_v6_conn_flow_dump_match_dest_ip_set(pcf, pcf->match_dest_ip);
+
+		/*
 		 * Flow MTU and transmit MAC address.
 		 */
 		ppe_drv_v6_conn_flow_xmit_interface_mtu_set(pcf, conn->return_mtu);
@@ -701,6 +719,8 @@ ppe_drv_ret_t ppe_drv_v6_policer_conn_fill(struct ppe_drv_v6_rule_create *create
 		ppe_drv_v6_conn_flow_match_dest_ip_set(pcr, tuple->flow_ip);
 		ppe_drv_v6_conn_flow_match_dest_ident_set(pcr, tuple->flow_ident);
 
+		ppe_drv_v6_conn_flow_dump_match_src_ip_set(pcr, pcr->match_src_ip);
+		ppe_drv_v6_conn_flow_dump_match_dest_ip_set(pcr, pcr->match_dest_ip);
 		/*
 		 * Flow MTU and transmit MAC address.
 		 */
@@ -827,6 +847,12 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 		ppe_drv_v6_conn_flow_match_src_ident_set(pcf, tuple->flow_ident);
 		ppe_drv_v6_conn_flow_match_dest_ip_set(pcf, tuple->return_ip);
 		ppe_drv_v6_conn_flow_match_dest_ident_set(pcf, tuple->return_ident);
+
+		/*
+		 * Host order IP addr.
+		 */
+		ppe_drv_v6_conn_flow_dump_match_src_ip_set(pcf, pcf->match_src_ip);
+		ppe_drv_v6_conn_flow_dump_match_dest_ip_set(pcf, pcf->match_dest_ip);
 
 		/*
 		 * Flow MTU and transmit MAC address.
@@ -962,6 +988,8 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 		ppe_drv_v6_conn_flow_match_dest_ip_set(pcr, tuple->flow_ip);
 		ppe_drv_v6_conn_flow_match_dest_ident_set(pcr, tuple->flow_ident);
 
+		ppe_drv_v6_conn_flow_dump_match_src_ip_set(pcr, pcr->match_src_ip);
+		ppe_drv_v6_conn_flow_dump_match_dest_ip_set(pcr, pcr->match_dest_ip);
 		/*
 		 * Flow MTU and transmit MAC address.
 		 */

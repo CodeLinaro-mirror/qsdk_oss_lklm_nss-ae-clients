@@ -61,6 +61,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 	 */
 	if (likely(rxi->dvp >= PPE_DRV_VIRTUAL_START)) {
 		struct ppe_vp_rx_stats *rx_stats;
+		struct net_device *dev;
 
 		rcu_read_lock();
 		dvp = rcu_dereference(vpa[PPE_VP_BASE_PORT_TO_IDX(rxi->dvp)]);
@@ -75,6 +76,25 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			return;
 		}
 
+		dev = dvp->netdev;
+
+		rx_stats = this_cpu_ptr(dvp->vp_stats.rx_stats);
+
+		/*
+		 * Make sure device is UP before handling the packets.
+		 */
+		if (unlikely(!(dev->flags & IFF_UP))) {
+			rcu_read_unlock();
+
+			u64_stats_update_begin(&rx_stats->syncp);
+			rx_stats->rx_dev_not_up++;
+			u64_stats_update_end(&rx_stats->syncp);
+
+			dev_kfree_skb_any(skb);
+
+			return;
+		}
+
 		/*
 		 * Pull any fake MAC added by PPE for L3 interfaces.
 		 */
@@ -83,7 +103,6 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			if (unlikely(!pskb_may_pull(skb, (sizeof(struct ethhdr))))) {
 				rcu_read_unlock();
 
-				rx_stats = this_cpu_ptr(dvp->vp_stats.rx_stats);
 				u64_stats_update_begin(&rx_stats->syncp);
 				rx_stats->rx_drops++;
 				u64_stats_update_end(&rx_stats->syncp);
@@ -106,9 +125,8 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			}
 		}
 
-		skb->dev = dvp->netdev;
+		skb->dev = dev;
 
-		rx_stats = this_cpu_ptr(dvp->vp_stats.rx_stats);
 		u64_stats_update_begin(&rx_stats->syncp);
 		rx_stats->rx_pkts++;
 		rx_stats->rx_bytes +=skb->len;
@@ -123,7 +141,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 		 * If it can be, try forwarding through fast_xmit.
 		 */
 		if (likely(dvp->flags & PPE_VP_FLAG_VP_FAST_XMIT)) {
-			if (unlikely(!dev_fast_xmit_vp(skb, dvp->netdev))) {
+			if (unlikely(!dev_fast_xmit_vp(skb, dev))) {
 				atomic64_inc(&vp_base.base_stats.rx_fastxmit_fails);
 				dev_queue_xmit(skb);
 			}
@@ -136,9 +154,9 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 		 * Destination VP user would consume the skb.
 		 */
 		if (unlikely(dvp->dst_cb)) {
-			if (unlikely(!dvp->dst_cb(dvp->netdev, skb, dvp->dst_cb_data))) {
+			if (unlikely(!dvp->dst_cb(dev, skb, dvp->dst_cb_data))) {
 				ppe_vp_info("%px: Destination VP:%d  Tx dev:%s skb:%p \
-						dropped by user\n", dvp, rxi->dvp, dvp->netdev->name, skb);
+						dropped by user\n", dvp, rxi->dvp, dev->name, skb);
 			}
 		} else {
 			/*
@@ -170,6 +188,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 	 */
 	if (rxi->svp >= PPE_DRV_VIRTUAL_START) {
 		struct ppe_vp_rx_stats *rx_stats;
+		struct net_device *dev;
 
 		rcu_read_lock();
 		svp = rcu_dereference(vpa[PPE_VP_BASE_PORT_TO_IDX(rxi->svp)]);
@@ -184,10 +203,13 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			return;
 		}
 
+		dev = svp->netdev;
+
 		rx_stats = this_cpu_ptr(svp->vp_stats.rx_stats);
+
 		if (svp->vp_type == PPE_VP_TYPE_SW_L3) {
 			struct ethhdr *ethh;
-			ppe_vp_trace("%px: Rx VP#%d, Rx dev:%p with name: %s: L3 VP \n", svp, rxi->svp, svp->netdev, svp->netdev->name);
+			ppe_vp_trace("%px: Rx VP#%d, Rx dev:%p with name: %s: L3 VP \n", svp, rxi->svp, dev, dev->name);
 
 			if (unlikely(!pskb_may_pull(skb, (sizeof(struct ethhdr))))) {
 				rcu_read_unlock();
@@ -212,15 +234,15 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 		u64_stats_update_end(&rx_stats->syncp);
 
 		skb_reset_mac_header(skb);
-		skb->dev = svp->netdev;
+		skb->dev = dev;
 		skb->skb_iif = svp->netdev_if_num;
 
 		/*
 		 * If not processed successfully VP receive handler would free the skb
 		 */
-		if (unlikely(!svp->src_cb(svp->netdev, skb, svp->src_cb_data))) {
+		if (unlikely(!svp->src_cb(dev, skb, svp->src_cb_data))) {
 			rcu_read_unlock();
-			ppe_vp_info("%px: Rx VP:%d Rx dev:%s skb:%p dropped by user\n", svp, rxi->svp, svp->netdev->name, skb);
+			ppe_vp_info("%px: Rx VP:%d Rx dev:%s skb:%p dropped by user\n", svp, rxi->svp, dev->name, skb);
 			return;
 		}
 

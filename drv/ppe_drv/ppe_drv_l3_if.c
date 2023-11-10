@@ -21,6 +21,8 @@
 #include <fal/fal_api.h>
 #include "ppe_drv.h"
 
+#include <linux/etherdevice.h>
+
 #if (PPE_DRV_DEBUG_LEVEL == 3)
 /*
  * ppe_drv_l3_if_dump()
@@ -163,7 +165,7 @@ static bool ppe_drv_l3_if_ig_mac_addr_set(struct ppe_drv_l3_if *l3_if, uint8_t *
 	}
 
 	l3_if->is_ig_mac_set = true;
-	memcpy(l3_if->ig_mac_addr, mac_addr, ETH_ALEN);
+	ether_addr_copy(l3_if->ig_mac_addr, mac_addr);
 	ppe_drv_trace("%p: setting mac addr(%pM) to l3_if %u", l3_if, mac_addr, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -179,6 +181,7 @@ static bool ppe_drv_l3_if_ig_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	fal_intf_macaddr_t mac_cfg = {0};
 
 	mac_cfg.direction = FAL_IP_INGRESS;
+	memcpy(&mac_cfg.mac_addr, l3_if->ig_mac_addr, sizeof(mac_cfg.mac_addr));
 	err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -186,7 +189,7 @@ static bool ppe_drv_l3_if_ig_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	}
 
 	l3_if->is_ig_mac_set = false;
-	memset(l3_if->ig_mac_addr, 0, ETH_ALEN);
+	eth_zero_addr(l3_if->ig_mac_addr);
 	ppe_drv_trace("%p: clearing mac addr of l3_if %u", l3_if, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -256,7 +259,7 @@ bool ppe_drv_l3_if_eg_mac_addr_set(struct ppe_drv_l3_if *l3_if, const uint8_t *m
 	}
 
 	l3_if->is_eg_mac_set = true;
-	memcpy(l3_if->eg_mac_addr, mac_addr, ETH_ALEN);
+	ether_addr_copy(l3_if->eg_mac_addr, mac_addr);
 	ppe_drv_trace("%p: setting mac addr(%pM) to l3_if %u", l3_if, mac_addr, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -272,6 +275,7 @@ bool ppe_drv_l3_if_eg_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	fal_intf_macaddr_t mac_cfg = {0};
 
 	mac_cfg.direction = FAL_IP_EGRESS;
+	memcpy(&mac_cfg.mac_addr, l3_if->eg_mac_addr, sizeof(mac_cfg.mac_addr));
 	err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -279,7 +283,7 @@ bool ppe_drv_l3_if_eg_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	}
 
 	l3_if->is_eg_mac_set = false;
-	memset(l3_if->eg_mac_addr, 0, ETH_ALEN);
+	eth_zero_addr(l3_if->eg_mac_addr);
 	ppe_drv_trace("%p: clearing mac addr of l3_if %u", l3_if, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
 	return true;
@@ -300,6 +304,8 @@ bool ppe_drv_l3_if_mac_addr_set(struct ppe_drv_l3_if *l3_if, const uint8_t *mac_
 	 * mac address and reconfigure the new mac address
 	 */
 	if (l3_if->is_mac_set) {
+		mac_cfg.direction = FAL_IP_BOTH;
+		memcpy(&mac_cfg.mac_addr, l3_if->ig_mac_addr, sizeof(mac_cfg.mac_addr));
 		err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 		if (err != SW_OK) {
 			ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -318,8 +324,8 @@ bool ppe_drv_l3_if_mac_addr_set(struct ppe_drv_l3_if *l3_if, const uint8_t *mac_
 	l3_if->is_mac_set = true;
 	l3_if->is_ig_mac_set = true;
 	l3_if->is_eg_mac_set = true;
-	memcpy(l3_if->ig_mac_addr, mac_addr, ETH_ALEN);
-	memcpy(l3_if->eg_mac_addr, mac_addr, ETH_ALEN);
+	ether_addr_copy(l3_if->ig_mac_addr, mac_addr);
+	ether_addr_copy(l3_if->eg_mac_addr, mac_addr);
 
 	ppe_drv_trace("%p: setting mac addr(%pM) to l3_if %u", l3_if, mac_addr, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);
@@ -344,6 +350,7 @@ bool ppe_drv_l3_if_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	}
 
 	mac_cfg.direction = FAL_IP_BOTH;
+	memcpy(&mac_cfg.mac_addr, l3_if->ig_mac_addr, sizeof(mac_cfg.mac_addr));
 	err = fal_ip_intf_macaddr_del(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &mac_cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in clearing mac addr for l3_if %u", l3_if, l3_if->l3_if_index);
@@ -353,8 +360,8 @@ bool ppe_drv_l3_if_mac_addr_clear(struct ppe_drv_l3_if *l3_if)
 	l3_if->is_mac_set = false;
 	l3_if->is_ig_mac_set = false;
 	l3_if->is_eg_mac_set = false;
-	memset(l3_if->ig_mac_addr, 0, ETH_ALEN);
-	memset(l3_if->eg_mac_addr, 0, ETH_ALEN);
+	eth_zero_addr(l3_if->ig_mac_addr);
+	eth_zero_addr(l3_if->eg_mac_addr);
 
 	ppe_drv_trace("%p: clearing mac addr of l3_if %u", l3_if, l3_if->l3_if_index);
 	ppe_drv_l3_if_dump(l3_if);

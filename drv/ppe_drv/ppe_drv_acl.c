@@ -611,8 +611,17 @@ static bool ppe_drv_acl_rule_fill(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_ac
 					ctx, fal_rule->l3_length, fal_rule->l3_length_mask);
 			}
 
-			ctx->rule_type_valid = true;
-			fal_rule->rule_type = FAL_ACL_RULE_IP4;
+			/*
+			 * If rule type is already set due to multiple valid slices,
+			 * do not overwrite the rule_type.
+			 */
+			if (!ctx->rule_type_valid) {
+				ctx->rule_type_valid = true;
+				fal_rule->rule_type = FAL_ACL_RULE_IP4;
+			} else if (fal_rule->rule_type != FAL_ACL_RULE_IP6) {
+				fal_rule->rule_type = FAL_ACL_RULE_IP4;
+			}
+
 			break;
 
 		case PPE_DRV_ACL_SLICE_TYPE_UDF_012:

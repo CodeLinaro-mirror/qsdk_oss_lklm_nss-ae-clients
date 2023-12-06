@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -114,6 +114,7 @@ struct ppe_drv_comm_stats {
 
 	atomic64_t v4_create_fail_vlan_filter;		/* No of v4 create failure due to interface not in bridge */
 	atomic64_t v4_create_fail_bridge_noexist;	/* No of v4 create failure due to bridge interface not created */
+	atomic64_t v4_stats_conn_not_found;		/* No of v4 stats sync failure due to connection not found */
 
 	atomic64_t v4_create_rfs_req;           /* No of v4 RFS create requests */
 	atomic64_t v4_create_rfs_fail;          /* No of v4 RFS create failure */
@@ -184,6 +185,7 @@ struct ppe_drv_comm_stats {
 
 	atomic64_t v6_create_fail_vlan_filter;		/* No of v6 create failure due to interface not in bridge */
 	atomic64_t v6_create_fail_bridge_noexist;	/* No of v6 create failure due to bridge interface not created */
+	atomic64_t v6_stats_conn_not_found;		/* No of v6 stats sync failure due to connection not found */
 
 	atomic64_t v6_create_rfs_req;           /* No of v6 RFS create requests */
 	atomic64_t v6_create_rfs_fail;          /* No of v6 RFS create failure */

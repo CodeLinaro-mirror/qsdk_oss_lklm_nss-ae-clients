@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -140,6 +140,15 @@ struct ppe_drv_v4_conn_sync {
 };
 
 /*
+ * ppe_drv_v4_flow_conn_stats
+ *	PPE connection stats for a single connection
+ */
+struct ppe_drv_v4_flow_conn_stats {
+        struct ppe_drv_v4_5tuple tuple;			/**< Holds value of 5 tuple. */
+        struct ppe_drv_v4_conn_sync conn_sync;		/**< Connection stats. */
+};
+
+/*
  * ppe_drv_v4_conn_sync_many
  *	PPE connection sync many structure.
  */
@@ -190,6 +199,17 @@ bool ppe_drv_v4_stats_callback_register(ppe_drv_v4_sync_callback_t cb, void *app
  * void
  */
 void ppe_drv_v4_conn_sync_many(struct ppe_drv_v4_conn_sync_many *cn_syn, uint8_t num_conn);
+
+/**
+ * ppe_drv_v4_conn_stats_get
+ *	API to get a single connection stats.
+ *
+ * @param[in] conn_stats     Pointer to the connection stats structure.
+ *
+ * @return
+ * Status of the stats sync.
+ */
+ppe_drv_ret_t ppe_drv_v4_conn_stats_get(struct ppe_drv_v4_flow_conn_stats *conn_stats);
 
 /**
  * ppe_drv_v4_policer_create

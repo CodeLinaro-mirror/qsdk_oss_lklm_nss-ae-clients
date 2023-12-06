@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1875,6 +1875,50 @@ void ppe_drv_v4_conn_sync_one(struct ppe_drv_v4_conn *cn, struct ppe_drv_v4_conn
 		cns->return_tx_byte_count = 0;
 	}
 }
+
+/*
+ * ppe_drv_v4_conn_stats_get()
+ *	Sync stats for a given five tuple connection.
+ */
+ppe_drv_ret_t ppe_drv_v4_conn_stats_get(struct ppe_drv_v4_flow_conn_stats *conn_stats)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_flow *flow = NULL;
+	struct ppe_drv_v4_conn *cn;
+	struct ppe_drv_v4_conn_flow *pcf;
+	struct ppe_drv_comm_stats *stats;
+
+	stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
+
+	/*
+         * Get flow table entry.
+         */
+	spin_lock_bh(&p->lock);
+	flow = ppe_drv_flow_v4_get(&conn_stats->tuple);
+	if (!flow) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_stats_inc(&stats->v4_stats_conn_not_found);
+		ppe_drv_warn("%p: flow entry not found", p);
+		return PPE_DRV_RET_FAILURE_NO_MATCHING_CONN;
+	}
+
+	pcf = flow->pcf.v4;
+
+	/*
+         * Get connection.
+         */
+	cn = ppe_drv_v4_conn_flow_conn_get(pcf);
+
+	/*
+         * Get stats of this connection.
+         */
+	ppe_drv_v4_conn_sync_one(cn, &conn_stats->conn_sync, PPE_DRV_STATS_SYNC_REASON_STATS);
+
+	spin_unlock_bh(&p->lock);
+
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_v4_conn_stats_get);
 
 /*
  * ppe_drv_v4_conn_sync_many()

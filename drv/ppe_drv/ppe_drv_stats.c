@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -129,6 +129,7 @@ static const char * const ppe_drv_comm_stats_flow_conn_str[] = {
 
 	"v4_create_fail_vlan_filter",		/* No of v4 create failure due to interface not in bridge */
 	"v4_create_fail_bridge_noexist",	/* No of v4 create failure due to bridge interface not created */
+	"v4_stats_conn_not_found",		/* No of v4 stats sync failure due to connection not found */
 
 	"v4_create_rfs_req",                    /* No of v4 RFS create requests */
 	"v4_create_rfs_fail",                   /* No of v4 RFS create failure */
@@ -199,6 +200,7 @@ static const char * const ppe_drv_comm_stats_flow_conn_str[] = {
 
 	"v6_create_fail_vlan_filter",		/* No of v6 create failure due to interface not in bridge */
 	"v6_create_fail_bridge_noexist",	/* No of v6 create failure due to bridge interface not created */
+	"v6_stats_conn_not_found",		/* No of v6 stats sync failure due to connection not found */
 
 	"v6_create_rfs_req",                    /* No of v6 RFS create requests */
 	"v6_create_rfs_fail",                   /* No of v6 RFS create failure */
@@ -278,6 +280,7 @@ static const char * const ppe_drv_comm_stats_tun_conn_str[] = {
 
 	"v4_tun_create_fail_vlan_filter",	/* No of v4 create failure due to interface not in bridge */
 	"v4_tun_create_fail_bridge_noexist",	/* No of v4 create failure due to bridge interface not created */
+	"v4_tun_stats_conn_not_found",          /* No of v4 stats sync failure due to connection not found */
 
 	"v4_tun_create_rfs_req",                        /* No of v4 RFS create requests */
 	"v4_tun_create_rfs_fail",                       /* No of v4 RFS create failure */
@@ -349,6 +352,7 @@ static const char * const ppe_drv_comm_stats_tun_conn_str[] = {
 
 	"v6_tun_create_fail_vlan_filter",	/* No of v6 create failure due to interface not in bridge */
 	"v6_tun_create_fail_bridge_noexist",	/* No of v6 create failure due to bridge interface not created */
+	"v6_tun_stats_conn_not_found",		/* No of v6 stats sync failure due to connection not found */
 
 	"v6_tun_create_rfs_req",                        /* No of v6 RFS create requests */
 	"v6_tun_create_rfs_fail",                       /* No of v6 RFS create failure */

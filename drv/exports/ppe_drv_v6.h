@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -155,6 +155,15 @@ struct ppe_drv_v6_conn_sync {
 };
 
 /*
+ * ppe_drv_v6_get_conn_stats
+ *	PPE connection stats for a single connection
+ */
+struct ppe_drv_v6_get_conn_stats {
+	struct ppe_drv_v6_5tuple tuple;			/**< Holds value of 5 tuple. */
+	struct ppe_drv_v6_conn_sync conn_sync;		/**< Connection stats */
+};
+
+/*
  * ppe_drv_v6_conn_sync_many
  *	PPE connection sync many structure.
  */
@@ -193,6 +202,17 @@ void ppe_drv_v6_stats_callback_unregister(void);
  * Status of the register operation.
  */
 bool ppe_drv_v6_stats_callback_register(ppe_drv_v6_sync_callback_t cb, void *app_data);
+
+/**
+ * ppe_drv_v6_conn_stats_get
+ *	API to get a single connection stats.
+ *
+ * @param[in] conn_stats	Pointer to the connection stats structure.
+ *
+ * @return
+ * Status of the stats sync.
+ */
+ppe_drv_ret_t ppe_drv_v6_conn_stats_get(struct ppe_drv_v6_get_conn_stats *conn_stats);
 
 /**
  * ppe_drv_v6_conn_sync_many

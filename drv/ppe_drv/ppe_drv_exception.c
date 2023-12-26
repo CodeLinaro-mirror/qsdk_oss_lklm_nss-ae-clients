@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -305,7 +305,7 @@ void ppe_drv_exception_init(void)
 		 */
 		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_ONLY)
 				== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_ONLY) {
-			except_ctrl.l2fwd_only_en = true;
+			except_ctrl.l2fwd_only_en = A_TRUE;
 			except_ctrl.l2flow_type = FAL_FLOW_AWARE;
 		}
 
@@ -314,7 +314,7 @@ void ppe_drv_exception_init(void)
 		 */
 		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_ONLY)
 				== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_ONLY) {
-			except_ctrl.l3route_only_en = true;
+			except_ctrl.l3route_only_en = A_TRUE;
 			except_ctrl.l3flow_type = FAL_FLOW_AWARE;
 		}
 
@@ -323,7 +323,7 @@ void ppe_drv_exception_init(void)
 		 */
 		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW)
 				== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW) {
-			except_ctrl.l2flow_en = true;
+			except_ctrl.l2flow_en = A_TRUE;
 			except_ctrl.l2flow_type = FAL_FLOW_AWARE;
 		}
 
@@ -332,7 +332,7 @@ void ppe_drv_exception_init(void)
 		 */
 		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW)
 				== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW) {
-			except_ctrl.l3flow_en = true;
+			except_ctrl.l3flow_en = A_TRUE;
 			except_ctrl.l3flow_type = FAL_FLOW_AWARE;
 		}
 
@@ -341,7 +341,7 @@ void ppe_drv_exception_init(void)
 		 */
 		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_MULTICAST)
 				== PPE_DRV_EXCEPTION_FLOW_TYPE_MULTICAST) {
-			except_ctrl.multicast_en = true;
+			except_ctrl.multicast_en = A_TRUE;
 			except_ctrl.l2flow_type = FAL_FLOW_AWARE;
 		}
 
@@ -350,7 +350,7 @@ void ppe_drv_exception_init(void)
 		 */
 		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT)
 				== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT) {
-			except_ctrl.l2flow_en = true;
+			except_ctrl.l2flow_en = A_TRUE;
 			except_ctrl.l2flow_type = FAL_FLOW_HIT;
 		}
 
@@ -359,7 +359,7 @@ void ppe_drv_exception_init(void)
 		 */
 		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT)
 				== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT) {
-			except_ctrl.l3flow_en = true;
+			except_ctrl.l3flow_en = A_TRUE;
 			except_ctrl.l3flow_type = FAL_FLOW_HIT;
 		}
 

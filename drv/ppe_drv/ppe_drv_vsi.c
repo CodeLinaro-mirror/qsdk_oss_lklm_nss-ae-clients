@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -133,7 +133,7 @@ void ppe_drv_vsi_l3_if_detach(struct ppe_drv_vsi *vsi)
 
 	ppe_drv_trace("%p: detaching l3_if %u from vsi %u", vsi, vsi->l3_if->l3_if_index, vsi->index);
 
-	cfg.l3_if_valid = false;
+	cfg.l3_if_valid = A_FALSE;
 	err = fal_ip_vsi_intf_set(PPE_DRV_SWITCH_ID, vsi->index, &cfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Error in detaching l3_if %u from vsi %u", vsi, vsi->l3_if->l3_if_index, vsi->index);
@@ -170,7 +170,7 @@ void ppe_drv_vsi_l3_if_attach(struct ppe_drv_vsi *vsi, struct ppe_drv_l3_if *l3_
 	 */
 	ppe_drv_trace("%p: attaching l3_if %u to vsi %u", vsi, l3_if->l3_if_index, vsi->index);
 
-	cfg.l3_if_valid = true;
+	cfg.l3_if_valid =  A_TRUE;
 	cfg.l3_if_index = l3_if->l3_if_index;
 
 	err = fal_ip_vsi_intf_set(PPE_DRV_SWITCH_ID, vsi->index, &cfg);
@@ -382,9 +382,9 @@ void ppe_drv_vsi_mc_enable(struct ppe_drv_vsi *vsi)
 	 */
 	ppe_drv_trace("%p: Enabling mc on vsi %u l3_if %u", vsi, vsi->index, vsi->l3_if->l3_if_index);
 
-	cfg.l2_ipv4_mc_en = true;
+	cfg.l2_ipv4_mc_en =  A_TRUE;
 	cfg.l2_ipv4_mc_mode = FAL_MC_MODE_SGV;
-	cfg.l2_ipv6_mc_en = true;
+	cfg.l2_ipv6_mc_en =  A_TRUE;
 	cfg.l2_ipv6_mc_mode = FAL_MC_MODE_SGV;
 
 	if (fal_ip_vsi_mc_mode_set(PPE_DRV_SWITCH_ID, vsi->index, &cfg) != SW_OK) {

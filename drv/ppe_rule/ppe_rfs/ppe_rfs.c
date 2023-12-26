@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -198,7 +198,7 @@ enum ppe_rfs_ret ppe_rfs_ipv6_rule_create(struct ppe_rfs_ipv6_rule_create_msg *c
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		ppe_rfs_warn("%p: Error in pushing Passive PPE RFS rules\n", create_ipv6);
 		ppe_rfs_stats_inc(&p->stats.v6_create_ppe_rule_fail);
-		return ret;
+		return PPE_RFS_RET_FAILURE;
 	}
 
 	return PPE_RFS_RET_SUCCESS;
@@ -390,7 +390,7 @@ enum ppe_rfs_ret ppe_rfs_ipv4_rule_create(struct ppe_rfs_ipv4_rule_create_msg *c
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		ppe_rfs_warn("%p: Error in pushing Passive PPE RFS rules\n", create_ipv4);
 		ppe_rfs_stats_inc(&p->stats.v4_create_ppe_rule_fail);
-		return ret;
+		return PPE_RFS_RET_FAILURE;
 	}
 
 	return PPE_RFS_RET_SUCCESS;

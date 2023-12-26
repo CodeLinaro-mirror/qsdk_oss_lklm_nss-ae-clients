@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -562,14 +562,14 @@ struct ppe_drv_l3_if *ppe_drv_l3_if_alloc(enum ppe_drv_l3_if_type type)
 	/*
 	 * Set basic provisioning bits for L3 IF.
 	 */
-	in_l3_if_cfg.ttl_dec_bypass_en = false;
-	in_l3_if_cfg.ipv4_uc_route_en = true;
-	in_l3_if_cfg.ipv6_uc_route_en = true;
-	in_l3_if_cfg.ttl_exceed_deacclr_en = true;
-	in_l3_if_cfg.icmp_trigger_en = false;
+	in_l3_if_cfg.ttl_dec_bypass_en = A_FALSE;
+	in_l3_if_cfg.ipv4_uc_route_en = A_TRUE;
+	in_l3_if_cfg.ipv6_uc_route_en = A_TRUE;
+	in_l3_if_cfg.ttl_exceed_deacclr_en = A_TRUE;
+	in_l3_if_cfg.icmp_trigger_en = A_FALSE;
 	in_l3_if_cfg.ttl_exceed_action = FAL_MAC_RDT_TO_CPU;
 	in_l3_if_cfg.mac_addr_bitmap = 0;
-	in_l3_if_cfg.dmac_check_en = true;
+	in_l3_if_cfg.dmac_check_en = A_TRUE;
 	in_l3_if_cfg.udp_zero_csum_action = FAL_UDP_ZERO_CSUM_RECALC_MAPT;
 	in_l3_if_cfg.vpn_id = 0;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -52,7 +52,7 @@ bool ppe_drv_vlan_del_untag_ingress_rule(struct ppe_drv_port *port, struct ppe_d
 	/*
 	 * Fields for action
 	 */
-	xlt_action.src_info_enable = true;
+	xlt_action.src_info_enable = A_TRUE;
 	xlt_action.src_info_type = 1;
 	xlt_action.src_info = src_l3_if->l3_if_index;
 
@@ -93,7 +93,7 @@ bool ppe_drv_vlan_add_untag_ingress_rule(struct ppe_drv_port *port, struct ppe_d
 	/*
 	 * Fields for action
 	 */
-	xlt_action.src_info_enable = true;
+	xlt_action.src_info_enable = A_TRUE;
 	xlt_action.src_info_type = 1;
 	xlt_action.src_info = src_l3_if->l3_if_index;
 
@@ -181,7 +181,7 @@ void ppe_drv_vlan_ingress_rule_action_set_vp(fal_vlan_trans_adv_rule_t *xlt_rule
 	xlt_rule->c_tagged = (FAL_PORT_VLAN_XLT_MATCH_UNTAGGED | FAL_PORT_VLAN_XLT_MATCH_TAGGED
 			| FAL_PORT_VLAN_XLT_MATCH_PRIO_TAG);
 	xlt_rule->c_vid = info->cvid;
-	xlt_rule->c_vid_enable = (info->cvid == 0xFFFF) ? false : true;
+	xlt_rule->c_vid_enable = (info->cvid == 0xFFFF) ? A_FALSE : A_TRUE;
 
 	/*
 	 * field for ingress action.
@@ -190,7 +190,7 @@ void ppe_drv_vlan_ingress_rule_action_set_vp(fal_vlan_trans_adv_rule_t *xlt_rule
 	xlt_action->cvid_xlt = (info->cvid == 0xFFFF) ? 0 : info->cvid;
 	xlt_action->svid_xlt_cmd = (info->svid == 0xFFFF) ? 0 : FAL_VID_XLT_CMD_DELETE;
 	xlt_action->svid_xlt = (info->svid == 0xFFFF) ? 0 : info->svid;
-	xlt_action->src_info_enable = true;
+	xlt_action->src_info_enable = A_TRUE;
 	xlt_action->src_info = info->port_id;
 	xlt_action->src_info_type = FAL_CHG_SRC_TYPE_VP;
 }
@@ -451,8 +451,8 @@ ppe_drv_ret_t ppe_drv_vlan_del_xlate_rule(struct ppe_drv_iface *iface, struct pp
 	/*
 	 * Fields for match
 	 */
-	xlt_rule.vsi_valid = true;				/* Use vsi as search key */
-	xlt_rule.vsi_enable = true;				/* Use vsi as search key */
+	xlt_rule.vsi_valid = A_TRUE;				/* Use vsi as search key */
+	xlt_rule.vsi_enable = A_TRUE;				/* Use vsi as search key */
 	xlt_rule.vsi = vsi_idx;					/* Use vsi as search key */
 	xlt_rule.s_tagged = 0x7;				/* Accept tagged/untagged/priority tagged svlan */
 	xlt_rule.c_tagged = 0x7;				/* Accept tagged/untagged/priority tagged cvlan */
@@ -536,8 +536,8 @@ ppe_drv_ret_t ppe_drv_vlan_add_xlate_rule(struct ppe_drv_iface *iface, struct pp
 	/*
 	 * Fields for match
 	 */
-	xlt_rule.vsi_valid = true;				/* Use vsi as search key */
-	xlt_rule.vsi_enable = true;				/* Use vsi as search key */
+	xlt_rule.vsi_valid = A_TRUE;				/* Use vsi as search key */
+	xlt_rule.vsi_enable = A_TRUE;				/* Use vsi as search key */
 	xlt_rule.vsi = vsi_idx;					/* Use vsi as search key */
 	xlt_rule.s_tagged = 0x7;				/* Accept tagged/untagged/priority tagged svlan */
 	xlt_rule.c_tagged = 0x7;				/* Accept tagged/untagged/priority tagged cvlan */
@@ -614,20 +614,20 @@ ppe_drv_ret_t ppe_drv_vlan_over_bridge_del_ig_rule(struct ppe_drv_iface *slave_i
 	 */
 	if (vsi->vlan.outer_vlan == PPE_DRV_VLAN_HDR_VLAN_NOT_CONFIGURED) {
 		xlt_rule.s_tagged = FAL_PORT_VLAN_XLT_MATCH_UNTAGGED;
-		xlt_rule.s_vid_enable = false;
+		xlt_rule.s_vid_enable = A_FALSE;
 	} else {
 		xlt_rule.s_tagged = FAL_PORT_VLAN_XLT_MATCH_TAGGED;
-		xlt_rule.s_vid_enable = true;
+		xlt_rule.s_vid_enable = A_TRUE;
 		xlt_rule.s_vid = vsi->vlan.outer_vlan;
 	}
 	xlt_rule.c_tagged = FAL_PORT_VLAN_XLT_MATCH_TAGGED;
-	xlt_rule.c_vid_enable = true;
+	xlt_rule.c_vid_enable = A_TRUE;
 	xlt_rule.c_vid = vsi->vlan.inner_vlan;
 
 	/*
 	 * Field for action
 	 */
-	xlt_action.vsi_xlt_enable = true;
+	xlt_action.vsi_xlt_enable = A_TRUE;
 	xlt_action.vsi_xlt = vsi->index;
 
 	ret = fal_port_vlan_trans_adv_del(PPE_DRV_SWITCH_ID, fal_port, FAL_PORT_VLAN_INGRESS, &xlt_rule,
@@ -687,20 +687,20 @@ ppe_drv_ret_t ppe_drv_vlan_over_bridge_add_ig_rule(struct ppe_drv_iface *slave_i
 	 */
 	if (vsi->vlan.outer_vlan == PPE_DRV_VLAN_HDR_VLAN_NOT_CONFIGURED) {
 		xlt_rule.s_tagged = FAL_PORT_VLAN_XLT_MATCH_UNTAGGED;
-		xlt_rule.s_vid_enable = false;
+		xlt_rule.s_vid_enable = A_FALSE;
 	} else {
 		xlt_rule.s_tagged = FAL_PORT_VLAN_XLT_MATCH_TAGGED;
-		xlt_rule.s_vid_enable = true;
+		xlt_rule.s_vid_enable = A_TRUE;
 		xlt_rule.s_vid = vsi->vlan.outer_vlan;
 	}
 	xlt_rule.c_tagged = FAL_PORT_VLAN_XLT_MATCH_TAGGED;
-	xlt_rule.c_vid_enable = true;
+	xlt_rule.c_vid_enable = A_TRUE;
 	xlt_rule.c_vid = vsi->vlan.inner_vlan;
 
 	/*
 	 * Field for action
 	 */
-	xlt_action.vsi_xlt_enable = true;
+	xlt_action.vsi_xlt_enable = A_TRUE;
 	xlt_action.vsi_xlt = vsi->index;
 
 	ret = fal_port_vlan_trans_adv_add(PPE_DRV_SWITCH_ID, fal_port, FAL_PORT_VLAN_INGRESS, &xlt_rule,

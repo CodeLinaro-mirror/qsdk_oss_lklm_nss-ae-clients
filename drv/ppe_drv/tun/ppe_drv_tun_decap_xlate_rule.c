@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -160,8 +160,8 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 	 */
 	if (src_ipv6) {
 		m_decap_edit_rule.ip6_addr_src = FAL_TUNNEL_MAPT_FROM_SRC;
-		m_decap_edit_rule.ip6_proto_sel.enable = true;
-		m_decap_edit_rule.check_proto_enable = true;
+		m_decap_edit_rule.ip6_proto_sel.enable = A_TRUE;
+		m_decap_edit_rule.check_proto_enable =  A_TRUE;
 
 		switch (rule->ipv6_prefix_len) {
 		case 96:
@@ -176,7 +176,7 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 			m_decap_edit_rule.ip6_suffix_sel.src_width = 32;
 			m_decap_edit_rule.ip6_proto_sel.src_start = 64;
 			m_decap_edit_rule.ip6_proto_sel.src_width = 8;
-			m_decap_edit_rule.proto_sel.enable = true;
+			m_decap_edit_rule.proto_sel.enable = A_TRUE;
 			m_decap_edit_rule.proto_sel.src_start = 8;
 			m_decap_edit_rule.proto_src = FAL_TUNNEL_MAPT_FROM_SRC;
 			break;
@@ -234,14 +234,14 @@ bool ppe_drv_tun_decap_xlate_rule_configure(struct ppe_drv_tun_decap_xlate_rule 
 	m_decap_edit_rule.ip6_addr_src = FAL_TUNNEL_MAPT_FROM_DST;
 	m_decap_edit_rule.ip6_suffix_sel.src_start = start2_suffix;
 	m_decap_edit_rule.ip6_suffix_sel.src_width = p;
-	m_decap_edit_rule.ip6_suffix_sel.enable = true;
+	m_decap_edit_rule.ip6_suffix_sel.enable = A_TRUE;
 	m_decap_edit_rule.ip6_proto_sel.src_start = start2_psid;
 	m_decap_edit_rule.ip6_proto_sel.src_width = psid_len;
-	m_decap_edit_rule.ip6_proto_sel.enable = true;
-	m_decap_edit_rule.proto_sel.enable = true;
+	m_decap_edit_rule.ip6_proto_sel.enable = A_TRUE;
+	m_decap_edit_rule.proto_sel.enable = A_TRUE;
 	m_decap_edit_rule.proto_sel.src_start = start3_psid;
 	m_decap_edit_rule.proto_sel.src_width = psid_len;
-	m_decap_edit_rule.check_proto_enable = true;
+	m_decap_edit_rule.check_proto_enable = A_TRUE;
 	m_decap_edit_rule.proto_src = FAL_TUNNEL_MAPT_FROM_DST;
 
 	err = fal_mapt_decap_rule_entry_set(PPE_DRV_SWITCH_ID, ptdxrule->index, &m_decap_edit_rule);

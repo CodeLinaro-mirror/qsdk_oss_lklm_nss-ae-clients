@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -766,31 +766,13 @@ static struct ctl_table ppe_mirror_test_tbl[] = {
 	{ }
 };
 
-static struct ctl_table ppe_mirror_test_config[] = {
-	{
-		.procname       = "ppe_test",
-		.mode           = 0555,
-		.child          = ppe_mirror_test_tbl,
-	},
-	{ }
-};
-
-static struct ctl_table ppe_mirror_test_root_dir[] = {
-	{
-		.procname       = "ppe",
-		.mode           = 0555,
-		.child          = ppe_mirror_test_config,
-	},
-	{ }
-};
-
 /*
  * ppe_mirror_test_procfs_register()
  *	Register the procfs entry.
  */
 struct ctl_table_header *ppe_mirror_test_procfs_register(void)
 {
-	return register_sysctl_table(ppe_mirror_test_root_dir);
+	return register_sysctl("ppe/ppe_test", ppe_mirror_test_tbl);
 }
 
 /*

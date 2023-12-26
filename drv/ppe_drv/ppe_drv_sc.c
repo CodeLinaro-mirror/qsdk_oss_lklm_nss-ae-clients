@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -66,7 +66,7 @@ void ppe_drv_sc_ucast_queue_set(ppe_drv_sc_t sc, uint8_t queue_id, uint8_t profi
 	fal_ucast_queue_dest_t q_dst = {0};
 
 	q_dst.src_profile = PPE_DRV_PORT_SRC_PROFILE;
-	q_dst.service_code_en = true;
+	q_dst.service_code_en = A_TRUE;
 	q_dst.service_code = sc;
 
 	err = fal_ucast_queue_base_profile_set(PPE_DRV_SWITCH_ID, &q_dst, queue_id, profile_id);
@@ -91,7 +91,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 	sc_cfg.direction = PPE_DRV_SC_IN_L2_DIR_DST;
 	sc_cfg.dest_port_id = redir_port;
 	sc_cfg.next_service_code = next_sc;
-	sc_cfg.dest_port_valid = true;
+	sc_cfg.dest_port_valid = A_TRUE;
 
 	switch (sc) {
 	case PPE_DRV_SC_BYPASS_ALL:
@@ -100,7 +100,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 					| (1 << FAKE_L2_PROTO_BYP));
 
 		sc_cfg.bypass_bitmap[1] = ~(1 << ACL_POST_ROUTING_CHECK_BYP);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_ADV_QOS_BRIDGED:
@@ -127,7 +127,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * This is used as a tag while handling exception from PPE post EIP processing.
 		 */
 		sc_cfg.bypass_bitmap[0] = (1 << FLOW_SERVICE_CODE_BYP);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_VLAN_FILTER_BYPASS:
@@ -147,7 +147,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 						| (1 << SOURCE_FLTR_BYP)
 						| (1 << L2_SOURCE_SEC_BYP));
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_L3_EXCEPT:
@@ -160,7 +160,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * is typically 0 for non-QoS flows).
 		 */
 		sc_cfg.bypass_bitmap[0] = (1 << FLOW_SERVICE_CODE_BYP);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_SPF_BYPASS:
@@ -172,7 +172,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 						| (1 << SOURCE_FLTR_BYP)
 						| (1 << BRIDGING_FWD_BYP)
 						| (1 << L2_SOURCE_SEC_BYP));
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_NOEDIT_REDIR_CORE0:
@@ -257,7 +257,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 	case PPE_DRV_SC_L2_TUNNEL_EXCEPTION:
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
 		sc_cfg.bypass_bitmap[1] = (1 << BRIDGING_FWD_BYP);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case  PPE_DRV_SC_NOEDIT_PRIORITY_SET:
@@ -281,7 +281,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		/*
 		 * Enable ring selection based on int_pri value
 		 */
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	case PPE_DRV_SC_FLOW_ACL_FIRST ... PPE_DRV_SC_FLOW_ACL_LAST:
@@ -290,7 +290,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * Don't update service code in EDMA and there is no redirection needed with these SCs.
 		 */
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
-		sc_cfg.dest_port_valid = false;
+		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
 	default:

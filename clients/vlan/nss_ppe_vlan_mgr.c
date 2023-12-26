@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1662,30 +1662,6 @@ static struct ctl_table nss_vlan_table[] = {
 };
 
 /*
- * nss_vlan sysctl dir
- */
-static struct ctl_table nss_vlan_dir[] = {
-	{
-		.procname		= "vlan_client",
-		.mode			= 0555,
-		.child			= nss_vlan_table,
-	},
-	{ }
-};
-
-/*
- * nss_vlan systel root dir
- */
-static struct ctl_table nss_vlan_root_dir[] = {
-	{
-		.procname		= "ppe",
-		.mode			= 0555,
-		.child			= nss_vlan_dir,
-	},
-	{ }
-};
-
-/*
  * nss_ppe_vlan_mgr_vlan_over_bridge_unregister_cb()
  *	Un-register callback for VLAN over bridge
  */
@@ -2229,7 +2205,7 @@ int __init nss_ppe_vlan_mgr_init_module(void)
 	vlan_mgr_ctx.ctpid = ETH_P_8021Q;
 	vlan_mgr_ctx.stpid = ETH_P_8021Q;
 
-	vlan_mgr_ctx.sys_hdr = register_sysctl_table(nss_vlan_root_dir);
+	vlan_mgr_ctx.sys_hdr = register_sysctl("ppe/vlan_client", nss_vlan_table);
 	if (!vlan_mgr_ctx.sys_hdr) {
 		nss_ppe_vlan_mgr_warn("Unabled to register sysctl table for vlan manager\n");
 		return -EFAULT;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,10 +20,8 @@
 #include <exports/ppe_drv_tun_public.h>
 #include <fal/fal_tunnel.h>
 #include <fal/fal_port_ctrl.h>
-
 #include <net/ipv6.h>
 #include <net/vxlan.h>
-#include <linux/ppp_defs.h>
 
 /*
  * ppe_drv_tun_v6_port_stats_update()

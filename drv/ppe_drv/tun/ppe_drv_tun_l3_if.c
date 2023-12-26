@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -139,9 +139,9 @@ bool ppe_drv_tun_l3_if_configure(struct ppe_drv_tun_l3_if *tun_l3_if)
 	/*
 	 * Enable decapsulation
 	 */
-	tun_l3_if_cfg.ipv4_decap_en = true;
-	tun_l3_if_cfg.ipv6_decap_en = true;
-	tun_l3_if_cfg.lpm_en = true;
+	tun_l3_if_cfg.ipv4_decap_en = A_TRUE;
+	tun_l3_if_cfg.ipv6_decap_en = A_TRUE;
+	tun_l3_if_cfg.lpm_en = A_TRUE;
 
 	/*
 	 * Configure ttl exceed action to redirect the packet to CPU as of now.

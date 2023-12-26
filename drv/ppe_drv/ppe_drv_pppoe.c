@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,9 +34,9 @@ static void ppe_drv_pppoe_dump(struct ppe_drv_pppoe *pppoe)
 	sw_error_t err;
 
 	pppoe_cfg.session_id = pppoe->session_id;
-	pppoe_cfg.multi_session = true;
-	pppoe_cfg.uni_session = true;
-	pppoe_cfg.smac_valid = true;
+	pppoe_cfg.multi_session = A_TRUE;
+	pppoe_cfg.uni_session = A_TRUE;
+	pppoe_cfg.smac_valid = A_TRUE;
 	pppoe_cfg.port_bitmap = 0xFF;
 
 	err = fal_pppoe_session_table_get(PPE_DRV_SWITCH_ID, &pppoe_cfg);
@@ -176,7 +176,7 @@ bool ppe_drv_pppoe_tl_l3_if_attach(struct ppe_drv_pppoe *pppoe, struct ppe_drv_t
 	 * Set tunnel L3 IF index in PPPoE session table.
 	 */
 	pppoe_intf.l3_if_index = tl_l3_if_idx;
-	pppoe_intf.l3_if_valid = true;
+	pppoe_intf.l3_if_valid = A_TRUE;
 	err = fal_pppoe_l3_intf_set(PPE_DRV_SWITCH_ID, pppoe->index, FAL_INTF_TYPE_TUNNEL, &pppoe_intf);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Failed to set tl_l3_if %d for PPPoE", pppoe, tl_l3_if_idx);
@@ -212,7 +212,7 @@ void ppe_drv_pppoe_l3_if_detach(struct ppe_drv_pppoe *pppoe)
 
 	ppe_drv_trace("%p: detaching l3_if %u from pppoe %u", pppoe, pppoe->l3_if->l3_if_index, pppoe->index);
 
-	cfg.l3_if_valid = false;
+	cfg.l3_if_valid = A_FALSE;
 	cfg.l3_if_index = 0;
 
 	if (fal_pppoe_l3_intf_set(PPE_DRV_SWITCH_ID, pppoe->index, FAL_INTF_TYPE_NORMAL, &cfg) != SW_OK) {
@@ -222,9 +222,9 @@ void ppe_drv_pppoe_l3_if_detach(struct ppe_drv_pppoe *pppoe)
 
 	if (pppoe->is_session_added) {
 		pppoe_cfg.session_id = pppoe->session_id;
-		pppoe_cfg.multi_session = true;
-		pppoe_cfg.uni_session = true;
-		pppoe_cfg.smac_valid = true;
+		pppoe_cfg.multi_session = A_TRUE;
+		pppoe_cfg.uni_session = A_TRUE;
+		pppoe_cfg.smac_valid = A_TRUE;
 		pppoe_cfg.port_bitmap = 0xFF;
 		memcpy(&pppoe_cfg.smac_addr, &pppoe->server_mac[0], sizeof(pppoe_cfg.smac_addr));
 		if (fal_pppoe_session_table_del(PPE_DRV_SWITCH_ID, &pppoe_cfg) != SW_OK) {
@@ -265,7 +265,7 @@ void ppe_drv_pppoe_l3_if_attach(struct ppe_drv_pppoe *pppoe, struct ppe_drv_l3_i
 	 */
 	ppe_drv_trace("%p: attaching l3_if %u to pppoe %u", pppoe, l3_if->l3_if_index, pppoe->index);
 
-	cfg.l3_if_valid = true;
+	cfg.l3_if_valid = A_TRUE;
 	cfg.l3_if_index = l3_if->l3_if_index;
 
 	if (fal_pppoe_l3_intf_set(PPE_DRV_SWITCH_ID, pppoe->index, FAL_INTF_TYPE_NORMAL, &cfg) != SW_OK) {
@@ -274,12 +274,12 @@ void ppe_drv_pppoe_l3_if_attach(struct ppe_drv_pppoe *pppoe, struct ppe_drv_l3_i
 	}
 
 	pppoe_cfg.session_id = pppoe->session_id;
-	pppoe_cfg.multi_session = true;
-	pppoe_cfg.uni_session = true;
-	pppoe_cfg.smac_valid = true;
+	pppoe_cfg.multi_session = A_TRUE;
+	pppoe_cfg.uni_session = A_TRUE;
+	pppoe_cfg.smac_valid = A_TRUE;
 	pppoe_cfg.port_bitmap = 0xFF;
 	pppoe_cfg.l3_if_index = l3_if->l3_if_index;
-	pppoe_cfg.l3_if_valid = true;
+	pppoe_cfg.l3_if_valid = A_TRUE;
 
 	memcpy(&pppoe_cfg.smac_addr, &pppoe->server_mac[0], sizeof(pppoe_cfg.smac_addr));
 

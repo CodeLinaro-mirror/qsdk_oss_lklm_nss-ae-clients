@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -148,8 +148,8 @@ void ppe_drv_qos_queue_disable(uint32_t port_id, uint32_t qid)
 	 * Disable queue enqueue, dequeue and flush the queue.
 	 */
 	spin_lock_bh(&p->lock);
-	fal_qm_enqueue_ctrl_set(0, qid, false);
-	fal_scheduler_dequeue_ctrl_set(0, qid, false);
+	fal_qm_enqueue_ctrl_set(0, qid, A_FALSE);
+	fal_scheduler_dequeue_ctrl_set(0, qid, A_FALSE);
 	fal_queue_flush(0, port_id, qid);
 	spin_unlock_bh(&p->lock);
 
@@ -169,8 +169,8 @@ void ppe_drv_qos_queue_enable(uint32_t qid)
 	 * Enable queue enqueue and dequeue.
 	 */
 	spin_lock_bh(&p->lock);
-	fal_qm_enqueue_ctrl_set(0, qid, true);
-	fal_scheduler_dequeue_ctrl_set(0, qid, true);
+	fal_qm_enqueue_ctrl_set(0, qid, A_TRUE);
+	fal_scheduler_dequeue_ctrl_set(0, qid, A_TRUE);
 	spin_unlock_bh(&p->lock);
 
 	ppe_drv_info("%px:enable SSDK level0 queue scheduler successful for qid:%u", p, qid);
@@ -203,7 +203,7 @@ ppe_drv_ret_t ppe_drv_qos_l1_scheduler_set(struct ppe_drv_qos_res *res, uint32_t
 	l1cfg.e_pri = PPE_DRV_QOS_PRIORITY_MAX - res->scheduler.priority;
 	l1cfg.c_drr_id = res->scheduler.l1c_drrid;
 	l1cfg.e_drr_id = res->scheduler.l1e_drrid;
-	l1cfg.drr_frame_mode = PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
+	l1cfg.drr_frame_mode = (fal_qos_drr_frame_mode_t)PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
 
 	ppe_drv_trace("%px:level1 configuration: port:%u, l0spid:%u, c_drrid:%u, c_pri:%u, c_drr_wt:%u, e_drrid:%u, e_pri:%u, e_drr_wt:%u, l1spid:%u",
 			p, port_id, res->l0spid, l1cfg.c_drr_id, l1cfg.c_pri, l1cfg.c_drr_wt, l1cfg.e_drr_id, l1cfg.e_pri, l1cfg.e_drr_wt, l1cfg.sp_id);
@@ -278,7 +278,7 @@ ppe_drv_ret_t ppe_drv_qos_l0_scheduler_set(struct ppe_drv_qos_res *res, uint32_t
 	l0cfg.e_pri = PPE_DRV_QOS_PRIORITY_MAX - res->scheduler.priority;
 	l0cfg.c_drr_id = res->scheduler.l0c_drrid;
 	l0cfg.e_drr_id = res->scheduler.l0e_drrid;
-	l0cfg.drr_frame_mode = PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
+	l0cfg.drr_frame_mode = (fal_qos_drr_frame_mode_t)PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
 
 	ppe_drv_trace("%px:level0 configuration: port:%u, ucast_qid:%u, c_drrid:%u, c_pri:%u, c_drr_wt:%u, e_drrid:%u, e_pri:%u, e_drr_wt:%u, l0spid:%u",
 			p, port_id, res->q.ucast_qid, l0cfg.c_drr_id, l0cfg.c_pri, l0cfg.c_drr_wt, l0cfg.e_drr_id, l0cfg.e_pri, l0cfg.e_drr_wt, l0cfg.sp_id);
@@ -372,7 +372,7 @@ ppe_drv_ret_t ppe_drv_qos_port_shaper_set(struct ppe_drv_qos_res *res, uint32_t 
 	cfg.c_shaper_en = 1;
 	cfg.cbs = res->shaper.cburst;
 	cfg.cir = (res->shaper.crate / 1000) * 8;
-	cfg.shaper_frame_mode = PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
+	cfg.shaper_frame_mode = (fal_shaper_frame_mode_t)PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
 
 	ppe_drv_trace("%px:port shaper configuration for port:%u, couple_en:%u, meter_unit:%u, c_shaper_en:%u, cbs:%u, cir:%u, ebs:%u, eir:%u, shaper_frame_mode:%u",
 			p, port_id, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
@@ -453,7 +453,7 @@ ppe_drv_ret_t ppe_drv_qos_flow_shaper_set(struct ppe_drv_qos_res *res)
 	cfg.e_shaper_en = 1;
 	cfg.ebs = res->shaper.cburst;
 	cfg.eir = ((res->shaper.crate / 1000) * 8) - cfg.cir;
-	cfg.shaper_frame_mode = PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
+	cfg.shaper_frame_mode = (fal_shaper_frame_mode_t)PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
 
 	ppe_drv_trace("%px:flow shaper configuration: l0spid:%u, couple_en:%u, meter_unit:%u, c_shaper_en:%u, cbs:%u, cir:%u, ebs:%u, eir:%u, shaper_frame_mode:%u",
 		p, res->l0spid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);
@@ -600,7 +600,7 @@ ppe_drv_ret_t ppe_drv_qos_queue_shaper_set(struct ppe_drv_qos_res *res)
 	cfg.e_shaper_en = 1;
 	cfg.ebs = res->shaper.cburst;
 	cfg.eir = ((res->shaper.crate / 1000) * 8) - cfg.cir;
-	cfg.shaper_frame_mode = PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
+	cfg.shaper_frame_mode = (fal_shaper_frame_mode_t)PPE_DRV_QOS_FRAME_MODE_FRAME_CRC;
 
 	ppe_drv_trace("%px:queue shaper configuration for ucast_qid:%u, couple_en:%u, meter_unit:%u, c_shaper_en:%u, cbs:%u, cir:%u, ebs:%u, eir:%u, shaper_frame_mode:%u",
 		p, res->q.ucast_qid, cfg.couple_en, cfg.meter_unit, cfg.c_shaper_en, cfg.cbs, cfg.cir, cfg.ebs, cfg.eir, cfg.shaper_frame_mode);

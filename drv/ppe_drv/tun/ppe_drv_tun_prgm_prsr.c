@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -181,7 +181,7 @@ bool ppe_drv_tun_prgm_prsr_configure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cfg,
 	cfg.inner_type_mode = prsr_cfg->inner_mode;
 	cfg.program_pos_mode = prsr_cfg->pos_mode;
 	if (prsr_cfg->inner_mode == PPE_DRV_TUN_PRGM_PRSR_INNER_MODE_FIX) {
-		cfg.inner_hdr_type = prsr_cfg->conf.inner_hdr;
+		cfg.inner_hdr_type = (fal_hdr_type_t)prsr_cfg->conf.inner_hdr;
 	} else {
 		/*
 		 * UDF mode configurations.
@@ -224,7 +224,7 @@ bool ppe_drv_tun_prgm_prsr_prgm_udf_fill(fal_tunnel_program_udf_t *fal_udf, stru
 
 	if (ppe_drv_tun_prgm_udf_action_bitmap_check(udf, PPE_DRV_TUN_PRGM_PRSR_PRGM_UDF_CHK_INNER_HDR_TYPE)) {
 		fal_udf->action_flag |= FAL_TUNNEL_PROGRAM_UDF_ACTION_INNER_HDR_TYPE;
-		fal_udf->inner_hdr_type = udf->inner_hdr;
+		fal_udf->inner_hdr_type = (fal_hdr_type_t)udf->inner_hdr;
 	}
 
 	if (ppe_drv_tun_prgm_udf_action_bitmap_check(udf, PPE_DRV_TUN_PRGM_PRSR_PRGM_UDF_CHK_HDR_LEN)) {

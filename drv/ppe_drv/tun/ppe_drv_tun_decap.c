@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -241,7 +241,7 @@ bool ppe_drv_tun_decap_enable(struct ppe_drv_tun_decap *ptdc)
 {
 	sw_error_t err;
 
-	err = fal_tunnel_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, true);
+	err = fal_tunnel_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
 		return false;
@@ -258,7 +258,7 @@ bool ppe_drv_tun_decap_disable(struct ppe_drv_tun_decap *ptdc)
 {
 	sw_error_t err;
 
-	err = fal_tunnel_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, false);
+	err = fal_tunnel_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_FALSE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d disable failed", ptdc, ptdc->tl_index);
 		return false;
@@ -346,7 +346,7 @@ bool ppe_drv_tun_decap_activate(struct ppe_drv_tun_decap *ptdc, struct ppe_drv_t
 	 * again we need to clear this bit.
 	 */
 	ftde.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_DEACCE_UPDATE);
-	ftde.deacce_en = false;
+	ftde.deacce_en = A_FALSE;
 
 	err = fal_tunnel_decap_action_update(PPE_DRV_SWITCH_ID, ptdc->tl_index, &ftde);
 	if (err != SW_OK) {
@@ -354,7 +354,7 @@ bool ppe_drv_tun_decap_activate(struct ppe_drv_tun_decap *ptdc, struct ppe_drv_t
 		return false;
 	}
 
-	err = fal_tunnel_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, PPE_DRV_TUN_FIELD_VALID);
+	err = fal_tunnel_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, (a_bool_t)PPE_DRV_TUN_FIELD_VALID);
 	if (err != SW_OK) {
 		ppe_drv_trace("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
 		return false;
@@ -426,7 +426,7 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 			ppe_drv_trace("%p: GRE header validation failed", pp);
 			return PPE_DRV_TUN_DECAP_INVALID_IDX;
 		}
-		ftde.decap_action.udp_csum_zero = true;
+		ftde.decap_action.udp_csum_zero = A_TRUE;
 		ftde.decap_action.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_UDP_CSUM_ZERO_UPDATE);
 	} else {
 		/*
@@ -441,7 +441,7 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 	 * Set source interface.
 	 */
 	vp_num = ppe_drv_port_num_get(pp);
-	ftde.decap_action.src_info_enable = true;
+	ftde.decap_action.src_info_enable = A_TRUE;
 	ftde.decap_action.src_info_type = PPE_DRV_TUN_TL_TBL_SRC_INFO_TYPE_VP;
 	ftde.decap_action.src_info = vp_num;
 	ftde.decap_action.verify_entry.verify_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_L3IF_CHECK_EN);
@@ -453,7 +453,7 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 	 * Allow decapsulated GRETAP tunnel exception service code.
 	 */
 	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
-		ftde.decap_action.service_code_en = true;
+		ftde.decap_action.service_code_en = A_TRUE;
 		ftde.decap_action.service_code = PPE_DRV_SC_L2_TUNNEL_EXCEPTION;
 	}
 
@@ -463,13 +463,13 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 	 * VXLAN IPV6 will allow UDP checksum zero packets only if PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX is set.
 	 */
 	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
-		ftde.decap_action.service_code_en = true;
+		ftde.decap_action.service_code_en = A_TRUE;
 		ftde.decap_action.service_code = PPE_DRV_SC_L2_TUNNEL_EXCEPTION;
 		ftde.decap_action.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_UDP_CSUM_ZERO_UPDATE);
 		if (pth->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_IPV4) {
-			ftde.decap_action.udp_csum_zero = true;
+			ftde.decap_action.udp_csum_zero = A_TRUE;
 		} else if ((pth->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_IPV6) && (pth->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX)) {
-			ftde.decap_action.udp_csum_zero = true;
+			ftde.decap_action.udp_csum_zero = A_TRUE;
 		}
 	}
 

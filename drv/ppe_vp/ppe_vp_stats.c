@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -154,16 +154,18 @@ static void ppe_vp_stats_reset_per_cpu_stats(struct ppe_vp_stats *vp_stats)
 		unsigned int start;
 
 		rx_pcpu_stats = per_cpu_ptr(vp_stats->rx_stats, i);
+
 		do {
-			start = u64_stats_fetch_begin_irq(&rx_pcpu_stats->syncp);
+			start = ppe_vp_stats_fetch_begin(&rx_pcpu_stats->syncp);
 			memset(rx_pcpu_stats, 0, sizeof(*rx_pcpu_stats));
-		} while (u64_stats_fetch_retry_irq(&rx_pcpu_stats->syncp, start));
+		} while (ppe_vp_stats_fetch_retry(&rx_pcpu_stats->syncp, start));
 
 		tx_pcpu_stats = per_cpu_ptr(vp_stats->tx_stats, i);
+
 		do {
-			start = u64_stats_fetch_begin_irq(&tx_pcpu_stats->syncp);
+			start = ppe_vp_stats_fetch_begin(&tx_pcpu_stats->syncp);
 			memset(tx_pcpu_stats, 0, sizeof(*tx_pcpu_stats));
-		} while (u64_stats_fetch_retry_irq(&tx_pcpu_stats->syncp, start));
+		} while (ppe_vp_stats_fetch_retry(&tx_pcpu_stats->syncp, start));
 	}
 }
 
@@ -233,9 +235,9 @@ static int ppe_vp_stats_show(struct seq_file *m, void __attribute__((unused))*p)
 				rx_pcpu_stats = per_cpu_ptr(vp_stats->rx_stats, i);
 
 				do {
-					start = u64_stats_fetch_begin_irq(&rx_pcpu_stats->syncp);
+					start = ppe_vp_stats_fetch_begin(&rx_pcpu_stats->syncp);
 					memcpy(&rx_stats, rx_pcpu_stats, sizeof(*rx_pcpu_stats));
-				} while (u64_stats_fetch_retry_irq(&rx_pcpu_stats->syncp, start));
+				} while (ppe_vp_stats_fetch_retry(&rx_pcpu_stats->syncp, start));
 
 				rx_aggr[0] += rx_stats.rx_pkts;
 				rx_aggr[1] += rx_stats.rx_bytes;
@@ -248,9 +250,9 @@ static int ppe_vp_stats_show(struct seq_file *m, void __attribute__((unused))*p)
 				tx_pcpu_stats = per_cpu_ptr(vp_stats->tx_stats, i);
 
 				do {
-					start = u64_stats_fetch_begin_irq(&tx_pcpu_stats->syncp);
+					start = ppe_vp_stats_fetch_begin(&tx_pcpu_stats->syncp);
 					memcpy(&tx_stats, tx_pcpu_stats, sizeof(*tx_pcpu_stats));
-				} while (u64_stats_fetch_retry_irq(&tx_pcpu_stats->syncp, start));
+				} while (ppe_vp_stats_fetch_retry(&tx_pcpu_stats->syncp, start));
 
 				tx_aggr[0] += tx_stats.tx_pkts;
 				tx_aggr[1] += tx_stats.tx_bytes;

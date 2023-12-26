@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -149,14 +149,14 @@ static bool ppe_drv_tun_deactivate_mapt(struct ppe_drv_tun *tun)
 	sw_error_t err;
 	struct ppe_drv_tun_decap *ptdc = tun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY];
 
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, false);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_FALSE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d disable failed", ptdc, ptdc->tl_index);
 		return false;
 	}
 
 	ptdc = tun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY];
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, false);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_FALSE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d disable failed", ptdc, ptdc->tl_index);
 		return false;
@@ -202,14 +202,14 @@ static bool ppe_drv_tun_activate_mapt(struct ppe_drv_tun *ptun, struct ppe_drv_t
 	}
 
 	ptdc = ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY];
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, true);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
 		return false;
 	}
 
 	ptdc = ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY];
-	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, true);
+	err = fal_mapt_decap_en_set(PPE_DRV_SWITCH_ID, ptdc->tl_index, A_TRUE);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: decap entry %d enable failed", ptdc, ptdc->tl_index);
 		return false;
@@ -379,8 +379,8 @@ bool ppe_drv_tun_port_encap_disable(struct ppe_drv_port *pp)
 	ppe_drv_assert(vp_state.check_en == A_TRUE, "%p: VP state check is not enabled on port %d",
 						pp, pp->port);
 
-	vp_state.eg_data_valid = false;
-	vp_state.vp_active = false;
+	vp_state.eg_data_valid = A_FALSE;
+	vp_state.vp_active = A_FALSE;
 	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, v_port, &vp_state);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to reset vp state port vp %d", pp, pp->port);
@@ -494,8 +494,8 @@ bool ppe_drv_tun_port_configure(struct ppe_drv_tun *ptun, uint16_t xmit_port)
 	/*
 	 * Set eg_data_valid and context enable
 	 */
-	vp_state.eg_data_valid = true;
-	vp_state.vp_active = true;
+	vp_state.eg_data_valid = A_TRUE;
+	vp_state.vp_active = A_TRUE;
 	err = fal_vport_state_check_set(PPE_DRV_SWITCH_ID, v_port, &vp_state);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to set L2 vp port state for port %d", pp, pp->port);
@@ -601,9 +601,9 @@ bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_
 	}
 
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
-		port_tnl_cfg.pppoe_en = PPE_DRV_TUN_FIELD_VALID;
+		port_tnl_cfg.pppoe_en = (a_bool_t)PPE_DRV_TUN_FIELD_VALID;
 	} else {
-		port_tnl_cfg.l3_if.l3_if_valid = true;
+		port_tnl_cfg.l3_if.l3_if_valid = A_TRUE;
 		port_tnl_cfg.l3_if.l3_if_index = tl_l3_if_idx;
 	}
 
@@ -1860,13 +1860,13 @@ bool ppe_drv_tun_global_init(struct ppe_drv *p)
 	 */
 	ptglcfg.deacce_action = FAL_MAC_RDT_TO_CPU;
 	ptglcfg.src_if_check_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.src_if_check_deacce_en = true;
+	ptglcfg.src_if_check_deacce_en = A_TRUE;
 	ptglcfg.vlan_check_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.vlan_check_deacce_en = true;
+	ptglcfg.vlan_check_deacce_en = A_TRUE;
 	ptglcfg.udp_csum_zero_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.udp_csum_zero_deacce_en = false;
+	ptglcfg.udp_csum_zero_deacce_en = A_FALSE;
 	ptglcfg.pppoe_multicast_action = FAL_MAC_RDT_TO_CPU;
-	ptglcfg.pppoe_multicast_deacce_en = true;
+	ptglcfg.pppoe_multicast_deacce_en = A_TRUE;
 	ptglcfg.hash_mode[0] = PPE_DRV_TUN_TL_HASH_MODE_CRC10;
 	ptglcfg.hash_mode[1] = PPE_DRV_TUN_TL_HASH_MODE_XOR;
 	err = fal_tunnel_global_cfg_set(PPE_DRV_SWITCH_ID, &ptglcfg);

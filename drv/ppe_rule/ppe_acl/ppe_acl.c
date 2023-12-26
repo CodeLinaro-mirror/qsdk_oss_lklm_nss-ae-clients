@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -512,7 +512,7 @@ static bool ppe_acl_rule_info_fill(struct ppe_acl *acl, struct ppe_acl_rule_matc
 		slice = &info->chain[PPE_DRV_ACL_SLICE_TYPE_VLAN];
 		vlan = &slice->rule.vlan;
 
-		vlan->stag_fmt = r->rule.svid.tag_fmt;
+		vlan->stag_fmt = (ppe_drv_acl_vtag_fmt_t)r->rule.svid.tag_fmt;
 		vlan->svid = r->rule.svid.vid_min;
 		memset(&vlan->svid_mask, 0xff, sizeof(vlan->svid_mask));
 		if ((r->rule_flags & PPE_ACL_RULE_FLAG_VID_MASK) && !(r->rule_flags & PPE_ACL_RULE_FLAG_VID_RANGE)) {
@@ -539,7 +539,7 @@ static bool ppe_acl_rule_info_fill(struct ppe_acl *acl, struct ppe_acl_rule_matc
 		slice = &info->chain[PPE_DRV_ACL_SLICE_TYPE_VLAN];
 		vlan = &slice->rule.vlan;
 
-		vlan->ctag_fmt = r->rule.cvid.tag_fmt;
+		vlan->ctag_fmt = (ppe_drv_acl_vtag_fmt_t)r->rule.cvid.tag_fmt;
 		vlan->cvid_min = r->rule.cvid.vid_min;
 		memset(&vlan->cvid_mask_max, 0xff, sizeof(vlan->cvid_mask_max));
 		if ((r->rule_flags & PPE_ACL_RULE_FLAG_VID_MASK) || (r->rule_flags & PPE_ACL_RULE_FLAG_VID_RANGE)) {
@@ -1410,7 +1410,7 @@ static bool ppe_acl_action_fill(struct ppe_acl *acl, struct ppe_acl_rule_action 
 	}
 
 	if (r_action->flags & PPE_ACL_RULE_ACTION_FLAG_FW_CMD) {
-		acl_action->fwd_cmd = r_action->fwd_cmd;
+		acl_action->fwd_cmd = (ppe_drv_acl_fwd_cmd_t)r_action->fwd_cmd;
 		acl_action->flags |= PPE_DRV_ACL_ACTION_FLAG_FWD_CMD;
 	}
 

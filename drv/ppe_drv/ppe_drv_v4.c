@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -405,7 +405,7 @@ ppe_drv_ret_t ppe_drv_v4_rfs_conn_fill(struct ppe_drv_v4_rule_create *create, st
 	top_rx_iface = ppe_drv_iface_get_by_idx(top_if->rx_if);
 	if (!top_rx_iface) {
 		ppe_drv_warn("%p: No PPE interface corresponding to top rx interface\n", p);
-		return false;
+		return PPE_DRV_RET_NO_TOP_RX_IF;
 	}
 
 	if (ppe_drv_iface_l3_if_get(top_rx_iface)) {
@@ -523,7 +523,7 @@ ppe_drv_ret_t ppe_drv_v4_policer_conn_fill(struct ppe_drv_v4_rule_create *create
 	top_rx_iface = ppe_drv_iface_get_by_idx(top_if->rx_if);
 	if (!top_rx_iface) {
 		ppe_drv_warn("%p: No PPE interface corresponding to top rx interface\n", p);
-		return false;
+		return PPE_DRV_RET_NO_TOP_RX_IF;
 	}
 
 	if (ppe_drv_iface_l3_if_get(top_rx_iface)) {

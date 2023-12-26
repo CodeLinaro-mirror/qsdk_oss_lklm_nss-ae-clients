@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -280,7 +280,7 @@ bool ppe_drv_flow_v6_qos_set(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_fl
 	 */
 	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_QOS_VALID)) {
 		qos_cfg.internal_pri = ppe_drv_v6_conn_flow_int_pri_get(pcf);
-		qos_cfg.pri_en = true;
+		qos_cfg.pri_en = A_TRUE;
 	}
 
 	/*
@@ -289,7 +289,7 @@ bool ppe_drv_flow_v6_qos_set(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_fl
 	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_DSCP_MARKING)) {
 		qos_cfg.internal_dscp = ppe_drv_v6_conn_flow_egress_dscp_get(pcf) << PPE_DRV_DSCP_SHIFT;
 		qos_cfg.dscp_mask = PPE_DRV_DSCP_MASK;
-		qos_cfg.dscp_en = true;
+		qos_cfg.dscp_en = A_TRUE;
 	}
 
 	/*
@@ -302,7 +302,7 @@ bool ppe_drv_flow_v6_qos_set(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_fl
 		 * We do not need to mask unsigned integer.
 		 */
 		qos_cfg.internal_pcp = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 0)->tci >> PPE_DRV_VLAN_PRIORITY_SHIFT;;
-		qos_cfg.pcp_en = true;
+		qos_cfg.pcp_en = A_TRUE;
 	}
 
 	err = fal_qos_cosmap_flow_set(PPE_DRV_SWITCH_ID, 0, flow->index, &qos_cfg);
@@ -768,7 +768,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	ppe_drv_trace("%p: flow_tbl[host_idx]: %u", pcf, host->index);
 	flow_cfg.host_addr_type = PPE_DRV_HOST_LAN;
 	flow_cfg.host_addr_index = host->index;
-	flow_cfg.deacclr_en = false;
+	flow_cfg.deacclr_en = A_FALSE;
 	flow_cfg.invalid = !entry_valid;
 	flow_cfg.sevice_code = PPE_DRV_SC_NONE;
 
@@ -885,19 +885,19 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
 		}
 #endif
-		flow_cfg.port_valid = true;
+		flow_cfg.port_valid = A_TRUE;
 		flow_cfg.bridge_port = pp->port;
 		ppe_drv_trace("%p: xmit interface port: %d", pcf, pp->port);
 
 		if (ppe_drv_port_is_tunnel_vp(pp)) {
 			switch (vlan_hdr_cnt) {
 				case 2:
-					flow_cfg.svlan_fmt = true;
-					flow_cfg.cvlan_fmt = true;
+					flow_cfg.svlan_fmt = A_TRUE;
+					flow_cfg.cvlan_fmt = A_TRUE;
 					flow_cfg.vlan_fmt_valid = 1;
 					break;
 				case 1:
-					flow_cfg.cvlan_fmt = true;
+					flow_cfg.cvlan_fmt = A_TRUE;
 					flow_cfg.vlan_fmt_valid = 1;
 					break;
 				case 0:
@@ -989,7 +989,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		xmit_mtu = PPE_DRV_PORT_JUMBO_MAX;
 	}
 
-	flow_cfg.pmtu_check_l3 = PPE_DRV_FLOW_PMTU_TYPE_L3;
+	flow_cfg.pmtu_check_l3 = (a_bool_t)PPE_DRV_FLOW_PMTU_TYPE_L3;
 	flow_cfg.pmtu = xmit_mtu;
 
 	ppe_drv_trace("%p: flow_tbl[PMTU]: %u", pcf, xmit_mtu);
@@ -1049,7 +1049,7 @@ bool ppe_drv_flow_v4_qos_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_fl
 	 */
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_QOS_VALID)) {
 		qos_cfg.internal_pri = ppe_drv_v4_conn_flow_int_pri_get(pcf);
-		qos_cfg.pri_en = true;
+		qos_cfg.pri_en = A_TRUE;
 	}
 
 	/*
@@ -1058,7 +1058,7 @@ bool ppe_drv_flow_v4_qos_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_fl
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_DSCP_MARKING)) {
 		qos_cfg.internal_dscp = ppe_drv_v4_conn_flow_egress_dscp_get(pcf) << PPE_DRV_DSCP_SHIFT;
 		qos_cfg.dscp_mask = PPE_DRV_DSCP_MASK;
-		qos_cfg.dscp_en = true;
+		qos_cfg.dscp_en = A_TRUE;
 	}
 
 	/*
@@ -1071,7 +1071,7 @@ bool ppe_drv_flow_v4_qos_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_fl
 		 * We do not need to mask unsigned integer.
 		 */
 		qos_cfg.internal_pcp = ppe_drv_v4_conn_flow_egress_vlan_get(pcf, 0)->tci >> PPE_DRV_VLAN_PRIORITY_SHIFT;;
-		qos_cfg.pcp_en = true;
+		qos_cfg.pcp_en = A_TRUE;
 	}
 
 	err = fal_qos_cosmap_flow_set(PPE_DRV_SWITCH_ID, 0, pf->index, &qos_cfg);
@@ -1514,7 +1514,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 
 	flow_cfg.host_addr_type = PPE_DRV_HOST_LAN;
 	flow_cfg.host_addr_index = host->index;
-	flow_cfg.deacclr_en = false;
+	flow_cfg.deacclr_en = A_FALSE;
 	flow_cfg.invalid = !entry_valid;
 	flow_cfg.sevice_code = PPE_DRV_SC_NONE;
 
@@ -1645,19 +1645,19 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
 		}
 #endif
-		flow_cfg.port_valid = true;
+		flow_cfg.port_valid = A_TRUE;
 		flow_cfg.bridge_port = pp->port;
 		ppe_drv_trace("%p: xmit interface port: %d", pcf, pp->port);
 
 		if (ppe_drv_port_is_tunnel_vp(pp)) {
 			switch (vlan_hdr_cnt) {
 			case 2:
-				flow_cfg.svlan_fmt = true;
-				flow_cfg.cvlan_fmt = true;
+				flow_cfg.svlan_fmt = A_TRUE;
+				flow_cfg.cvlan_fmt = A_TRUE;
 				flow_cfg.vlan_fmt_valid = 1;
 				break;
 			case 1:
-				flow_cfg.cvlan_fmt = true;
+				flow_cfg.cvlan_fmt = A_TRUE;
 				flow_cfg.vlan_fmt_valid = 1;
 				break;
 			case 0:
@@ -1749,7 +1749,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		xmit_mtu = PPE_DRV_PORT_JUMBO_MAX;
 	}
 
-	flow_cfg.pmtu_check_l3 = PPE_DRV_FLOW_PMTU_TYPE_L3;
+	flow_cfg.pmtu_check_l3 = (a_bool_t)PPE_DRV_FLOW_PMTU_TYPE_L3;
 	flow_cfg.pmtu = xmit_mtu;
 
 	ppe_drv_trace("%p: flow_tbl[PMTU]: %u", pcf, xmit_mtu);

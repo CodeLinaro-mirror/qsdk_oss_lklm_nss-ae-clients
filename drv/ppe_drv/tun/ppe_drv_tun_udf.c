@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -27,12 +27,12 @@ static void ppe_drv_tun_udf_entry_fill(fal_tunnel_udf_profile_entry_t *entry, st
 {
 	if (udf_pf->l3_match) {
 		FAL_TUNNEL_UDF_PROFILE_ENTRY_FIELD_FLG_SET(entry->field_flag, FAL_TUNNEL_UDF_PROFILE_ENTRY_FIELD_L3_TYPE);
-		entry->l3_type = udf_pf->l3_type;
+		entry->l3_type = (fal_l3_type_t)udf_pf->l3_type;
 	}
 
 	if (udf_pf->l4_match) {
 		FAL_TUNNEL_UDF_PROFILE_ENTRY_FIELD_FLG_SET(entry->field_flag, FAL_TUNNEL_UDF_PROFILE_ENTRY_FIELD_L4_TYPE);
-		entry->l4_type = udf_pf->l4_type;
+		entry->l4_type = (fal_l4_type_t)udf_pf->l4_type;
 	}
 
 	if (udf_pf->program_match) {
@@ -134,7 +134,7 @@ struct ppe_drv_tun_udf *ppe_drv_tun_udf_entry_configure(struct ppe_drv_tun_udf_p
 		udf_data = &udf_pf->udf[i];
 		if (ppe_drv_tun_udf_bitmask_check(udf_pf, i)) {
 			err = fal_tunnel_udf_profile_cfg_set(PPE_DRV_SWITCH_ID, udf_entry->udf_index,
-					i, udf_data->offset_type, udf_data->offset);
+					i, (fal_tunnel_udf_type_t)udf_data->offset_type, udf_data->offset);
 			if (err != SW_OK) {
 				ppe_drv_trace("%p: tunnel udf profile cfg set failed with error %d", p, err);
 				err = fal_tunnel_udf_profile_entry_del(PPE_DRV_SWITCH_ID, udf_entry->udf_index, &entry);

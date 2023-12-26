@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -415,6 +415,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_BASE_DEV_NOT_FOUND,			/**< Base Device not found */
 	PPE_DRV_RET_BASE_PORT_NOT_FOUND,		/**< Base Port not found */
 	PPE_DRV_RET_FAILURE_FLOW_CONFIGURE_FAIL,	/**< Failure due to FSE flow configuration failed */
+	PPE_DRV_RET_NO_TOP_RX_IF,			/**< Failure due to no corresponding top interface */
 } ppe_drv_ret_t;
 
 /**

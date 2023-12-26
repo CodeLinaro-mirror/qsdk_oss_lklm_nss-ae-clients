@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -105,7 +105,7 @@ ppe_drv_ret_t ppe_drv_dp_set_mirr_analysis_port(struct ppe_drv_iface *iface,
 	}
 
 	analysis_cfg.priority = priority;
-	err = fal_mirr_analysis_config_set(PPE_DRV_SWITCH_ID, direction,
+	err = fal_mirr_analysis_config_set(PPE_DRV_SWITCH_ID, (fal_mirr_direction_t)direction,
 			&analysis_cfg);
 	if (err != SW_OK) {
 		spin_unlock_bh(&p->lock);
@@ -135,7 +135,7 @@ ppe_drv_ret_t ppe_drv_dp_get_mirr_analysis_port(
 	fal_mirr_analysis_config_t analysis_cfg = {0};
 
 	spin_lock_bh(&p->lock);
-	err = fal_mirr_analysis_config_get(PPE_DRV_SWITCH_ID, direction,
+	err = fal_mirr_analysis_config_get(PPE_DRV_SWITCH_ID, (fal_mirr_direction_t)direction,
 			&analysis_cfg);
 	if (err != SW_OK) {
 		spin_unlock_bh(&p->lock);

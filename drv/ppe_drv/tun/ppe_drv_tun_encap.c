@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -884,7 +884,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 	}
 
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
-		encap_cfg.pppoe_en = true;
+		encap_cfg.pppoe_en = A_TRUE;
 	}
 
 	/*
@@ -902,7 +902,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_ETHERNET;
 
 		if (!(th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX)) {
-			encap_cfg.l4_checksum_en = true;
+			encap_cfg.l4_checksum_en = A_TRUE;
 		}
 
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
@@ -911,7 +911,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 		encap_cfg.ip_proto_update = 1;
-		encap_cfg.l4_checksum_en = true;
+		encap_cfg.l4_checksum_en = A_TRUE;
 		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_TRANSPORT;
 
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2) {
@@ -938,7 +938,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 		}
 
 		if (!(th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX)) {
-			encap_cfg.l4_checksum_en = true;
+			encap_cfg.l4_checksum_en = A_TRUE;
 		}
 
 		/*
@@ -959,7 +959,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 		encap_rule.src1_start = encap_cfg.tunnel_offset;
 		encap_rule.src2_sel = FAL_TUNNEL_RULE_SRC2_ZERO_DATA;
 		encap_rule.src3_sel = FAL_TUNNEL_RULE_SRC3_PROTO_MAP1;
-		encap_rule.src3_entry[0].enable = true;
+		encap_rule.src3_entry[0].enable = A_TRUE;
 		encap_rule.src3_entry[0].src_start = PPE_DRV_TUN_ENCAP_L2TP_SRC_START;
 		encap_rule.src3_entry[0].src_width = PPE_DRV_TUN_ENCAP_L2TP_SRC_WIDTH;
 		encap_rule.src3_entry[0].dest_pos = PPE_DRV_TUN_ENCAP_L2TP_DEST_POS;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -419,15 +419,15 @@ static bool ppe_drv_l3_route_ctrl_init(struct ppe_drv *p)
 	 * be redirected to CPU
 	 */
 	cfg.mru_fail_action = FAL_MAC_RDT_TO_CPU;
-	cfg.mru_deacclr_en = true;
+	cfg.mru_deacclr_en = A_TRUE;
 	cfg.mtu_fail_action = FAL_MAC_RDT_TO_CPU;
-	cfg.mtu_deacclr_en = true;
+	cfg.mtu_deacclr_en = A_TRUE;
 
 	/*
 	 * Don't deaccelerate flow based on DF bit.
 	 */
 	cfg.mtu_nonfrag_fail_action = FAL_MAC_RDT_TO_CPU;
-	cfg.mtu_df_deacclr_en = false;
+	cfg.mtu_df_deacclr_en = A_FALSE;
 
 	if (fal_ip_global_ctrl_set(PPE_DRV_SWITCH_ID, &cfg) != SW_OK) {
 		ppe_drv_warn("%p: IP global control configuration failed\n", p);
@@ -1339,32 +1339,6 @@ static struct ctl_table ppe_drv_sub[] = {
 };
 
 /*
- * ppe_drv_main
- *	PPE DRV main directory
- */
-static struct ctl_table ppe_drv_main[] = {
-	{
-		.procname	=	"ppe_drv",
-		.mode		=	0555,
-		.child		=	ppe_drv_sub,
-	},
-	{}
-};
-
-/*
- * ppe_drv_root
- *	PPE DRV root directory
- */
-static struct ctl_table ppe_drv_root[] = {
-	{
-		.procname	=	"ppe",
-		.mode		=	0555,
-		.child		=	ppe_drv_main,
-	},
-	{}
-};
-
-/*
  * ppe_drv_mht_port_from_fdb()
  *	Get the port id corresponding to the destination
  *	mac address and vid
@@ -1420,7 +1394,7 @@ static int __init ppe_drv_module_init(void)
 	/*
 	 * Register sysctl framework for PPE DRV
 	 */
-	ppe_drv_gbl.ppe_drv_header = register_sysctl_table(ppe_drv_root);
+	ppe_drv_gbl.ppe_drv_header = register_sysctl("ppe/ppe_drv", ppe_drv_sub);
 	if (!ppe_drv_gbl.ppe_drv_header) {
 		ppe_drv_warn("sysctl table configuration failed");
 		unregister_netdevice_notifier(&nss_ppe_netdevice);

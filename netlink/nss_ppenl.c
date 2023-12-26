@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -141,7 +141,11 @@ struct nss_ppenl_cmn *nss_ppenl_get_msg(struct genl_family *family, struct genl_
 	/*
 	 * validate the common message header version & magic
 	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0))
 	cm = info->userhdr;
+#else
+	cm = genl_info_userhdr(info);
+#endif
 	if (nss_ppenl_cmn_chk_ver(cm, family->version) == false) {
 		nss_ppenl_warn("%d, %s: version mismatch (%d)\n", pid, family->name, cm->version);
 		return NULL;

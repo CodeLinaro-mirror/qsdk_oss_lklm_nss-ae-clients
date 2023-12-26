@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -161,9 +161,9 @@ typedef enum ppe_drv_acl_dst_type {
  *	VLAN tag format.
  */
 typedef enum ppe_drv_acl_vtag_fmt {
-	PPE_DRV_ACL_VTAG_FMT_UNTAG,		/**< ACL VLAN untag format. */
+	PPE_DRV_ACL_VTAG_FMT_TAG,		/**< ACL VLAN tag format. */
 	PPE_DRV_ACL_VTAG_FMT_PRI_TAG,		/**< ACL VLAN priority tag format. */
-	PPE_DRV_ACL_VTAG_FMT_TAG		/**< ACL VLAN tag format. */
+	PPE_DRV_ACL_VTAG_FMT_UNTAG,		/**< ACL VLAN untag format. */
 } ppe_drv_acl_vtag_fmt_t;
 
 /*

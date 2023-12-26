@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -76,7 +76,7 @@ enum ppe_priority_ret ppe_priority_ipv6_rule_create(struct ppe_priority_ipv6_rul
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		ppe_priority_warn("%p: Error in pushing  rules\n", create_ipv6);
 		ppe_priority_stats_inc(&p->stats.v6_create_ppe_rule_priority_fail);
-		return ret;
+		return PPE_PRIORITY_RET_FAILURE;
 	}
 
 	return PPE_PRIORITY_RET_SUCCESS;
@@ -139,7 +139,7 @@ enum ppe_priority_ret ppe_priority_ipv4_rule_create(struct ppe_priority_ipv4_rul
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		ppe_priority_warn("%p: Error in pushing rule\n", create_ipv4);
 		ppe_priority_stats_inc(&p->stats.v4_create_ppe_rule_priority_fail);
-		return ret;
+		return PPE_PRIORITY_RET_FAILURE;
 	}
 
 	return PPE_PRIORITY_RET_SUCCESS;

@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1056,24 +1056,6 @@ static struct ctl_table nss_ppe_bridge_mgr_table[] = {
 	{ }
 };
 
-static struct ctl_table nss_ppe_bridge_mgr_dir[] = {
-	{
-		.procname	= "bridge_mgr",
-		.mode		= 0555,
-		.child		= nss_ppe_bridge_mgr_table,
-	},
-	{ }
-};
-
-static struct ctl_table nss_ppe_bridge_mgr_root_dir[] = {
-	{
-		.procname	= "ppe",
-		.mode		= 0555,
-		.child		= nss_ppe_bridge_mgr_dir,
-	},
-	{ }
-};
-
 /*
  * nss_ppe_bridge_mgr_find_instance()
  *	Find a bridge instance from bridge list.
@@ -1504,8 +1486,7 @@ static int __init nss_ppe_bridge_mgr_init_module(void)
 	nss_ppe_bridge_mgr_info("Module (Build %s) loaded\n", NSS_PPE_BUILD_ID);
 	br_mgr_ctx.wan_netdev = NULL;
 	br_fdb_update_register_notify(&nss_ppe_bridge_mgr_fdb_update_notifier);
-	br_mgr_ctx.nss_ppe_bridge_mgr_header = register_sysctl_table(nss_ppe_bridge_mgr_root_dir);
-
+	br_mgr_ctx.nss_ppe_bridge_mgr_header = register_sysctl("ppe/bridge_mgr", nss_ppe_bridge_mgr_table);
 #if defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
 	nss_ppe_bridge_mgr_ovs_init();
 #endif

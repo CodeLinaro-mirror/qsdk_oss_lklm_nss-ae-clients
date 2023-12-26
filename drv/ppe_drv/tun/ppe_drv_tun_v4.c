@@ -293,7 +293,6 @@ void ppe_drv_tun_v4_parse_l2_hdr(struct ppe_drv_v4_rule_create *create, struct p
 	ppe_drv_assert(pp, "%p: physical xmit port not found", create);
 
 	xmit_port = pp->port;
-	ppe_drv_assert((xmit_port < PPE_DRV_PHYSICAL_MAX), "%p: Invalid physical xmit interface", create);
 
 	ppe_drv_assert(pp->mac_valid, "%p: MAC address is not set", pp);
 

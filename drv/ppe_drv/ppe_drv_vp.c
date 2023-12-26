@@ -27,6 +27,7 @@ ppe_drv_ret_t ppe_drv_vp_deinit(struct ppe_drv_iface *iface)
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_l3_if *l3_if;
 	struct ppe_drv_port *port;
+	sw_error_t sw_err;
 
 	spin_lock_bh(&p->lock);
 	l3_if = ppe_drv_iface_l3_if_get(iface);
@@ -40,6 +41,15 @@ ppe_drv_ret_t ppe_drv_vp_deinit(struct ppe_drv_iface *iface)
 	if (!port) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: unable to get port from iface\n", iface);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	/*
+	 * Unbind the VP.
+	 */
+	sw_err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, port->port, PPE_DRV_PORT_CPU);
+	if (sw_err != SW_OK) {
+		ppe_drv_warn("Failed to unbind port linked to VP %d\n", port->port);
 		return PPE_DRV_RET_PORT_NOT_FOUND;
 	}
 
@@ -98,19 +108,6 @@ ppe_drv_ret_t ppe_drv_vp_init(struct ppe_drv_iface *iface, struct ppe_drv_vp_inf
 		return PPE_DRV_RET_PORT_ALLOC_FAIL;
 	}
 
-	/*
-	 * Associate VP with xmit port if VP is created on virtual interface VLAN interface on top of physical port
-	*/
-	if (is_vlan_dev(iface->dev) && info->xmit_port) {
-		err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, port->port, info->xmit_port);
-		if (err != SW_OK) {
-			ppe_drv_port_deref(port);
-			spin_unlock_bh(&p->lock);
-			ppe_drv_warn("%p: failed to set physical port:%d for vp port:%d",p, info->xmit_port, port->port);
-			return PPE_DRV_RET_PORT_ALLOC_FAIL;
-		}
-	}
-
 	l3_if = ppe_drv_l3_if_alloc(PPE_DRV_L3_IF_TYPE_PORT);
 	if (!l3_if) {
 		ppe_drv_port_deref(port);
@@ -152,8 +149,23 @@ ppe_drv_ret_t ppe_drv_vp_init(struct ppe_drv_iface *iface, struct ppe_drv_vp_inf
 		port->flags |= PPE_DRV_PORT_RFS_ENABLED;
 	}
 
+	/*
+	 * if xmit port is know during init time Associate VP with xmit port.
+	 */
+	if (PPE_DRV_PHY_PORT_CHK(info->xmit_port)) {
+		err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, port->port, info->xmit_port);
+		if (err != SW_OK) {
+			ppe_drv_port_deref(port);
+			spin_unlock_bh(&p->lock);
+			ppe_drv_warn("%p: failed to set physical port:%d for vp port:%d", p, info->xmit_port, port->port);
+			return PPE_DRV_RET_PORT_ALLOC_FAIL;
+		}
+	}
+
+	port->xmit_port = info->xmit_port;
+
 	if (info->net_dev_type == (uint8_t)PPE_DRV_PORT_NETDEV_TYPE_WIFI) {
-		port->flags |= PPE_DRV_PORT_FLAG_WIFI_DEV;
+		ppe_drv_port_flags_set(port, PPE_DRV_PORT_FLAG_WIFI_DEV);
 	}
 
 	ppe_drv_iface_port_set(iface, port);

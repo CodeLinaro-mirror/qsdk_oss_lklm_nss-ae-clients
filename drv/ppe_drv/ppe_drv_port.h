@@ -91,6 +91,7 @@ struct ppe_drv_port {
 	uint8_t shadow_core_mask;		/* Shadow Core mask for VP flow */
 	uint8_t user_type;			/* PPE VP user type */
 	uint8_t next_core;			/* Next core to pick for RFS */
+	uint8_t xmit_port;			/* Physical port attached to virtual port */
 };
 
 void ppe_drv_port_ucast_queue_update(struct ppe_drv_port *pp, uint8_t queue_id);

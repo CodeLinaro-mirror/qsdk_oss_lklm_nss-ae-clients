@@ -399,7 +399,7 @@ bool ppe_drv_tun_port_reset_physical_port(struct ppe_drv_port *pp)
 	sw_error_t err;
 	uint32_t v_port = FAL_PORT_ID(FAL_PORT_TYPE_VPORT, pp->port);
 
-	err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, v_port, 0);
+	err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, v_port, PPE_DRV_PORT_CPU);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to reset physical port for vp %d", pp, pp->port);
 		return false;
@@ -409,27 +409,18 @@ bool ppe_drv_tun_port_reset_physical_port(struct ppe_drv_port *pp)
 }
 
 /*
- * ppe_drv_tun_physical_port_from_xmit_port_get
- * 	Get Physical port associated with the xmit port
+ * ppe_drv_base_port_get
+ * 	Get base port associated with the xmit port
  */
-uint16_t ppe_drv_tun_physical_port_from_xmit_port_get(uint16_t xmit_port, struct ppe_drv_port *dp)
+uint8_t ppe_drv_tun_xmit_port_get(uint8_t xmit_port)
 {
-	uint16_t phy_port = PPE_DRV_PORT_CPU;
+	struct ppe_drv *p = &ppe_drv_gbl;
 
-	if (PPE_DRV_PHY_PORT_CHK(xmit_port)) {
-		phy_port = xmit_port;
-	} else if (PPE_DRV_VIRTUAL_PORT_CHK(xmit_port)) {
-		if (ppe_drv_port_flags_check(dp, PPE_DRV_PORT_FLAG_IDTLS) ||
-			ppe_drv_port_flags_check(dp, PPE_DRV_PORT_FLAG_IIPSEC)) {
-			phy_port = PPE_DRV_PORT_EIP197;
-		} else if (ppe_drv_port_flags_check(dp, PPE_DRV_PORT_FLAG_WIFI_DEV)) {
-			phy_port = PPE_DRV_PORT_CPU;
-		}
-	} else {
-		ppe_drv_warn("%p: Destination port is not Physical or Virtual port %d", dp, xmit_port);
+	while (xmit_port >= PPE_DRV_PHYSICAL_MAX) {
+		xmit_port = p->port[xmit_port].xmit_port;
 	}
 
-	return phy_port;
+	return xmit_port;
 }
 
 /*
@@ -476,11 +467,11 @@ bool ppe_drv_tun_port_configure(struct ppe_drv_tun *ptun, uint16_t xmit_port)
 	}
 	ppe_drv_trace("%p: Destination port: %p:%d, queue_id:%d", ptun, dp, xmit_port, dp_queue_id);
 
+	phy_port = ppe_drv_tun_xmit_port_get(xmit_port);
+
 	/*
 	 * Set phyiscal port based on xmit_port value
 	 */
-	phy_port = ppe_drv_tun_physical_port_from_xmit_port_get(xmit_port, dp);
-
 	err = fal_vport_physical_port_id_set(PPE_DRV_SWITCH_ID, v_port, phy_port);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to set physical port:%d for vp port:%d", pp,
@@ -1496,7 +1487,6 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	 *
 	 * TODO: Need to add PPPOE specific handling
 	 */
-	xmit_port = l2_hdr->xmit_port;
 
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
 		pppoe = ppe_drv_pppoe_find_session(ntohs(l2_hdr->pppoe.ph.sid), l2_hdr->pppoe.server_mac);
@@ -1505,6 +1495,8 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 			goto err_fail;
 		}
 	}
+
+	xmit_port = ppe_drv_tun_xmit_port_get(l2_hdr->xmit_port);
 
 	/*
 	 * Get the tl_l3_if_index;

@@ -55,6 +55,7 @@ typedef enum ppe_drv_port_flag {
 	PPE_DRV_PORT_POLICER_ENABLED = 0x40,
 	PPE_DRV_PORT_FLAG_OFFLOAD_ENABLED = 0x80,
 	PPE_DRV_PORT_FLAG_REDIR_ENABLED = 0x100,
+	PPE_DRV_PORT_FLAG_TUN_ENDPOINT_DS = 0x200,
 } ppe_drv_port_flag_t;
 
 /*

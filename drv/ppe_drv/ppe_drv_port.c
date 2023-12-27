@@ -1371,6 +1371,11 @@ bool ppe_drv_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id)
 		profile = PPE_DRV_REDIR_PROFILE_ID;
 	}
 
+	if (ppe_drv_port_is_tunnel_vp(pp) &&
+			ppe_drv_port_flags_check(pp, PPE_DRV_PORT_FLAG_TUN_ENDPOINT_DS)) {
+		profile = PPE_DRV_REDIR_PROFILE_ID;
+	}
+
 	ppe_drv_info("user type: %d, profile: %d\n", pp->user_type, profile);
 
 	/*

@@ -28,6 +28,8 @@
 #define PPE_VP_FLAG_DISABLE_TTL_DEC	0x1	/**< Set = TTL Decrement disabled, clear = TTL Decrement enabled */
 #define PPE_VP_FLAG_REDIR_ENABLE	0x2	/**< When set, the packets destined to VP are redirect to VP queue without RPS */
 
+#define PPE_VP_DS_INVALID_NODE_ID	0xFF	/**< Invalid node id value */
+
 /**
  * @addtogroup ppe_vp_public_subsystem
  * @{
@@ -126,6 +128,15 @@ enum ppe_vp_net_dev_type {
 	PPE_VP_NET_DEV_TYPE_MAX,		/**< Maximum VP netdev types */
 };
 
+/*
+ * ppe_vp_net_dev_pvt_flags
+ *	Flags of a netdev
+ */
+enum ppe_vp_net_dev_pvt_flags {
+	PPE_VP_NET_DEV_FLAG_IS_MLD = 1,	/**< Is MLD net dev */
+	PPE_VP_NET_DEV_FLAG_MAX,		/**< Maximum netdev flags */
+};
+
 /**
  * ppe_vp_ai
  *	Data structure VP allocation.
@@ -146,6 +157,8 @@ struct ppe_vp_ai {
 	enum ppe_vp_user_type usr_type;	/**< VP user type */
 	enum ppe_vp_net_dev_type net_dev_type;
 					/**< VP netdev type */
+	enum ppe_vp_net_dev_pvt_flags net_dev_flags;
+					/**< VP netdev flags */
 };
 
 /*

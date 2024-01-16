@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -218,6 +218,17 @@ extern ppe_vp_status_t ppe_vp_mtu_set(ppe_vp_num_t port_num, uint16_t mtu);
 extern ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num);
 
 /*
+ * ppe_vp_free_dev()
+ *	Free PPE VP interface and its netdevice.
+ *
+ * @param[in] netdev    VP netdevice pointer.
+ *
+ * @return
+ * Void.
+ */
+extern void ppe_vp_free_dev(struct net_device *vp_dev);
+
+/*
  * ppe_vp_alloc()
  *	Allocate a PPE VP interface.
  *
@@ -228,6 +239,18 @@ extern ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num);
  * VP number.
  */
 extern ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai);
+
+/*
+ * ppe_vp_alloc_dev()
+ *	Allocate a PPE VP interface and netdevice.
+ *
+ * @param[in] netdev     VP allocator netdevice.
+ * @param[in] vpai       VP allocation info.
+ *
+ * @return
+ * pointer to ppe vp netdevice.
+ */
+extern struct net_device *ppe_vp_alloc_dev(struct net_device *netdev, struct ppe_vp_ai *vpai);
 
 /** @} */ /* end_addtogroup ppe_vp_public_subsystem */
 

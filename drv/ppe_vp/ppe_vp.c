@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,8 +17,31 @@
 #include <fal/fal_qm.h>
 #include "ppe_vp_base.h"
 #include "ppe_vp_rx.h"
+#include "ppe_vp_tx.h"
 
 extern struct ppe_vp_base vp_base;
+
+/*
+ * ppe_vp_start_xmit()
+ *	ppe_vp dev hard start function.
+ */
+static netdev_tx_t ppe_vp_start_xmit(struct sk_buff *skb, struct net_device *vp_dev)
+{
+	struct ppe_vp_priv *vp_priv = netdev_priv(vp_dev);
+	struct ppe_vp *vp = vp_priv->vp;
+
+	if (unlikely(!ppe_vp_tx_to_ppe(vp->port_num, skb))) {
+		skb->fast_xmit = 0;
+		dev_kfree_skb_any(skb);
+	}
+
+	return NETDEV_TX_OK;
+}
+
+static const struct net_device_ops vp_netdev_ops = {
+	.ndo_start_xmit         = ppe_vp_start_xmit,
+	.ndo_validate_addr      = eth_validate_addr,
+};
 
 /*
  * ppe_vp_get_netdev_by_port_num()
@@ -181,10 +204,10 @@ mtu_set_fail:
 EXPORT_SYMBOL(ppe_vp_mtu_set);
 
 /*
- * ppe_vp_free()
+ * __ppe_vp_free()
  *	Free the earlier allocated VP.
  */
-ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
+static ppe_vp_status_t __ppe_vp_free(ppe_vp_num_t port_num)
 {
 	struct ppe_vp_base *pvb = &vp_base;
 	struct ppe_drv_iface *ppe_iface;
@@ -278,13 +301,42 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 free_fail:
 	return status;
 }
+
+/*
+ * ppe_vp_free_dev()
+ *	Free VP netdev.
+ */
+void ppe_vp_free_dev(struct net_device *vp_dev)
+{
+	struct ppe_vp *vp;
+	struct ppe_vp_priv *vp_priv;
+
+	vp_priv = netdev_priv(vp_dev);
+	vp = vp_priv->vp;
+
+	/*
+	 * Unregister vp netdev.
+	 */
+	unregister_netdev(vp_dev);
+	vp->vp_dev = NULL;
+}
+EXPORT_SYMBOL(ppe_vp_free_dev);
+
+/*
+ * ppe_vp_free()
+ *	Free the earlier allocated VP.
+ */
+ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
+{
+	return __ppe_vp_free(port_num);
+}
 EXPORT_SYMBOL(ppe_vp_free);
 
 /*
  * ppe_vp_alloc()
  *	Allocate a new virtual port.
  */
-ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
+static struct ppe_vp *__ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 {
 	struct ppe_vp_base *pvb = &vp_base;
 	enum ppe_vp_type type = vpai->type;
@@ -298,13 +350,13 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 	if (!netdev) {
 		ppe_vp_warn("%px: Netdev is NULL", pvb);
 		vpai->status = PPE_VP_STATUS_FAILURE;
-		return -1;
+		return NULL;
 	}
 
 	if (type < PPE_VP_TYPE_SW_L2 || type >= PPE_VP_TYPE_MAX) {
 		ppe_vp_warn("%px: Invalid PPE VP type %d requested", pvb, type);
 		vpai->status = PPE_VP_STATUS_FAILURE;
-		return -1;
+		return NULL;
 	}
 
 	switch (type) {
@@ -328,7 +380,7 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 		default:
 			ppe_vp_warn("%p: Incorrect interface type: %d", pvb, type);
 			vpai->status = PPE_VP_STATUS_INVALID_TYPE;
-			return -1;
+			return NULL;
 	}
 
 	/*
@@ -338,7 +390,7 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 	if (!ppe_iface) {
 		ppe_vp_warn("%px: netdev: %px, ppe type %d, ppe interface allocation fail", pvb, netdev, ppe_type);
 		vpai->status = PPE_VP_STATUS_PPEIFACE_ALLOC_FAIL;
-		return -1;
+		return NULL;
 	}
 
 	info.core_mask = vpai->core_mask;
@@ -445,7 +497,7 @@ ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
 
 	spin_unlock_bh(&vp->lock);
 
-	return pp_num;
+	return vp;
 
 alloc_fail:
 	ppe_drv_iface_mtu_set(ppe_iface, 0);
@@ -458,6 +510,83 @@ pp_num_fail:
 
 init_fail:
 	ppe_drv_iface_deref(ppe_iface);
-	return -1;
+
+	return NULL;
+}
+
+/*
+ * ppe_vp_alloc()
+ *	Allocate a new virtual port.
+ */
+ppe_vp_num_t ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai *vpai)
+{
+
+	struct ppe_vp *vp;
+
+	vp = __ppe_vp_alloc(netdev, vpai);
+	if (!vp) {
+		return -1;
+	}
+
+	return vp->port_num;
 }
 EXPORT_SYMBOL(ppe_vp_alloc);
+
+/*
+ * ppe_vp_netdev_destructor
+ * 	Free ppe_vp once netdev refcount is zero
+ */
+static void ppe_vp_netdev_destructor(struct net_device *vp_dev)
+{
+	struct ppe_vp_priv *vp_priv = netdev_priv(vp_dev);
+	struct ppe_vp *vp = vp_priv->vp;
+
+	__ppe_vp_free(vp->port_num);
+}
+
+/*
+ * ppe_vp_alloc_dev
+ * 	Allocate ppe_vp and a corresponding netdevice
+ */
+struct net_device *ppe_vp_alloc_dev(struct net_device *netdev, struct ppe_vp_ai *vpai)
+{
+
+	struct ppe_vp *vp;
+	struct net_device *vp_dev;
+	struct ppe_vp_priv *vp_priv;
+	int err;
+
+	vp = __ppe_vp_alloc(netdev, vpai);
+	if (!vp) {
+		return NULL;
+	}
+
+	vp_dev = alloc_etherdev_mqs(sizeof(struct ppe_vp_priv),	NR_CPUS, NR_CPUS);
+	if (!vp_dev) {
+		ppe_vp_warn("alloc_etherdev() failed\n");
+		__ppe_vp_free(vp->port_num);
+		return NULL;
+	}
+
+	vp_dev->netdev_ops = &vp_netdev_ops;
+	vp_dev->needs_free_netdev = true;
+	vp_dev->priv_destructor = ppe_vp_netdev_destructor;
+
+	vp_priv = netdev_priv(vp_dev);
+	memset((void *)vp_priv, 0, sizeof(struct ppe_vp_priv));
+	vp_priv->vp = vp;
+	vp->vp_dev = vp_dev;
+
+	/*
+	 * VP creation successful, register its netdev.
+	 */
+	err = register_netdev(vp_dev);
+	if (err < 0) {
+		free_netdev(vp_dev);
+		ppe_vp_warn("register_netdev failed with err %d\n", err);
+		return NULL;
+	}
+
+	return vp_dev;
+}
+EXPORT_SYMBOL(ppe_vp_alloc_dev);

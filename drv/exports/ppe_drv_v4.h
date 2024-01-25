@@ -203,7 +203,7 @@ bool ppe_drv_v4_stats_callback_register(ppe_drv_v4_sync_callback_t cb, void *app
 void ppe_drv_v4_conn_sync_many(struct ppe_drv_v4_conn_sync_many *cn_syn, uint8_t num_conn);
 
 /**
- * ppe_drv_v4_conn_stats_get
+ * ppe_drv_v4_get_conn_stats
  *	API to get a single connection stats.
  *
  * @param[in] conn_stats     Pointer to the connection stats structure.
@@ -211,7 +211,7 @@ void ppe_drv_v4_conn_sync_many(struct ppe_drv_v4_conn_sync_many *cn_syn, uint8_t
  * @return
  * Status of the stats sync.
  */
-ppe_drv_ret_t ppe_drv_v4_conn_stats_get(struct ppe_drv_v4_flow_conn_stats *conn_stats);
+ppe_drv_ret_t ppe_drv_v4_get_conn_stats(struct ppe_drv_v4_flow_conn_stats *conn_stats);
 
 /**
  * ppe_drv_v4_policer_create

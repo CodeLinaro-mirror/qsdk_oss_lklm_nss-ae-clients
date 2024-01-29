@@ -156,10 +156,10 @@ struct ppe_drv_v6_conn_sync {
 };
 
 /*
- * ppe_drv_v6_get_conn_stats
+ * ppe_drv_v6_flow_conn_stats
  *	PPE connection stats for a single connection
  */
-struct ppe_drv_v6_get_conn_stats {
+struct ppe_drv_v6_flow_conn_stats {
 	struct ppe_drv_v6_5tuple tuple;			/**< Holds value of 5 tuple. */
 	struct ppe_drv_v6_conn_sync conn_sync;		/**< Connection stats */
 };
@@ -205,7 +205,7 @@ void ppe_drv_v6_stats_callback_unregister(void);
 bool ppe_drv_v6_stats_callback_register(ppe_drv_v6_sync_callback_t cb, void *app_data);
 
 /**
- * ppe_drv_v6_conn_stats_get
+ * ppe_drv_v6_get_conn_stats
  *	API to get a single connection stats.
  *
  * @param[in] conn_stats	Pointer to the connection stats structure.
@@ -213,7 +213,7 @@ bool ppe_drv_v6_stats_callback_register(ppe_drv_v6_sync_callback_t cb, void *app
  * @return
  * Status of the stats sync.
  */
-ppe_drv_ret_t ppe_drv_v6_conn_stats_get(struct ppe_drv_v6_get_conn_stats *conn_stats);
+ppe_drv_ret_t ppe_drv_v6_get_conn_stats(struct ppe_drv_v6_flow_conn_stats *conn_stats);
 
 /**
  * ppe_drv_v6_conn_sync_many

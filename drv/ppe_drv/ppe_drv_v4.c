@@ -1935,10 +1935,10 @@ void ppe_drv_v4_conn_sync_one(struct ppe_drv_v4_conn *cn, struct ppe_drv_v4_conn
 }
 
 /*
- * ppe_drv_v4_conn_stats_get()
+ * ppe_drv_v4_get_conn_stats()
  *	Sync stats for a given five tuple connection.
  */
-ppe_drv_ret_t ppe_drv_v4_conn_stats_get(struct ppe_drv_v4_flow_conn_stats *conn_stats)
+ppe_drv_ret_t ppe_drv_v4_get_conn_stats(struct ppe_drv_v4_flow_conn_stats *conn_stats)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_flow *flow = NULL;
@@ -1976,7 +1976,7 @@ ppe_drv_ret_t ppe_drv_v4_conn_stats_get(struct ppe_drv_v4_flow_conn_stats *conn_
 
 	return PPE_DRV_RET_SUCCESS;
 }
-EXPORT_SYMBOL(ppe_drv_v4_conn_stats_get);
+EXPORT_SYMBOL(ppe_drv_v4_get_conn_stats);
 
 /*
  * ppe_drv_v4_conn_sync_many()

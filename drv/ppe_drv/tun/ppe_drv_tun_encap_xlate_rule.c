@@ -147,16 +147,16 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 	}
 
 	/*
-	 *			PL=96   PL=64   PL=56   PL=48   PL=40   PL=32
+	 *	                PL=96   PL=64   PL=56   PL=48   PL=40   PL=32
 	 *	SRC1                    Dst IPv6 address location
-	 *	SRC2              1       1       1       1       1 	  1
-	 *	VALID2_0          1	  1       1       1       1       1
+	 *	SRC2              1       1       1       1       1       1
+	 *	VALID2_0          1       1       1       1       1       1
 	 *	START2_0          0       0       0       0       0       0
 	 *	WIDTH2_0         31      31      23      15       7      31
-	 *	POS2_0            0      24      32      40      48      74
+	 *	POS2_0            0      24      32      40      48      64
 	 *	VALID2_1          0       0       1       1       1       0
 	 *	START2_1          0       0      24      16       8       0
-	 *	WIDTH2_1          0       0       7       7      23       0
+	 *	WIDTH2_1          0       0       7      15      23       0
 	 *	POS2_1            0       0      64      64      64       0
 	 */
 
@@ -209,7 +209,7 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 		mapt_edit_rule.src2_entry[0].dest_pos = 40;
 		mapt_edit_rule.src2_entry[1].enable = A_TRUE;
 		mapt_edit_rule.src2_entry[1].src_start = 16;
-		mapt_edit_rule.src2_entry[1].src_width = 8;
+		mapt_edit_rule.src2_entry[1].src_width = 16;
 		mapt_edit_rule.src2_entry[1].dest_pos = 64;
 		break;
 
@@ -224,7 +224,7 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 
 	case 32:
 		mapt_edit_rule.src2_entry[0].src_width = 32;
-		mapt_edit_rule.src2_entry[0].dest_pos = 74;
+		mapt_edit_rule.src2_entry[0].dest_pos = 64;
 		break;
 
 	default:

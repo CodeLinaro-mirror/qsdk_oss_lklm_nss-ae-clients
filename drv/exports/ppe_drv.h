@@ -94,6 +94,12 @@
 #define PPE_DRV_QDISC_DIR_INVALID		0x04	/**< Qdisc rules are for direction is invalid. */
 
 /*
+ * SAWF mark update flags
+ */
+#define PPE_DRV_SAWF_MARK_FLOW_UPDATE		0x0001
+#define PPE_DRV_SAWF_MARK_RETURN_UPDATE		0x0002
+
+/*
  * ppe_drv_ip_type
  *	Types of IP addresses handled
  */
@@ -497,6 +503,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_IID_ADD_FAIL,		/**< Failure in adding an entry into IID Table */
 #endif
 	PPE_DRV_RET_HOST_QDISC_CFG_FAIL,		/**< Host Qdisc configuration failed. */
+	PPE_DRV_RET_SAWF_MARK_UPDATE_FAIL,		/**< SAWF mark update failed. */
 } ppe_drv_ret_t;
 
 /**

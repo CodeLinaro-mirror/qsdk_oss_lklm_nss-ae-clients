@@ -952,6 +952,68 @@ struct ppe_drv_flow *ppe_drv_flow_v6_get(struct ppe_drv_v6_5tuple *tuple)
 }
 
 /*
+ * ppe_drv_flow_v6_sawf_mark_update()
+ *	Update sawf mark in PPE
+ */
+bool ppe_drv_flow_v6_sawf_mark_update(struct ppe_drv_v6_conn_flow *pcf)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	fal_flow_qos_t flow_qos = {0};
+	uint16_t index;
+	bool wifi_qos_en;
+	sw_error_t err;
+
+	spin_lock_bh(&p->lock);
+
+	index = pcf->pf->index;
+
+	err = fal_flow_qos_get(PPE_DRV_SWITCH_ID, index, &flow_qos);
+	if (err != SW_OK) {
+                spin_unlock_bh(&p->lock);
+                ppe_drv_warn("%px: Failed to obtain flow qos", pcf);
+                return false;
+        }
+
+#ifdef PPE_DRV_FLOW_COOKIE_SUPPORT
+	/*
+	 * Get the flow cookie corresponding to flow.
+	 */
+	if (!ppe_drv_flow_v6_flow_cookie40b_get(pcf, flow_qos.cookie_40b)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px: Failed to obtain a valid flow cookie", pcf);
+		return false;
+	}
+
+	flow_qos.type = FAL_FLOW_QOS_TYPE_COOKIE_40B;
+
+#else
+	/*
+	 * Get the tree ID corresponding to flow.
+	 */
+	if (!ppe_drv_flow_v6_tree_id_get(pcf, flow_qos.tree_id)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px: failed to obtain a valid tree ID", pcf);
+		return false;
+	}
+#endif
+
+	if (!ppe_drv_flow_v6_wifi_qos_get(pcf, &flow_qos.qos, &wifi_qos_en)) {
+		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
+		return false;
+	}
+
+	err = fal_flow_qos_set(PPE_DRV_SWITCH_ID, index, &flow_qos);
+	if (err != SW_OK) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px: Mark rule update failed in PPE", pcf);
+		return false;
+	}
+
+	spin_unlock_bh(&p->lock);
+	return true;
+}
+
+/*
  * ppe_drv_flow_v6_add()
  *	Add flow table entry.
  */
@@ -1905,6 +1967,69 @@ struct ppe_drv_flow *ppe_drv_flow_v4_get(struct ppe_drv_v4_5tuple *tuple)
 
 	ppe_drv_trace("%p: flow_tbl entry found at index: %u", tuple, flow_cfg->entry_id);
 	return flow;
+}
+
+
+/*
+ * ppe_drv_flow_v4_sawf_mark_update()
+ *	Update sawf mark in PPE
+ */
+bool ppe_drv_flow_v4_sawf_mark_update(struct ppe_drv_v4_conn_flow *pcf)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	fal_flow_qos_t flow_qos = {0};
+	uint16_t index;
+	bool wifi_qos_en;
+	sw_error_t err;
+
+	spin_lock_bh(&p->lock);
+
+	index = pcf->pf->index;
+
+	err = fal_flow_qos_get(PPE_DRV_SWITCH_ID, index, &flow_qos);
+	if (err != SW_OK) {
+                spin_unlock_bh(&p->lock);
+                ppe_drv_warn("%px: Failed to obtain flow qos", pcf);
+                return false;
+        }
+
+#ifdef PPE_DRV_FLOW_COOKIE_SUPPORT
+	/*
+	 * Get the flow cookie corresponding to flow.
+	 */
+	if (!ppe_drv_flow_v4_flow_cookie40b_get(pcf, flow_qos.cookie_40b)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px: failed to obtain a valid flow cookie", pcf);
+		return false;
+	}
+
+	flow_qos.type = FAL_FLOW_QOS_TYPE_COOKIE_40B;
+
+#else
+	/*
+	 * Get the tree ID corresponding to flow.
+	 */
+	if (!ppe_drv_flow_v4_tree_id_get(pcf, flow_qos.tree_id)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px: Failed to obtain a valid tree ID", pcf);
+		return false;
+	}
+#endif
+
+	if (!ppe_drv_flow_v4_wifi_qos_get(pcf, &flow_qos.qos, &wifi_qos_en)) {
+		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
+		return false;
+	}
+
+	err = fal_flow_qos_set(PPE_DRV_SWITCH_ID, index, &flow_qos);
+	if (err != SW_OK) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px: Mark rule update failed in PPE", pcf);
+		return false;
+	}
+
+	spin_unlock_bh(&p->lock);
+	return true;
 }
 
 /*

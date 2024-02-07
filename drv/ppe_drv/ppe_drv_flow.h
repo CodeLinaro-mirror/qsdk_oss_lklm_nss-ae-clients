@@ -143,10 +143,11 @@ bool ppe_drv_flow_v6_qos_clear(struct ppe_drv_flow *pf);
 bool ppe_drv_flow_v6_qos_set(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_flow *pf);
 
 bool ppe_drv_flow_del(struct ppe_drv_flow *pf);
+bool ppe_drv_flow_v4_sawf_mark_update(struct ppe_drv_v4_conn_flow *pcf);
+bool ppe_drv_flow_v6_sawf_mark_update(struct ppe_drv_v6_conn_flow *pcf);
 struct ppe_drv_flow *ppe_drv_flow_v4_get(struct ppe_drv_v4_5tuple *tuple);
 struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf,
 		struct ppe_drv_nexthop *nh, struct ppe_drv_host *host, bool entry_valid);
-
 struct ppe_drv_flow *ppe_drv_flow_v6_get(struct ppe_drv_v6_5tuple *tuple);
 struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf,
 		struct ppe_drv_nexthop *nh, struct ppe_drv_host *host, bool entry_valid);

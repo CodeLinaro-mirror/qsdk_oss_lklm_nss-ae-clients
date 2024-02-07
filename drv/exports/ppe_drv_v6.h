@@ -103,6 +103,16 @@ struct ppe_drv_v6_5tuple {
 };
 
 /**
+ * ppe_drv_v6_sawf_mark_update
+ *	PPE IPv6 SAWF rule update structure
+ */
+struct ppe_drv_v6_sawf_mark_update {
+	struct ppe_drv_v6_5tuple tuple;			/**< Holds values of the 5 tuple. */
+	struct ppe_drv_service_class_rule sawf_rule;	/**< Service class related information. */
+	uint16_t valid_flags;				/**< Flags associated with SAWF mark update. */
+};
+
+/**
  * ppe_drv_v6_connection_rule
  *	Information for creating a connection.
  */
@@ -370,6 +380,20 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy);
  * Status of the create operation.
  */
 ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create);
+
+/**
+ * ppe_drv_v6_rule_sawf_mark_update
+ *	Update SAWF rule in PPE.
+ *
+ * @datatypes
+ * ppe_drv_v6_sawf_mark_update
+ *
+ * @param[in] update	Pointer to the NSS PPE SAWF rule update message.
+ *
+ * @return
+ * Status of the mark update operation.
+ */
+ppe_drv_ret_t ppe_drv_v6_rule_sawf_mark_update(struct ppe_drv_v6_sawf_mark_update *update);
 
 /**
  * ppe_drv_v6_nsm_stats_update

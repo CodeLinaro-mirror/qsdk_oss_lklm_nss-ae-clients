@@ -3606,6 +3606,57 @@ fail:
 EXPORT_SYMBOL(ppe_drv_v6_create);
 
 /*
+ * ppe_drv_v6_rule_sawf_mark_update
+ * 	Dynamically update SAWF mark value in PPE for IPv6 flows
+ */
+ppe_drv_ret_t ppe_drv_v6_rule_sawf_mark_update(struct ppe_drv_v6_sawf_mark_update *update)
+{
+	struct ppe_drv_flow *flow;
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v6_conn_flow *pcf, *pcr;
+	struct ppe_drv_v6_conn *cn;
+
+	spin_lock_bh(&p->lock);
+	flow = ppe_drv_flow_v6_get(&update->tuple);
+	if (!flow) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px : Flow not found for given tuple information", &update->tuple);
+		return PPE_DRV_RET_FAILURE_NO_MATCHING_CONN;
+	}
+
+	pcf = flow->pcf.v6;
+	cn = ppe_drv_v6_conn_flow_conn_get(pcf);
+
+	pcf = &cn->pcf;
+	pcr = &cn->pcr;
+
+	if (update->valid_flags & PPE_DRV_SAWF_MARK_FLOW_UPDATE) {
+		pcf->flow_metadata.wifi_qos = update->sawf_rule.flow_mark;
+		pcf->flow_metadata.tree_id_data.info.sawf_metadata.service_class = update->sawf_rule.flow_service_class;
+	}
+
+	if (update->valid_flags & PPE_DRV_SAWF_MARK_RETURN_UPDATE) {
+		pcr->flow_metadata.wifi_qos = update->sawf_rule.return_mark;
+		pcr->flow_metadata.tree_id_data.info.sawf_metadata.service_class = update->sawf_rule.return_service_class;
+	}
+
+	spin_unlock_bh(&p->lock);
+
+	if (!ppe_drv_flow_v6_sawf_mark_update(pcf)) {
+		ppe_drv_warn("%px : Failed to update mark in PPE", pcf);
+		return PPE_DRV_RET_SAWF_MARK_UPDATE_FAIL;
+	}
+
+	if (!ppe_drv_flow_v6_sawf_mark_update(pcr)) {
+		ppe_drv_warn("%px : Failed to update mark in PPE", pcr);
+		return PPE_DRV_RET_SAWF_MARK_UPDATE_FAIL;
+	}
+
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_v6_rule_sawf_mark_update);
+
+/*
  * ppe_drv_v6_nsm_stats_update()
  *	Update nsm stats for the given 5 tuple flow.
  */

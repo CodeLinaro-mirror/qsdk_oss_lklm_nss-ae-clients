@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -339,6 +339,7 @@ struct ppe_drv {
 	struct ppe_drv_tun_udf *pgm_udf;	/* Program Parser udf entries list */
 	struct ppe_drv_tun_encap_hdr_ctrl *ecap_hdr_ctrl;	/* header control protomap data */
 	bool disable_port_mtu_check;			/* Flag to disable MTU check for all the ports */
+	bool eth2eth_offload_if_bitmap;		/* Flag to enable if bitmap check for eth to eth flows */
 	struct ppe_drv_tun_gbl tun_gbl;		/* ppe tunnel global context */
 };
 

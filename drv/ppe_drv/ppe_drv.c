@@ -406,6 +406,24 @@ int16_t ppe_drv_queue_from_core(uint8_t core)
 EXPORT_SYMBOL(ppe_drv_queue_from_core);
 
 /*
+ * ppe_drv_ds_map_node_to_queue()
+ *	node to queue mapping
+ *
+ * This API will be invoked by DP driver to provide node to queue mapping.
+ */
+void ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id)
+{
+	if (node_id > PPE_DRV_DS_MLO_LINK_NODE_ID_MAX) {
+		ppe_drv_warn("Invalid node ID %d, for queue id %d\n", node_id, queue_id);
+		return;
+	}
+
+	ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_DS_MLO_LINK_RO_NODE0 + node_id, queue_id, PPE_DRV_REDIR_PROFILE_ID);
+	ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_DS_MLO_LINK_BR_NODE0 + node_id, queue_id, PPE_DRV_REDIR_PROFILE_ID);
+}
+EXPORT_SYMBOL(ppe_drv_ds_map_node_to_queue);
+
+/*
  * ppe_drv_l3_route_ctrl_init()
  *	Initialize PPE global configuration
  */

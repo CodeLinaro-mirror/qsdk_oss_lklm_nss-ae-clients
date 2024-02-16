@@ -106,6 +106,10 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 	case PPE_DRV_SC_ADV_QOS_BRIDGED:
 	case PPE_DRV_SC_ADV_QOS_ROUTED:
 	case PPE_DRV_SC_PTP:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE0:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE1:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE2:
+	case PPE_DRV_SC_DS_MLO_LINK_RO_NODE3:
 		break;
 
 	case PPE_DRV_SC_LOOPBACK_QOS:
@@ -148,6 +152,16 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 						| (1 << L2_SOURCE_SEC_BYP));
 		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
 		sc_cfg.dest_port_valid = false;
+		break;
+
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE0:
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE1:
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE2:
+	case PPE_DRV_SC_DS_MLO_LINK_BR_NODE3:
+		sc_cfg.bypass_bitmap[1] = ((1 << EG_VLAN_MEMBER_CHECK_BYP)
+						| (1 << SOURCE_FLTR_BYP)
+						| (1 << L2_SOURCE_SEC_BYP));
+		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
 		break;
 
 	case PPE_DRV_SC_L3_EXCEPT:
@@ -575,5 +589,16 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 		ppe_drv_sc_config(acl_sc, acl_sc, PPE_DRV_PORT_CPU);
 	}
 
+	/*
+	 * Initialize MLO service codes
+	 */
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE0, PPE_DRV_SC_DS_MLO_LINK_RO_NODE0, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE1, PPE_DRV_SC_DS_MLO_LINK_RO_NODE1, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE2, PPE_DRV_SC_DS_MLO_LINK_RO_NODE2, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_RO_NODE3, PPE_DRV_SC_DS_MLO_LINK_RO_NODE3, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE0, PPE_DRV_SC_DS_MLO_LINK_BR_NODE0, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE2, PPE_DRV_SC_DS_MLO_LINK_BR_NODE2, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_PORT_CPU);
 	return sc;
 }

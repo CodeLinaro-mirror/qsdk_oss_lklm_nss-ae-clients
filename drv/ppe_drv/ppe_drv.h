@@ -225,6 +225,10 @@ enum ppe_drv_static_dbg_level {
  */
 #define PPE_DRV_L2TP_DEFAULT_UDP_PORT	1701
 
+/*
+ * Maximum number of MLO link IDs
+ */
+#define PPE_DRV_DS_MLO_LINK_NODE_ID_MAX	3
 
 /*
  * ppe_drv_entry_valid

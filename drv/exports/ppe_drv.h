@@ -553,4 +553,16 @@ bool ppe_drv_is_mht_dev(struct net_device *dev);
  *	mac address and vid
  */
 int32_t ppe_drv_mht_port_from_fdb(uint8_t *dmac, uint16_t vid);
+
+/**
+ * ppe_drv_ds_map_node_to_queue
+ *	Provides node to queue mapping.
+ *
+ * @param[in] node_id	node id.
+ * @param[in] queue_id	queue_id.
+ *
+ * @return
+ * none.
+ */
+void ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id);
 #endif /* _PPE_DRV_H_ */

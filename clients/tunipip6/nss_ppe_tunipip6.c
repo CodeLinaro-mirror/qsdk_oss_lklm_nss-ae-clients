@@ -48,6 +48,10 @@ static uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
 module_param(encap_ecn_mode, byte, 0644);
 MODULE_PARM_DESC(encap_ecn_mode, "Encap ECN mode 0:NO_UPDATE, 1:RFC3168_LIMIT_RFC6040_CMPAT, 2:RFC3168_FULL, 3:RFC4301_RFC6040_NORMAL");
 
+static uint8_t decap_ecn_mode = PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE;
+module_param(decap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(decap_ecn_mode, "Decap ECN mode 0:RFC3168, 1:RFC4301, 2:RFC6040");
+
 static bool inherit_ttl = false;
 module_param(inherit_ttl, bool, 0644);
 MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
@@ -158,7 +162,14 @@ static bool nss_ppe_tunipip6_dev_parse_param(struct net_device *dev, struct ppe_
 		l3->dscp = ip6_tclass(tunnel->parms.flowinfo) & 0xfc;
 	}
 
-	l3->encap_ecn_mode = encap_ecn_mode;
+	if (encap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		l3->encap_ecn_mode = encap_ecn_mode;
+	}
+
+	if (decap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		l3->decap_ecn_mode = decap_ecn_mode;
+	}
+
 	l3->proto = tunnel->parms.proto;
 	l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_IPV6;
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6;
@@ -407,6 +418,12 @@ int __init nss_ppe_tunipip6_init_module(void)
 	if (encap_ecn_mode > PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
 		nss_ppe_tunipip6_dentry_deinit();
 		nss_ppe_tunipip6_warning("Invalid Encap ECN mode %u\n", encap_ecn_mode);
+		return -1;
+	}
+
+	if (decap_ecn_mode > PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		nss_ppe_tunipip6_dentry_deinit();
+		nss_ppe_tunipip6_warning("Invalid Decap ECN mode %u\n", decap_ecn_mode);
 		return -1;
 	}
 

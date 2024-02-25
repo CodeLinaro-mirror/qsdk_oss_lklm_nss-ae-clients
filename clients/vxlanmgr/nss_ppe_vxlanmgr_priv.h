@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -61,7 +61,7 @@ struct ppe_drv_tun_cmn_ctx;
 
 #define nss_ppe_vxlanmgr_assert(c) BUG_ON(!(c))
 
-#define NSS_PPE_VXLANMGR_RS(x, y) x >> y
+#define NSS_PPE_VXLAN_MGR_O_DSCP_GET(x, y) (x >> y)
 
 /*
  * VXLAN global context.

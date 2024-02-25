@@ -61,6 +61,16 @@ enum ppe_drv_tun_cmn_ctx_encap_ecn {
 };
 
 /*
+ * ppe_drv_tun_cmn_ctx_decap_ecn
+ *	PPE tunnel decap ecn mode
+ */
+enum ppe_drv_tun_cmn_ctx_decap_ecn {
+	PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE = 0,	/* RFC3168 mode for decapsulation */
+	PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC4301_MODE = 1,	/* RFC4301 mode for decapsulation */
+	PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE = 2,	/* RFC6040 mode for decapsulation */
+};
+
+/*
  * ppe_drv_tun_cmn_ctx_type
  *	PPE Tunnel types
  */
@@ -85,6 +95,7 @@ struct ppe_drv_tun_cmn_ctx_l3 {
 	uint8_t dscp;		/**< Static DSCP value for outer header >*/
 	uint8_t ttl;		/**< Static TTL value for outer header >*/
 	enum ppe_drv_tun_cmn_ctx_encap_ecn encap_ecn_mode;	/**< RFC for ECN in encap direction >*/
+	enum ppe_drv_tun_cmn_ctx_decap_ecn decap_ecn_mode;	/**< RFC for ECN in decap direction >*/
 };
 
 /*

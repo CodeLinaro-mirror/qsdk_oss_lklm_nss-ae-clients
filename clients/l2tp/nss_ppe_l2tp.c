@@ -42,8 +42,10 @@ MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
  * nss_ppe_l2tp_src_exception()
  *	handle source VP exception packets
  */
-static bool nss_ppe_l2tp_src_exception(struct net_device *dev, struct sk_buff *skb, ppe_tun_data *tun_data)
+static bool nss_ppe_l2tp_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *dev = skb->dev;
 	int ret;
 	const struct iphdr *iph;
 
@@ -56,8 +58,6 @@ static bool nss_ppe_l2tp_src_exception(struct net_device *dev, struct sk_buff *s
 	}
 
 	skb->pkt_type = PACKET_HOST;
-	skb->dev = dev;
-	skb->skb_iif = dev->ifindex;
 	/*
 	 * Reset Skb flags
 	 */

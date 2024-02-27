@@ -44,6 +44,7 @@ bool disable_port_mtu_check = true;
 uint32_t static_dbg_level = 0;
 static char static_dbg_level_str[PPE_DRV_STATIC_DBG_LEVEL_STR_LEN];
 uint8_t ppe_drv_redir_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+static bool eth2eth_offload_if_bitmap;
 
 /*
  * Define the filename to be used for assertions.
@@ -1265,6 +1266,29 @@ static int ppe_drv_disable_port_mtu_check_handler(struct ctl_table *table,
 }
 
 /*
+ * ppe_drv_eth2eth_offload_if_bitmap_handler()
+ * 	Set eth to eth offload with if bitmap config
+ */
+static int ppe_drv_eth2eth_offload_if_bitmap_handler(struct ctl_table *table,
+						int write, void __user *buffer,
+						size_t *lenp, loff_t *ppos)
+{
+	int ret;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+
+	if (!write) {
+		return ret;
+	}
+
+	p->eth2eth_offload_if_bitmap = eth2eth_offload_if_bitmap;
+
+	ppe_drv_info("Updating eth2eth_offload_if_bitmap flag as %d\n", p->eth2eth_offload_if_bitmap);
+	return ret;
+}
+
+/*
  * ppe_drv_static_dbg_level_handler()
  *	Set static debug level for ppe-driver.
  */
@@ -1334,6 +1358,13 @@ static struct ctl_table ppe_drv_sub[] = {
 		.maxlen         =       sizeof(int),
 		.mode           =       0644,
 		.proc_handler   =       ppe_drv_disable_port_mtu_check_handler
+	},
+	{
+		.procname       =       "eth2eth_offload_if_bitmap",
+		.data           =       &eth2eth_offload_if_bitmap,
+		.maxlen         =       sizeof(int),
+		.mode           =       0644,
+		.proc_handler   =       ppe_drv_eth2eth_offload_if_bitmap_handler
 	},
 	{}
 };

@@ -999,6 +999,12 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 			ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK);
 		}
 #endif
+		/*
+		 * Set noedit rule
+		 */
+		if (rule_flags & PPE_DRV_V6_RULE_NOEDIT_FLOW_RULE) {
+			ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_NO_EDIT_RULE);
+		}
 	}
 
 	/*
@@ -1159,6 +1165,13 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 			ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK);
 		}
 #endif
+		/*
+		 * Set noedit rule
+		 */
+		if (rule_flags & PPE_DRV_V6_RULE_NOEDIT_RETURN_RULE) {
+			ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLAG_FLOW_NO_EDIT_RULE);
+		}
+
 		ppe_drv_v6_conn_flags_set(cn, PPE_DRV_V6_CONN_FLAG_RETURN_VALID);
 	}
 

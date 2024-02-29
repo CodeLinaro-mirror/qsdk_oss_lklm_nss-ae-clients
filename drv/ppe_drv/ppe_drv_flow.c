@@ -519,6 +519,23 @@ bool ppe_drv_flow_v6_service_code_get(struct ppe_drv_v6_conn_flow *pcf, struct p
 	}
 
 	/*
+	 * Service code to enable PPE to bypass packet header editing and forward them unmodified.
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_NO_EDIT_RULE)) {
+		/*
+		 * Service code to set noedit rule.
+		 */
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_NOEDIT_RULE)) {
+			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+					pcf, service_code, PPE_DRV_SC_NOEDIT_RULE);
+			return false;
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
+	/*
 	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
 	 */
 	if ((ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID) ||
@@ -1230,6 +1247,23 @@ bool ppe_drv_flow_v4_service_code_get(struct ppe_drv_v4_conn_flow *pcf, struct p
 		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_NOEDIT_PRIORITY_SET)) {
 			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
 						pcf, service_code, PPE_DRV_SC_NOEDIT_PRIORITY_SET);
+			return false;
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
+	/*
+	 * Service code to enable PPE to bypass packet header editing and forward them unmodified.
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_NO_EDIT_RULE)) {
+		/*
+		 * Service code to set noedit rule.
+		 */
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_NOEDIT_RULE)) {
+			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+						pcf, service_code, PPE_DRV_SC_NOEDIT_RULE);
 			return false;
 		}
 

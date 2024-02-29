@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -62,6 +62,8 @@
 					/* Policer for NoEdit */
 #define PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST 0x00008000
 					/* Flow needs PPE assistance for Priority setting */
+#define PPE_DRV_V6_CONN_FLAG_FLOW_NO_EDIT_RULE 0x00010000
+					/* Flow is noedit rule */
 
 /*
  * ppe_drv_v6_conn_flow

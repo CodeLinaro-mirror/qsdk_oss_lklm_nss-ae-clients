@@ -63,6 +63,14 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_L2_TUNNEL_EXCEPTION,  /* Service code to allow decapsulated VXLAN/GRE tunnel exception. */
 	PPE_DRV_SC_NOEDIT_PRIORITY_SET, /* Service code to redirect packets without editing */
 
+	PPE_DRV_SC_DS_MLO_LINK_BR_NODE0, /* Service code when bridge flow in DS with PPEDS Node 0 allocated for MLO Link */
+	PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, /* Service code when bridge flow in DS with PPEDS Node 1 allocated for MLO Link */
+	PPE_DRV_SC_DS_MLO_LINK_BR_NODE2, /* Service code when bridge flow in DS with PPEDS Node 2 allocated for MLO Link */
+	PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, /* Service code when bridge flow in DS with PPEDS Node 3 allocated for MLO Link */
+	PPE_DRV_SC_DS_MLO_LINK_RO_NODE0, /* Service code when routed flow in DS with PPEDS Node 0 allocated for MLO Link */
+	PPE_DRV_SC_DS_MLO_LINK_RO_NODE1, /* Service code when routed flow in DS with PPEDS Node 1 allocated for MLO Link */
+	PPE_DRV_SC_DS_MLO_LINK_RO_NODE2, /* Service code when routed flow in DS with PPEDS Node 2 allocated for MLO Link */
+	PPE_DRV_SC_DS_MLO_LINK_RO_NODE3, /* Service code when routed flow in DS with PPEDS Node 3 allocated for MLO Link */
 	PPE_DRV_SC_FLOW_ACL_FIRST = PPE_DRV_SC_FLOW_ACL_START,
 					/* First service code for combining flow and ACL rule */
 	PPE_DRV_SC_FLOW_ACL_LAST = PPE_DRV_SC_FLOW_ACL_END,

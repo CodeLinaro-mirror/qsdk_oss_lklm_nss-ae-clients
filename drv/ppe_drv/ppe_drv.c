@@ -96,9 +96,13 @@ EXPORT_SYMBOL(ppe_drv_is_mht_dev);
 static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_v4_conn *cn_v4;
+	struct ppe_drv_v6_conn *cn_v6;
+#ifdef PPE_TUNNEL_ENABLE
+	struct ppe_drv_v4_conn *cn_tun_v4;
+	struct ppe_drv_v6_conn *cn_tun_v6;
+#endif
 
-	struct ppe_drv_v4_conn *cn_v4, *cn_tun_v4;
-	struct ppe_drv_v6_conn *cn_v6, *cn_tun_v6;
 	struct ppe_drv_v4_conn_flow *pcf_v4;
 	struct ppe_drv_v4_conn_flow *pcr_v4;
 	struct ppe_drv_v6_conn_flow *pcf_v6;
@@ -136,6 +140,7 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 		}
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	/*
 	 * Update hw stats for tunnels associated with active v4 connections
 	 */
@@ -162,7 +167,7 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 			ppe_drv_tun_v6_port_stats_update(cn_tun_v6);
 		}
 	}
-
+#endif
 	for (id = 0; id < PPE_DRV_ACL_LIST_ID_MAX; id++) {
 		if (p->acl->list_id[id].list_id_state == PPE_DRV_ACL_LIST_ID_USED) {
 			ppe_drv_acl_stats_update(p->acl->list_id[id].ctx);
@@ -636,10 +641,12 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		return -1;
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (!ppe_drv_tun_global_init(p)) {
 		ppe_drv_warn("%p: failed to do global config init for tunnels", p);
 		return -1;
 	}
+#endif
 
 	p->pub_ip = ppe_drv_pub_ip_entries_alloc();
 	if (!p->pub_ip) {
@@ -747,6 +754,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	p->tun_gbl.tun_l2tp.l2tp_sport = PPE_DRV_L2TP_DEFAULT_UDP_PORT;
 	p->tun_gbl.tun_l2tp.l2tp_encap_rule = NULL;
 
+#ifdef PPE_TUNNEL_ENABLE
 	/*
 	 * Allocate tunnel specific entries
 	 */
@@ -786,6 +794,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		ppe_drv_warn("%p: failed to allocate TL MAP LPM action interface entries", p);
 		goto fail;
 	}
+#endif
 
 	p->acl = ppe_drv_acl_entries_alloc();
 	if (!p->acl) {
@@ -799,6 +808,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	p->pgm = ppe_drv_tun_prgm_prsr_alloc(p);
 	if (!p->pgm) {
 		ppe_drv_warn("%p: failed to allocate program parser entries", p);
@@ -810,6 +820,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		ppe_drv_warn("%p: failed to allocate tunnel udf entries", p);
 		goto fail;
 	}
+#endif
 
 	/*
 	 * Take a reference
@@ -834,6 +845,7 @@ static int ppe_drv_probe(struct platform_device *pdev)
 
 fail:
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (p->decap_map_entries) {
 		ppe_drv_tun_decap_entries_free(p->decap_map_entries);
 		p->decap_map_entries = NULL;
@@ -863,6 +875,7 @@ fail:
 		ppe_drv_tun_l3_if_entries_free(p->ptun_l3_if);
 		p->ptun_l3_if = NULL;
 	}
+#endif
 
 	if (p->pol_ctx) {
 		ppe_drv_policer_entries_free(p->pol_ctx);
@@ -929,6 +942,7 @@ fail:
 		p->cc = NULL;
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (p->pgm) {
 		ppe_drv_tun_prgm_prsr_free(p->pgm);
 		p->pgm = NULL;
@@ -943,6 +957,7 @@ fail:
 		ppe_drv_tun_encap_hdr_ctrl_free(p->ecap_hdr_ctrl);
 		p->ecap_hdr_ctrl = NULL;
 	}
+#endif
 
 	ppe_drv_flow_dump_exit();
 	ppe_drv_if_map_exit();
@@ -1015,6 +1030,7 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		p->cc = NULL;
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (p->ptun_ec) {
 		ppe_drv_tun_encap_entries_free(p->ptun_ec);
 		p->ptun_ec = NULL;
@@ -1044,13 +1060,16 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		ppe_drv_tun_decap_xlate_rule_entries_free(p->decap_xlate_rules);
 		p->decap_xlate_rules = NULL;
 	}
+#endif
 
 	if (p->acl) {
 		ppe_drv_acl_entries_free(p->acl);
 		p->acl = NULL;
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	ppe_drv_tun_vxlan_deconfigure(p);
+#endif
 
 	if (p->pol_ctx) {
 		ppe_drv_policer_entries_free(p->pol_ctx);
@@ -1061,6 +1080,7 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		ppe_drv_warn("FSE ops still registered while ppe module getting removed\n");
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (p->pgm) {
 		ppe_drv_tun_prgm_prsr_free(p->pgm);
 		p->pgm = NULL;
@@ -1075,6 +1095,7 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		ppe_drv_tun_encap_hdr_ctrl_free(p->ecap_hdr_ctrl);
 		p->ecap_hdr_ctrl = NULL;
 	}
+#endif
 
 	ppe_drv_flow_dump_exit();
 	ppe_drv_if_map_exit();

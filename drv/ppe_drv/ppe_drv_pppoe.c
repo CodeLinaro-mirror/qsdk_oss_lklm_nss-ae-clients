@@ -108,6 +108,7 @@ bool ppe_drv_pppoe_deref(struct ppe_drv_pppoe *pppoe)
 	return false;
 }
 
+#ifdef PPE_TUNNEL_ENABLE
 /*
  * ppe_drv_pppoe_tl_l3_if_get
  *	Get ti_l3_if and take reference on pppoe
@@ -120,7 +121,6 @@ struct ppe_drv_tun_l3_if *ppe_drv_pppoe_tl_l3_if_get(struct ppe_drv_pppoe *pppoe
 	}
 
 	ppe_drv_pppoe_ref(pppoe);
-
 	return ppe_drv_tun_l3_if_ref(pppoe->tl_l3_if);
 }
 
@@ -190,6 +190,7 @@ bool ppe_drv_pppoe_tl_l3_if_attach(struct ppe_drv_pppoe *pppoe, struct ppe_drv_t
 	ppe_drv_info("%p: tl_l3_if %d attached to PPPoE index %d\n", pppoe, tl_l3_if_idx, pppoe->index);
 	return true;
 }
+#endif
 
 /*
  * ppe_drv_pppoe_l3_if_detach()
@@ -387,6 +388,7 @@ struct ppe_drv_pppoe *ppe_drv_pppoe_find_session(uint16_t session_id, uint8_t *s
 	return NULL;
 }
 
+#ifdef PPE_TUNNEL_ENABLE
 /*
  * ppe_pppoe_find_session()
  *	Find pppoe session for given tl_l3_if
@@ -408,6 +410,7 @@ struct ppe_drv_pppoe *ppe_drv_pppoe_find_session_by_tl_l3_if(struct ppe_drv_tun_
 	ppe_drv_warn("%p: pppoe session not found for tl_l3_if %p", p, tl_l3_if);
 	return NULL;
 }
+#endif
 
 /*
  * ppe_drv_pppoe_alloc()

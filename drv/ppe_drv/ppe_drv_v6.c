@@ -2496,6 +2496,7 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	struct ppe_drv_v6_conn_sync *cns;
 	struct ppe_drv_v6_conn *cn;
 
+#ifdef PPE_TUNNEL_ENABLE
 	ppe_drv_ret_t ret;
 
 	/*
@@ -2509,6 +2510,7 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 
 		return ret;
 	}
+#endif
 	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
 
 	/*
@@ -2979,6 +2981,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 		return PPE_DRV_RET_PORT_NO_OFFLOAD;
 	}
 
+#ifdef PPE_TUNNEL_ENABLE
 	if (ppe_drv_v6_tun_allow_tunnel_create(create)) {
 		comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_TUNNEL];
 		ppe_drv_stats_inc(&comm_stats->v6_create_req);
@@ -2991,7 +2994,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 
 		return PPE_DRV_RET_SUCCESS;
 	}
-
+#endif
 	/*
 	 * Update stats
 	 */

@@ -15,7 +15,11 @@ obj-m += ppe_vp/
 endif
 
 ifneq ($(ppe-tun),)
+ifndef PPE_16M_PROFILE
+ifndef PPE_256M_PROFILE
 obj-m += ppe_tun/
+endif
+endif
 endif
 
 ifneq ($(ppe-ds),)

@@ -20,7 +20,9 @@ qca-nss-ppe-objs += ppe_drv_acl.o
 qca-nss-ppe-objs += ppe_drv_br.o
 qca-nss-ppe-objs += ppe_drv_cc.o
 qca-nss-ppe-objs += ppe_drv_dp.o
+ifdef PPE_IPSEC_ENABLE
 qca-nss-ppe-objs += ppe_drv_eip.o
+endif
 qca-nss-ppe-objs += ppe_drv_exception.o
 qca-nss-ppe-objs += ppe_drv_flow.o
 qca-nss-ppe-objs += ppe_drv_host.o
@@ -43,6 +45,8 @@ qca-nss-ppe-objs += ppe_drv_v4.o
 qca-nss-ppe-objs += ppe_drv_v6.o
 qca-nss-ppe-objs += ppe_drv_flow_dump.o
 qca-nss-ppe-objs += ppe_drv_if_map.o
+ifdef PPE_TUN_ENABLE
+ccflags-y += -DPPE_TUNNEL_ENABLE
 qca-nss-ppe-objs += tun/ppe_drv_tun.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_decap.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_decap_map.o
@@ -56,6 +60,7 @@ qca-nss-ppe-objs += tun/ppe_drv_tun_prgm_prsr_gre.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_udf.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v4.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v6.o
+endif
 
 ccflags-y += -Wall -Werror
 ccflags-y += -DPPE_DRV_DEBUG_LEVEL=3

@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -142,6 +142,11 @@
  * Number of ports to which the acl rule can be attached.
  */
 #define NSS_CAPWAPMGR_ACL_TRUSTSEC_PORT_MAX 6
+
+/*
+ * CAPWAP VP MTU.
+ */
+#define NSS_CAPWAPMGR_VP_MTU 9216
 
 /*
  * nss_capwapmgr_acl

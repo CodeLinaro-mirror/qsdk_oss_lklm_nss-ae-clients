@@ -2290,18 +2290,9 @@ static nss_capwapmgr_status_t nss_capwapmgr_tunnel_create_common(struct net_devi
 		return NSS_CAPWAPMGR_FAILRUE_INTERNAL_ENCAP_NETDEV_ALLOC_FAILED;
 	}
 
-	/*
-	 * Update the MTU of internal dev as PPE VP sets the PPE iface MTU
-	 * based on netdevs MTU.
-	 */
 	memset(&vpai, 0, sizeof(struct ppe_vp_ai));
-	if (v4) {
-		internal_dev_decap->mtu = v4->to_mtu;
-		internal_dev_encap->mtu = v4->to_mtu;
-	} else {
-		internal_dev_decap->mtu = v6->to_mtu;
-		internal_dev_encap->mtu = v6->to_mtu;
-	}
+	internal_dev_decap->mtu = NSS_CAPWAPMGR_VP_MTU;
+	internal_dev_encap->mtu = NSS_CAPWAPMGR_VP_MTU;
 
 	vpai.type = PPE_VP_TYPE_SW_PO;
 

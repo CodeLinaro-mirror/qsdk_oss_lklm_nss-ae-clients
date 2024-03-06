@@ -363,6 +363,7 @@ static void ppe_drv_port_destroy(struct kref *kref)
 	ppe_drv_trace("%p: ppe port %u destroyed", pp, pp->port);
 }
 
+#ifdef PPE_TUNNEL_ENABLE
 /*
  * ppe_drv_port_get_n_ref_tl_l3_if
  *	Get reference on tl_l3_if
@@ -413,6 +414,7 @@ void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp)
 	pp->tl_l3_if = NULL;
 	ppe_drv_port_deref(pp);
 }
+#endif
 
 /*
  * ppe_drv_port_l3_if_attach()

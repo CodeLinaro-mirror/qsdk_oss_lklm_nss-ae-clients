@@ -540,20 +540,31 @@ free_iface:
  * nss_ppe_vlan_mgr_untag_and_send()
  *	Untag exception packet and send it to stack.
  */
-bool nss_ppe_vlan_mgr_vp_src_exception(struct net_device *dev, struct sk_buff *skb, void *cb_data)
+bool nss_ppe_vlan_mgr_vp_src_exception(struct ppe_vp_cb_info *info, void *cb_data)
 {
+	struct sk_buff *skb = info->skb;
 	struct net_device *real_dev;
 
 	real_dev = nss_ppe_vlan_mgr_get_real_dev(skb->dev);
 	if (!real_dev) {
-		nss_ppe_vlan_mgr_warn("%s: failed to obtain real_dev", dev->name);
+		nss_ppe_vlan_mgr_warn("%s: failed to obtain real_dev", skb->dev->name);
 		return false;
 	}
 
 	skb->dev = real_dev;
 	skb->skb_iif = real_dev->ifindex;
 	skb->protocol = eth_type_trans(skb, skb->dev);
-	netif_receive_skb(skb);
+
+	if (likely(real_dev->features & NETIF_F_RXCSUM)) {
+		skb->ip_summed = info->ip_summed;
+	}
+
+	if (unlikely(real_dev->features & NETIF_F_GRO)) {
+		napi_gro_receive(info->napi, skb);
+	} else {
+		netif_receive_skb(skb);
+	}
+
 	return true;
 }
 
@@ -561,8 +572,10 @@ bool nss_ppe_vlan_mgr_vp_src_exception(struct net_device *dev, struct sk_buff *s
  * nss_ppe_vlan_mgr_vp_dst_exception()
  *	Free the exception packet received from destination VP callback.
  */
-bool nss_ppe_vlan_mgr_vp_dst_exception(struct net_device *dev, struct sk_buff *skb, void *cb_data)
+bool nss_ppe_vlan_mgr_vp_dst_exception(struct ppe_vp_cb_info *info, void *cb_data)
 {
+	struct sk_buff *skb = info->skb;
+
 	nss_ppe_vlan_mgr_trace("VP dst exception handler: freeing the skb\n");
 	dev_kfree_skb_any(skb);
 	return false;

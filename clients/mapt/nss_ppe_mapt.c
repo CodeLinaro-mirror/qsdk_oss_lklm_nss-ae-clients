@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -38,6 +38,22 @@ static struct dentry *mapt_dentry;
 
 static bool nss_mapt_stats_dentry_create(struct net_device *dev);
 static bool nss_mapt_stats_dentry_free(struct net_device *dev);
+
+static uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
+module_param(encap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(encap_ecn_mode, "Encap ECN mode 0:NO_UPDATE, 1:RFC3168_LIMIT_RFC6040_CMPAT, 2:RFC3168_FULL, 3:RFC4301_RFC6040_NORMAL");
+
+static uint8_t decap_ecn_mode = PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE;
+module_param(decap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(decap_ecn_mode, "Decap ECN mode 0:RFC3168, 1:RFC4301, 2:RFC6040");
+
+static bool inherit_dscp = false;
+module_param(inherit_dscp, bool, 0644);
+MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
+
+static bool inherit_ttl = false;
+module_param(inherit_ttl, bool, 0644);
+MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
 
 /*
  * nss_ppe_mapt_dev_stats_update()
@@ -98,12 +114,12 @@ static bool nss_ppe_mapt_dev_stats_update(struct net_device *dev, ppe_tun_hw_sta
  * nss_ppe_mapt_src_exception()
  *	handle the source VP exception.
  */
-static bool nss_ppe_mapt_src_exception(struct net_device *dev, struct sk_buff *skb, ppe_tun_data *tun_data)
+static bool nss_ppe_mapt_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *dev = skb->dev;
 	int ret;
 
-	skb->dev = dev;
-	skb->skb_iif = dev->ifindex;
 	skb->protocol = eth_type_trans(skb, dev);
 	skb_reset_network_header(skb);
 
@@ -291,15 +307,22 @@ static bool nss_ppe_mapt_dev_parse_param(struct net_device *dev, struct ppe_drv_
 	mapt->remote.psid_offset = rule_pairs->remote.psid_offset;
 
 	l3->ttl = tunnel->parms.hop_limit;
-	if (!l3->ttl) {
+	if (inherit_ttl) {
 		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL;
 	}
 
 	l3->dscp = ip6_tclass(tunnel->parms.flowinfo) & 0xfc;
-	if (!l3->dscp) {
-		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP;
+	if (inherit_dscp) {
+		l3->flags |=  PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP;
 	}
 
+	if (encap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		l3->encap_ecn_mode = encap_ecn_mode;
+	}
+
+	if (decap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		l3->decap_ecn_mode = decap_ecn_mode;
+	}
 	l3->proto = tunnel->parms.proto;
 	l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_IPV6;
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_MAPT;
@@ -549,6 +572,18 @@ int __init nss_ppe_mapt_init_module(void)
 	 */
 	if (!nss_ppe_mapt_dentry_init()) {
 		nss_ppe_mapt_trace("Failed to initialize debugfs");
+		return -1;
+	}
+
+	if (encap_ecn_mode > PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		nss_ppe_mapt_dentry_deinit();
+		nss_ppe_mapt_warning("Invalid Encap ECN mode %u\n", encap_ecn_mode);
+		return -1;
+	}
+
+	if (decap_ecn_mode > PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		nss_ppe_mapt_dentry_deinit();
+		nss_ppe_mapt_warning("Invalid Decap ECN mode %u\n", decap_ecn_mode);
 		return -1;
 	}
 

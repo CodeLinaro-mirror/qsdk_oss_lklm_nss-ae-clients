@@ -402,6 +402,8 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 		ftde.decap_rule.ip_ver = PPE_DRV_TUN_TL_TBL_ENTRY_TYPE_IPV6;
 	}
 
+	ftde.decap_action.ecn_mode = pth->l3.decap_ecn_mode;
+
 	/*
 	 * Check if tunnel type is GRE and do sanity checks
 	 */

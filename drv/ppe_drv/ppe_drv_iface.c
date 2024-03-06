@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1111,9 +1111,23 @@ bool ppe_drv_iface_check_flow_offload_enabled(ppe_drv_iface_t rx_if,
 
 	if ((if_tx->flags & PPE_DRV_IFACE_FLAG_MHT_SWITCH_VALID) ||
 			(if_rx->flags & PPE_DRV_IFACE_FLAG_MHT_SWITCH_VALID)) {
-			ppe_drv_trace("%p: Either tx or rx interface has mht switch\n", p);
+		ppe_drv_trace("%p: Either tx or rx interface has mht switch\n", p);
+		goto offload_disabled;
+	}
+
+	if (p->eth2eth_offload_if_bitmap) {
+		if (!ppe_drv_port_check_flow_offload_enabled(tx_pp)) {
+			ppe_drv_trace("%p: offload not enabled for %d port\n",
+					p, tx_pp->port);
 			goto offload_disabled;
 		}
+
+		if (!ppe_drv_port_check_flow_offload_enabled(rx_pp)) {
+			ppe_drv_trace("%p: offload not enabled for %d port\n",
+					p, rx_pp->port);
+			goto offload_disabled;
+		}
+	}
 
 offload_enabled:
 	spin_unlock_bh(&p->lock);

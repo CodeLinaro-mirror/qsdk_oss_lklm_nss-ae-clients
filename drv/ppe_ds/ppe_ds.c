@@ -351,9 +351,14 @@ ppe_vp_num_t ppe_ds_wlan_vp_alloc(ppe_ds_wlan_handle_t *wlan_handle, struct net_
 	nss_dp_ppeds_handle_t *edma_handle;
 	struct nss_dp_ppeds_ops *dp_ops;
 
-	if (!wlan_handle) {
-		ppe_ds_err("wlan_handle is NULL\n");
+	if ((!wlan_handle) && (vpai->net_dev_flags != PPE_VP_NET_DEV_FLAG_IS_MLD)) {
+		ppe_ds_err("wlan_handle is NULL for non MLD VP\n");
 		return PPE_VP_STATUS_FAILURE;
+	}
+
+	if (vpai->net_dev_flags == PPE_VP_NET_DEV_FLAG_IS_MLD) {
+		ppe_ds_info("MLD VP so skipping node to queue mapping\n");
+		goto vp_alloc;
 	}
 
 	node = container_of(wlan_handle, struct ppe_ds, wlan_handle);
@@ -379,11 +384,46 @@ ppe_vp_num_t ppe_ds_wlan_vp_alloc(ppe_ds_wlan_handle_t *wlan_handle, struct net_
 	ppe_ds_info("%px: PPE-DS node mapped start queue-id: %d", node, ppe_queue_start);
 
 	vpai->queue_num = ppe_queue_start;
+vp_alloc:
 	vpai->xmit_port = PPE_DRV_PORT_CPU;
 
 	return ppe_vp_alloc(dev, vpai);
 }
 EXPORT_SYMBOL(ppe_ds_wlan_vp_alloc);
+
+/*
+ * ppe_ds_wlan_get_node_id()
+ *	PPE-DS WLAN get node id API
+ *	This API is called only in case of MLO
+ */
+uint32_t ppe_ds_wlan_get_node_id(ppe_ds_wlan_handle_t *wlan_handle)
+{
+	struct ppe_ds *node;
+	struct ppe_ds_node_config *node_cfg;
+
+	if (!wlan_handle) {
+		ppe_ds_err("wlan_handle is NULL\n");
+		return PPE_VP_DS_INVALID_NODE_ID;
+	}
+
+	node = container_of(wlan_handle, struct ppe_ds, wlan_handle);
+	node_cfg = &(ppe_ds_node_cfg[node->node_cfg_idx]);
+
+	read_lock_bh(&node_cfg->lock);
+	if(node_cfg->node_state != PPE_DS_NODE_STATE_START_DONE) {
+		ppe_ds_err("Invalid node state: %d, PPE-DS wlan get node id failed\n",
+				node_cfg->node_state);
+		read_unlock_bh(&node_cfg->lock);
+		return PPE_VP_DS_INVALID_NODE_ID;
+	}
+
+	read_unlock_bh(&node_cfg->lock);
+
+	ppe_ds_info("node id of the wlan_handle %d\n", node->node_cfg_idx);
+
+	return node->node_cfg_idx;
+}
+EXPORT_SYMBOL(ppe_ds_wlan_get_node_id);
 
 /*
  * ppe_ds_wlan_inst_register()

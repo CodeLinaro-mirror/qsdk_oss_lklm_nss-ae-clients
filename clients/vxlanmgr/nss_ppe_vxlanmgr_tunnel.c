@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -33,6 +33,22 @@
 #include "nss_ppe_tun_drv.h"
 #include "ppe_drv_tun_cmn_ctx.h"
 #include <nss_ppe_bridge_mgr.h>
+
+static uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
+module_param(encap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(encap_ecn_mode, "Encap ECN mode 0:NO_UPDATE, 1:RFC3168_LIMIT_RFC6040_CMPAT, 2:RFC3168_FULL, 3:RFC4301_RFC6040_NORMAL");
+
+static uint8_t decap_ecn_mode = PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE;
+module_param(decap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(decap_ecn_mode, "Decap ECN mode 0:RFC3168, 1:RFC4301, 2:RFC6040");
+
+static bool inherit_dscp = false;
+module_param(inherit_dscp, bool, 0644);
+MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
+
+static bool inherit_ttl = false;
+module_param(inherit_ttl, bool, 0644);
+MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
 
 /*
  * nss_ppe_vxlan_dev_stats_update()
@@ -611,7 +627,7 @@ static bool nss_ppe_vxlanmgr_tunnel_parse_end_points(struct net_device *dev, str
 	src_ip = &cfg->saddr;
 
 	if (priv_flags & VXLAN_F_IPV6) {
-		l3->flags = PPE_DRV_TUN_CMN_CTX_L3_IPV6;
+		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_IPV6;
 		memcpy(l3->saddr, &src_ip->sin6.sin6_addr, sizeof(struct in6_addr));
 		memcpy(l3->daddr, &rip->sin6.sin6_addr, sizeof(struct in6_addr));
 
@@ -649,7 +665,7 @@ static bool nss_ppe_vxlanmgr_tunnel_parse_end_points(struct net_device *dev, str
 			return true;
 		}
 	} else {
-		l3->flags = PPE_DRV_TUN_CMN_CTX_L3_IPV4;
+		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_IPV4;
 		l3->saddr[0] = src_ip->sin.sin_addr.s_addr;
 		l3->daddr[0] = rip->sin.sin_addr.s_addr;
 
@@ -771,8 +787,11 @@ struct notifier_block nss_ppe_vxlanmgr_switchdev_fdb_notifier = {
  * nss_ppe_vxlan_src_exception()
  * handle the source VP exception.
  */
-static bool nss_ppe_vxlan_src_exception(struct net_device *dev, struct sk_buff *skb, ppe_tun_data *tun_data)
+static bool nss_ppe_vxlan_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *dev = skb->dev;
+
 	nss_ppe_vxlanmgr_warn("%px: Dropping the skb for dev:%s", dev, dev->name);
 
 	return 0;
@@ -797,7 +816,7 @@ static bool nss_ppe_vxlanmgr_tunnel_header_config(struct net_device *dev, struct
 	tun_hdr->tun.vxlan.dest_port = tun_ctx->dest_port;
 	tun_hdr->tun.vxlan.policy_id = 0;
 	tun_hdr->l3.proto = IPPROTO_UDP;
-	tun_hdr->l3.dscp = NSS_PPE_VXLANMGR_RS(tun_ctx->tos, 2);
+	tun_hdr->l3.dscp = NSS_PPE_VXLAN_MGR_O_DSCP_GET(tun_ctx->tos, 2);
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN;
 
 	tun_cb.src_excp_method = nss_ppe_vxlan_src_exception;
@@ -840,9 +859,22 @@ static int nss_ppe_vxlanmgr_tunnel_configure(struct net_device *dev, struct nss_
 	tun_ctx->ttl = (priv->cfg.ttl ? priv->cfg.ttl : IPDEFTTL);
 
 	l3 = &tun_ctx->tun_hdr->l3;
+
 	priv_flags = priv->cfg.flags;
-	if (priv_flags & VXLAN_F_TTL_INHERIT) {
+	if ((priv_flags & VXLAN_F_TTL_INHERIT) || inherit_ttl) {
 		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL;
+	}
+
+	if (inherit_dscp) {
+		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP;
+	}
+
+	if (encap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		l3->encap_ecn_mode = encap_ecn_mode;
+	}
+
+	if (decap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		l3->decap_ecn_mode = decap_ecn_mode;
 	}
 
 	return 0;

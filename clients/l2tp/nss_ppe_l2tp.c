@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,12 +22,30 @@
 
 static struct nss_ppe_l2tp l2tp_gbl;
 
+static uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
+module_param(encap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(encap_ecn_mode, "Encap ECN mode 0:NO_UPDATE, 1:RFC3168_LIMIT_RFC6040_CMPAT, 2:RFC3168_FULL, 3:RFC4301_RFC6040_NORMAL");
+
+static uint8_t decap_ecn_mode = PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE;
+module_param(decap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(decap_ecn_mode, "Decap ECN mode 0:RFC3168, 1:RFC4301, 2:RFC6040");
+
+static bool inherit_dscp = false;
+module_param(inherit_dscp, bool, 0644);
+MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
+
+static bool inherit_ttl = false;
+module_param(inherit_ttl, bool, 0644);
+MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
+
 /*
  * nss_ppe_l2tp_src_exception()
  *	handle source VP exception packets
  */
-static bool nss_ppe_l2tp_src_exception(struct net_device *dev, struct sk_buff *skb, ppe_tun_data *tun_data)
+static bool nss_ppe_l2tp_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
+	struct sk_buff *skb = info->skb;
+	struct net_device *dev = skb->dev;
 	int ret;
 	const struct iphdr *iph;
 
@@ -40,8 +58,6 @@ static bool nss_ppe_l2tp_src_exception(struct net_device *dev, struct sk_buff *s
 	}
 
 	skb->pkt_type = PACKET_HOST;
-	skb->dev = dev;
-	skb->skb_iif = dev->ifindex;
 	/*
 	 * Reset Skb flags
 	 */
@@ -204,6 +220,22 @@ static bool nss_ppe_l2tp_dev_parse_param(struct net_device *netdev, struct ppe_d
 
 	if (tunnel->sock->sk_no_check_tx) {
 		tun_hdr->l3.flags |= PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX;
+	}
+
+	if (inherit_ttl) {
+		tun_hdr->l3.flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL;
+	}
+
+	if (inherit_dscp) {
+		tun_hdr->l3.flags |=  PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP;
+	}
+
+	if (encap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		tun_hdr->l3.encap_ecn_mode = encap_ecn_mode;
+	}
+
+	if (decap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		tun_hdr->l3.decap_ecn_mode = decap_ecn_mode;
 	}
 
 	if (!ppe_tun_l2tp_port_get(&sport, &dport)) {
@@ -699,6 +731,18 @@ int __init nss_ppe_l2tp_init_module(void)
 	 */
 	if (!nss_ppe_l2tp_dentry_init()) {
 		nss_ppe_l2tp_trace("Failed to initialize debugfs\n");
+		return -1;
+	}
+
+	if (encap_ecn_mode > PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
+		nss_ppe_l2tp_dentry_deinit();
+		nss_ppe_l2tp_warning("Invalid Encap ECN mode %u\n", encap_ecn_mode);
+		return -1;
+	}
+
+	if (decap_ecn_mode > PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
+		nss_ppe_l2tp_dentry_deinit();
+		nss_ppe_l2tp_warning("Invalid Decap ECN mode %u\n", decap_ecn_mode);
 		return -1;
 	}
 

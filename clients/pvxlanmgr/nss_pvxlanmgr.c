@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -165,9 +165,9 @@ static void nss_pvxlanmgr_receive_pkt(struct net_device *dev, struct sk_buff *sk
  * nss_pvxlanmgr_receive_pkt_ppe_vp()
  *	Receives a pkt from PPE
  */
-static bool nss_pvxlanmgr_receive_pkt_ppe_vp(struct net_device *dev, struct sk_buff *skb, void *cb_data)
+static bool nss_pvxlanmgr_receive_pkt_ppe_vp(struct ppe_vp_cb_info *info, void *cb_data)
 {
-	nss_pvxlanmgr_receive_pkt(dev, skb, NULL);
+	nss_pvxlanmgr_receive_pkt(info->skb->dev, info->skb, NULL);
 	return true;
 }
 

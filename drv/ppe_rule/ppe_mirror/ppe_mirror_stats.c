@@ -19,6 +19,7 @@
 #include <linux/vmalloc.h>
 #include <linux/debugfs.h>
 #include <linux/netdevice.h>
+#include <ppe_drv_port.h>
 #include "ppe_mirror.h"
 
 /*
@@ -103,7 +104,7 @@ static int ppe_mirror_group_stats_show(struct seq_file *m, void __attribute__((u
 
 		mirror_stats_shadow = (uint64_t *)(&shadow_group->acl_stats);
 		seq_printf(m, "\n\t\t\t Mirrored packets group stats:\n");
-		for (i = 0; i < (sizeof(struct ppe_mirror_acl_stats) / sizeof(uint64_t)); i++)
+		for (i = 0; i < (sizeof(struct ppe_mirror_stats) / sizeof(uint64_t)); i++)
 			seq_printf(m, "\t\t\t[%s]:  %llu\n", ppe_mirror_stats_str[i], mirror_stats_shadow[i]);
 	}
 
@@ -152,7 +153,7 @@ static int ppe_mirror_acl_stats_show(struct seq_file *m, void __attribute__((unu
 
 			mirror_stats_shadow = (uint64_t *)(&shadow_mapping->acl_stats);
 			seq_printf(m, "\n\t\t\t Mirrored packets ACL stats:\n");
-			for (i = 0; i < (sizeof(struct ppe_mirror_acl_stats) / sizeof(uint64_t)); i++) {
+			for (i = 0; i < (sizeof(struct ppe_mirror_stats) / sizeof(uint64_t)); i++) {
 				seq_printf(m, "\t\t\t[%s]:  %llu\n", ppe_mirror_stats_str[i], mirror_stats_shadow[i]);
 			}
 		}
@@ -163,12 +164,62 @@ static int ppe_mirror_acl_stats_show(struct seq_file *m, void __attribute__((unu
 }
 
 /*
+ * ppe_mirror_pdev_stats_show()
+ *	Read ppe PDEV mirror statistics
+ */
+static int ppe_mirror_pdev_stats_show(struct seq_file *m, void __attribute__((unused))*ptr)
+{
+	struct ppe_mirror *mirror_g = &gbl_ppe_mirror;
+	struct ppe_mirror_port_group_info *group_info = NULL;
+	uint64_t *mirror_stats_shadow;
+	int i;
+
+	group_info = kmalloc(sizeof(struct ppe_mirror_port_group_info), GFP_ATOMIC);
+	if (!group_info) {
+		ppe_mirror_warn("Error in allocating ACL stats\n");
+		return -ENOMEM;
+	}
+
+	spin_lock_bh(&mirror_g->lock);
+	memcpy(group_info, &mirror_g->port_group_info, sizeof(struct ppe_mirror_port_group_info));
+	spin_unlock_bh(&mirror_g->lock);
+
+	if (!group_info->group_dev) {
+		seq_printf(m, "\t\tNo group netdevice for physical ports !\n");
+		kfree(group_info);
+		return 0;
+	}
+
+	seq_printf(m, "\t\tPdev Group Details\n");
+	seq_printf(m, "\t\t\tNetdev if num: %d\n", group_info->group_dev->ifindex);
+	seq_printf(m, "\t\t\tNetdev name: %s\n", group_info->group_dev->name);
+
+	mirror_stats_shadow = (uint64_t *)(&group_info->pdev_stats);
+	seq_printf(m, "\n\t\t\t Mirrored packets group PDEV stats:\n");
+	for (i = 0; i < (sizeof(struct ppe_mirror_stats) / sizeof(uint64_t)); i++)
+		seq_printf(m, "\t\t\t[%s]:  %llu\n", ppe_mirror_stats_str[i], mirror_stats_shadow[i]);
+
+	kfree(group_info);
+
+	return 0;
+}
+
+/*
  * ppe_mirror_acl_stats_open()
  *	PPE mirror acl stats callback API
  */
 static int ppe_mirror_acl_stats_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, ppe_mirror_acl_stats_show, inode->i_private);
+}
+
+/*
+ * ppe_mirror_pdev_stats_open()
+ *	PPE mirror cmn stats callback API
+ */
+static int ppe_mirror_pdev_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ppe_mirror_pdev_stats_show, inode->i_private);
 }
 
 /*
@@ -236,6 +287,17 @@ const struct file_operations ppe_mirror_acl_stats_file_ops = {
 };
 
 /*
+ * ppe_mirror_pdev_stats_file_ops
+ *	File operations for MIRROR Pdev stats
+ */
+const struct file_operations ppe_mirror_pdev_stats_file_ops = {
+	.open = ppe_mirror_pdev_stats_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+};
+
+/*
  * ppe_mirror_cmn_stats_file_ops
  *	File operations for MIRROR common stats
  */
@@ -268,6 +330,12 @@ int ppe_mirror_stats_debugfs_init(struct dentry *root)
 	if (!debugfs_create_file("acl_stats", S_IRUGO, mirror_g->dentry,
 				NULL, &ppe_mirror_acl_stats_file_ops)) {
 		ppe_mirror_warn("%p: Unable to create ACL statistics file entry in debugfs\n", mirror_g);
+		goto debugfs_dir_failed;
+	}
+
+	if (!debugfs_create_file("pdev_stats", S_IRUGO, mirror_g->dentry,
+				NULL, &ppe_mirror_pdev_stats_file_ops)) {
+		ppe_mirror_warn("%p: Unable to create PDEV statistics file entry in debugfs\n", mirror_g);
 		goto debugfs_dir_failed;
 	}
 

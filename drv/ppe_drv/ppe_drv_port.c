@@ -1135,6 +1135,12 @@ bool ppe_drv_port_check_rfs_support(struct net_device *dev)
 		return false;
 	}
 
+	if (ppe_drv_port_is_tunnel_vp(pp)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: VP is tunnel VP", pp);
+		return false;
+	}
+
 	if (!ppe_drv_port_rfs_enabled(pp)) {
 		spin_unlock_bh(&p->lock);
 		return false;

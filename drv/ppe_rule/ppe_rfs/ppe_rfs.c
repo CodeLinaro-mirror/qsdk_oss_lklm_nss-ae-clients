@@ -44,15 +44,27 @@ enum ppe_rfs_ret ppe_rfs_ipv6_rule_destroy(struct ppe_rfs_ipv6_rule_destroy_msg 
 	ppe_rfs_stats_inc(&p->stats.v6_destroy_ppe_rule_rfs);
 
 	if (ppe_drv_port_check_rfs_support(destroy_ipv6->reply_dev)) {
-		memcpy(pd6rd.tuple.flow_ip, destroy_ipv6->tuple.flow_ip, sizeof(destroy_ipv6->tuple.flow_ip));
+		pd6rd.tuple.flow_ip[0] = destroy_ipv6->tuple.flow_ip[3];
+		pd6rd.tuple.flow_ip[1] = destroy_ipv6->tuple.flow_ip[2];
+		pd6rd.tuple.flow_ip[2] = destroy_ipv6->tuple.flow_ip[1];
+		pd6rd.tuple.flow_ip[3] = destroy_ipv6->tuple.flow_ip[0];
 		pd6rd.tuple.flow_ident = destroy_ipv6->tuple.flow_ident;
-		memcpy(pd6rd.tuple.return_ip, destroy_ipv6->tuple.return_ip, sizeof(destroy_ipv6->tuple.return_ip));
+		pd6rd.tuple.return_ip[0] = destroy_ipv6->tuple.return_ip[3];
+		pd6rd.tuple.return_ip[1] = destroy_ipv6->tuple.return_ip[2];
+		pd6rd.tuple.return_ip[2] = destroy_ipv6->tuple.return_ip[1];
+		pd6rd.tuple.return_ip[3] = destroy_ipv6->tuple.return_ip[0];
 		pd6rd.tuple.return_ident = destroy_ipv6->tuple.return_ident;
 		pd6rd.tuple.protocol = destroy_ipv6->tuple.protocol;
 	} else if (ppe_drv_port_check_rfs_support(destroy_ipv6->original_dev)) {
-		memcpy(pd6rd.tuple.flow_ip, destroy_ipv6->tuple.return_ip, sizeof(destroy_ipv6->tuple.return_ip));
+		pd6rd.tuple.flow_ip[0] = destroy_ipv6->tuple.return_ip[3];
+		pd6rd.tuple.flow_ip[1] = destroy_ipv6->tuple.return_ip[2];
+		pd6rd.tuple.flow_ip[2] = destroy_ipv6->tuple.return_ip[1];
+		pd6rd.tuple.flow_ip[3] = destroy_ipv6->tuple.return_ip[0];
 		pd6rd.tuple.flow_ident = destroy_ipv6->tuple.return_ident;
-		memcpy(pd6rd.tuple.return_ip, destroy_ipv6->tuple.flow_ip, sizeof(destroy_ipv6->tuple.flow_ip));
+		pd6rd.tuple.return_ip[0] = destroy_ipv6->tuple.flow_ip[3];
+		pd6rd.tuple.return_ip[1] = destroy_ipv6->tuple.flow_ip[2];
+		pd6rd.tuple.return_ip[2] = destroy_ipv6->tuple.flow_ip[1];
+		pd6rd.tuple.return_ip[3] = destroy_ipv6->tuple.flow_ip[0];
 		pd6rd.tuple.return_ident = destroy_ipv6->tuple.flow_ident;
 		pd6rd.tuple.protocol = destroy_ipv6->tuple.protocol;
 	} else {
@@ -148,9 +160,15 @@ enum ppe_rfs_ret ppe_rfs_ipv6_rule_create(struct ppe_rfs_ipv6_rule_create_msg *c
 	}
 
 	if (tx_rfs_enabled) {
-		memcpy(pd6rc.tuple.flow_ip, create_ipv6->tuple.flow_ip, sizeof(create_ipv6->tuple.flow_ip));
+		pd6rc.tuple.flow_ip[0] = create_ipv6->tuple.flow_ip[3];
+		pd6rc.tuple.flow_ip[1] = create_ipv6->tuple.flow_ip[2];
+		pd6rc.tuple.flow_ip[2] = create_ipv6->tuple.flow_ip[1];
+		pd6rc.tuple.flow_ip[3] = create_ipv6->tuple.flow_ip[0];
 		pd6rc.tuple.flow_ident = create_ipv6->tuple.flow_ident;
-		memcpy(pd6rc.tuple.return_ip, create_ipv6->tuple.return_ip, sizeof(create_ipv6->tuple.return_ip));
+		pd6rc.tuple.return_ip[0] = create_ipv6->tuple.return_ip[3];
+		pd6rc.tuple.return_ip[1] = create_ipv6->tuple.return_ip[2];
+		pd6rc.tuple.return_ip[2] = create_ipv6->tuple.return_ip[1];
+		pd6rc.tuple.return_ip[3] = create_ipv6->tuple.return_ip[0];
 		pd6rc.tuple.return_ident = create_ipv6->tuple.return_ident;
 		pd6rc.tuple.protocol = create_ipv6->tuple.protocol;
 		pd6rc.conn_rule.flow_mtu = create_ipv6->conn_rule.return_mtu;
@@ -170,9 +188,15 @@ enum ppe_rfs_ret ppe_rfs_ipv6_rule_create(struct ppe_rfs_ipv6_rule_create_msg *c
 		}
 
 	} else if (rx_rfs_enabled) {
-		memcpy(pd6rc.tuple.flow_ip, create_ipv6->tuple.return_ip, sizeof(create_ipv6->tuple.return_ip));
+		pd6rc.tuple.flow_ip[0] = create_ipv6->tuple.return_ip[3];
+		pd6rc.tuple.flow_ip[1] = create_ipv6->tuple.return_ip[2];
+		pd6rc.tuple.flow_ip[2] = create_ipv6->tuple.return_ip[1];
+		pd6rc.tuple.flow_ip[3] = create_ipv6->tuple.return_ip[0];
 		pd6rc.tuple.flow_ident = create_ipv6->tuple.return_ident;
-		memcpy(pd6rc.tuple.return_ip, create_ipv6->tuple.flow_ip, sizeof(create_ipv6->tuple.flow_ip));
+		pd6rc.tuple.return_ip[0] = create_ipv6->tuple.flow_ip[3];
+		pd6rc.tuple.return_ip[1] = create_ipv6->tuple.flow_ip[2];
+		pd6rc.tuple.return_ip[2] = create_ipv6->tuple.flow_ip[1];
+		pd6rc.tuple.return_ip[3] = create_ipv6->tuple.flow_ip[0];
 		pd6rc.tuple.return_ident = create_ipv6->tuple.flow_ident;
 		pd6rc.tuple.protocol = create_ipv6->tuple.protocol;
 		pd6rc.conn_rule.flow_mtu = create_ipv6->conn_rule.flow_mtu;

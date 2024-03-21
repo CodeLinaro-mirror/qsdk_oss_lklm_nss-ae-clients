@@ -90,6 +90,44 @@ ppe_drv_ret_t ppe_drv_vp_deinit(struct ppe_drv_iface *iface)
 	return ret;
 }
 EXPORT_SYMBOL(ppe_drv_vp_deinit);
+
+/*
+ * ppe_drv_vp_cfg_update()
+ * 	Update API exposed to VP driver
+ */
+ppe_drv_ret_t ppe_drv_vp_cfg_update(struct ppe_drv_iface *iface, struct ppe_drv_vp_info *info)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *port;
+
+	spin_lock_bh(&p->lock);
+
+	port = ppe_drv_iface_port_get(iface);
+	if (!port) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: unable to get port from iface\n", iface);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	/*
+	 * NOTE : Restricting VP update for DS (Wi-Fi) VP types for now.
+	 * This can be extended further as per requirement.
+	 */
+	if (!ppe_drv_port_flags_check(port, PPE_DRV_PORT_FLAG_WIFI_DEV)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: Not a Wi-Fi net device\n", iface);
+		return PPE_DRV_RET_INVALID_DEV_TYPE;
+	}
+
+	port->core_mask = port->shadow_core_mask = info->core_mask;
+	port->user_type = info->usr_type;
+
+	spin_unlock_bh(&p->lock);
+
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_vp_cfg_update);
+
 /*
  * ppe_drv_vp_init()
  *	Initialize API exposed to VP driver

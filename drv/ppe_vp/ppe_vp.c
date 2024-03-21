@@ -303,6 +303,47 @@ free_fail:
 }
 
 /*
+ * __ppe_vp_cfg_update()
+ *	Update the PPE virtual port.
+ */
+static inline ppe_vp_status_t __ppe_vp_cfg_update(ppe_vp_num_t vp_num, struct ppe_vp_ui *vpui)
+{
+	struct ppe_vp_base *pvb = &vp_base;
+	struct ppe_drv_iface *ppe_iface;
+	struct ppe_drv_vp_info info = {0};
+	struct ppe_vp *vp;
+	ppe_drv_ret_t ret;
+
+	rcu_read_lock();
+	vp = ppe_vp_base_get_vp_by_port_num(vp_num);
+	if (!vp) {
+		rcu_read_unlock();
+		ppe_vp_warn("%px: VP is NULL, cannot get VP for port num %d", pvb, vp_num);
+		return PPE_VP_STATUS_GET_VP_FAIL;
+	}
+
+	ppe_iface = vp->ppe_iface;
+
+	/*
+	 * Update the PPE drv VP info.
+	 */
+	info.core_mask = vpui->core_mask;
+	info.usr_type = vpui->usr_type;
+
+	ret = ppe_drv_vp_cfg_update(ppe_iface, &info);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		rcu_read_unlock();
+		ppe_vp_warn("%px, ppe iface %px PPE VP update failed %d", pvb, ppe_iface, ret);
+		return PPE_VP_STATUS_UPDATE_FAIL;
+	}
+
+	rcu_read_unlock();
+	ppe_vp_info("%px: vp %px at port num %u, updated", pvb, vp, vp_num);
+
+	return PPE_VP_STATUS_SUCCESS;
+}
+
+/*
  * ppe_vp_free_dev()
  *	Free VP netdev.
  */
@@ -331,6 +372,16 @@ ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num)
 	return __ppe_vp_free(port_num);
 }
 EXPORT_SYMBOL(ppe_vp_free);
+
+/*
+ * ppe_vp_cfg_update()
+ * 	Update the virtual port.
+ */
+ppe_vp_status_t ppe_vp_cfg_update(ppe_vp_num_t port_num, struct ppe_vp_ui *vpui)
+{
+	return __ppe_vp_cfg_update(port_num, vpui);
+}
+EXPORT_SYMBOL(ppe_vp_cfg_update);
 
 /*
  * ppe_vp_alloc()

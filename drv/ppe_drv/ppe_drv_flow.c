@@ -485,7 +485,7 @@ static bool ppe_drv_flow_v6_policer_get(struct ppe_drv_v6_conn_flow *pcf, uint32
 {
 	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID)) {
 		*policer_index = pcf->policer_hw_id;
-		*policer_valid = true;
+		*policer_valid = A_TRUE;
 	}
 
 	return true;
@@ -832,7 +832,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 			struct ppe_drv_port *port = ppe_drv_iface_port_get(in_port_if);
 			if (port) {
 				flow_cfg.src_intf_index = port->port;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Bridged flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		} else {
@@ -840,7 +840,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 			struct ppe_drv_l3_if *l3_if = ppe_drv_iface_l3_if_get(in_l3_if);
 			if (l3_if) {
 				flow_cfg.src_intf_index = l3_if->l3_if_index;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Routed flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		}
@@ -885,7 +885,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		 * doing VLANs between different ingress and egress VSI.
 		 */
 		if (nh) {
-			flow_cfg.bridge_nexthop_valid = true;
+			flow_cfg.bridge_nexthop_valid = A_TRUE;
 			flow_cfg.bridge_nexthop = nh->index;
 			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
 		}
@@ -1204,7 +1204,7 @@ static bool ppe_drv_flow_v4_policer_get(struct ppe_drv_v4_conn_flow *pcf, uint32
 {
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_POLICER_VALID)) {
 		*policer_index = pcf->policer_hw_id;
-		*policer_valid = true;
+		*policer_valid = A_TRUE;
 	}
 
 	return true;
@@ -1576,7 +1576,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 			struct ppe_drv_port *port = ppe_drv_iface_port_get(in_port_if);
 			if (port) {
 				flow_cfg.src_intf_index = port->port;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Bridged flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		} else {
@@ -1584,7 +1584,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 			struct ppe_drv_l3_if *l3_if = ppe_drv_iface_l3_if_get(in_l3_if);
 			if (l3_if) {
 				flow_cfg.src_intf_index = l3_if->l3_if_index;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Routed flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		}
@@ -1645,7 +1645,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		 * doing VLANs between different ingress and egress VSI.
 		 */
 		if (nh) {
-			flow_cfg.bridge_nexthop_valid = true;
+			flow_cfg.bridge_nexthop_valid = A_TRUE;
 			flow_cfg.bridge_nexthop = nh->index;
 			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
 		}

@@ -298,6 +298,14 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
+	case  PPE_DRV_SC_NOEDIT_RULE:
+		/*
+		 * Avoid any packet editing
+		 */
+		sc_cfg.bypass_bitmap[1] |= ((1 << L2_PKT_EDIT_BYP) | (1 << L3_PKT_EDIT_BYP));
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
 	case PPE_DRV_SC_FLOW_ACL_FIRST ... PPE_DRV_SC_FLOW_ACL_LAST:
 		/*
 		 * These are primarily used for N-tuple lookup or flow+policer combintation.
@@ -581,6 +589,7 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_ACL_POLICER, PPE_DRV_SC_NOEDIT_ACL_POLICER, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_L2_TUNNEL_EXCEPTION, PPE_DRV_SC_L2_TUNNEL_EXCEPTION, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_PRIORITY_SET, PPE_DRV_SC_NOEDIT_PRIORITY_SET, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_RULE, PPE_DRV_SC_NOEDIT_RULE, PPE_DRV_PORT_CPU);
 
 	/*
 	 * Initialize FLOW ACL service code

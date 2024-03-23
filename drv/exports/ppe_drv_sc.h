@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -60,8 +60,9 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_EDIT_REDIR_CORE3,	/* Service code to re-direct packets to core 3 with editing required for regular forwarding */
 	PPE_DRV_SC_VP_RPS,		/* Service code to allow RPS for special VP flows when user type is DS and core_mask is 0 */
 	PPE_DRV_SC_NOEDIT_ACL_POLICER,  /* Service code to allow Policing but no packet editing */
-	PPE_DRV_SC_L2_TUNNEL_EXCEPTION,  /* Service code to allow decapsulated VXLAN/GRE tunnel exception. */
-	PPE_DRV_SC_NOEDIT_PRIORITY_SET, /* Service code to redirect packets without editing */
+	PPE_DRV_SC_L2_TUNNEL_EXCEPTION,	/* Service code to allow decapsulated VXLAN/GRE tunnel exception. */
+	PPE_DRV_SC_NOEDIT_PRIORITY_SET, /* Service code to prioritize packets without editing and redirection */
+	PPE_DRV_SC_NOEDIT_RULE, 	/* Service code to redirect packets without editing */
 
 	PPE_DRV_SC_DS_MLO_LINK_BR_NODE0, /* Service code when bridge flow in DS with PPEDS Node 0 allocated for MLO Link */
 	PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, /* Service code when bridge flow in DS with PPEDS Node 1 allocated for MLO Link */

@@ -51,7 +51,7 @@ static bool inherit_dscp = false;
 module_param(inherit_dscp, bool, 0644);
 MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
 
-static bool inherit_ttl = false;
+static bool inherit_ttl = true;
 module_param(inherit_ttl, bool, 0644);
 MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
 

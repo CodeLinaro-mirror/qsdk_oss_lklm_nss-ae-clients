@@ -495,6 +495,11 @@ static struct ppe_vp *__ppe_vp_alloc(struct net_device *netdev, struct ppe_vp_ai
 		vp->flags |= PPE_VP_FLAG_VP_FAST_XMIT;
 	}
 
+	if (vpai->dst_list_cb) {
+		vp->dst_list_cb = vpai->dst_list_cb;
+		vp->dst_cb_data = vpai->dst_cb_data;
+	}
+
 	spin_unlock_bh(&vp->lock);
 
 	return vp;

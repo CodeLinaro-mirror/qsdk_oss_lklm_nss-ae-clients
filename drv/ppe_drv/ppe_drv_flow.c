@@ -536,9 +536,16 @@ bool ppe_drv_flow_v6_service_code_get(struct ppe_drv_v6_conn_flow *pcf, struct p
 	}
 
 	/*
-	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
+	 * Get the service code for the flow according to the flow type
+	 * and precedence of these features (like DS flows, policer/ACL based service code, etc)
 	 */
-	if ((ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID) ||
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_WIFI_DS)) {
+		if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			sc = PPE_DRV_SC_DS_MLO_LINK_BR_NODE0 + pcf->wifi_rule_ds_metadata;
+		} else {
+			sc = PPE_DRV_SC_DS_MLO_LINK_RO_NODE0 + pcf->wifi_rule_ds_metadata;
+		}
+	} else if((ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID) ||
 			ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_ACL_VALID)) && (pcf->acl_sc != PPE_DRV_SC_NONE)) {
 		sc = pcf->acl_sc;
 	} else if (pp->user_type == PPE_DRV_PORT_USER_TYPE_DS) {
@@ -1272,9 +1279,16 @@ bool ppe_drv_flow_v4_service_code_get(struct ppe_drv_v4_conn_flow *pcf, struct p
 	}
 
 	/*
-	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
+	 * Get the service code for the flow according to the flow type
+	 * and precedence of these features (like DS flows, policer/ACL based service code, etc)
 	 */
-	if ((ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_POLICER_VALID) ||
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS)) {
+		if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			sc = PPE_DRV_SC_DS_MLO_LINK_BR_NODE0 + pcf->wifi_rule_ds_metadata;
+		} else {
+			sc = PPE_DRV_SC_DS_MLO_LINK_RO_NODE0 + pcf->wifi_rule_ds_metadata;
+		}
+	} else if ((ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_POLICER_VALID) ||
 		ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_ACL_VALID)) && (pcf->acl_sc != PPE_DRV_SC_NONE)) {
 		sc = pcf->acl_sc;
 	} else if (pp->user_type == PPE_DRV_PORT_USER_TYPE_DS) {

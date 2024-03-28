@@ -212,6 +212,17 @@ struct ppe_drv_service_class_rule {
 	uint8_t return_service_class;	/**< Service class id in return direction. */
 };
 
+/**
+ * ppe_drv_wifi_rule
+ *	Wi-Fi metadata and DS related information.
+ */
+struct ppe_drv_wifi_mdata_rule {
+	uint32_t flow_mark;		/**< Wi-Fi metadata information in flow direction. */
+	uint32_t return_mark;		/**< Wi-Fi metadata information in return direction. */
+	uint32_t flow_ds_node_mdata;	/**< DS metadata in flow direction. */
+	uint32_t return_ds_node_mdata;	/**< DS metadata in return direction. */
+};
+
 /*
  * ppe_drv_nsm_queue_drop_stats
  *	Per-queue stats to be send to NSM.

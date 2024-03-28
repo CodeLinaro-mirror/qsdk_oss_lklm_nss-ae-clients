@@ -1030,6 +1030,16 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLOW_METADATA_TYPE_WIFI_INFO);
 		}
 
+		/*
+		 * Check if DS metadata info is valid in this direction for MLO assist and if the
+		 * interface is a Wi-Fi VP.
+		 */
+		if ((valid_flags & PPE_DRV_V4_VALID_FLAG_FLOW_WIFI_DS) &&
+					(ppe_drv_port_flags_check(pp_tx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
+			pcf->wifi_rule_ds_metadata = create->wifi_rule.flow_ds_node_mdata;
+			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS);
+		}
+
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_VLAN) {
 			pcf->ingress_vlan[0].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
 			pcf->ingress_vlan[1].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
@@ -1215,6 +1225,16 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 			fc_metadata.type.scs.scs_mark = sawf_rule->return_mark;
 			ppe_drv_v4_conn_flow_metadata_set(pcr, &fc_metadata, PPE_DRV_TREE_ID_TYPE_SCS);
 			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLOW_METADATA_TYPE_WIFI_INFO);
+		}
+
+		/*
+		 * Check if DS metadata info is valid in this direction for MLO assist and if the
+		 * interface is a Wi-Fi VP.
+		 */
+		if ((valid_flags & PPE_DRV_V4_VALID_FLAG_RETURN_WIFI_DS) &&
+					(ppe_drv_port_flags_check(pp_rx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
+			pcr->wifi_rule_ds_metadata = create->wifi_rule.return_ds_node_mdata;
+			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS);
 		}
 
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_VLAN) {

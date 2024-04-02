@@ -64,8 +64,8 @@
  * Flow rule add types. Mutually exclusive fields.
  * This indicates whether SCS or SDWF ID is configured for inner packet lookup.
  */
-#define NSS_CAPWAPMR_FLOW_ATTR_SCS_VALID 0x01		/**< SCS Identification valid in flow attributes. */
-#define NSS_CAPWAPMR_FLOW_ATTR_SDWF_VALID 0x02		/**< SDWF Identification valid in flow attributes. */
+#define NSS_CAPWAP_FLOW_ATTR_SCS_VALID 0x01		/**< SCS Identification valid in flow attributes. */
+#define NSS_CAPWAP_FLOW_ATTR_SDWF_VALID 0x02		/**< SDWF Identification valid in flow attributes. */
 
 /*
  * CAPWAP version

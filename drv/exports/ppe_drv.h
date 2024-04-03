@@ -388,6 +388,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_VLAN_EGRESS_DEL_FAIL,		/**< Egress vlan deletion configuration failed */
 	PPE_DRV_RET_FAILURE_INVALID_HIERARCHY,		/**< Failure due to invalid hierarchy */
 	PPE_DRV_RET_FAILURE_SNAT_DNAT_SIMUL,		/**< Failure due to both snat and dnat requested */
+	PPE_DRV_RET_FAILURE_INVALID_NF_TARGET,		/**< Failure due to invalid Netfilter Target used */
 	PPE_DRV_RET_FAILURE_NOT_BRIDGE_SLAVES,		/**< Failure due to from and to interfaces not in same bridge */
 	PPE_DRV_RET_FAILURE_IFACE_PORT_MAP,
 	PPE_DRV_RET_FAILURE_CREATE_COLLISSION,		/**< Failure due to create collision */
@@ -438,6 +439,10 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_METADATA_TO_ENQ_VP_FAIL,		/**< Metadata to enqueue vport fetch failed */
 	PPE_DRV_RET_ENQ_VP_QID_RESET_FAIL,		/**< Enqueue vport queue id reset failure */
 	PPE_DRV_RET_ENQ_VP_DISABLE_FAIL,		/**< Enqueue vport disable failed */
+#ifdef PPE_DRV_NPTV6_HW_SUPPORT
+	PPE_DRV_RET_FAILURE_PREFIX_ADD_FAIL,		/**< Failure in adding an entry into Prefix Table */
+	PPE_DRV_RET_FAILURE_IID_ADD_FAIL,		/**< Failure in adding an entry into IID Table */
+#endif
 } ppe_drv_ret_t;
 
 /**

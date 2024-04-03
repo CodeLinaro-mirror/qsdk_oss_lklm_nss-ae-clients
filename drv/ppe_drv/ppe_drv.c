@@ -772,6 +772,10 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	p->nexthop_num = cap.nexthop_caps;
 	p->sc_num = cap.service_code_caps;
 	p->iface_num = p->l3_if_num + p->port_num + p->pppoe_session_max;
+#ifdef PPE_DRV_NPTV6_HW_SUPPORT
+	p->prefix_num = cap.ipv6_prefix_caps;
+	p->iid_num = cap.ipv6_iid_caps;
+#endif
 
 	/*
 	 * Initialize locks
@@ -970,7 +974,19 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 #endif
+#ifdef PPE_DRV_NPTV6_HW_SUPPORT
+	p->pfx = ppe_drv_nptv6_prefix_entries_alloc();
+	if (!p->pfx) {
+		ppe_drv_warn("%p: failed to allocate prefix table entries", p);
+		goto fail;
+	}
 
+	p->iid = ppe_drv_nptv6_iid_entries_alloc();
+	if (!p->iid) {
+		ppe_drv_warn("%p: failed to allocate IID table entries", p);
+		goto fail;
+	}
+#endif
 	/*
 	 * Take a reference
 	 */
@@ -1112,6 +1128,17 @@ fail:
 		p->ecap_hdr_ctrl = NULL;
 	}
 #endif
+#ifdef PPE_DRV_NPTV6_HW_SUPPORT
+	if (p->pfx) {
+		ppe_drv_nptv6_prefix_entries_free(p->pfx);
+		p->pfx = NULL;
+	}
+
+	if (p->iid) {
+		ppe_drv_nptv6_iid_entries_free(p->iid);
+		p->iid = NULL;
+	}
+#endif
 
 	ppe_drv_flow_dump_exit();
 	ppe_drv_if_map_exit();
@@ -1248,6 +1275,17 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->ecap_hdr_ctrl) {
 		ppe_drv_tun_encap_hdr_ctrl_free(p->ecap_hdr_ctrl);
 		p->ecap_hdr_ctrl = NULL;
+	}
+#endif
+#ifdef PPE_DRV_NPTV6_HW_SUPPORT
+	if (p->pfx) {
+		ppe_drv_nptv6_prefix_entries_free(p->pfx);
+		p->pfx = NULL;
+	}
+
+	if (p->iid) {
+		ppe_drv_nptv6_iid_entries_free(p->iid);
+		p->iid = NULL;
 	}
 #endif
 

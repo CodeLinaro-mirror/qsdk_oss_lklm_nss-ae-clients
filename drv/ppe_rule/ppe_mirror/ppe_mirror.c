@@ -20,6 +20,7 @@
 #include <ppe_drv.h>
 #include <ppe_drv_cc.h>
 #include <ppe_drv_acl.h>
+#include <ppe_drv_port.h>
 #include "ppe_mirror.h"
 
 struct ppe_mirror gbl_ppe_mirror = {0};
@@ -34,12 +35,55 @@ bool ppe_mirror_process_skb(void *appdata, struct sk_buff *skb, void *info)
 	struct ppe_drv_cc_metadata *cc_info = (struct ppe_drv_cc_metadata *)info;
 	struct ppe_mirror_acl_map *mirror_mapping = NULL;
 	struct ppe_mirror_group_info *group_info = NULL;
-	struct ppe_mirror_acl_stats *acl_stats, *acl_group_stats = NULL;
+	struct ppe_mirror_port_group_info *port_group_info = NULL;
+	struct ppe_mirror_stats *acl_stats, *acl_group_stats = NULL;
 	uint16_t hw_index = cc_info->acl_hw_index;
+	bool acl_valid = cc_info->acl_index_valid;
 	uint16_t acl_id;
 	ppe_mirror_capture_callback_t cb = NULL;
 
 	spin_lock_bh(&mirror_g->lock);
+
+	/*
+	 * if ACL id is not valid, then check if the physical dev
+	 * mirror mapping is set.
+	 */
+	if (!acl_valid) {
+		/*
+		 * Check for the group info for physical dev mappings.
+		 */
+		port_group_info = &mirror_g->port_group_info;
+		if (!port_group_info->group_dev) {
+			spin_unlock_bh(&mirror_g->lock);
+			ppe_mirror_warn("%p: No group is added for port mapping %s\n", mirror_g, skb->dev->name);
+			return false;
+		}
+
+		/*
+		 * Get the callback registered for this group and
+		 * send the mirrored packet for further processing.
+		 */
+		cb = port_group_info->cb;
+		if (!cb) {
+			spin_unlock_bh(&mirror_g->lock);
+			ppe_mirror_warn("%p: Callback is not associated with for a group \n", mirror_g);
+			return false;
+		}
+
+		skb->dev = port_group_info->group_dev;
+		spin_unlock_bh(&mirror_g->lock);
+
+		/*
+		 * Increment the packet count for this group to which this mirrored packet belongs to.
+		 * Hand over the mirrored packet to user registered callback.
+		 */
+		ppe_mirror_update_stats(&port_group_info->pdev_stats, skb->len);
+
+		cb(port_group_info->app_data, skb, port_group_info->group_dev);
+
+		return true;
+	}
+
 	mirror_mapping = &mirror_g->mirror_mapping[hw_index];
 
 	/*
@@ -85,8 +129,8 @@ bool ppe_mirror_process_skb(void *appdata, struct sk_buff *skb, void *info)
 	 * group to which this mirrored packet belongs to.
 	 * Hand over the mirrored packet to user registered callback.
 	 */
-	ppe_mirror_update_acl_stats(acl_stats, skb->len);
-	ppe_mirror_update_acl_stats(acl_group_stats, skb->len);
+	ppe_mirror_update_stats(acl_stats, skb->len);
+	ppe_mirror_update_stats(acl_group_stats, skb->len);
 
 	cb(group_info->app_data, skb, group_info->group_dev);
 
@@ -188,6 +232,36 @@ create_group:
 }
 
 /*
+ * ppe_mirror_disable_mirror_for_phy_dev()
+ *	Stop mirroring for a physical dev.
+ */
+static ppe_mirror_ret_t ppe_mirror_disable_mirror_for_phy_dev(struct net_device *dev)
+{
+	struct ppe_mirror *mirror_g = &gbl_ppe_mirror;
+	struct ppe_drv_iface *iface = NULL;
+	ppe_drv_ret_t ret;
+
+	iface = ppe_drv_iface_get_by_dev(dev);
+	if (!iface) {
+		ppe_mirror_warn("Failed to get iface for interface %s\n", dev->name);
+		return PPE_MIRROR_RET_GENERIC_FAILURE;
+        }
+
+	/*
+	 * Disable mirroring on the physical port.
+	 */
+	ret = ppe_drv_dp_set_mirror_if(iface, PPE_DRV_DP_MIRR_DI_EG, false);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		ppe_mirror_info("%p:Failed to disable mirror mapping for phy dev %s %d\n", mirror_g, dev->name, ret);
+		return PPE_MIRROR_RET_GENERIC_FAILURE;
+	}
+
+	ppe_mirror_info("Mapping deleted succesfully for dev %s\n", dev->name);
+
+	return PPE_MIRROR_RET_SUCCESS;
+}
+
+/*
  * ppe_mirror_acl_destroy_mapping_table()
  *	Destroy mapping table for an ACL index.
  */
@@ -249,6 +323,35 @@ static ppe_mirror_ret_t ppe_mirror_destroy_mapping_tbl(uint16_t hw_index)
 
 fail:
 	return ret;
+}
+
+/*
+ * ppe_mirror_enable_mirror_for_phy_dev()
+ *	Configure mapping table for a physical dev.
+ */
+static ppe_mirror_ret_t ppe_mirror_enable_mirror_for_phy_dev(struct net_device *phy_dev)
+{
+	struct ppe_mirror *mirror_g = &gbl_ppe_mirror;
+	struct ppe_drv_iface *iface = NULL;
+	ppe_drv_ret_t ret;
+
+	iface = ppe_drv_iface_get_by_dev(phy_dev);
+	if (!iface) {
+		ppe_mirror_warn("Failed to get iface for interface %s\n", phy_dev->name);
+		return PPE_MIRROR_RET_GENERIC_FAILURE;
+        }
+
+	/*
+	 * Enable mirroring on the physical port.
+	 */
+	ret = ppe_drv_dp_set_mirror_if(iface, PPE_DRV_DP_MIRR_DI_EG, true);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		ppe_mirror_warn("%p:Failed to establish the mirror mapping for phy dev %s %d\n", mirror_g, phy_dev->name, ret);
+		return PPE_MIRROR_RET_GENERIC_FAILURE;
+	}
+
+	ppe_mirror_info("%p:Establish the mirror mapping for phy dev %s\n", mirror_g, phy_dev->name);
+	return PPE_MIRROR_RET_SUCCESS;
 }
 
 /*
@@ -361,6 +464,86 @@ fail:
 	return ret;
 }
 EXPORT_SYMBOL(ppe_mirror_acl_mapping_delete);
+
+/*
+ * ppe_mirror_phy_port_mapping_delete()
+ *	PPE physical port mapping delete API.
+ */
+ppe_mirror_ret_t ppe_mirror_phy_port_mapping_delete(struct ppe_mirror_port_mapping_info *mapping_info)
+{
+	struct ppe_mirror *mirror_g = &gbl_ppe_mirror;
+	struct ppe_mirror_phy_port_list *port_list = mapping_info->mirror_phy_port_list;
+	ppe_mirror_ret_t ret;
+	uint8_t i = 0;
+
+	/*
+	 * Iterate over the list of ports and delete the mapping
+	 * to the group dev.
+	 */
+	for (i = 0; i < PPE_DRV_PHYSICAL_MAX; i++) {
+		if (!port_list[i].is_valid)
+			break;
+
+		ret = ppe_mirror_disable_mirror_for_phy_dev(port_list[i].dev);
+		if (ret != PPE_MIRROR_RET_SUCCESS) {
+			ppe_mirror_warn("%p: Failed to delete mapping table for physical dev %s ret %d\n", mirror_g, port_list[i].dev->name, ret);
+			return ret;
+		}
+	}
+
+	return PPE_MIRROR_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_mirror_phy_port_mapping_delete);
+
+/*
+ * ppe_mirror_phy_port_mapping_add()
+ *	PPE physical port mapping add API.
+ */
+ppe_mirror_ret_t ppe_mirror_phy_port_mapping_add(struct ppe_mirror_port_mapping_info *mapping_info)
+{
+	struct ppe_mirror *mirror_g = &gbl_ppe_mirror;
+	struct ppe_mirror_port_group_info *group_info = NULL;
+	struct ppe_mirror_phy_port_list *port_list = mapping_info->mirror_phy_port_list;
+	ppe_mirror_ret_t ret;
+	uint8_t i = 0;
+
+	/*
+	 * Change the group info if new device is sent in the
+	 * mapping command or the group dev is NULL. Clear the earlier
+	 * stats as well in case of group dev change.
+	 */
+	spin_lock_bh(&mirror_g->lock);
+	group_info = &mirror_g->port_group_info;
+	if ((!group_info->group_dev) ||
+			(group_info->group_dev != mapping_info->capture_dev)) {
+		atomic64_set(&group_info->pdev_stats.packets, 0);
+		atomic64_set(&group_info->pdev_stats.bytes, 0);
+
+		group_info->group_dev = mapping_info->capture_dev;
+		group_info->cb = mapping_info->cb;
+		group_info->app_data = mapping_info->app_data;
+	}
+
+	spin_unlock_bh(&mirror_g->lock);
+
+	/*
+	 * Iterate over the list of physical net devices and add the mapping to
+	 * the group dev.
+	 */
+	for (i = 0; i < PPE_DRV_PHYSICAL_MAX; i++) {
+		if (!port_list[i].is_valid)
+			break;
+
+		ret = ppe_mirror_enable_mirror_for_phy_dev(port_list[i].dev);
+		if (ret != PPE_MIRROR_RET_SUCCESS) {
+			ppe_mirror_warn("%p: Failed to add mapping table for physical dev %s ret %d\n", mirror_g, port_list[i].dev->name, ret);
+			return ret;
+		}
+	}
+
+	return PPE_MIRROR_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_mirror_phy_port_mapping_add);
 
 /*
  * ppe_mirror_acl_mapping_add()

@@ -55,6 +55,7 @@ enum ppe_mirror_test_cmd_type {
 	PPE_MIRROR_TEST_CMD_MAP_ACL,		/* MAP ACL to group command */
 	PPE_MIRROR_TEST_CMD_UNMAP_ACL,		/* UNMAP ACL to group command */
 	PPE_MIRROR_TEST_CMD_ENABLE_CORE,	/* Command to enable capture core */
+	PPE_MIRROR_TEST_CMD_DROP,		/* Command to drop the mirrored packets in test module */
 };
 
 /*

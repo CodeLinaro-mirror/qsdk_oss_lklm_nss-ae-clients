@@ -26,6 +26,11 @@
  */
 static struct ctl_table_header *ppe_mirror_test_procfs_header;
 
+/*
+ * Disable packet drop by default.
+ */
+bool ppe_mirror_test_drop_packets = false;
+
 static DEFINE_SPINLOCK(ppe_mirror_test_group_lock);
 
 /*
@@ -89,6 +94,44 @@ static const struct net_device_ops ppe_mirror_test_netdev_ops = {
 	.ndo_start_xmit		= ppe_mirror_test_xmit,
 	.ndo_get_stats64	= NULL,
 };
+
+/*
+ * ppe_mirror_test_get_netdev_list()
+ *	API to get the netdev list input.
+ *
+ * Note: Caller is expected to release the hold on the dev.
+ */
+static bool ppe_mirror_test_get_netdev_list(char *name, struct ppe_mirror_phy_port_list *port_list, bool *valid)
+{
+	char *dev = NULL;
+	struct net_device *netdev = NULL;
+	uint8_t i = 0;
+
+	do {
+		dev = strsep(&name, ",");
+		if (!dev)
+			break;
+
+		if (dev[strlen(dev) - 1] == '\n')
+			dev[strlen(dev) - 1] = '\0';
+
+		netdev = dev_get_by_name(&init_net, dev);
+		if (!netdev) {
+			printk("Error in fetching dev %s\n", dev);
+			return false;
+		}
+
+		port_list[i].dev = netdev;
+		port_list[i].is_valid = true;
+
+		dev_put(netdev);
+		i++;
+
+	} while (dev && i < 6);
+
+	*valid = true;
+	return true;
+}
 
 /*
  * ppe_mirror_test_get_netdev_by_name()
@@ -183,6 +226,17 @@ static int ppe_mirror_test_convert_char_to_u16(char *buf, uint16_t *arg)
  */
 void ppe_mirror_test_group_cb_process_skb(void *app_data, struct sk_buff *skb, struct net_device *dev)
 {
+	/*
+	 * Drop the packet if ppe_mirror_test_drop_packets is set.
+	 */
+	if (ppe_mirror_test_drop_packets) {
+		if (net_ratelimit())
+			printk("Dropping mirrored skb %p \n", skb);
+
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
 	/*
 	 * Process the packet and send it to stack.
 	 * NOTE : This is dummy API for test PPE mirror functionality,
@@ -289,7 +343,9 @@ static bool ppe_mirror_test_group_add(struct net_device *dev)
  *	API to parse the params of the command.
  */
 static bool ppe_mirror_test_parse_config_param(char *buffer, uint16_t *acl_id,
-					      struct net_device **dev)
+					      struct net_device **dev,
+					      struct ppe_mirror_phy_port_list *dev_list,
+					      bool *valid)
 {
 	char *param, *value;
 	uint8_t param_num = PPE_MIRROR_TEST_NO_OF_PARAMS;
@@ -324,6 +380,15 @@ static bool ppe_mirror_test_parse_config_param(char *buffer, uint16_t *acl_id,
 			}
 
 			dev_put(*dev);
+		} else if (!strcmp(param, "port")){
+
+			/*
+			 * Get the netdev list from the command.
+			 */
+			if (!ppe_mirror_test_get_netdev_list(value, dev_list, valid)) {
+				printk("Error in parsing netdev list!\n");
+				return false;
+			}
 		} else {
 			printk("invalid parametes for mapping add !!\n");
 			return false;
@@ -340,15 +405,17 @@ static bool ppe_mirror_test_parse_config_param(char *buffer, uint16_t *acl_id,
 static bool ppe_mirror_test_parse_map_cmd(char *buffer)
 {
 	struct net_device *dev;
-	struct ppe_mirror_acl_mapping_info info = {0};
+	struct ppe_mirror_acl_mapping_info acl_info = {0};
+	struct ppe_mirror_port_mapping_info port_info = {0};
 	uint16_t acl_id = 0;
 	uint16_t group_id = PPE_MIRROR_TEST_INVALID_GROUP_ID;
 	ppe_mirror_ret_t ret;
+	bool port_based_valid = false;
 
 	/*
 	 * Parse the params from the command : acl id and dev.
 	 */
-	if (!ppe_mirror_test_parse_config_param(buffer, &acl_id, &dev)) {
+	if (!ppe_mirror_test_parse_config_param(buffer, &acl_id, &dev, port_info.mirror_phy_port_list, &port_based_valid)) {
 		printk("Error in parsing mirror configure command\n");
 		return false;
         }
@@ -363,13 +430,29 @@ static bool ppe_mirror_test_parse_map_cmd(char *buffer)
 	}
 
 	/*
+	 * Port based mapping is valid.
+	 */
+	if (port_based_valid) {
+		port_info.capture_dev = dev;
+		port_info.cb = ppe_mirror_test_group_cb_process_skb;
+
+		ret = ppe_mirror_phy_port_mapping_add(&port_info);
+		if (ret != PPE_MIRROR_RET_SUCCESS) {
+			printk("Failed to add pdev mapping for mirror, ret %d\n", ret);
+			return false;
+		}
+
+		return true;
+	}
+
+	/*
 	 * Call into PPE mirror to add the mapping.
 	 */
-	info.acl_id = acl_id;
-	info.capture_dev = dev;
-	info.cb = ppe_mirror_test_group_cb_process_skb;
+	acl_info.acl_id = acl_id;
+	acl_info.capture_dev = dev;
+	acl_info.cb = ppe_mirror_test_group_cb_process_skb;
 
-	ret = ppe_mirror_acl_mapping_add(&info);
+	ret = ppe_mirror_acl_mapping_add(&acl_info);
 	if (ret != PPE_MIRROR_RET_SUCCESS) {
 		printk("Failed to add ACL mapping for ACL id %d ret %d\n", acl_id, ret);
 		return false;
@@ -415,6 +498,10 @@ static int32_t ppe_mirror_test_parse_cmd(char *cmd)
 		return PPE_MIRROR_TEST_CMD_ENABLE_CORE;
 	}
 
+	if (!strcmp(cmd, "drop")) {
+		return PPE_MIRROR_TEST_CMD_DROP;
+	}
+
 	printk("Invalid string:%s in command\n", cmd);
 	return PPE_MIRROR_TEST_CMD_UNKNOWN;
 }
@@ -428,10 +515,38 @@ bool ppe_mirror_test_parse_unmap_cmd(char *buffer)
 	char *param, *value;
 	uint16_t acl_id;
 	ppe_mirror_ret_t ret;
+	struct ppe_mirror_port_mapping_info port_info = {0};
+	bool valid_flag = false;
 
 	param = ppe_mirror_test_read_value(&buffer, &value, "=");
 	if (!param || !value)
 		return false;
+
+	/*
+	 * In case of physical dev unmapping request, send the dev list to
+	 * mirror module.
+	 */
+	if (!strcmp(param, "port")) {
+
+		/*
+		 * Get the netdev list from the command.
+		 */
+		if (!ppe_mirror_test_get_netdev_list(value, port_info.mirror_phy_port_list, &valid_flag)) {
+			printk("Error in parsing netdev list!\n");
+			return false;
+		}
+
+		/*
+		 * Here call mirror module unmapping API
+		 */
+		ret = ppe_mirror_phy_port_mapping_delete(&port_info);
+		if (ret != PPE_MIRROR_RET_SUCCESS) {
+			printk("Failed to delete port mappings, ret %d\n", ret);
+			return false;
+		}
+
+		return true;
+	}
 
 	if (strcmp(param, "acl_id")) {
 		printk("Invalid param %s in unmap command, valid param is: acl_id\n", param);
@@ -459,6 +574,33 @@ bool ppe_mirror_test_parse_unmap_cmd(char *buffer)
 	return true;
 }
 
+/*
+ * ppe_mirror_test_parse_drop_cmd()
+ *	Parse drop packet command.
+ */
+bool ppe_mirror_test_parse_drop_cmd(char *buffer)
+{
+	char *param, *value;
+	uint16_t en;
+
+	param = ppe_mirror_test_read_value(&buffer, &value, "=");
+	if (!param || !value)
+		return false;
+
+	if (strcmp(param, "en")) {
+		printk("Invalid param %s in drop en command, valid param is: en\n", param);
+		return false;
+	}
+
+	ppe_mirror_test_convert_char_to_u16(value, &en);
+
+	if (en)
+		ppe_mirror_test_drop_packets = true;
+	else
+		ppe_mirror_test_drop_packets = false;
+
+	return true;
+}
 /*
  * ppe_mirror_test_parse_core_select_cmd()
  *	Parse core select command.
@@ -739,6 +881,17 @@ static int ppe_mirror_test_config_params(struct ctl_table *ctl, int write, void 
 		}
 
 		printk("Core selected successfully\n");
+		break;
+	}
+
+	case PPE_MIRROR_TEST_CMD_DROP:
+	{
+		if (!ppe_mirror_test_parse_drop_cmd(buffer)) {
+			printk("Error in parsing drop command \n");
+			goto err;
+		}
+
+		printk("Setting dropped packets en/disable successfully \n");
 		break;
 	}
 

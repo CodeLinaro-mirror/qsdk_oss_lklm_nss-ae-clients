@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,10 +18,10 @@
 #define __PPE_MIRROR_STATS_H
 
 /*
- * ppe_mirror_acl_stats
- *	PPE mirror ACL match counters
+ * ppe_mirror_stats
+ *	PPE mirror match counters
  */
-struct ppe_mirror_acl_stats {
+struct ppe_mirror_stats {
 	atomic64_t packets;
 	atomic64_t bytes;
 };
@@ -81,10 +81,10 @@ static inline void ppe_mirror_stats_inc(atomic64_t *stat)
 }
 
 /*
- * ppe_mirror_update_acl_stats()
+ * ppe_mirror_update_stats()
  *	Update packets and bytes stats.
  */
-static inline void ppe_mirror_update_acl_stats(struct ppe_mirror_acl_stats *stats, uint32_t bytes) {
+static inline void ppe_mirror_update_stats(struct ppe_mirror_stats *stats, uint32_t bytes) {
 	atomic64_inc(&stats->packets);
 	atomic64_add(bytes, &stats->bytes);
 }

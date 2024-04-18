@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -71,6 +71,21 @@ ppe_drv_ret_t ppe_drv_vp_deinit(struct ppe_drv_iface *iface);
  * Status of the initialization operation.
  */
 ppe_drv_ret_t ppe_drv_vp_init(struct ppe_drv_iface *iface, struct ppe_drv_vp_info *info);
+
+/**
+ * ppe_drv_vp_cfg_update
+ *	Update a virtual port in PPE.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface Pointer to the interface object.
+ * @param[in] info Pointer to the VP info object.
+ *
+ * @return
+ * Status of the Update operation.
+ */
+ppe_drv_ret_t ppe_drv_vp_cfg_update(struct ppe_drv_iface *iface, struct ppe_drv_vp_info *info);
 
 /** @} */ /* end_addtogroup ppe_drv_vp_subsystem */
 

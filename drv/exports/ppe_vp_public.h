@@ -64,6 +64,7 @@ typedef enum ppe_vp_status {
 					/**< VP to Queue map failed */
 	PPE_VP_STATUS_HW_VP_STATS_CLEAR_FAILED,
 					/**< Failed to clear PPE VP hardware statistics */
+	PPE_VP_STATUS_UPDATE_FAIL,	/**< VP PPE update failed */
 	PPE_VP_STATUS_MAX,		/**< Maximum VP statuses */
 } ppe_vp_status_t;
 
@@ -158,6 +159,15 @@ enum ppe_vp_net_dev_type {
 enum ppe_vp_net_dev_pvt_flags {
 	PPE_VP_NET_DEV_FLAG_IS_MLD = 1,	/**< Is MLD net dev */
 	PPE_VP_NET_DEV_FLAG_MAX,		/**< Maximum netdev flags */
+};
+
+/**
+ * ppe_vp_ui
+ *	Data structure for VP update information.
+ */
+struct ppe_vp_ui {
+	uint8_t core_mask;		/**< Updated Core to be used for a particular VP flow */
+	enum ppe_vp_user_type usr_type;	/**< VP user type */
 };
 
 /**
@@ -264,6 +274,18 @@ extern ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num);
  * Void.
  */
 extern void ppe_vp_free_dev(struct net_device *vp_dev);
+
+/*
+ * ppe_vp_cfg_update()
+ *	Update a PPE VP interface.
+ *
+ * @param[in] vp_num     VP number.
+ * @param[in] vpui       VP update info.
+ *
+ * @return
+ * Status of the API.
+ */
+extern ppe_vp_status_t ppe_vp_cfg_update(ppe_vp_num_t vp_num, struct ppe_vp_ui *vpui);
 
 /*
  * ppe_vp_alloc()

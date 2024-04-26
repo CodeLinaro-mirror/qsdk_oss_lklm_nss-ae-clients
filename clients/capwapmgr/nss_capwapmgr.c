@@ -2290,18 +2290,9 @@ static nss_capwapmgr_status_t nss_capwapmgr_tunnel_create_common(struct net_devi
 		return NSS_CAPWAPMGR_FAILRUE_INTERNAL_ENCAP_NETDEV_ALLOC_FAILED;
 	}
 
-	/*
-	 * Update the MTU of internal dev as PPE VP sets the PPE iface MTU
-	 * based on netdevs MTU.
-	 */
 	memset(&vpai, 0, sizeof(struct ppe_vp_ai));
-	if (v4) {
-		internal_dev_decap->mtu = v4->to_mtu;
-		internal_dev_encap->mtu = v4->to_mtu;
-	} else {
-		internal_dev_decap->mtu = v6->to_mtu;
-		internal_dev_encap->mtu = v6->to_mtu;
-	}
+	internal_dev_decap->mtu = NSS_CAPWAPMGR_VP_MTU;
+	internal_dev_encap->mtu = NSS_CAPWAPMGR_VP_MTU;
 
 	vpai.type = PPE_VP_TYPE_SW_PO;
 
@@ -2627,9 +2618,7 @@ static void nss_capwapmgr_tunnel_save_stats(struct nss_capwap_tunnel_stats *save
  * nss_capwapmgr_flow_rule_action()
  */
 static inline nss_capwapmgr_status_t nss_capwapmgr_flow_rule_action(struct net_device *dev, uint8_t tunnel_id,
-						nss_capwap_msg_type_t cmd, uint16_t ip_version,
-						uint16_t protocol, uint32_t *src_ip, uint32_t *dst_ip,
-						uint16_t src_port, uint16_t dst_port, uint32_t flow_id)
+						nss_capwap_msg_type_t cmd, struct nss_capwapmgr_flow_info *flow_info)
 {
 	struct nss_capwapmgr_priv *priv;
 	struct nss_capwap_msg capwapmsg;
@@ -2655,16 +2644,16 @@ static inline nss_capwapmgr_status_t nss_capwapmgr_flow_rule_action(struct net_d
 	 */
 	if (cmd == NSS_CAPWAP_MSG_TYPE_FLOW_RULE_ADD) {
 		ncfrm = &capwapmsg.msg.flow_rule_add;
+		memcpy(&ncfrm->flow_attr, &flow_info->flow_attr, sizeof(struct nss_capwap_flow_attr));
 	} else {
 		ncfrm = &capwapmsg.msg.flow_rule_del;
 	}
-	ncfrm->protocol = protocol;
-	ncfrm->src_port = src_port;
-	ncfrm->dst_port = dst_port;
-	ncfrm->ip_version = ip_version;
-	memcpy(ncfrm->src_ip, src_ip, sizeof(struct in6_addr));
-	memcpy(ncfrm->dst_ip, dst_ip, sizeof(struct in6_addr));
-	ncfrm->flow_id = flow_id;
+	ncfrm->protocol = flow_info->protocol;
+	ncfrm->src_port = flow_info->src_port;
+	ncfrm->dst_port = flow_info->dst_port;
+	ncfrm->ip_version = flow_info->ip_version;
+	memcpy(ncfrm->src_ip, flow_info->src_ip, sizeof(struct in6_addr));
+	memcpy(ncfrm->dst_ip, flow_info->dst_ip, sizeof(struct in6_addr));
 
 	/*
 	 * Send flow rule message to NSS core
@@ -3977,12 +3966,9 @@ EXPORT_SYMBOL(nss_capwapmgr_tunnel_destroy);
  * nss_capwapmgr_add_flow_rule()
  *	Send a capwap flow rule add message to NSS core.
  */
-nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev, uint8_t tunnel_id, uint16_t ip_version,
-						uint16_t protocol, uint32_t *src_ip, uint32_t *dst_ip,
-						uint16_t src_port, uint16_t dst_port, uint32_t flow_id)
+nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev, uint8_t tunnel_id, struct nss_capwapmgr_flow_info *flow_info)
 {
-	return nss_capwapmgr_flow_rule_action(dev, tunnel_id, NSS_CAPWAP_MSG_TYPE_FLOW_RULE_ADD, ip_version,
-											protocol, src_ip, dst_ip, src_port, dst_port, flow_id);
+	return nss_capwapmgr_flow_rule_action(dev, tunnel_id, NSS_CAPWAP_MSG_TYPE_FLOW_RULE_ADD, flow_info);
 }
 EXPORT_SYMBOL(nss_capwapmgr_add_flow_rule);
 
@@ -3990,12 +3976,9 @@ EXPORT_SYMBOL(nss_capwapmgr_add_flow_rule);
  * nss_capwapmgr_del_flow_rule()
  *	Send a capwap flow rule del message to NSS core.
  */
-nss_capwapmgr_status_t nss_capwapmgr_del_flow_rule(struct net_device *dev, uint8_t tunnel_id, uint16_t ip_version,
-						uint16_t protocol, uint32_t *src_ip, uint32_t *dst_ip,
-						uint16_t src_port, uint16_t dst_port)
+nss_capwapmgr_status_t nss_capwapmgr_del_flow_rule(struct net_device *dev, uint8_t tunnel_id, struct nss_capwapmgr_flow_info *flow_info)
 {
-	return nss_capwapmgr_flow_rule_action(dev, tunnel_id, NSS_CAPWAP_MSG_TYPE_FLOW_RULE_DEL, ip_version,
-											protocol, src_ip, dst_ip, src_port, dst_port, 0);
+	return nss_capwapmgr_flow_rule_action(dev, tunnel_id, NSS_CAPWAP_MSG_TYPE_FLOW_RULE_DEL, flow_info);
 }
 EXPORT_SYMBOL(nss_capwapmgr_del_flow_rule);
 

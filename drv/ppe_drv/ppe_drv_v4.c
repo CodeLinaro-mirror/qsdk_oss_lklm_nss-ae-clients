@@ -1030,6 +1030,16 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLOW_METADATA_TYPE_WIFI_INFO);
 		}
 
+		/*
+		 * Check if DS metadata info is valid in this direction for MLO assist and if the
+		 * interface is a Wi-Fi VP.
+		 */
+		if ((valid_flags & PPE_DRV_V4_VALID_FLAG_FLOW_WIFI_DS) &&
+					(ppe_drv_port_flags_check(pp_tx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
+			pcf->wifi_rule_ds_metadata = create->wifi_rule.flow_ds_node_mdata;
+			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS);
+		}
+
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_VLAN) {
 			pcf->ingress_vlan[0].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
 			pcf->ingress_vlan[1].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
@@ -1089,6 +1099,12 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK);
 		}
 #endif
+		/*
+		 * Set noedit rule
+		 */
+		if (rule_flags & PPE_DRV_V4_RULE_NOEDIT_FLOW_RULE) {
+			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_NO_EDIT_RULE);
+		}
 	}
 
 	/*
@@ -1211,6 +1227,16 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLOW_METADATA_TYPE_WIFI_INFO);
 		}
 
+		/*
+		 * Check if DS metadata info is valid in this direction for MLO assist and if the
+		 * interface is a Wi-Fi VP.
+		 */
+		if ((valid_flags & PPE_DRV_V4_VALID_FLAG_RETURN_WIFI_DS) &&
+					(ppe_drv_port_flags_check(pp_rx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
+			pcr->wifi_rule_ds_metadata = create->wifi_rule.return_ds_node_mdata;
+			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS);
+		}
+
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_VLAN) {
 			pcr->ingress_vlan[0].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
 			pcr->ingress_vlan[1].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
@@ -1271,6 +1297,14 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLOW_FLAG_SRC_INTERFACE_CHECK);
 		}
 #endif
+
+		/*
+		 * Set noedit rule
+		 */
+		if (rule_flags & PPE_DRV_V4_RULE_NOEDIT_RETURN_RULE) {
+			ppe_drv_v4_conn_flow_flags_set(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_NO_EDIT_RULE);
+		}
+
 		ppe_drv_v4_conn_flags_set(cn, PPE_DRV_V4_CONN_FLAG_RETURN_VALID);
 	}
 
@@ -2804,8 +2838,14 @@ ppe_drv_ret_t ppe_drv_v4_rfs_create(struct ppe_drv_v4_rule_create *create)
 		ppe_drv_stats_inc(&comm_stats->v4_create_rfs_fail);
 		ppe_drv_warn("%p: acceleration of flow failed: %p", p, pcf);
 		ret = PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL;
-		ppe_drv_iface_deref_internal(pcf->eg_port_if);
-		ppe_drv_iface_deref_internal(cn->pcf.in_l3_if);
+		if (pcf->eg_port_if) {
+			ppe_drv_iface_deref_internal(pcf->eg_port_if);
+		}
+
+		if (cn->pcf.in_l3_if) {
+			ppe_drv_iface_deref_internal(cn->pcf.in_l3_if);
+		}
+
 		spin_unlock_bh(&p->lock);
 		kfree(cn);
 		ppe_drv_v4_conn_flow_flags_clear(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST);

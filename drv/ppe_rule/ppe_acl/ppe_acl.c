@@ -18,7 +18,9 @@
 #include <linux/netdevice.h>
 #include <ppe_drv_public.h>
 #include <ppe_drv_acl.h>
+#if !defined(NSS_PPE_LOWMEM_PROFILE_16M)
 #include "../ppe_policer/ppe_policer.h"
+#endif
 #include "ppe_acl.h"
 
 /*

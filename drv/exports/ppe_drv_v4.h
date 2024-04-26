@@ -42,6 +42,8 @@
 #define PPE_DRV_V4_RULE_FLAG_SRC_INTERFACE_CHECK	0x0200	/**< Rule creation for source interface check */
 #define PPE_DRV_V4_RULE_TO_BRIDGE_VLAN_NETDEV		0x0400  /**< VLAN over bridge in egress direction */
 #define PPE_DRV_V4_RULE_FROM_BRIDGE_VLAN_NETDEV		0x0800  /**< VLAN over bridge in ingress direction */
+#define PPE_DRV_V4_RULE_NOEDIT_FLOW_RULE		0x1000  /**< Noedit rule creation for flow direction */
+#define PPE_DRV_V4_RULE_NOEDIT_RETURN_RULE		0x2000  /**< Noedit rule creation for return direction */
 
 /*
  * v4 valid flags
@@ -55,6 +57,10 @@
 #define PPE_DRV_V4_VALID_FLAG_ACL_POLICER	0x0040  /**< ACL/Policer fields are valid. */
 #define PPE_DRV_V4_VALID_FLAG_WIFI_TID		0x0080	/**< TID fields are valid. */
 #define PPE_DRV_V4_VALID_FLAG_SCS		0x0100	/**< SCS fields are valid. */
+#define PPE_DRV_V4_VALID_FLAG_FLOW_WIFI_MDATA	0x0200  /**< Wi-Fi flow metadata is valid. */
+#define PPE_DRV_V4_VALID_FLAG_RETURN_WIFI_MDATA	0x0400  /**< Wi-Fi return metadata is valid. */
+#define PPE_DRV_V4_VALID_FLAG_FLOW_WIFI_DS	0x0800  /**< Wi-Fi DS flow fields are valid. */
+#define PPE_DRV_V4_VALID_FLAG_RETURN_WIFI_DS	0x1000  /**< Wi-Fi DS return fields are valid. */
 
 #define PPE_DRV_V4_MAX_CONN_COUNT		2048
 
@@ -106,6 +112,7 @@ struct ppe_drv_v4_rule_create {
 	struct ppe_drv_top_if_rule top_rule;		/**< Parameters related to the top interface in hierarchy. */
 	struct ppe_drv_service_class_rule sawf_rule;	/**< Service class related information. */
 	struct ppe_drv_acl_policer_rule ap_rule;	/**< ACL/Policer rule ID information. */
+	struct ppe_drv_wifi_mdata_rule wifi_rule;	/**< Wi-Fi metadata rule ID information. */
 };
 
 /**

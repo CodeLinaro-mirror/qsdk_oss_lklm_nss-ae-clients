@@ -64,6 +64,7 @@ typedef enum ppe_vp_status {
 					/**< VP to Queue map failed */
 	PPE_VP_STATUS_HW_VP_STATS_CLEAR_FAILED,
 					/**< Failed to clear PPE VP hardware statistics */
+	PPE_VP_STATUS_UPDATE_FAIL,	/**< VP PPE update failed */
 	PPE_VP_STATUS_MAX,		/**< Maximum VP statuses */
 } ppe_vp_status_t;
 
@@ -91,6 +92,19 @@ struct ppe_vp_cb_info {
  * @param[in] cb_data		Pointer to the callback data.
  */
 typedef bool(*ppe_vp_callback_t)(struct ppe_vp_cb_info *, void *cb_data);
+
+/**
+ * Callback function for VP Rx list.
+ *
+ * @datatypes
+ * net_device
+ * sk_buff
+ *
+ * @param[in] net_device  	Pointer to the net device.
+ * @param[in] sk_buff_head	Pointer to the skb list head.
+ * @param[in] cb_data     	Pointer to the callback data.
+ */
+typedef bool(*ppe_vp_list_callback_t)(struct net_device *, struct sk_buff_head *, void *cb_data);
 
 /**
  * ppe_vp_type
@@ -148,12 +162,22 @@ enum ppe_vp_net_dev_pvt_flags {
 };
 
 /**
+ * ppe_vp_ui
+ *	Data structure for VP update information.
+ */
+struct ppe_vp_ui {
+	uint8_t core_mask;		/**< Updated Core to be used for a particular VP flow */
+	enum ppe_vp_user_type usr_type;	/**< VP user type */
+};
+
+/**
  * ppe_vp_ai
  *	Data structure VP allocation.
  */
 struct ppe_vp_ai {
 	ppe_vp_type_t type;		/**< VP type */
 	ppe_vp_callback_t dst_cb;	/**< VP dst callback */
+	ppe_vp_list_callback_t dst_list_cb;	/**< VP dst callback */
 	void *dst_cb_data;		/**< VP dst callback data */
 	ppe_vp_callback_t src_cb;	/**< VP src callback */
 	void *src_cb_data;		/**< VP src callback data */
@@ -250,6 +274,18 @@ extern ppe_vp_status_t ppe_vp_free(ppe_vp_num_t port_num);
  * Void.
  */
 extern void ppe_vp_free_dev(struct net_device *vp_dev);
+
+/*
+ * ppe_vp_cfg_update()
+ *	Update a PPE VP interface.
+ *
+ * @param[in] vp_num     VP number.
+ * @param[in] vpui       VP update info.
+ *
+ * @return
+ * Status of the API.
+ */
+extern ppe_vp_status_t ppe_vp_cfg_update(ppe_vp_num_t vp_num, struct ppe_vp_ui *vpui);
 
 /*
  * ppe_vp_alloc()

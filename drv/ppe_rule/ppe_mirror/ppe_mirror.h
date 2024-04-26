@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,8 +15,11 @@
  */
 
 #include "ppe_mirror_stats.h"
+#include <ppe_drv_iface.h>
 #include <ppe_mirror.h>
 #include <ppe_acl.h>
+#include <ppe_drv_port.h>
+#include <ppe_drv_dp.h>
 
 /*
  * PPE MIRROR macros
@@ -63,6 +66,17 @@
 #define PPE_MIRROR_CAPTURE_CORE_MAX	NR_CPUS
 
 /*
+ * ppe_mirror_port_group_info
+ *	Port mirror group information.
+ */
+struct ppe_mirror_port_group_info {
+	struct net_device *group_dev;		/* Group net device */
+	ppe_mirror_capture_callback_t cb;	/* Capture callback */
+	void *app_data;				/* App data */
+	struct ppe_mirror_stats pdev_stats;	/* PDEV Group level stats info */
+};
+
+/*
  * ppe_mirror_group_info
  *	Mirror group related information.
  */
@@ -71,7 +85,7 @@ struct ppe_mirror_group_info {
 	struct net_device *group_dev;		/* Group net device */
 	ppe_mirror_capture_callback_t cb;	/* Capture callback */
 	void *app_data;				/* App data */
-	struct ppe_mirror_acl_stats acl_stats;	/* Group level stats info */
+	struct ppe_mirror_stats acl_stats;	/* ACL Group level stats info */
 	uint16_t number_of_mappings;		/* Number of mappings on this group */
 };
 
@@ -82,7 +96,7 @@ struct ppe_mirror_group_info {
 struct ppe_mirror_acl_map {
 	uint16_t acl_rule_id;				/* PPE software rule index */
 	struct ppe_mirror_group_info *group_info;	/* Pointer to the node for the group in the group list */
-	struct ppe_mirror_acl_stats acl_stats;		/* Mirror ACL stats */
+	struct ppe_mirror_stats acl_stats;		/* Mirror ACL stats */
 	bool is_valid;					/* Valid flag for this ACL index */
 };
 
@@ -93,9 +107,10 @@ struct ppe_mirror_acl_map {
 struct ppe_mirror {
 	spinlock_t lock;							/* PPE Mirror lock */
 	struct ppe_mirror_acl_map mirror_mapping[PPE_MIRROR_ACL_HW_INDEX_MAX];	/* PPE Mirror map to ACL hardware index */
+	struct ppe_mirror_port_group_info port_group_info;			/* Physical port group info */
+	struct list_head active_mirror_groups;					/* List for active mirror groups */
 	struct ppe_mirror_cmn_stats stats;					/* PPE Mirror Common statistics */
 	struct dentry *dentry;							/* Debugfs root entry */
-	struct list_head active_mirror_groups;					/* List for active mirror groups */
 	uint8_t no_of_active_mirror_groups;					/* Number of active mirror groups */
 };
 

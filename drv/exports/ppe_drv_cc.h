@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -240,6 +240,7 @@ typedef enum ppe_drv_cc_type {
 struct ppe_drv_cc_metadata {
 	uint16_t cpu_code;			/**< CPU code for the packet */
 	uint16_t acl_hw_index;			/**< Hardware ACL index */
+	bool acl_index_valid;			/**< ACL rule Valid bit */
 };
 
 typedef bool (*ppe_drv_cc_callback_t)(void *app_data, struct sk_buff *skb, void *cc_info);

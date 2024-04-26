@@ -485,7 +485,7 @@ static bool ppe_drv_flow_v6_policer_get(struct ppe_drv_v6_conn_flow *pcf, uint32
 {
 	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID)) {
 		*policer_index = pcf->policer_hw_id;
-		*policer_valid = true;
+		*policer_valid = A_TRUE;
 	}
 
 	return true;
@@ -519,9 +519,33 @@ bool ppe_drv_flow_v6_service_code_get(struct ppe_drv_v6_conn_flow *pcf, struct p
 	}
 
 	/*
-	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
+	 * Service code to enable PPE to bypass packet header editing and forward them unmodified.
 	 */
-	if ((ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID) ||
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_NO_EDIT_RULE)) {
+		/*
+		 * Service code to set noedit rule.
+		 */
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_NOEDIT_RULE)) {
+			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+					pcf, service_code, PPE_DRV_SC_NOEDIT_RULE);
+			return false;
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
+	/*
+	 * Get the service code for the flow according to the flow type
+	 * and precedence of these features (like DS flows, policer/ACL based service code, etc)
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_WIFI_DS)) {
+		if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			sc = PPE_DRV_SC_DS_MLO_LINK_BR_NODE0 + pcf->wifi_rule_ds_metadata;
+		} else {
+			sc = PPE_DRV_SC_DS_MLO_LINK_RO_NODE0 + pcf->wifi_rule_ds_metadata;
+		}
+	} else if((ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_POLICER_VALID) ||
 			ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_ACL_VALID)) && (pcf->acl_sc != PPE_DRV_SC_NONE)) {
 		sc = pcf->acl_sc;
 	} else if (pp->user_type == PPE_DRV_PORT_USER_TYPE_DS) {
@@ -832,7 +856,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 			struct ppe_drv_port *port = ppe_drv_iface_port_get(in_port_if);
 			if (port) {
 				flow_cfg.src_intf_index = port->port;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Bridged flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		} else {
@@ -840,7 +864,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 			struct ppe_drv_l3_if *l3_if = ppe_drv_iface_l3_if_get(in_l3_if);
 			if (l3_if) {
 				flow_cfg.src_intf_index = l3_if->l3_if_index;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Routed flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		}
@@ -885,7 +909,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		 * doing VLANs between different ingress and egress VSI.
 		 */
 		if (nh) {
-			flow_cfg.bridge_nexthop_valid = true;
+			flow_cfg.bridge_nexthop_valid = A_TRUE;
 			flow_cfg.bridge_nexthop = nh->index;
 			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
 		}
@@ -1204,7 +1228,7 @@ static bool ppe_drv_flow_v4_policer_get(struct ppe_drv_v4_conn_flow *pcf, uint32
 {
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_POLICER_VALID)) {
 		*policer_index = pcf->policer_hw_id;
-		*policer_valid = true;
+		*policer_valid = A_TRUE;
 	}
 
 	return true;
@@ -1238,9 +1262,33 @@ bool ppe_drv_flow_v4_service_code_get(struct ppe_drv_v4_conn_flow *pcf, struct p
 	}
 
 	/*
-	 * Service code to avoid PPE drop while processing bridge flows between two different VSIs.
+	 * Service code to enable PPE to bypass packet header editing and forward them unmodified.
 	 */
-	if ((ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_POLICER_VALID) ||
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_NO_EDIT_RULE)) {
+		/*
+		 * Service code to set noedit rule.
+		 */
+		if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_NOEDIT_RULE)) {
+			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+						pcf, service_code, PPE_DRV_SC_NOEDIT_RULE);
+			return false;
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
+	/*
+	 * Get the service code for the flow according to the flow type
+	 * and precedence of these features (like DS flows, policer/ACL based service code, etc)
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS)) {
+		if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			sc = PPE_DRV_SC_DS_MLO_LINK_BR_NODE0 + pcf->wifi_rule_ds_metadata;
+		} else {
+			sc = PPE_DRV_SC_DS_MLO_LINK_RO_NODE0 + pcf->wifi_rule_ds_metadata;
+		}
+	} else if ((ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_POLICER_VALID) ||
 		ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_ACL_VALID)) && (pcf->acl_sc != PPE_DRV_SC_NONE)) {
 		sc = pcf->acl_sc;
 	} else if (pp->user_type == PPE_DRV_PORT_USER_TYPE_DS) {
@@ -1576,7 +1624,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 			struct ppe_drv_port *port = ppe_drv_iface_port_get(in_port_if);
 			if (port) {
 				flow_cfg.src_intf_index = port->port;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Bridged flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		} else {
@@ -1584,7 +1632,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 			struct ppe_drv_l3_if *l3_if = ppe_drv_iface_l3_if_get(in_l3_if);
 			if (l3_if) {
 				flow_cfg.src_intf_index = l3_if->l3_if_index;
-				flow_cfg.src_intf_valid = true;
+				flow_cfg.src_intf_valid = A_TRUE;
 				ppe_drv_trace("%p: Routed flow, src_intf_index: %u", pcf, flow_cfg.src_intf_index);
 			}
 		}
@@ -1645,7 +1693,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		 * doing VLANs between different ingress and egress VSI.
 		 */
 		if (nh) {
-			flow_cfg.bridge_nexthop_valid = true;
+			flow_cfg.bridge_nexthop_valid = A_TRUE;
 			flow_cfg.bridge_nexthop = nh->index;
 			ppe_drv_trace("%p:nexthop index: %u", pcf, nh->index);
 		}

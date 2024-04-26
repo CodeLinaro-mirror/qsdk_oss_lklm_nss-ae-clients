@@ -45,6 +45,87 @@ bool ppe_vp_rx_process_cb(struct ppe_vp_cb_info *info, void *cb_data)
 }
 
 /*
+ * ppe_vp_rx_fwd_dvp_list
+ *	Forward packets received from nss-dp.
+ */
+static inline void ppe_vp_rx_fwd_dvp_list(struct nss_dp_vp_skb_list *vp_list_head, struct ppe_vp **vpa)
+{
+	struct ppe_vp *dvp;
+
+	/*
+	 * Forward to destination VP
+	 */
+	if (likely(vp_list_head->dvp >= PPE_DRV_VIRTUAL_START)) {
+		struct ppe_vp_rx_stats *rx_stats;
+
+		rcu_read_lock();
+		dvp = rcu_dereference(vpa[PPE_VP_BASE_PORT_TO_IDX(vp_list_head->dvp)]);
+		if (unlikely(!dvp || !(dvp->flags & PPE_VP_FLAG_VP_ACTIVE))) {
+			/*
+			 * Drop this list as destination VP is not active anymore.
+			 */
+			atomic64_add(skb_queue_len(&vp_list_head->skb_list), &vp_base.base_stats.rx_dvp_inactive);
+			rcu_read_unlock();
+			skb_queue_purge(&vp_list_head->skb_list);
+			if (net_ratelimit()) {
+				ppe_vp_info("%px: Destination VP:%d is not active anymore, dropping \n", dvp, vp_list_head->dvp);
+			}
+			return;
+		}
+
+		rx_stats = this_cpu_ptr(dvp->vp_stats.rx_stats);
+		u64_stats_update_begin(&rx_stats->syncp);
+		rx_stats->rx_pkts += skb_queue_len(&vp_list_head->skb_list);
+		rx_stats->rx_bytes += vp_list_head->len;
+		u64_stats_update_end(&rx_stats->syncp);
+
+		/*
+		 * DP depends on this to be set zero.
+		 */
+		vp_list_head->len = 0;
+
+		/*
+		 * Destination VP user would consume the skb.
+		 * User's responsibility to update skb->dev.
+		 */
+		if (likely(dvp->dst_list_cb)) {
+			dvp->dst_list_cb(dvp->netdev, &vp_list_head->skb_list, dvp->dst_cb_data);
+			rcu_read_unlock();
+		} else {
+			atomic64_add(skb_queue_len(&vp_list_head->skb_list), &vp_base.base_stats.rx_dvp_no_listcb);
+			rcu_read_unlock();
+			skb_queue_purge(&vp_list_head->skb_list);
+			if (net_ratelimit()) {
+				ppe_vp_warn("%px: No list handler for Destination VP:%d  Tx dev:%s \
+					dropping skbs\n", dvp, vp_list_head->dvp, dvp->netdev->name);
+			}
+		}
+		return;
+	}
+
+	atomic64_add(skb_queue_len(&vp_list_head->skb_list), &vp_base.base_stats.rx_dvp_invalid);
+	skb_queue_purge(&vp_list_head->skb_list);
+	return;
+}
+
+/*
+ * ppe_vp_rx_dp_list_cb
+ *	Process packet received from nss-dp.
+ */
+void ppe_vp_rx_dp_list_cb(struct nss_dp_vp_skb_list *vp_list_head)
+{
+
+	struct ppe_vp **vpa = &vp_base.vp_table.vp_allocator[0];
+
+	do {
+		ppe_vp_rx_fwd_dvp_list(vp_list_head, vpa);
+		vp_list_head = vp_list_head->next;
+
+	} while (vp_list_head && vp_list_head->len);
+
+}
+
+/*
  * ppe_vp_rx_dp_cb
  *	Process packet received from nss-dp.
  */

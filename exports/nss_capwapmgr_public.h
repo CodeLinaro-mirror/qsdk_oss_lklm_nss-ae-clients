@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -91,6 +91,21 @@ struct nss_capwapmgr_priv {
 	struct nss_capwapmgr_tunnel *tunnel;	/**< Pointer to tunnel data. */
 	uint8_t *if_num_to_tunnel_id;		/**< Mapping table from if_num to tunnel_id. */
 	struct nss_capwapmgr_response *resp;	/**< Response housekeeping. */
+};
+
+/**
+ * nss_capwapmgr_flow_info
+ *	Inner flow information.
+ */
+struct nss_capwapmgr_flow_info {
+	uint16_t ip_version;	/**< IP version. */
+	uint16_t protocol;	/**< Protocol. */
+	uint32_t src_ip[4];	/**< Source IP address. */
+	uint32_t dst_ip[4];	/**< Destination IP address. */
+	uint16_t src_port;	/**< Source port. */
+	uint16_t dst_port;	/**< Destination port. */
+	struct nss_capwap_flow_attr flow_attr;
+				/**< Flow attributes. */
 };
 
 /**
@@ -346,20 +361,12 @@ extern nss_capwapmgr_status_t nss_capwapmgr_tunnel_destroy(struct net_device *de
  *
  * @param[in] netdevice	CAPWAP netdevice.
  * @param[in] tunnel_id	Tunnel ID of the tunnel.
- * @param[in] ip_version	IP protocol version.
- * @param[in] protocol	L4 protocol.
- * @param[in] src_ip	Source IP address.
- * @param[in] dst_ip	Destination IP address.
- * @param[in] src_port	Source Port.
- * @param[in] dst_port	Destination Port.
- * @param[in] flow_id	Flow Id.
+ * @param[in] flow_info	Flow information.
  *
  * @return
  * nss_capwapmgr_status_t
  */
-extern nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev, uint8_t tunnel_id, uint16_t ip_version,
-						uint16_t protocol, uint32_t *src_ip, uint32_t *dst_ip,
-						uint16_t src_port, uint16_t dst_port, uint32_t flow_id);
+extern nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev, uint8_t tunnel_id, struct nss_capwapmgr_flow_info *flow_info);
 
 /**
  * nss_capwapmgr_del_flow_rule
@@ -370,19 +377,13 @@ extern nss_capwapmgr_status_t nss_capwapmgr_add_flow_rule(struct net_device *dev
  *
  * @param[in] netdevice	CAPWAP netdevice.
  * @param[in] tunnel_id	Tunnel ID of the tunnel.
- * @param[in] ip_version	IP protocol version.
- * @param[in] protocol	L4 protocol.
- * @param[in] src_ip	Source IP address.
- * @param[in] dst_ip	Destination IP address.
- * @param[in] src_port	Source Port.
- * @param[in] dst_port	Destination Port.
+ * @param[in] flow_info Flow information.
  *
  * @return
  * nss_capwapmgr_status_t
  */
-extern nss_capwapmgr_status_t nss_capwapmgr_del_flow_rule(struct net_device *dev, uint8_t tunnel_id, uint16_t ip_version,
-						uint16_t protocol, uint32_t *src_ip, uint32_t *dst_ip,
-						uint16_t src_port, uint16_t dst_port);
+extern nss_capwapmgr_status_t nss_capwapmgr_del_flow_rule(struct net_device *dev, uint8_t tunnel_id, struct nss_capwapmgr_flow_info *flow_info);
+
 /**
  * @brief Delete a DSCP prioritization rule that was created.
  *

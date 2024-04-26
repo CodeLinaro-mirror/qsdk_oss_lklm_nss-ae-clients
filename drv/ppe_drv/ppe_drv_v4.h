@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -67,6 +67,10 @@
 					/* Flow + Policer Assist */
 #define PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST 0x00020000
 					/* Flow needs PPE assistance for Priority setting */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_NO_EDIT_RULE 0x00040000
+					/* Flow is noedit rule */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_WIFI_DS	0x00080000
+					/* Flow + MLO DS node */
 
 /*
  * ppe_drv_v4_addr_equal()
@@ -154,6 +158,8 @@ struct ppe_drv_v4_conn_flow {
 	uint16_t acl_id;
 	uint16_t policer_hw_id;		/* HW policer index */
 	uint16_t policer_id;		/* User policer index */
+
+	uint8_t wifi_rule_ds_metadata;		/* Wi-Fi rule DS metadata */
 
 	/*
 	 * Statistics for this flow entry

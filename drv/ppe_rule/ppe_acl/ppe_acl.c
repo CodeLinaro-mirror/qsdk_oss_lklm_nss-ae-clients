@@ -1507,6 +1507,7 @@ static bool ppe_acl_rule_cmn_fill(struct ppe_acl *acl, struct ppe_acl_rule *rule
 		&& (rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_OUTER_HDR_MATCH)) {
 		ppe_acl_warn("%p: cmn_flags: 0x%x post routing and outer hdr not supported!",
 				acl, rule->cmn.cmn_flags);
+		return false;
 	}
 
 	info->cmn.post_routing_en = !!(rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_POST_RT_EN);
@@ -1520,13 +1521,22 @@ static bool ppe_acl_rule_cmn_fill(struct ppe_acl *acl, struct ppe_acl_rule *rule
 			? PPE_DRV_PORT_QOS_RES_PREC_7 : info->cmn.qos_res_pre;
 	acl->qos_res_pre = info->cmn.qos_res_pre;
 
+	if (rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_GROUP_EN) {
+		if (rule->cmn.group >= PPE_ACL_GROUP_MAX) {
+			ppe_acl_warn("%p: Invalid group number: %d", acl, rule->cmn.group);
+			return false;
+		}
+
+		info->cmn.res_chain = rule->cmn.group;
+	}
 
 	if (rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_METADATA_EN) {
 		info->action.flags |= PPE_DRV_ACL_ACTION_FLAG_METADATA_EN;
 	}
 
-	ppe_acl_info("%p: cmn_flags: 0x%x setting post_routing: %d, pri: %d \n",
-			acl, rule->cmn.cmn_flags, info->cmn.post_routing_en, acl->pri);
+	ppe_acl_info("%p: cmn_flags: 0x%x setting post_routing: %d, pri: %d group: %d\n",
+			acl, rule->cmn.cmn_flags, info->cmn.post_routing_en, acl->pri,
+			info->cmn.res_chain);
 	return true;
 }
 

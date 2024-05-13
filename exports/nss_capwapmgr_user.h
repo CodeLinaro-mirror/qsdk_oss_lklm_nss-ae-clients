@@ -37,6 +37,9 @@
 #define NSS_CAPWAP_MAX_REASSEMBLY_TIMEOUT	(10 * 1000)
 				/**< Maximum timeout for reassembly - 10 seconds. */
 
+#define NSS_CAPWAP_PADDING 14	/**< Padded packet length. */
+
+
 /*
  * CAPWAP Rule configure message flags
  */
@@ -98,6 +101,9 @@
 				/**< Inner SCS ID valid. */
 #define NSS_CAPWAP_PKT_TYPE_SDWF_ID_VALID	0x0080
 				/**< Inner SDWF ID valid. */
+#define NSS_CAPWAP_PKT_TYPE_PADDED	0x4000
+				/**< Packet is padded to bypass EDMA length. */
+
 /**
  * nss_capwap_metaheader
  *	CAPWAP metaheader per-packet for both encap (TX) and decap (RX).

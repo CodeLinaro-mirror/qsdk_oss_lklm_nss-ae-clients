@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -696,6 +696,9 @@ static bool ppe_drv_acl_rule_fill(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_ac
 	 */
 	fal_rule->post_routing = info->cmn.post_routing_en;
 	fal_rule->qos_res_prec = info->cmn.qos_res_pre;
+	fal_rule->acl_pool = info->cmn.res_chain;
+	ppe_drv_trace("%p: post_routing: %d, qos_res_prec: %d, res_chain: %d",
+			ctx, fal_rule->post_routing, fal_rule->qos_res_prec, fal_rule->acl_pool);
 
 	return true;
 }

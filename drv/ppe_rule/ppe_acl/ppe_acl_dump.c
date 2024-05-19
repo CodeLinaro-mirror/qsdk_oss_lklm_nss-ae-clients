@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -272,6 +272,10 @@ int ppe_acl_dump_one(struct ppe_acl_dump_instance *adi, struct ppe_acl *acl)
 		}
 
 		break;
+	}
+
+	if ((result = ppe_acl_dump_write(adi, "group_id", "%d", acl->info.cmn.res_chain))) {
+		goto error;
 	}
 
 	if ((result = ppe_acl_dump_write(adi, "slice_cnt", "%d", acl->slice_cnt))) {

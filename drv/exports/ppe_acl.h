@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -27,6 +27,8 @@
 #define PPE_ACL_PRI_NOMINAL 1
 #define PPE_ACL_INVALID_HW_INDEX 0xFFFF
 #define PPE_ACL_HW_INDEX_MAX 1024
+#define PPE_ACL_GROUP_MAX 2
+#define PPE_ACL_GROUP_DEFAULT 0
 
 /**
  * ACL rule ID
@@ -103,6 +105,7 @@ typedef enum ppe_acl_rule_match_type {
 #define PPE_ACL_RULE_CMN_FLAG_NO_RULEID			0x00000200	/**< Rule common flag to indicate rule ID is not passed by caller. */
 #define PPE_ACL_RULE_CMN_FLAG_FLOW_QOS_OVERRIDE		0x00000400	/**< Rule common flag to override QOS parameters from flow entry. */
 #define PPE_ACL_RULE_CMN_FLAG_METADATA_EN		0x00000800	/**< Rule common flag to indicate METADATA ENABLE in ACL rule. */
+#define PPE_ACL_RULE_CMN_FLAG_GROUP_EN			0x00001000	/**< Rule common flag to indicate priority configuration. */
 
 /*
  * ACL rule flag general - applicable for each rule separately.
@@ -522,6 +525,7 @@ struct ppe_acl_rule_flow_policer {
 struct ppe_acl_rule_match_cmn {
 	uint32_t cmn_flags;				/**< Rule match common flag. */
 	uint16_t pri;					/**< ACL rule priority. */
+	uint8_t group;					/**< ACL rule chain resolution. */
 };
 
 /**

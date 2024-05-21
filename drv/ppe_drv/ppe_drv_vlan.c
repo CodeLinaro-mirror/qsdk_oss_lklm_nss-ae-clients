@@ -844,3 +844,94 @@ ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *ppe_iface, struct net_devi
 	return PPE_DRV_RET_SUCCESS;
 }
 EXPORT_SYMBOL(ppe_drv_vlan_init);
+
+/*
+ * ppe_drv_vlan_lag_slave_leave()
+ *	lag slaves leave vlan
+ */
+ppe_drv_ret_t ppe_drv_vlan_lag_slave_leave(struct ppe_drv_iface *vlan_iface, struct net_device *slave_dev)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_iface *iface;
+	struct ppe_drv_port *port;
+	struct ppe_drv_vsi *vsi;
+
+	spin_lock_bh(&p->lock);
+	vsi = ppe_drv_iface_vsi_get(vlan_iface);
+	if (!vsi) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: Invalid VSI for given iface\n", vlan_iface);
+		return PPE_DRV_RET_VSI_NOT_FOUND;
+	}
+
+	iface = ppe_drv_iface_get_by_dev_internal(slave_dev);
+	if (!iface) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%px: PPE interface cannot be found for slave %s\n", vlan_iface, slave_dev->name);
+		return PPE_DRV_RET_IFACE_INVALID;
+	}
+
+	port = ppe_drv_iface_port_get(iface);
+	if (!port) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: Unable to get port from iface of slave %s\n", iface, slave_dev->name);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	/*
+	 * Detach slave dev to vsi.
+	 * This API is needed to attach port's l3_if of slave port back so that PPE
+	 * can use l3_if associated with slave port instead of bond vlan interface.
+	 */
+	ppe_drv_port_vsi_detach(port, vsi);
+	spin_unlock_bh(&p->lock);
+
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_vlan_lag_slave_leave);
+
+/*
+ * ppe_drv_vlan_lag_slave_join()
+ *	lag slaves join vlan
+ */
+ppe_drv_ret_t ppe_drv_vlan_lag_slave_join(struct ppe_drv_iface *vlan_iface, struct net_device *slave_dev)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_iface *iface;
+	struct ppe_drv_port *port;
+	struct ppe_drv_vsi *vsi;
+
+	spin_lock_bh(&p->lock);
+	vsi = ppe_drv_iface_vsi_get(vlan_iface);
+	if (!vsi) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: Invalid VSI for given iface\n", vlan_iface);
+		return PPE_DRV_RET_VSI_NOT_FOUND;
+	}
+
+	iface = ppe_drv_iface_get_by_dev_internal(slave_dev);
+	if (!iface) {
+		ppe_drv_warn("%px: PPE interface cannot be found for slave %s\n", vlan_iface, slave_dev->name);
+		spin_unlock_bh(&p->lock);
+		return PPE_DRV_RET_IFACE_INVALID;
+	}
+
+	port = ppe_drv_iface_port_get(iface);
+	if (!port) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: unable to get port from iface of slave %s\n", iface, slave_dev->name);
+		return PPE_DRV_RET_PORT_NOT_FOUND;
+	}
+
+	/*
+	 * Attach slave dev to vsi.
+	 * This API is needed to detach port's l3_if of slave port so that PPE
+	 * can use l3_if associated with bond vlan interface.
+	 */
+	ppe_drv_port_vsi_attach(port, vsi);
+	spin_unlock_bh(&p->lock);
+
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_vlan_lag_slave_join);
+

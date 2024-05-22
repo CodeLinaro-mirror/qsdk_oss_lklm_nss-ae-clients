@@ -514,6 +514,12 @@ static inline void ppe_drv_v6_conn_flow_metadata_set(struct ppe_drv_v6_conn_flow
 		pcf->flow_metadata.wifi_qos = fc_metadata->type.mark;
 		return;
 
+	case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
+		pcf->flow_metadata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_MLO_ASSIST;
+		pcf->flow_metadata.wifi_qos = PPE_DRV_MLO_MSDUQ_GET(fc_metadata->type.mark);
+		pcf->flow_metadata.tree_id_data.info.value = PPE_DRV_MLO_MARK_GET(fc_metadata->type.mark);
+		return;
+
 	default:
 		ppe_drv_trace("Invalid tree_id type : (%u)", tree_id_type);
 		return;
@@ -951,6 +957,17 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 			ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_WIFI_DS);
 		}
 
+		/*
+		 * Check if Wi-Fi metadata info is valid in this direction for MLO assist and if the
+		 * interface is a wifi VP.
+		 */
+		if ((valid_flags & PPE_DRV_V6_VALID_FLAG_FLOW_WIFI_MDATA) &&
+					(ppe_drv_port_flags_check(pp_tx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
+				memset(&fc_metadata, 0, sizeof(fc_metadata));
+				fc_metadata.type.mark = create->wifi_rule.flow_mark;
+				ppe_drv_v6_conn_flow_metadata_set(pcf, &fc_metadata, PPE_DRV_TREE_ID_TYPE_MLO_ASSIST);
+		}
+
 		if (valid_flags & PPE_DRV_V6_VALID_FLAG_VLAN) {
 			pcf->ingress_vlan[0].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
 			pcf->ingress_vlan[1].tci = PPE_DRV_VLAN_NOT_CONFIGURED;
@@ -1125,6 +1142,17 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 					(ppe_drv_port_flags_check(pp_rx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
 			pcr->wifi_rule_ds_metadata = create->wifi_rule.return_ds_node_mdata;
 			ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLAG_FLOW_WIFI_DS);
+		}
+
+		/*
+		 * Check if Wi-Fi metadata info is valid in this direction for MLO assist and if the
+		 * interface is a wifi VP.
+		 */
+		if ((valid_flags & PPE_DRV_V6_VALID_FLAG_RETURN_WIFI_MDATA) &&
+					(ppe_drv_port_flags_check(pp_rx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
+				memset(&fc_metadata, 0, sizeof(fc_metadata));
+				fc_metadata.type.mark = create->wifi_rule.return_mark;
+				ppe_drv_v6_conn_flow_metadata_set(pcr, &fc_metadata, PPE_DRV_TREE_ID_TYPE_MLO_ASSIST);
 		}
 
 		if (valid_flags & PPE_DRV_V6_VALID_FLAG_VLAN) {

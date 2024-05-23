@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -68,6 +68,9 @@
 #define NSS_PPE_VLAN_MGR_TYPE_DOUBLE 1	/**< Double VLAN tag in message. */
 #define NSS_PPE_VLAN_MGR_TAG_CNT(v) ((v->parent) ? NSS_PPE_VLAN_MGR_TYPE_DOUBLE : NSS_PPE_VLAN_MGR_TYPE_SINGLE)
 #define NSS_PPE_VLAN_MGR_PORT_ROLE_CHANGED 1
+
+#define NSS_PPE_VLAN_MGR_WHITESPACE		" \t\v\f\n,"
+#define NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX		16
 
 /*
  * vlan client context

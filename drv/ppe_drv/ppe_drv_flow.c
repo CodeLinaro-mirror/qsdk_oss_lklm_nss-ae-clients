@@ -358,6 +358,11 @@ static bool ppe_drv_flow_v6_tree_id_get(struct ppe_drv_v6_conn_flow *pcf, uint32
 		PPE_DRV_TREE_ID_TYPE_SET(tree_id, tree_id_data->type);
 		return true;
 
+	case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
+		PPE_DRV_TREE_ID_TYPE_SET(tree_id, tree_id_data->type);
+		PPE_DRV_TREE_ID_MLO_MARK_SET(tree_id, tree_id_data->info.value);
+		return true;
+
 	default:
 		ppe_drv_warn("Invalid tree_id_type : (%u)", tree_id_data->type);
 		return false;
@@ -1154,6 +1159,11 @@ static bool ppe_drv_flow_v4_tree_id_get(struct ppe_drv_v4_conn_flow *pcf, uint32
 	case PPE_DRV_TREE_ID_TYPE_WIFI_TID:
         case PPE_DRV_TREE_ID_TYPE_SCS:
 		PPE_DRV_TREE_ID_TYPE_SET(tree_id, tree_id_data->type);
+		return true;
+
+	case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
+		PPE_DRV_TREE_ID_TYPE_SET(tree_id, tree_id_data->type);
+		PPE_DRV_TREE_ID_MLO_MARK_SET(tree_id, tree_id_data->info.value);
 		return true;
 
 	default:

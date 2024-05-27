@@ -99,6 +99,7 @@ typedef enum ppe_drv_tree_id_type {
 	PPE_DRV_TREE_ID_TYPE_SAWF,	/**< SAWF usecase */
 	PPE_DRV_TREE_ID_TYPE_WIFI_TID,	/**< HLOS TID usecase */
 	PPE_DRV_TREE_ID_TYPE_SCS,	/**< SCS usecase */
+	PPE_DRV_TREE_ID_TYPE_MLO_ASSIST,	/**< MLO usecase */
 	PPE_DRV_TREE_ID_TYPE_MAX = 16,	/**< Maximum number of supported types */
 } ppe_drv_tree_id_type_t;
 

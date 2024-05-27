@@ -182,6 +182,16 @@ enum ppe_drv_static_dbg_level {
 #define PPE_DRV_SAWF_MSDUQ_GET(x)			(x & PPE_DRV_SAWF_MSDUQ_MASK)
 
 /*
+ * MLO macros
+ */
+#define PPE_DRV_MLO_MARK_SHIFT				6
+#define PPE_DRV_MLO_MARK_MASK				0x3FFFF
+#define PPE_DRV_MLO_MARK_GET(x)				((x >> PPE_DRV_MLO_MARK_SHIFT) & PPE_DRV_TREE_ID_MLO_MARK_MASK)
+
+#define PPE_DRV_MLO_MSDUQ_MASK				0x3F
+#define PPE_DRV_MLO_MSDUQ_GET(x)			(x & PPE_DRV_MLO_MSDUQ_MASK)
+
+/*
  * Tree ID macros
  */
 #define PPE_DRV_TREE_ID_TYPE_SHIFT			20
@@ -194,6 +204,12 @@ enum ppe_drv_static_dbg_level {
 
 #define PPE_DRV_TREE_ID_PEER_ID_MASK			0x000003FF
 #define PPE_DRV_TREE_ID_PEER_ID_SET(w, x)		((*w) |= ((x) & PPE_DRV_TREE_ID_PEER_ID_MASK))
+
+/*
+ * Setting MLO mark into Tree ID
+ */
+#define PPE_DRV_TREE_ID_MLO_MARK_MASK			0x0003FFFF
+#define PPE_DRV_TREE_ID_MLO_MARK_SET(w, x)		((*w) |= ((x) & PPE_DRV_TREE_ID_MLO_MARK_MASK))
 
 /*
  * HW flow stats sync timer frequency in milliseconds

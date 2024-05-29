@@ -431,6 +431,17 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 		}
 
 		/*
+		 * Each slave interface inside bond should get attached to
+		 * vlan over bond interface
+		 */
+		ret = ppe_drv_vlan_lag_slave_join(v->iface, slave_dev);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			nss_ppe_vlan_mgr_warn("%px: %s:%d slave_dev failed to attach bond vlan iface\n",
+					slave_dev, slave_dev->name, port_id);
+			goto leave_lag_slaves;
+		}
+
+		/*
 		 * vlan_mgr_bond_port_role is same for all the slaves in the bond group
 		 */
 		if (vlan_mgr_bond_port_role == -1) {
@@ -443,7 +454,7 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 	 * In case the bond interface has no slaves, we do not want to proceed further
 	 */
 	if (vlan_mgr_bond_port_role == -1) {
-		goto clear_mac_addr;
+		goto leave_lag_slaves;
 	}
 
 	/*
@@ -478,7 +489,7 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 			rcu_read_unlock();
 			nss_ppe_vlan_mgr_warn("%px: %s:%d is not valid PPE port\n",
 									slave_dev, slave_dev->name, port_id);
-			goto clear_mac_addr;
+			goto leave_lag_slaves;
 		}
 
 		v->xlate_info.port_id = v->port[port_id - 1];
@@ -486,7 +497,7 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			rcu_read_unlock();
 			nss_ppe_vlan_mgr_warn("%s: failed to set vlan translation, error = %d\n", slave_dev->name, ret);
-			goto clear_mac_addr;
+			goto leave_lag_slaves;
 		}
 	}
 	rcu_read_unlock();
@@ -534,6 +545,23 @@ delete_ppe_rule:
 		ret = ppe_drv_vlan_del_xlate_rule(v->iface, &v->xlate_info);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			nss_ppe_vlan_mgr_warn("%s: failed to delete vlan translation, error = %d \n", slave_dev->name, ret);
+		}
+	}
+	rcu_read_unlock();
+
+leave_lag_slaves:
+	rcu_read_lock();
+	for_each_netdev_in_bond_rcu(bond_dev, slave_dev) {
+		/*
+		 * Each slave interface inside bond should get detached from
+		 * vlan over bond interface if attached already
+		 */
+		ret = ppe_drv_vlan_lag_slave_leave(v->iface, slave_dev);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			nss_ppe_vlan_mgr_warn("%px: %s:%d slave_dev failed to detach from bond vlan iface\n",
+					slave_dev, slave_dev->name, port_id);
+			rcu_read_unlock();
+			return -1;
 		}
 	}
 	rcu_read_unlock();
@@ -931,6 +959,7 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 	int32_t i;
 	ppe_drv_ret_t ret;
 	struct net_device *lower_dev;
+	struct net_device *slave_dev;
 	struct ppe_drv_iface *slave_iface;
 	struct list_head *iter;
 	enum nss_ppe_vlan_mgr_vlan br_action = NSS_PPE_VLAN_MGR_BR_VLAN_DEC;
@@ -992,6 +1021,21 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 				nss_ppe_vlan_mgr_warn("%p: failed to delete vlan translation, error = %d \n", v, ret);
 			}
 			v->xlate_info.port_id = 0;
+
+			/*
+			 * When vlan interface over bond is getting freed each associated slave interface
+			 * should be also be detached.
+			 */
+			if (v->bond_id != -1) {
+				slave_dev = ppe_drv_port_num_to_dev(v->port[i]);
+				if (!slave_dev)
+					continue;
+
+				ret = ppe_drv_vlan_lag_slave_leave(v->iface, slave_dev);
+				if (ret != PPE_DRV_RET_SUCCESS) {
+					nss_ppe_vlan_mgr_warn("%p: failed to detach slave from bond vlan iface %s \n", v, slave_dev->name);
+				}
+			}
 		}
 
 		ppe_drv_iface_mac_addr_clear(v->iface);
@@ -2070,6 +2114,16 @@ int nss_ppe_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
 			return -1;
 		}
 
+		/*
+		 * Detach the slave dev also from vlan over bond instance
+		 */
+		ret = ppe_drv_vlan_lag_slave_leave(v->iface, slave_dev);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			spin_unlock(&vlan_mgr_ctx.lock);
+			nss_ppe_vlan_mgr_warn("slave: %s: failed to detach, error = %d\n", slave_dev->name, ret);
+			return -1;
+		}
+
 		vlan_mgr_ctx.port_role[port_id] = FAL_QINQ_EDGE_PORT;
 		v->port[port_id - 1] = 0;
 	}
@@ -2147,6 +2201,16 @@ int nss_ppe_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 			}
 
 			vlan_mgr_ctx.port_role[v->port[port_id - 1]] = FAL_QINQ_CORE_PORT;
+		}
+
+		/*
+		 * Each slave dev should get attached to vlan over bond instance
+		 */
+		ret = ppe_drv_vlan_lag_slave_join(v->iface, slave_dev);
+		if (ret != PPE_DRV_RET_SUCCESS) {
+			spin_unlock(&vlan_mgr_ctx.lock);
+			nss_ppe_vlan_mgr_warn("bond: %s failed to join slave dev %s, error = %d\n", bond_dev->name, slave_dev->name, ret);
+			return -1;
 		}
 	}
 

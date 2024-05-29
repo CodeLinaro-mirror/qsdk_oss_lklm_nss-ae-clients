@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,6 +23,7 @@
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M)
 #include "ppe_acl/ppe_acl.h"
 #include "ppe_policer/ppe_policer.h"
+#include "ppe_qos/ppe_qos.h"
 #endif
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M) && !defined(NSS_PPE_LOWMEM_PROFILE_256M)
 #include "ppe_mirror/ppe_mirror.h"
@@ -52,6 +53,7 @@ static int __init ppe_rule_module_init(void)
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M)
 	ppe_acl_init(d_rule);
 	ppe_policer_init(d_rule);
+	ppe_qos_init(d_rule);
 #endif
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M) && !defined(NSS_PPE_LOWMEM_PROFILE_256M)
 	ppe_mirror_init(d_rule);
@@ -78,6 +80,7 @@ static void __exit ppe_rule_module_exit(void)
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M)
 	ppe_policer_deinit();
 	ppe_acl_deinit();
+	ppe_qos_deinit();
 #endif
 	debugfs_remove_recursive(d_rule);
 	printk("PPE-RULE module unloaded");

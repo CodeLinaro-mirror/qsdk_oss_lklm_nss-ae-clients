@@ -2430,8 +2430,7 @@ int __init nss_ppe_vlan_mgr_init_module(void)
 		}
 
 		if (len <= IFNAMSIZ) {
-			strscpy(vlan_as_vp_dev_name[i], start_ch_ptr, len);
-			vlan_as_vp_dev_name[i][len] = '\0';
+			strscpy(vlan_as_vp_dev_name[i], start_ch_ptr, len + 1);
 			nss_ppe_vlan_mgr_info("VLAN as VP interface name: %s, index: %d\n",
 					vlan_as_vp_dev_name[i], i);
 		}

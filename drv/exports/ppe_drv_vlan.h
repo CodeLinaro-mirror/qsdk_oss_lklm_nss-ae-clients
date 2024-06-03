@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -206,5 +206,37 @@ void ppe_drv_vlan_deinit(struct ppe_drv_iface *iface);
  */
 ppe_drv_ret_t ppe_drv_vlan_init(struct ppe_drv_iface *iface, struct net_device *base_dev, uint32_t vlan_id,
 				bool vlan_over_bridge);
+
+/**
+ * ppe_drv_vlan_lag_slave_join
+ *	slave dev inside lag join vlan.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ * net_device
+ *
+ * @param[in] vlan_iface  PPE interface for vlan device.
+ * @param[in] slave_dev  Slave net device
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_lag_slave_join(struct ppe_drv_iface *vlan_iface, struct net_device *slave_dev);
+
+/**
+ * ppe_drv_vlan_lag_slave_leave
+ *	slave dev inside lag leave vlan.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ * net_device
+ *
+ * @param[in] vlan_iface  PPE interface for vlan device.
+ * @param[in] slave_dev  Slave net device
+ *
+ * @return
+ * Status of the operation.
+ */
+ppe_drv_ret_t ppe_drv_vlan_lag_slave_leave(struct ppe_drv_iface *vlan_iface, struct net_device *slave_dev);
 
 #endif /* _PPE_DRV_VLAN_H_ */

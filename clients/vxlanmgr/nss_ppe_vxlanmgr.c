@@ -42,6 +42,25 @@ int dstport = IANA_VXLAN_UDP_PORT;
 int dstport_gpe = IANA_VXLAN_GPE_UDP_PORT;
 
 /*
+ * Module parameter for ecn, dscp and ttl configuration
+ */
+uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
+module_param(encap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(encap_ecn_mode, "Encap ECN mode 0:NO_UPDATE, 1:RFC3168_LIMIT_RFC6040_CMPAT, 2:RFC3168_FULL, 3:RFC4301_RFC6040_NORMAL");
+
+uint8_t decap_ecn_mode = PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE;
+module_param(decap_ecn_mode, byte, 0644);
+MODULE_PARM_DESC(decap_ecn_mode, "Decap ECN mode 0:RFC3168, 1:RFC4301, 2:RFC6040");
+
+bool inherit_dscp = false;
+module_param(inherit_dscp, bool, 0644);
+MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
+
+bool inherit_ttl = false;
+module_param(inherit_ttl, bool, 0644);
+MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
+
+/*
  * VxLAN context
  */
 struct nss_ppe_vxlanmgr_ctx vxlan_ctx;
@@ -63,6 +82,7 @@ extern struct notifier_block nss_ppe_vxlanmgr_fib_update_nb;
 int nss_ppe_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned long event, void *dev)
 {
 	struct net_device *netdev = netdev_notifier_info_to_dev(dev);
+	struct vxlan_dev *priv;
 
 	/*
 	 * Return if it's not a vxlan netdev
@@ -74,6 +94,12 @@ int nss_ppe_vxlanmgr_netdev_event(struct notifier_block *nb, unsigned long event
 	switch (event) {
 	case NETDEV_CHANGEMTU:
 		nss_ppe_vxlanmgr_trace("%px: NETDEV_CHANGEMTU: name %s", netdev, netdev->name);
+		priv = netdev_priv(netdev);
+		if (priv->cfg.flags & VXLAN_F_GPE) {
+			nss_ppe_vxlanmgr_gpe_all_remotes_set_mtu(netdev, netdev->mtu);
+			break;
+		}
+
 		nss_ppe_vxlanmgr_all_remotes_set_mtu(netdev, netdev->mtu);
 		break;
 

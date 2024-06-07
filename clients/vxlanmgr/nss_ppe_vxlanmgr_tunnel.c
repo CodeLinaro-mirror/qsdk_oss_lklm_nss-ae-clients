@@ -30,82 +30,8 @@
 
 #include "nss_ppe_vxlanmgr_priv.h"
 #include "nss_ppe_vxlanmgr_tun_stats.h"
-#include "nss_ppe_tun_drv.h"
 #include "ppe_drv_tun_cmn_ctx.h"
 #include <nss_ppe_bridge_mgr.h>
-
-static uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
-module_param(encap_ecn_mode, byte, 0644);
-MODULE_PARM_DESC(encap_ecn_mode, "Encap ECN mode 0:NO_UPDATE, 1:RFC3168_LIMIT_RFC6040_CMPAT, 2:RFC3168_FULL, 3:RFC4301_RFC6040_NORMAL");
-
-static uint8_t decap_ecn_mode = PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC3168_MODE;
-module_param(decap_ecn_mode, byte, 0644);
-MODULE_PARM_DESC(decap_ecn_mode, "Decap ECN mode 0:RFC3168, 1:RFC4301, 2:RFC6040");
-
-static bool inherit_dscp = false;
-module_param(inherit_dscp, bool, 0644);
-MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
-
-static bool inherit_ttl = false;
-module_param(inherit_ttl, bool, 0644);
-MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
-
-/*
- * nss_ppe_vxlan_dev_stats_update()
- *	Update vxlan dev statistics
- */
-static bool nss_ppe_vxlan_dev_stats_update(struct net_device *dev, ppe_tun_hw_stats *stats, ppe_tun_data *tun_cb_data)
-{
-	struct pcpu_sw_netstats *tstats;
-	struct net_device *pdev;
-	int ifindex;
-
-	if (!dev) {
-		return false;
-	}
-
-	tstats = this_cpu_ptr(dev->tstats);
-
-	/*
-	 * For VXLAN device add the stats to the parent netdevice instead of nss_netdev.
-	 */
-	if (unlikely(strncmp(dev->name, "ppe_vxlan_tun", 13) == 0)) {
-		ifindex = *(int *)netdev_priv(dev);
-		pdev = dev_get_by_index(&init_net, ifindex);
-		if (!pdev) {
-			nss_ppe_vxlanmgr_warn("%p: Parent dev of the nss-netdev %s is not present.", dev, dev->name);
-			return true;
-		}
-
-		tstats = this_cpu_ptr(pdev->tstats);
-		dev_put(pdev);
-	}
-
-	u64_stats_update_begin(&tstats->syncp);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-	tstats->tx_bytes += stats->tx_byte_cnt;
-	tstats->tx_packets += stats->tx_pkt_cnt;
-	tstats->rx_bytes += stats->rx_byte_cnt;
-	tstats->rx_packets += stats->rx_pkt_cnt;
-#else
-	u64_stats_add(&tstats->tx_bytes, stats->tx_byte_cnt);
-	u64_stats_add(&tstats->tx_packets,  stats->tx_pkt_cnt);
-	u64_stats_add(&tstats->rx_bytes, stats->rx_byte_cnt);
-	u64_stats_add(&tstats->rx_packets,  stats->rx_pkt_cnt);
-#endif
-
-	u64_stats_update_end(&tstats->syncp);
-
-/*
- * TODO: Remove the following check when net_device support for
- * drop counters is added from Kernel for PPE Tunnel stats.
- */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-	atomic_long_add(stats->tx_drop_pkt_cnt, &dev->tx_dropped);
-	atomic_long_add(stats->rx_drop_pkt_cnt, &dev->rx_dropped);
-#endif
-	return true;
-}
 
 /*
  * VxLAN neighbor-event list.

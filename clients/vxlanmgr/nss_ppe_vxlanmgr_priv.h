@@ -72,6 +72,10 @@ struct ppe_drv_tun_cmn_ctx;
 
 extern int dstport;					/* Global VxLAN dst port */
 extern int dstport_gpe;					/* Global VxLAN-gpe dst port */
+extern bool inherit_ttl;				/* Global ttl inherit config for encap */
+extern bool inherit_dscp;				/* Global dscp inherit config for encap */
+extern uint8_t encap_ecn_mode;				/* Global ECN config for encap */
+extern uint8_t decap_ecn_mode;				/* Global ECN config for decap */
 extern struct nss_ppe_vxlanmgr_ctx vxlan_ctx;		/* Global VxLAN context */
 extern spinlock_t nss_ppe_vxlanmgr_tunnel_tbl_lock;	/* Global spin lock for vxlan hash table */
 extern DECLARE_HASHTABLE(nss_ppe_vxlanmgr_tunnel_tbl, NSS_PPE_VXLANMGR_HASH_TABLE_SIZE);	/* VxLAN hash table */
@@ -161,11 +165,12 @@ uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev, __be32 vni_key
 bool nss_ppe_vxlanmgr_new_remote(__be32 vni_key, union vxlan_addr *rip);
 struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_tunnel_ctx_get_and_dettach(struct net_device* nss_dev);
 struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip(__be32 vni_key, union vxlan_addr *rip);
-enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type, int *ifindex);
+enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, union vxlan_addr *remote_ip, uint32_t vni, int *ifindex);
 
 /*
  * VxLAN tunnel configuration API
  */
+void nss_ppe_vxlanmgr_gpe_all_remotes_set_mtu(struct net_device *pdev, unsigned int mtu);
 void nss_ppe_vxlanmgr_all_remotes_set_mtu(struct net_device *pdev, unsigned int mtu);
 void nss_ppe_vxlanmgr_all_remotes_decap_enable(struct net_device *pdev);
 void nss_ppe_vxlanmgr_all_remotes_decap_disable(struct net_device *pdev);

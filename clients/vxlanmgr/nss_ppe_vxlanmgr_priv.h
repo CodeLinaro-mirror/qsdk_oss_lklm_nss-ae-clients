@@ -64,6 +64,11 @@ struct ppe_drv_tun_cmn_ctx;
 #define NSS_PPE_VXLAN_MGR_O_DSCP_GET(x, y) (x >> y)
 
 /*
+ * VXLAN/VXLAN-GPE global variable
+ */
+extern int dstport_gpe;					/* Global vxlan-gpe dst port */
+
+/*
  * VXLAN global context.
  */
 struct nss_ppe_vxlanmgr_ctx {

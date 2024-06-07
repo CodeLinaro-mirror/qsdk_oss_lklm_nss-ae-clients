@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -38,6 +38,7 @@
  * PPE supports single destination port for all the VXLAN tunnels.
  */
 int dstport = IANA_VXLAN_UDP_PORT;
+int dstport_gpe = IANA_VXLAN_GPE_UDP_PORT;
 
 /*
  * VxLAN context
@@ -132,13 +133,24 @@ int __init nss_ppe_vxlanmgr_init_module(void)
 
 	vxlan_ctx.nack_limit = NSS_PPE_VXLANMGR_VP_STATUS_DEFAULT_MAX_NACK;
 
-	if ((dstport < NSS_PPE_VXLANMGR_DST_PORT_MIN) || (dstport > NSS_PPE_VXLANMGR_DST_PORT_MAX)) {
-		nss_ppe_vxlanmgr_warn("Invalid VXLAN dport:%u", dstport);
+	if ((dstport < NSS_PPE_VXLANMGR_DST_PORT_MIN) || (dstport > NSS_PPE_VXLANMGR_DST_PORT_MAX) ||
+		(dstport_gpe < NSS_PPE_VXLANMGR_DST_PORT_MIN) || (dstport_gpe > NSS_PPE_VXLANMGR_DST_PORT_MAX)) {
+		nss_ppe_vxlanmgr_warn("Invalid VXLAN dport:%u, dport_gpe: %u", dstport, dstport_gpe);
+		return -1;
+	}
+
+	if (dstport == dstport_gpe) {
+		nss_ppe_vxlanmgr_warn("VXLAN and VXLAN-GPE destination port are same");
 		return -1;
 	}
 
 	if (!ppe_tun_configure_vxlan_dport(dstport)) {
 		nss_ppe_vxlanmgr_warn("configuring the destination port of the VXLAN failed");
+		return -1;
+	}
+
+	if (!ppe_tun_configure_vxlan_gpe_dport(dstport_gpe)) {
+		nss_ppe_vxlanmgr_warn("configuring the destination port of the VXLAN-GPE failed");
 		return -1;
 	}
 
@@ -181,3 +193,6 @@ MODULE_DESCRIPTION("NSS PPE VxLAN manager");
 
 module_param(dstport, int, 0644);
 MODULE_PARM_DESC(dstport, "VXLAN destination port number");
+
+module_param(dstport_gpe, int, 0644);
+MODULE_PARM_DESC(dstport_gpe, "VXLAN-GPE destination port number");

@@ -70,11 +70,20 @@ struct ppe_drv ppe_drv_gbl;
 
 /*
  * ppe_drv_get_vxlan_dport()
- * Get the VXLAN destination port.
+ *	Get the VXLAN destination port.
  */
 int ppe_drv_get_vxlan_dport(void)
 {
 	return ppe_drv_gbl.vxlan_dport;
+}
+
+/*
+ * ppe_drv_get_vxlan_gpe_dport()
+ *	Get the VXLAN-GPE destination port.
+ */
+int ppe_drv_get_vxlan_gpe_dport(void)
+{
+	return ppe_drv_gbl.vxlan_gpe_dport;
 }
 
 /*

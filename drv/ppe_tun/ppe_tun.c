@@ -1014,6 +1014,17 @@ bool ppe_tun_configure_vxlan_dport(uint16_t dport)
 EXPORT_SYMBOL(ppe_tun_configure_vxlan_dport);
 
 /*
+ * ppe_tun_configure_vxlan_gpe_dport()
+ *	Configure the VXLAN-GPE destination port
+ */
+bool ppe_tun_configure_vxlan_gpe_dport(uint16_t dport)
+{
+	ppe_tun_trace("Configuring the destination port of VXLAN-GPE dport: %u", dport);
+	return ppe_drv_tun_configure_vxlan_gpe_and_dport(dport);
+}
+EXPORT_SYMBOL(ppe_tun_configure_vxlan_gpe_dport);
+
+/*
  * ppe_tun_l2tp_port_set()
  *      Set L2TP source and destination  port
  */

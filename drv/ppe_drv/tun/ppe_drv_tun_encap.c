@@ -313,35 +313,6 @@ err_false:
 }
 
 /*
- * ppe_drv_tun_encap_hdr_ctrl_proto_map_configured
- *	check if proto map data settings are configured in encap header control
- */
-static bool ppe_drv_tun_encap_hdr_ctrl_proto_map_configured(struct ppe_drv_tun_encap_hdr_ctrl *hdr_ctrl)
-{
-
-	if (kref_read(&hdr_ctrl->ipv4_addr_map_ref) || kref_read(&hdr_ctrl->ipv4_proto_map_ref) ||
-			kref_read(&hdr_ctrl->ipv6_addr_map_ref) ||
-			kref_read(&hdr_ctrl->ipv6_proto_map_ref)) {
-		return true;
-	}
-
-	return false;
-}
-
-/*
- * ppe_drv_tun_encap_header_ctrl_udp_sport_enabled
- *	check if udp sport settings are configured in encap header control
- */
-static bool ppe_drv_tun_encap_header_ctrl_udp_sport_enabled(struct ppe_drv_tun_encap_hdr_ctrl *hdr_ctrl)
-{
-	if (kref_read(&hdr_ctrl->udp_sport_base_ref) || kref_read(&hdr_ctrl->udp_sport_mask_ref) ) {
-		return true;
-	}
-
-	return false;
-}
-
-/*
  * ppe_drv_tun_encap_hdr_ctrl_free
  *	free encap header control entry
  */
@@ -383,20 +354,16 @@ bool ppe_drv_tun_encap_hdr_ctrl_vxlan_configure(struct ppe_drv *p, struct ppe_dr
 	struct ppe_drv_tun_encap_header_ctrl hdr_ctrl = {0};
 
 	/*
-	 * check if the header control is configured already and  used by other tunnels
-	 * for protomap  configuration. If its already configured exit
+	 * Configure header control global registers to update UDP sport values for all the packets
+	 * encapsulated by PPE for vxlan tunnel.
 	 */
-	if (ppe_drv_tun_encap_hdr_ctrl_proto_map_configured(p->ecap_hdr_ctrl)) {
-		return false;
-	}
-
 	hdr_ctrl.udp_sport_base = FAL_TUNNEL_UDP_ENTROPY_SPORT_BASE;
 	ppe_drv_tun_encap_hdr_ctrl_flag_set(&hdr_ctrl.flags, PPE_DRV_TUN_ENCAP_HDR_CTRL_UDP_SPORT_BASE);
 	hdr_ctrl.udp_sport_mask = FAL_TUNNEL_UDP_ENTROPY_SPORT_MASK;
 	ppe_drv_tun_encap_hdr_ctrl_flag_set(&hdr_ctrl.flags, PPE_DRV_TUN_ENCAP_HDR_CTRL_UDP_SPORT_MASK);
 
 	if (!ppe_drv_tun_encap_hdr_ctrl_set(hdr_ctrl)) {
-		ppe_drv_warn("%p encap header control set failed", p);
+		ppe_drv_warn("%p encap header control set failed for vxlan tunnel", p);
 		return false;
 	}
 
@@ -418,14 +385,6 @@ bool ppe_drv_tun_encap_hdr_ctrl_l2tp_configure(struct ppe_drv *p, struct ppe_drv
 	struct ppe_drv_tun_encap_header_ctrl hdr_ctrl = {0};
 
 	/*
-	 * Check if any tunnel is offloaded with udp source port update configuration set.
-	 * If so l2tp tunnel should not be offloaded to PPE as the source port gets overwritten
-	 */
-	if (ppe_drv_tun_encap_header_ctrl_udp_sport_enabled(p->ecap_hdr_ctrl)) {
-		return false;
-	}
-
-	/*
 	 * Configure header control global register to update PPP protocol
 	 * for IPv4 packet proto_map_data[1] is used and for IPv6 proto_map_data[3] is used
 	 */
@@ -435,7 +394,7 @@ bool ppe_drv_tun_encap_hdr_ctrl_l2tp_configure(struct ppe_drv *p, struct ppe_drv
 	ppe_drv_tun_encap_hdr_ctrl_flag_set(&hdr_ctrl.flags, PPE_DRV_TUN_ENCAP_HDR_CTRL_IPV6_PROTO_MAP);
 
 	if (!ppe_drv_tun_encap_hdr_ctrl_set(hdr_ctrl)) {
-		ppe_drv_warn("%p encap header control set failed", p);
+		ppe_drv_warn("%p encap header control set failed for l2tp tunnel", p);
 		return false;
 	}
 

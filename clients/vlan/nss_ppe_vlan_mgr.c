@@ -792,7 +792,7 @@ static int nss_ppe_vlan_mgr_alloc_configure_ppe_vp(struct nss_vlan_pvt *v, struc
 	 * while the VLAN virtual port's role needs to be updated for the egress
 	 * translation rule.
 	 */
-	if (v->ppe_svid != FAL_VLAN_INVALID) {
+	if ((v->ppe_cvid != FAL_VLAN_INVALID) && (v->ppe_svid != FAL_VLAN_INVALID)) {
 		if (vlan_mgr_ctx.port_role[v->port[0]] != FAL_QINQ_CORE_PORT) {
 			if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, v->port[0], FAL_QINQ_CORE_PORT)) {
 				nss_ppe_vlan_mgr_warn("%s: failed to set %d as core port\n", dev->name, v->port[0]);
@@ -2430,8 +2430,7 @@ int __init nss_ppe_vlan_mgr_init_module(void)
 		}
 
 		if (len <= IFNAMSIZ) {
-			strscpy(vlan_as_vp_dev_name[i], start_ch_ptr, len);
-			vlan_as_vp_dev_name[i][len] = '\0';
+			strscpy(vlan_as_vp_dev_name[i], start_ch_ptr, len + 1);
 			nss_ppe_vlan_mgr_info("VLAN as VP interface name: %s, index: %d\n",
 					vlan_as_vp_dev_name[i], i);
 		}

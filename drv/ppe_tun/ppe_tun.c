@@ -39,6 +39,7 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 		if (ptp->tun_accel.ppe_tun_gretap_accel) {
 			return true;
 		}
+
 		ppe_tun_warn("%p: PPE gretap acceleration is not enabled", ptp);
 		break;
 
@@ -46,6 +47,7 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 		if (ptp->tun_accel.ppe_tun_vxlan_accel) {
 			return true;
 		}
+
 		ppe_tun_warn("%p: PPE vxlan acceleration is not enabled", ptp);
 		break;
 
@@ -53,6 +55,7 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 		if (ptp->tun_accel.ppe_tun_ipip6_accel) {
 			return true;
 		}
+
 		ppe_tun_warn("%p: PPE ipip6 acceleration is not enabled", ptp);
 		break;
 
@@ -60,6 +63,7 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 		if (ptp->tun_accel.ppe_tun_mapt_accel) {
 			return true;
 		}
+
 		ppe_tun_warn("%p: PPE mapt acceleration is not enabled", ptp);
 		break;
 
@@ -67,6 +71,7 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 		if (ptp->tun_accel.ppe_tun_l2tp_accel) {
 			return true;
 		}
+
 		ppe_tun_warn("%p: PPE l2tp acceleration is not enabled", ptp);
 		break;
 
@@ -74,7 +79,16 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 		if (ptp->tun_accel.ppe_tun_cust_accel) {
 			return true;
 		}
+
 		ppe_tun_warn("%p: PPE custom tunnel acceleration is not enabled", ptp);
+		break;
+
+	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE:
+		if (ptp->tun_accel.ppe_tun_vxlan_gpe_accel) {
+			return true;
+		}
+
+		ppe_tun_warn("%p: PPE vxlan gpe acceleration is not enabled", ptp);
 		break;
 
 	default:
@@ -603,6 +617,10 @@ bool ppe_tun_conf_accel(enum ppe_drv_tun_cmn_ctx_type type, bool action)
 
 	case PPE_DRV_TUN_CMN_CTX_TYPE_CUST:
 		ptp->tun_accel.ppe_tun_cust_accel = action;
+		break;
+
+	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE:
+		ptp->tun_accel.ppe_tun_vxlan_gpe_accel = action;
 		break;
 
 	default:
@@ -1514,6 +1532,54 @@ const struct file_operations ppe_tun_l2tp_xcpn_file_fops = {
 };
 
 /*
+ * ppe_tun_vxlan_gpe_read()
+ *	vxlan-gpe read handler
+ */
+static ssize_t ppe_tun_vxlan_gpe_read(struct file *f, char *buf, size_t count, loff_t *offset)
+{
+	int len;
+	char lbuf[24];
+
+	len = snprintf(lbuf, sizeof(lbuf), "vxlan gpe accel %s\n", (ptp->tun_accel.ppe_tun_vxlan_gpe_accel) ? ("enabled") : ("disabled"));
+
+	return simple_read_from_buffer(buf, count, offset, lbuf, len);
+}
+
+/*
+ * ppe_tun_vxlan_gpe_write()
+ *	vxlan-gpe write handler
+ */
+static ssize_t ppe_tun_vxlan_gpe_write(struct file *f, const char *buffer, size_t len, loff_t *offset)
+{
+	ssize_t size;
+	char data[16];
+	bool res;
+	int status;
+
+	size = simple_write_to_buffer(data, sizeof(data), offset, buffer, len);
+	if (size < 0) {
+		ppe_tun_warn("%p: Error reading the input for vxlan gpe configuration", ptp);
+		return size;
+	}
+
+	status = kstrtobool(data, &res);
+	if (status) {
+		ppe_tun_warn("%p: Error reading the input for vxlan gpe configuration", ptp);
+		return status;
+	}
+
+	ppe_tun_conf_accel(PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE, res);
+
+	return len;
+}
+
+const struct file_operations ppe_tun_vxlan_gpe_file_fops = {
+	.owner = THIS_MODULE,
+	.write = ppe_tun_vxlan_gpe_write,
+	.read = ppe_tun_vxlan_gpe_read,
+};
+
+/*
  * ppe_tun_module_init()
  *	module init for ppe tunnel driver
  */
@@ -1540,6 +1606,7 @@ static int __init ppe_tun_module_init(void)
 	ptp->tun_accel.ppe_tun_mapt_accel = true;
 	ptp->tun_accel.ppe_tun_l2tp_accel = true;
 	ptp->tun_accel.ppe_tun_cust_accel = true;
+	ptp->tun_accel.ppe_tun_vxlan_gpe_accel = true;
 
 	ptp->xcpn_mode.gretap = PPE_TUN_XCPN_MODE_1;
 	ptp->xcpn_mode.ipip6 = PPE_TUN_XCPN_MODE_1;
@@ -1592,6 +1659,9 @@ static int __init ppe_tun_module_init(void)
 	}
 	if (!debugfs_create_file("cust", 0644, dir, NULL, &ppe_tun_cust_file_fops)) {
 		ppe_tun_warn("Failed to create debugfs entry for custom tunnel");
+	}
+	if (!debugfs_create_file("vxlan-gpe", 0644, dir, NULL, &ppe_tun_vxlan_gpe_file_fops)) {
+		ppe_tun_warn("Failed to create debugfs entry for vxlan-gpe");
 	}
 
 	dir = debugfs_create_dir("xcpn_mode", ptp->dentry);

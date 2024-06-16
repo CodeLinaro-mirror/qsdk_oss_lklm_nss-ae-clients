@@ -1840,7 +1840,7 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 		}
 	}
 
-	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
+	if ((pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) || (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE)) {
 		/*
 		 * encap header control configuration for VXLAN.
 		 * UDP source port value is updated with a random value

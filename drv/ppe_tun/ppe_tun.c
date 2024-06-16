@@ -805,7 +805,8 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	if ((type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) || (type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN)) {
 		vpai.type = PPE_VP_TYPE_HW_L2TUN;
 	} else if ((type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6) || (type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) ||
-					(type == PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2) || (type == PPE_DRV_TUN_CMN_CTX_TYPE_CUST)) {
+			(type == PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2) || (type == PPE_DRV_TUN_CMN_CTX_TYPE_CUST) ||
+			(type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE)) {
 		vpai.type = PPE_VP_TYPE_HW_L3TUN;
 	} else {
 		ppe_tun_warn("%p: tunnel type %u is invalid", dev, type);

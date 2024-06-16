@@ -768,6 +768,28 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 			tun_hdr += sizeof(udph);
 			tun_len += sizeof(udph);
 		}
+	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE) {
+		struct udphdr udph;
+		struct vxlanhdr_gpe vxh;
+
+		memset(&udph, 0, sizeof(struct udphdr));
+		memset(&vxh, 0, sizeof(struct vxlanhdr));
+
+		udph.dest = th->tun.vxlan.dest_port;
+		memcpy((void *)tun_hdr, (void *)&udph, sizeof(udph));
+		tun_hdr += sizeof(udph);
+		tun_len += sizeof(udph);
+
+		vxh.version = 0;
+		vxh.instance_applied = !!(th->tun.vxlan.flags & VXLAN_HF_VNI);
+		vxh.np_applied = !!(th->tun.vxlan.flags & VXLAN_HF_NP);
+		vxh.next_protocol = th->tun.vxlan.u.next_proto;
+		vxh.vx_vni = th->tun.vxlan.vni;
+
+		memcpy((void *)tun_hdr, (void *)&vxh, sizeof(vxh));
+		tun_hdr += sizeof(vxh);
+		tun_len += sizeof(vxh);
+		l4_offset_valid = true;
 	}
 
 	ptec->tun_len = tun_len;
@@ -971,6 +993,14 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 			encap_cfg.l4_proto = FAL_TUNNEL_ENCAP_L4_PROTO_UDP;
 			encap_cfg.l4_checksum_en = A_TRUE;
 			encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_IP;
+		}
+	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE) {
+		encap_cfg.l4_proto = FAL_TUNNEL_ENCAP_L4_PROTO_UDP; /* 0:Non;1:TCP;2:UDP;3:UDP-Lite;4:Reserved (ICMP);5:GRE; */
+		encap_cfg.sport_entry_en = 1;  /* TODO: FAL API should be entropy */
+		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_IP;
+
+		if (!(th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX)) {
+			encap_cfg.l4_checksum_en = A_TRUE;
 		}
 	}
 

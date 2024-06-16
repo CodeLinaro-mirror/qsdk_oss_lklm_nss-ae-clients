@@ -814,7 +814,7 @@ static bool nss_ppe_vxlanmgr_tunnel_header_config(struct net_device *dev, struct
 	tun_hdr->tun.vxlan.src_port_min = tun_ctx->src_port_min;
 	tun_hdr->tun.vxlan.src_port_max = tun_ctx->src_port_max;
 	tun_hdr->tun.vxlan.dest_port = tun_ctx->dest_port;
-	tun_hdr->tun.vxlan.policy_id = 0;
+	tun_hdr->tun.vxlan.u.policy_id = 0;
 	tun_hdr->l3.proto = IPPROTO_UDP;
 	tun_hdr->l3.dscp = NSS_PPE_VXLAN_MGR_O_DSCP_GET(tun_ctx->tos, 2);
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN;

@@ -157,7 +157,10 @@ struct ppe_drv_tun_cmn_ctx_gretap {
 struct ppe_drv_tun_cmn_ctx_vxlan {
 	uint32_t vni;		/**< VxLAN Network Identifier >*/
 	uint32_t flags;		/**< Header flags >*/
-	uint16_t policy_id;	/**< Group Policy ID >*/
+	union {
+		uint8_t next_proto;	/**< Next protocol used for VxLAN-GPE >*/
+		uint16_t policy_id;	/**< Group Policy ID used for VxLAN-GPO >*/
+	} u;
 	uint16_t src_port_min;	/**< UDP source port min >*/
 	uint16_t src_port_max;	/**< UDP source port max >*/
 	uint16_t dest_port;	/**< UDP destination port >*/

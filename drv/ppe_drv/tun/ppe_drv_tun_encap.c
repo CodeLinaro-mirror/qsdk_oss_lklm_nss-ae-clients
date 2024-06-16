@@ -716,10 +716,9 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 		vxh.vx_vni = th->tun.vxlan.vni;
 
 		if (th->tun.vxlan.flags & VXLAN_F_GBP) {
-			vxh_gbp.policy_id = th->tun.vxlan.policy_id;
 			vxh_gbp.vx_flags = th->tun.vxlan.flags;
 			vxh_gbp.vx_vni = th->tun.vxlan.vni;
-			vxh_gbp.policy_id = th->tun.vxlan.policy_id;
+			vxh_gbp.policy_id = th->tun.vxlan.u.policy_id;
 			memcpy((void *)tun_hdr, (void *)&vxh_gbp, sizeof(vxh_gbp));
 			tun_hdr += sizeof(vxh_gbp);
 			tun_len += sizeof(vxh_gbp);

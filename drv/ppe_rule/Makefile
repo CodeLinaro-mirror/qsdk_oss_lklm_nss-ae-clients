@@ -38,6 +38,11 @@ qca-nss-ppe-rule-objs += ppe_policer/ppe_policer.o
 qca-nss-ppe-rule-objs += ppe_policer/ppe_policer_stats.o
 ccflags-y += -DPPE_POLICER_DEBUG_LEVEL=3
 endif
+
+ifeq ($(PPE_QOS_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_qos/ppe_qos.o
+ccflags-y += -DPPE_QOS_DEBUG_LEVEL=3
+endif
 endif
 
 ifndef PPE_LOWMEM_PROFILE_16M

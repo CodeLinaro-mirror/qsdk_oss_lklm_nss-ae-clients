@@ -1731,6 +1731,8 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 		} else {
 			/*
 			 * Take ref on encap rule instance if another L2TP tunnel is already active.
+			 * Reuse the same rule ID configuration as offset remain the same for PPP header
+			 * protocol field for all tunnels.
 			 */
 			ppe_drv_tun_encap_xlate_rule_ref(p->tun_gbl.tun_l2tp.l2tp_encap_rule);
 		}

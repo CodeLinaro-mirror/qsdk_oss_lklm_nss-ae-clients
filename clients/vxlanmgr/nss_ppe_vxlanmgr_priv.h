@@ -64,9 +64,17 @@ struct ppe_drv_tun_cmn_ctx;
 #define NSS_PPE_VXLAN_MGR_O_DSCP_GET(x, y) (x >> y)
 
 /*
- * VXLAN/VXLAN-GPE global variable
+ * VxLAN/VxLAN-GPE global variable
+ * 2^8 = 256 is the size of the hash table.
  */
-extern int dstport_gpe;					/* Global vxlan-gpe dst port */
+#define NSS_PPE_VXLANMGR_HASH_TABLE_SIZE 8
+#define NSS_PPE_VXLANMGR_MAX_REMOTES 8
+
+extern int dstport;					/* Global VxLAN dst port */
+extern int dstport_gpe;					/* Global VxLAN-gpe dst port */
+extern struct nss_ppe_vxlanmgr_ctx vxlan_ctx;		/* Global VxLAN context */
+extern spinlock_t nss_ppe_vxlanmgr_tunnel_tbl_lock;	/* Global spin lock for vxlan hash table */
+extern DECLARE_HASHTABLE(nss_ppe_vxlanmgr_tunnel_tbl, NSS_PPE_VXLANMGR_HASH_TABLE_SIZE);	/* VxLAN hash table */
 
 /*
  * VXLAN global context.
@@ -129,7 +137,19 @@ struct nss_ppe_vxlanmgr_nss_dev_priv {
 	int pdev_ifindex;	/* Linux-kernel/Parent netdevice index */
 };
 
-struct net_device *nss_ppe_vxlanmgr_get_parent_netdev(struct net_device *nss_dev);
+/*
+ * VxLAN database helper function
+ */
+void nss_ppe_vxlanmgr_tunnel_ctx_attach(struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx);
+uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev);
+bool nss_ppe_vxlanmgr_new_remote(struct net_device *dev, union vxlan_addr *rip);
+struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_tunnel_ctx_get_and_dettach(struct net_device* nss_dev);
+struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip(struct net_device *dev, union vxlan_addr *rip);
+enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type, int *ifindex);
+
+/*
+ * VxLAN tunnel configuration API
+ */
 void nss_ppe_vxlanmgr_all_remotes_set_mtu(struct net_device *pdev, unsigned int mtu);
 void nss_ppe_vxlanmgr_all_remotes_decap_enable(struct net_device *pdev);
 void nss_ppe_vxlanmgr_all_remotes_decap_disable(struct net_device *pdev);

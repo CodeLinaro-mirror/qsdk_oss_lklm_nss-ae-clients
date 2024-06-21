@@ -731,13 +731,16 @@ static void nss_ppe_vxlanmgr_rtm_newneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 	struct nss_ppe_vxlanmgr_remote_info *remote_info;
 	struct nss_ppe_vxlanmgr_nss_dev_priv *nss_netdev_priv;
 	struct vxlan_dev *pdev_priv;
+	__be32 vni;
 
 	nss_ppe_vxlanmgr_trace("%px: parent_netdev: %s", rtm_newneigh_info, pdev->name);
 
 	dev_hold(pdev);
-	if (!nss_ppe_vxlanmgr_new_remote(pdev, &rtm_newneigh_info->rip)) {
+	pdev_priv = netdev_priv(pdev);
+	vni = vxlan_vni_field(pdev_priv->cfg.vni);
+	if (!nss_ppe_vxlanmgr_new_remote(vni, &rtm_newneigh_info->rip)) {
 		nss_ppe_vxlanmgr_trace("%px: Remote already present in the hash. Its a known remote!", rtm_newneigh_info);
-		tun_ctx = nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip(pdev, &rtm_newneigh_info->rip);
+		tun_ctx = nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip(vni, &rtm_newneigh_info->rip);
 		if (tun_ctx) {
 			kref_get(&tun_ctx->remote_info.mac_address_ref);
 			dev_put(pdev);
@@ -751,7 +754,7 @@ static void nss_ppe_vxlanmgr_rtm_newneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 	/*
 	 * New remote.
 	 */
-	if (nss_ppe_vxlanmgr_get_remote_count(pdev) == NSS_PPE_VXLANMGR_MAX_REMOTES) {
+	if (nss_ppe_vxlanmgr_get_remote_count(pdev, vni) == NSS_PPE_VXLANMGR_MAX_REMOTES) {
 		nss_ppe_vxlanmgr_warn("%px: Max number of remotes exist already for the dev:%s", rtm_newneigh_info, pdev->name);
 		dev_put(pdev);
 		return;
@@ -886,6 +889,8 @@ static void nss_ppe_vxlanmgr_rtm_delneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 {
 	struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx;
 	struct net_device *pdev = rtm_delneigh_info->parent_netdev;
+	struct vxlan_dev *priv;
+	__be32 vni;
 
 	nss_ppe_vxlanmgr_trace("%px: Executing the SWITCHDEV_VXLAN_FDB_DEL_TO_DEVICE handler pdev:%s", rtm_delneigh_info, pdev->name);
 
@@ -893,14 +898,16 @@ static void nss_ppe_vxlanmgr_rtm_delneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 	 * Remote that does-not exists in the database.
 	 */
 	dev_hold(pdev);
-	if (nss_ppe_vxlanmgr_new_remote(pdev, &rtm_delneigh_info->rip)) {
+	priv = netdev_priv(pdev);
+	vni = vxlan_vni_field(priv->cfg.vni);
+	if (nss_ppe_vxlanmgr_new_remote(vni, &rtm_delneigh_info->rip)) {
 		nss_ppe_vxlanmgr_trace("%px: It is the new remote. pdev:%s", rtm_delneigh_info, pdev->name);
 		dev_put(pdev);
 		return;
 	}
 
 	nss_ppe_vxlanmgr_trace("%px: Remote already present in the hash. Its a known remote!", rtm_delneigh_info);
-	tun_ctx = nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip(pdev, &rtm_delneigh_info->rip);
+	tun_ctx = nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip(vni, &rtm_delneigh_info->rip);
 	if (!tun_ctx) {
 		nss_ppe_vxlanmgr_warn("%px: failed to get the tunnel context", rtm_delneigh_info);
 		dev_put(pdev);

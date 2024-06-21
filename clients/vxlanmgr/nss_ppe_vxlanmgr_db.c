@@ -107,15 +107,10 @@ struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_tunnel_ctx_get_and_dettach(str
  * nss_ppe_vxlanmgr_get_remote_count()
  *	Return the count of number of remotes.
  */
-uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev)
+uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev, __be32 vni_key)
 {
 	struct nss_ppe_vxlanmgr_tun_ctx *curr_tun_ctx;
-	struct vxlan_dev *priv;
-	uint32_t vni_key;
 	uint8_t count = 0;
-
-	priv = netdev_priv(dev);
-	vni_key = vxlan_vni_field(priv->cfg.vni);
 
 	spin_lock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
 	hash_for_each_possible(nss_ppe_vxlanmgr_tunnel_tbl, curr_tun_ctx, node, vni_key) {
@@ -131,16 +126,11 @@ uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev)
 
 /*
  * nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip()
- *	Find VxLAN tunnel context using parent-netdevice and the remote IP address
+ *	Find VxLAN tunnel context using vni and the remote IP address
  */
-struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip(struct net_device *dev, union vxlan_addr *rip)
+struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip(__be32 vni_key, union vxlan_addr *rip)
 {
 	struct nss_ppe_vxlanmgr_tun_ctx *curr_tun_ctx = NULL;
-	struct vxlan_dev *priv;
-	uint32_t vni_key;
-
-	priv = netdev_priv(dev);
-	vni_key = vxlan_vni_field(priv->cfg.vni);
 
 	spin_lock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
 	hash_for_each_possible(nss_ppe_vxlanmgr_tunnel_tbl, curr_tun_ctx, node, vni_key) {
@@ -162,9 +152,9 @@ struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip(st
  * nss_ppe_vxlanmgr_new_remote()
  *	Return true if it is a new remote.
  */
-bool nss_ppe_vxlanmgr_new_remote(struct net_device *dev, union vxlan_addr *rip)
+bool nss_ppe_vxlanmgr_new_remote(__be32 vni_key, union vxlan_addr *rip)
 {
-	if (nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip(dev, rip)) {
+	if (nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip(vni_key, rip)) {
 		return false;
 	}
 
@@ -245,7 +235,7 @@ enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(str
 	 * b) Dint find in the data-base but it may be created soon, so set status as "IN_PROGRESS".
 	 */
 	if (vp_status == NSS_PPE_VXLANMGR_VP_CREATION_INVALID) {
-		if (nss_ppe_vxlanmgr_get_remote_count(dev) == NSS_PPE_VXLANMGR_MAX_REMOTES) {
+		if (nss_ppe_vxlanmgr_get_remote_count(dev, vni_key) == NSS_PPE_VXLANMGR_MAX_REMOTES) {
 			nss_ppe_vxlanmgr_warn("%px: VXLAN: The RIP is not found in the Data-Base/Hash table", dev);
 			return NSS_PPE_VXLANMGR_VP_CREATION_FAILED;
 		}

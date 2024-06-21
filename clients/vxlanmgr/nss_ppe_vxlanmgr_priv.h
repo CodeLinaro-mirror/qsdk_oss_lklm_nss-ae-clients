@@ -141,10 +141,10 @@ struct nss_ppe_vxlanmgr_nss_dev_priv {
  * VxLAN database helper function
  */
 void nss_ppe_vxlanmgr_tunnel_ctx_attach(struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx);
-uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev);
-bool nss_ppe_vxlanmgr_new_remote(struct net_device *dev, union vxlan_addr *rip);
+uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev, __be32 vni_key);
+bool nss_ppe_vxlanmgr_new_remote(__be32 vni_key, union vxlan_addr *rip);
 struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_tunnel_ctx_get_and_dettach(struct net_device* nss_dev);
-struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip(struct net_device *dev, union vxlan_addr *rip);
+struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip(__be32 vni_key, union vxlan_addr *rip);
 enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type, int *ifindex);
 
 /*

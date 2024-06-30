@@ -110,6 +110,22 @@ struct nss_ppe_vxlanmgr_rtm_neigh_event_data {
 };
 
 /*
+ * FIB event data for VXLAN GPE
+ * The below data-structure is used to store the information which will be used later in the work-queue.
+ */
+struct nss_ppe_vxlanmgr_fib_event_data {
+	__be32 vni;				/* VxLAN Network Identifier */
+	uint8_t tos;				/* tos value */
+	uint8_t ttl;				/* time to live */
+	uint8_t event;				/* FIB add, delete, update event */
+	__be16 tun_flags;			/* Tunnel flags */
+	union vxlan_addr rip;			/* Remote IP address received in FIB update event */
+	union vxlan_addr sip;			/* Local IP address received in FIB update event */
+	struct net_device *parent_netdev;	/* Parent/linux netdevice of the tunnel */
+	struct list_head fib_event_list;	/* list to maintain the FIB events */
+};
+
+/*
  * VXLAN tunnel context for each tunnel (VXLAN remote).
  */
 struct nss_ppe_vxlanmgr_tun_ctx {
@@ -158,4 +174,6 @@ void nss_ppe_vxlanmgr_all_remotes_join_bridge(struct net_device *pdev);
 void nss_ppe_vxlanmgr_delete_all_remotes(void);
 int nss_ppe_vxlanmgr_wq_init(void);
 int nss_ppe_vxlanmgr_wq_exit(void);
+int nss_ppe_vxlanmgr_gpe_wq_init(void);
+int nss_ppe_vxlanmgr_gpe_wq_exit(void);
 #endif /* __NSS_VXLANMGR_PPE_PRIV_H */

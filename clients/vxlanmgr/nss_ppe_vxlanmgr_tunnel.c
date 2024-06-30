@@ -547,7 +547,15 @@ static int nss_ppe_vxlanmgr_switchdev_fdb_event(struct notifier_block *nb_unused
 		return NOTIFY_DONE;
 	}
 
+	/*
+	 * Check if VxLAN-GPE, it is used to encap L3 packet and fdb/neigh event is not applicable.
+	 */
 	priv = netdev_priv(dev);
+	if (priv->cfg.flags & VXLAN_F_GPE) {
+		nss_ppe_vxlanmgr_trace("%px: Netdevice with VXLAN-GPE configured", fdb_info);
+		return NOTIFY_DONE;
+	}
+
 	if (dstport != ntohs(priv->cfg.dst_port)) {
 		nss_ppe_vxlanmgr_trace("%px: VXLAN: configured PPE dport: %u is not-equal to user given dport:%dn", fdb_info, dstport, ntohs(priv->cfg.dst_port));
 		return NOTIFY_DONE;

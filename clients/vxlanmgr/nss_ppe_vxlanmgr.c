@@ -27,6 +27,7 @@
 #include <linux/rwlock_types.h>
 #include <linux/hashtable.h>
 #include <net/vxlan.h>
+#include <net/fib_notifier.h>
 #include "nss_ppe_vxlanmgr_priv.h"
 #include "nss_ppe_vxlanmgr_tun_stats.h"
 #include "nss_ppe_tun_drv.h"
@@ -49,6 +50,11 @@ struct nss_ppe_vxlanmgr_ctx vxlan_ctx;
  * Extern variable for VXLAN fdb notifier.
  */
 extern struct notifier_block nss_ppe_vxlanmgr_switchdev_fdb_notifier;
+
+/*
+ * Extern variable for fib update notifier.
+ */
+extern struct notifier_block nss_ppe_vxlanmgr_fib_update_nb;
 
 /*
  * nss_ppe_vxlanmgr_netdev_event()
@@ -108,9 +114,18 @@ void __exit nss_ppe_vxlanmgr_exit_module(void)
 		nss_ppe_vxlanmgr_warn("failed to disable the VXLAN tunnels.");
 	}
 
+	if (!ppe_tun_conf_accel(PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE, false)) {
+		nss_ppe_vxlanmgr_warn("failed to disable the VXLAN-GPE tunnels.");
+	}
+
 	nss_ppe_vxlanmgr_tun_stats_dentry_deinit();
 
 	nss_ppe_vxlanmgr_delete_all_remotes();
+
+	ret = unregister_fib_notifier(&init_net, &nss_ppe_vxlanmgr_fib_update_nb);
+	if (ret) {
+		nss_ppe_vxlanmgr_warn("Failed to unregister fib notifier: error %d", ret);
+	}
 
 	ret = unregister_netdevice_notifier(&nss_ppe_vxlanmgr_netdev_notifier);
 	if (ret) {
@@ -119,6 +134,7 @@ void __exit nss_ppe_vxlanmgr_exit_module(void)
 
 	unregister_switchdev_notifier(&nss_ppe_vxlanmgr_switchdev_fdb_notifier);
 	nss_ppe_vxlanmgr_wq_exit();
+	nss_ppe_vxlanmgr_gpe_wq_exit();
 
 	nss_ppe_vxlanmgr_info("disabled all vxlan tunnels. VXLAN module unloaded");
 }
@@ -159,6 +175,12 @@ int __init nss_ppe_vxlanmgr_init_module(void)
 		return -1;
 	}
 
+	if (nss_ppe_vxlanmgr_gpe_wq_init() < 0) {
+		nss_ppe_vxlanmgr_wq_exit();
+		nss_ppe_vxlanmgr_warn("Failed to initialize VXLAN-GPE work queue");
+		return -1;
+	}
+
 	if (!nss_ppe_vxlanmgr_tun_dentry_init()) {
 		nss_ppe_vxlanmgr_warn("Failed to create debugfs entry");
 		goto wq_exit;
@@ -167,6 +189,12 @@ int __init nss_ppe_vxlanmgr_init_module(void)
 	ret = register_netdevice_notifier(&nss_ppe_vxlanmgr_netdev_notifier);
 	if (ret) {
 		nss_ppe_vxlanmgr_warn("Failed to register netdevice notifier: error %d", ret);
+		goto stats_dentry_deinit;
+	}
+
+	ret = register_fib_notifier(&init_net, &nss_ppe_vxlanmgr_fib_update_nb, NULL, NULL);
+	if (ret) {
+		nss_ppe_vxlanmgr_warn("Failed to register fib notifier: error %d", ret);
 		goto stats_dentry_deinit;
 	}
 
@@ -181,6 +209,7 @@ stats_dentry_deinit:
 
 wq_exit:
 	nss_ppe_vxlanmgr_wq_exit();
+	nss_ppe_vxlanmgr_gpe_wq_exit();
 
 	return -1;
 }

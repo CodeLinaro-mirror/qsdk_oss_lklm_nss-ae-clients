@@ -127,6 +127,9 @@ static bool nss_ppe_gretap_src_exception(struct ppe_vp_cb_info *info, ppe_tun_da
 /*
  * nss_ppe_gretap_set_gre_key_flags()
  *     Set GRE Key flags according to the config
+ *
+ * TODO: Check for all the supported gre tunnel create flags, compare it with the ones
+ * we support and throw an error for flags we do not support.
  */
 static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *gre, uint16_t iflags, uint16_t oflags, uint32_t i_key, uint32_t o_key)
 {
@@ -148,10 +151,12 @@ static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *
 
 	if (iflags & TUNNEL_CSUM) {
 		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_L_CSUM;
+		nss_ppe_gretap_info("%p:ICSUM option enabled for GRE\n", gre);
 	}
 
 	if (oflags & TUNNEL_CSUM) {
 		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_R_CSUM;
+		nss_ppe_gretap_info("%p:OCSUM option enabled for GRE\n", gre);
 	}
 }
 

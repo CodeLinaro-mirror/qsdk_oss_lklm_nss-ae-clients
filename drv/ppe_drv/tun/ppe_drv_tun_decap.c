@@ -374,8 +374,15 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 	 * Add IP header parameters
 	 */
 	fal_tunnel_decap_entry_t ftde = {0};
+	struct ppe_drv *p = &ppe_drv_gbl;
 	uint8_t vp_num = 0;
+	uint8_t vpgroup_id = 0;
 	sw_error_t err;
+
+	/*
+	 * Get the source interface.
+	 */
+	vp_num = ppe_drv_port_num_get(pp);
 
 	/*
 	 * Check if L3 header is IPV4 type
@@ -412,6 +419,32 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 			ppe_drv_trace("%p: GRE header validation failed", pp);
 			return PPE_DRV_TUN_DECAP_INVALID_IDX;
 		}
+
+		if (pth->tun.gre.flags & PPE_DRV_TUN_CMN_CTX_GRE_L_CSUM) {
+			/*
+			 * Enable GRE CSUM Exception.
+		 	 */
+			ftde.decap_action.exp_profile = PPE_DRV_EXCPN_GRE_CSUM_PROFILE;
+
+			/*
+			 * Add the vp to CSUM Disabled ACL list. So that packets without GRE CSUM
+			 * will be exceptioned.
+			 */
+			vpgroup_id = ppe_drv_tun_gre_acl_get_vpid(p->tun_gbl.gre, false);
+			ppe_drv_trace("%p: GRE I_CSUM enabled\n", pp);
+		} else {
+			/*
+			 * Add the vp to CSUM Enabled ACL list. So that packets with GRE CSUM
+			 * will be exceptioned.
+			 */
+			vpgroup_id = ppe_drv_tun_gre_acl_get_vpid(p->tun_gbl.gre, true);
+		}
+
+		err  = fal_acl_vpgroup_set(PPE_DRV_SWITCH_ID, vp_num, FAL_VPORT_TYPE_TUNNEL, vpgroup_id);
+		if (err != SW_OK) {
+			ppe_drv_warn("%p: Failed to set vp group for GRE CSUM ACL rule", pp);
+			return PPE_DRV_TUN_DECAP_INVALID_IDX;
+		}
 	} else if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
 		/*
 		 * Sanity validation for VxLAN tunnels
@@ -439,10 +472,7 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 		return PPE_DRV_TUN_DECAP_INVALID_IDX;
 	}
 
-	/*
-	 * Set source interface.
-	 */
-	vp_num = ppe_drv_port_num_get(pp);
+
 	ftde.decap_action.src_info_enable = A_TRUE;
 	ftde.decap_action.src_info_type = PPE_DRV_TUN_TL_TBL_SRC_INFO_TYPE_VP;
 	ftde.decap_action.src_info = vp_num;

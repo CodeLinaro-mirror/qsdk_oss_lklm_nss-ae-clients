@@ -15,6 +15,7 @@
  */
 
 #include <fal/fal_sec.h>
+#include <fal/fal_ctrlpkt.h>
 #include "ppe_drv.h"
 
 /*
@@ -273,6 +274,7 @@ void ppe_drv_exception_init(void)
 	fal_l4_excep_parser_ctrl tcp_except_ctrl = {0};
 	struct ppe_drv_exception_tcpflag *tcpflag;
 	fal_l3_excep_ctrl_t except_ctrl = {0};
+	fal_tunnel_excep_ctrl_t tun_except_ctrl = {0};
 	sw_error_t err;
 	uint32_t i;
 	uint8_t exp_code;
@@ -392,11 +394,35 @@ void ppe_drv_exception_init(void)
 		tcpflag = &ppe_drv_exception_tcpflag_list[i];
 		tcp_except_ctrl.tcp_flags[i] =  tcpflag->flags;
 		tcp_except_ctrl.tcp_flags_mask[i] = tcpflag->flags;
-
 	}
 
 	err = fal_sec_l4_excep_parser_ctrl_set(PPE_DRV_SWITCH_ID, &tcp_except_ctrl);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to configure L4 exception: %p", p, &tcp_except_ctrl);
+	}
+
+	/*
+	 * Enable GRE Checksum exception.
+	 */
+	tun_except_ctrl.cmd = FAL_MAC_RDT_TO_CPU;
+	tun_except_ctrl.deacclr_en = A_FALSE;
+	tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_GRE_CSUM_PROFILE] = A_TRUE;
+	err = fal_sec_tunnel_excep_ctrl_set(PPE_DRV_SWITCH_ID, FAL_SEC_EXP_GRE_CHECKSUM_ERR, &tun_except_ctrl);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Failed to configure GRE CSUM exception", p);
+	}
+
+	/*
+	 * Configure the GRE checksum error CPU code(220) exception mode to 0.
+	 * We want the csum exception packets to be processed by linux GRE
+	 * handler which will eventually drop it.
+	 *
+	 * We cannot use mode 1 here, as the inner packets will be sent to the linux networking stack
+	 * and the packets with csum error will eventually be forwarded instead since networking stack
+	 * has no information on the outer header.
+	 */
+	err = fal_mgmtctrl_tunnel_decap_set(PPE_DRV_SWITCH_ID, PPE_DRV_CC_GRE_CSUM, A_FALSE);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Faile to set exception mode for GRE CSUM error CPU Code(220) to 0\n", p);
 	}
 }

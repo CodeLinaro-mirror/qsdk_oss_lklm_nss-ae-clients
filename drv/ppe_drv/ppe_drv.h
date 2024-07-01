@@ -266,11 +266,17 @@ struct ppe_drv_tun_l2tp {
 };
 
 /*
+ * GRE checksum ACL object.
+ */
+struct ppe_drv_tun_gre_acl;
+
+/*
  * ppe_drv_tun_gbl
  *	PPE tunnel specific global context in ppe drv
  */
 struct ppe_drv_tun_gbl {
 	struct ppe_drv_tun_l2tp tun_l2tp;
+	struct ppe_drv_tun_gre_acl *gre;
 };
 
 /*

@@ -22,6 +22,8 @@
 #include <fal/fal_qos.h>
 #include "ppe_drv.h"
 
+static struct ppe_drv_flow_table_info *flow_table_info;
+
 #if (PPE_DRV_DEBUG_LEVEL == 3)
 /*
  * ppe_drv_flow_dump()
@@ -344,6 +346,7 @@ bool ppe_drv_flow_v6_qos_clear(struct ppe_drv_flow *pf)
 static bool ppe_drv_flow_v6_flow_cookie40b_get(struct ppe_drv_v6_conn_flow *pcf, uint8_t *cookie_40b)
 {
 	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->flow_metadata.tree_id_data);
+	bool ret = true;
 
 	switch (tree_id_data->type) {
 		case PPE_DRV_TREE_ID_TYPE_NONE:
@@ -357,7 +360,7 @@ static bool ppe_drv_flow_v6_flow_cookie40b_get(struct ppe_drv_v6_conn_flow *pcf,
 			 * Hence storing the 8 bits with 0
 			 */
 			cookie_40b[4] = 0;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_SAWF:
 			/*
@@ -368,12 +371,12 @@ static bool ppe_drv_flow_v6_flow_cookie40b_get(struct ppe_drv_v6_conn_flow *pcf,
 			cookie_40b[2] = tree_id_data->info.sawf_metadata.service_class & 0xFF;
 			cookie_40b[3] = 0;
 			cookie_40b[4] = tree_id_data->type << 3;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_WIFI_TID:
 		case PPE_DRV_TREE_ID_TYPE_SCS:
 			cookie_40b[4] = tree_id_data->type << 3;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
 			/*
@@ -385,12 +388,23 @@ static bool ppe_drv_flow_v6_flow_cookie40b_get(struct ppe_drv_v6_conn_flow *pcf,
 			cookie_40b[3] = 0;
 			cookie_40b[4] = tree_id_data->type << 3;
 
-			return true;
+			break;
 
 		default:
 			ppe_drv_warn("Invalid tree_id_type : (%u)", tree_id_data->type);
-			return false;
+			ret = false;
 	}
+
+	/*
+	 * If the flow contains the host Qdisc information, fill the respective QDISC
+	 * valid bit in the tree id
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		cookie_40b[4] |= 0x80;
+		ret = true;
+	}
+
+	return ret;
 }
 #else
 /*
@@ -400,13 +414,14 @@ static bool ppe_drv_flow_v6_flow_cookie40b_get(struct ppe_drv_v6_conn_flow *pcf,
 static bool ppe_drv_flow_v6_tree_id_get(struct ppe_drv_v6_conn_flow *pcf, uint8_t *tree_id)
 {
 	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->flow_metadata.tree_id_data);
+	bool ret = true;
 
 	switch (tree_id_data->type) {
 		case PPE_DRV_TREE_ID_TYPE_NONE:
 			tree_id[0] = tree_id_data->info.value & 0xFF;
 			tree_id[1] = (tree_id_data->info.value & 0xFF00) >> 8;
 			tree_id[2] = (tree_id_data->info.value & 0xFF0000) >> 16;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_SAWF:
 			/*
@@ -417,14 +432,14 @@ static bool ppe_drv_flow_v6_tree_id_get(struct ppe_drv_v6_conn_flow *pcf, uint8_
 			tree_id[1] |= (tree_id_data->info.sawf_metadata.service_class & 0x3F) << 2 ;
 			tree_id[2] = (tree_id_data->info.sawf_metadata.service_class & 0xC0) >> 6;
 			tree_id[2] |= tree_id_data->type << 4;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_WIFI_TID:
 		case PPE_DRV_TREE_ID_TYPE_SCS:
 			tree_id[2] |= tree_id_data->type << 4;
 			tree_id[1] = 0;
 			tree_id[0] = 0;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
 			/*
@@ -434,12 +449,19 @@ static bool ppe_drv_flow_v6_tree_id_get(struct ppe_drv_v6_conn_flow *pcf, uint8_
 			tree_id[1] = (tree_id_data->info.value & 0xFF00) >> 8;
 			tree_id[2] = (tree_id_data->info.value & 0x30000) >> 16;
 			tree_id[2] |= tree_id_data->type << 4;
-			return true;
+			break;
 
 		default:
 			ppe_drv_warn("Invalid tree_id_type : (%u)", tree_id_data->type);
-			return false;
+			ret = false;
 	}
+
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		tree_id[2] |= 0x80;
+		ret = true;
+	}
+
+	return ret;
 }
 #endif
 
@@ -552,6 +574,15 @@ static bool ppe_drv_flow_v6_wifi_qos_get(struct ppe_drv_v6_conn_flow *pcf, uint8
 		ppe_drv_trace("For User type: %u, WiFi_QoS initially: 0x%x and WiFi_QoS configured: 0x%x", pcf->tx_port->user_type, pcf->flow_metadata.wifi_qos, *wifi_qos);
 	}
 
+	/*
+	 * If the flow contains the host Qdisc information, set the WIFI QoS enable
+	 * bit to indicate the PPE to pass the tree-id field (which contains the
+	 * QDISC valid bit) in the EDMA Rx secondary descriptor
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		*wifi_qos_en = true;
+	}
+
 	return true;
 }
 
@@ -570,6 +601,94 @@ static bool ppe_drv_flow_v6_policer_get(struct ppe_drv_v6_conn_flow *pcf, uint32
 	return true;
 }
 #endif
+
+/*
+ * ppe_drv_flow_host_qdisc_clear()
+ *	call_rcu() callback for the flow host qdisc rule deletion
+ */
+static void ppe_drv_flow_host_qdisc_clear(struct rcu_head *p)
+{
+	struct ppe_drv_flow_host_qdisc_info *qdisc_info = container_of(p, struct ppe_drv_flow_host_qdisc_info, rcu);
+
+	kfree(qdisc_info);
+}
+
+/*
+ * ppe_drv_flow_host_qdisc_info_del()
+ *	API to delete host Qdisc info for the particular flow index
+ */
+static void ppe_drv_flow_host_qdisc_info_del(uint32_t flow_idx)
+{
+	struct ppe_drv_flow_host_qdisc_info *qdisc_info = NULL;
+	struct ppe_drv_flow_table_info *flow_info = flow_table_info;
+
+	rcu_read_lock();
+	qdisc_info = rcu_dereference(flow_info->qdisc_info[flow_idx]);
+	rcu_assign_pointer(flow_table_info->qdisc_info[flow_idx], NULL);
+
+	if (qdisc_info->flags == PPE_DRV_HOST_QDISC_INVALID) {
+		rcu_read_unlock();
+		ppe_drv_trace("Host Qdisc flag is INVALID at flow index: %d\n",
+				flow_idx);
+		return;
+	}
+
+	qdisc_info->flags = PPE_DRV_HOST_QDISC_INVALID;
+	qdisc_info->class_id = PPE_DRV_HOST_QDISC_CLASS_ID_DEF_VAL;
+	dev_put(qdisc_info->qdisc_xmit_dev);
+	qdisc_info->qdisc_xmit_dev = NULL;
+	rcu_read_unlock();
+	call_rcu(&qdisc_info->rcu, ppe_drv_flow_host_qdisc_clear);
+	ppe_drv_trace("Host Qdisc information is deleted at flow index: %d\n",
+				flow_idx);
+}
+
+/*
+ * ppe_drv_flow_v6_host_qdisc_info_del()
+ *	API to delete the v6 flow based host Qdisc information for the particular flow index
+ */
+void ppe_drv_flow_v6_host_qdisc_info_del(struct ppe_drv_v6_conn_flow *pcf, uint32_t flow_idx)
+{
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		ppe_drv_flow_host_qdisc_info_del(flow_idx);
+	}
+}
+
+/*
+ * ppe_drv_flow_host_qdisc_info_set()
+ *	API to set flow based host Qdisc information for the particular flow index
+ */
+static void ppe_drv_flow_host_qdisc_info_set(struct ppe_drv_flow_host_qdisc_info *pcf_qdisc_info,
+				        uint32_t flow_idx)
+{
+	struct ppe_drv_flow_host_qdisc_info *local_tbl_info;
+
+
+	local_tbl_info = kzalloc(sizeof(struct ppe_drv_flow_host_qdisc_info), GFP_ATOMIC);
+	if (!local_tbl_info) {
+		ppe_drv_warn("Failed to allocate qdisc info space\n");
+		return;
+	}
+
+	local_tbl_info->flags = pcf_qdisc_info->flags;
+	local_tbl_info->class_id = pcf_qdisc_info->class_id;
+	local_tbl_info->qdisc_xmit_dev = pcf_qdisc_info->qdisc_xmit_dev;
+	dev_hold(local_tbl_info->qdisc_xmit_dev);
+	rcu_assign_pointer(flow_table_info->qdisc_info[flow_idx], local_tbl_info);
+	ppe_drv_trace("Host Qdisc information is stored at flow index: %d\n",
+				flow_idx);
+}
+
+/*
+ * ppe_drv_flow_v6_host_qdisc_info_set()
+ *	API to set v6 flow based host Qdisc information for the particular flow index
+ */
+static void ppe_drv_flow_v6_host_qdisc_info_set(struct ppe_drv_v6_conn_flow *pcf, uint32_t flow_idx)
+{
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		ppe_drv_flow_host_qdisc_info_set(&pcf->qdisc_info, flow_idx);
+	}
+}
 
 /*
  * ppe_drv_flow_v6_service_code_get()
@@ -1148,6 +1267,11 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 			pcf, flow_cfg.entry_id);
 
 	/*
+	 * Set the host Qdisc information for the flow at the particular flow index
+	 */
+	ppe_drv_flow_v6_host_qdisc_info_set(pcf, flow_cfg.entry_id);
+
+	/*
 	 * Increment flow count if SAWF service class is configured in tree_id.
 	 */
 	if (ppe_drv_tree_id_type_get(&pcf->flow_metadata) == PPE_DRV_TREE_ID_TYPE_SAWF) {
@@ -1248,6 +1372,7 @@ bool ppe_drv_flow_v4_qos_clear(struct ppe_drv_flow *pf)
 static bool ppe_drv_flow_v4_flow_cookie40b_get(struct ppe_drv_v4_conn_flow *pcf, uint8_t *cookie_40b)
 {
 	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->flow_metadata.tree_id_data);
+	bool ret = true;
 
 	switch (tree_id_data->type) {
 		case PPE_DRV_TREE_ID_TYPE_NONE:
@@ -1262,7 +1387,7 @@ static bool ppe_drv_flow_v4_flow_cookie40b_get(struct ppe_drv_v4_conn_flow *pcf,
 			 */
 			cookie_40b[4] = 0;
 
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_SAWF:
 			/*
@@ -1274,13 +1399,13 @@ static bool ppe_drv_flow_v4_flow_cookie40b_get(struct ppe_drv_v4_conn_flow *pcf,
 			cookie_40b[3] = 0;
 			cookie_40b[4] = tree_id_data->type << 3;
 
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_WIFI_TID:
 		case PPE_DRV_TREE_ID_TYPE_SCS:
 			cookie_40b[4] = tree_id_data->type << 3;
 
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
 			/*
@@ -1292,12 +1417,23 @@ static bool ppe_drv_flow_v4_flow_cookie40b_get(struct ppe_drv_v4_conn_flow *pcf,
 			cookie_40b[3] = 0;
 			cookie_40b[4] = tree_id_data->type << 3;
 
-			return true;
+			break;
 
 		default:
 			ppe_drv_warn("Invalid tree_id_type : (%u)", tree_id_data->type);
-			return false;
+			ret = false;;
 	}
+
+	/*
+	 * If the flow contains the host Qdisc information, fill the respective QDISC
+	 * valid bit in the tree id
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		cookie_40b[4] |= 0x80;;
+		ret = true;
+	}
+
+	return ret;
 }
 #else
 /*
@@ -1307,13 +1443,14 @@ static bool ppe_drv_flow_v4_flow_cookie40b_get(struct ppe_drv_v4_conn_flow *pcf,
 static bool ppe_drv_flow_v4_tree_id_get(struct ppe_drv_v4_conn_flow *pcf, uint8_t *tree_id)
 {
 	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->flow_metadata.tree_id_data);
+	bool ret = true;
 
 	switch (tree_id_data->type) {
 		case PPE_DRV_TREE_ID_TYPE_NONE:
 			tree_id[0] = tree_id_data->info.value & 0xFF;
 			tree_id[1] = (tree_id_data->info.value & 0xFF00) >> 8;
 			tree_id[2] = (tree_id_data->info.value & 0xFF0000) >> 16;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_SAWF:
 			/*
@@ -1324,14 +1461,14 @@ static bool ppe_drv_flow_v4_tree_id_get(struct ppe_drv_v4_conn_flow *pcf, uint8_
 			tree_id[1] |= (tree_id_data->info.sawf_metadata.service_class & 0x3F) << 2 ;
 			tree_id[2] = (tree_id_data->info.sawf_metadata.service_class & 0xC0) >> 6;
 			tree_id[2] |= tree_id_data->type << 4;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_WIFI_TID:
 		case PPE_DRV_TREE_ID_TYPE_SCS:
 			tree_id[2] |= tree_id_data->type << 4;
 			tree_id[1] = 0;
 			tree_id[0] = 0;
-			return true;
+			break;
 
 		case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
 			/*
@@ -1341,12 +1478,19 @@ static bool ppe_drv_flow_v4_tree_id_get(struct ppe_drv_v4_conn_flow *pcf, uint8_
 			tree_id[1] = (tree_id_data->info.value & 0xFF00) >> 8;
 			tree_id[2] = (tree_id_data->info.value & 0x30000) >> 16;
 			tree_id[2] |= tree_id_data->type << 4;
-			return true;
+			break;
 
 		default:
 			ppe_drv_warn("Invalid tree_id_type : (%u)", tree_id_data->type);
-			return false;
+			ret = false;;
 	}
+
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		tree_id[2] |= 0x80;
+		ret = true;
+	}
+
+	return ret;
 }
 #endif
 
@@ -1404,6 +1548,15 @@ static bool ppe_drv_flow_v4_wifi_qos_get(struct ppe_drv_v4_conn_flow *pcf, uint8
 		ppe_drv_trace("For User type: %u, WiFi_QoS initially: 0x%x and WiFi_QoS configured: 0x%x", pcf->tx_port->user_type, pcf->flow_metadata.wifi_qos, *wifi_qos);
 	}
 
+	/*
+	 * If the flow contains the host Qdisc information, set the WIFI QoS enable
+	 * bit to indicate the PPE to pass the tree-id field (which contains the
+	 * QDISC valid bit) in the EDMA Rx secondary descriptor
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		*wifi_qos_en = true;
+	}
+
 	return true;
 }
 
@@ -1422,6 +1575,28 @@ static bool ppe_drv_flow_v4_policer_get(struct ppe_drv_v4_conn_flow *pcf, uint32
 	return true;
 }
 #endif
+
+/*
+ * ppe_drv_flow_v4_host_qdisc_info_del()
+ *	API to delete v4 based host Qdisc information for the particular flow index
+ */
+void ppe_drv_flow_v4_host_qdisc_info_del(struct ppe_drv_v4_conn_flow *pcf, uint32_t flow_idx)
+{
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		ppe_drv_flow_host_qdisc_info_del(flow_idx);
+	}
+}
+
+/*
+ * ppe_drv_flow_v4_host_qdisc_info_set()
+ *	API to set v4 based host Qdisc information for the particular flow index
+ */
+static void ppe_drv_flow_v4_host_qdisc_info_set(struct ppe_drv_v4_conn_flow *pcf, uint32_t flow_idx)
+{
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_VP_HOST_QDISC_INFO_VALID)) {
+		ppe_drv_flow_host_qdisc_info_set(&pcf->qdisc_info, flow_idx);
+	}
+}
 
 /*
  * ppe_drv_flow_v4_service_code_get()
@@ -2041,6 +2216,12 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	ppe_drv_assert(!(flow->flags & PPE_DRV_FLOW_VALID), "%p: flow entry is already accelerated to PPE at index: %d",
 			pcf, flow_cfg.entry_id);
 
+
+	/*
+	 * Set the host Qdisc information for the flow at the particular flow index
+	 */
+	ppe_drv_flow_v4_host_qdisc_info_set(pcf, flow_cfg.entry_id);
+
 	/*
 	 * Increment flow count if SAWF service is configured in tree_id.
 	 */
@@ -2110,12 +2291,46 @@ bool ppe_drv_flow_v4_detach_mapt_v6_conn(struct ppe_drv_v4_conn_flow *pcf_v4)
 }
 
 /*
+ * ppe_drv_flow_table_free()
+ *	API to free up the flow table space if it was allocated
+ */
+static void ppe_drv_flow_table_free(void)
+{
+	if (flow_table_info) {
+		vfree(flow_table_info->qdisc_info);
+		vfree(flow_table_info);
+	}
+}
+
+/*
  * ppe_drv_flow_entries_free()
  *	Free flow table entries if it was allocated.
  */
 void ppe_drv_flow_entries_free(struct ppe_drv_flow *flow)
 {
+	ppe_drv_flow_table_free();
 	vfree(flow);
+}
+
+/*
+ * ppe_drv_flow_table_alloc()
+ *	API to allocate flow table space to store the per flow metadata
+ */
+static bool ppe_drv_flow_table_alloc(struct ppe_drv *p)
+{
+	flow_table_info = vzalloc(sizeof(struct ppe_drv_flow_table_info));
+	if (!flow_table_info) {
+		ppe_drv_warn("%px: Failed to allocate flow table space\n", p);
+		return false;
+	}
+
+	flow_table_info->qdisc_info = (struct ppe_drv_flow_host_qdisc_info **)vzalloc(sizeof(struct ppe_drv_flow_host_qdisc_info *) * p->flow_num);
+	if (!flow_table_info->qdisc_info) {
+		vfree(flow_table_info);
+		return false;
+	}
+
+	return true;
 }
 
 /*
@@ -2131,6 +2346,15 @@ struct ppe_drv_flow *ppe_drv_flow_entries_alloc()
 	flow = vzalloc(sizeof(struct ppe_drv_flow) * p->flow_num);
 	if (!flow) {
 		ppe_drv_warn("%p: failed to allocate flow entries", p);
+		return NULL;
+	}
+
+	/*
+	 * Allocate flow table area to storing the flow based metadata
+	 */
+	if (!ppe_drv_flow_table_alloc(p)) {
+		ppe_drv_warn("%p: failed to allocate flow table space\n", p);
+		vfree(flow);
 		return NULL;
 	}
 

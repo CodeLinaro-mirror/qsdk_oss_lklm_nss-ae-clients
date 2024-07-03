@@ -118,6 +118,10 @@ static void ppe_drv_tun_free(struct kref *kref)
 		p->tun_gbl.tun_l2tp.l2tp_encap_rule = NULL;
 	}
 
+	if (p->tun_gbl.vxlan_gpe_encap_rule && (!(kref_read(&p->tun_gbl.vxlan_gpe_encap_rule->ref)))) {
+		p->tun_gbl.vxlan_gpe_encap_rule = NULL;
+	}
+
 	if (ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]) {
 		ppe_drv_tun_decap_xlate_rule_deref(ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
 	}
@@ -1840,13 +1844,46 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 		}
 	}
 
-	if ((pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) || (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE)) {
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
 		/*
 		 * encap header control configuration for VXLAN.
 		 * UDP source port value is updated with a random value
 		 */
 		if (!ppe_drv_tun_encap_hdr_ctrl_vxlan_configure(p, ptun)) {
 			ppe_drv_warn("%p VXLAN: failed to configure encap header control", p);
+			goto err_exit;
+		}
+	}
+
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE) {
+		if (p->tun_gbl.vxlan_gpe_encap_rule == NULL) {
+			/*
+			 * Alloc encap EG table entry for VxLAN-GPE
+			 * Alloc is called for first instance of VxLAN-GPE tunnel only.
+			 */
+			 p->tun_gbl.vxlan_gpe_encap_rule = ppe_drv_tun_encap_xlate_rule_alloc(p);
+			 if (p->tun_gbl.vxlan_gpe_encap_rule == NULL) {
+				ppe_drv_warn("%p: couldn't get encap rule entry index for vxlan-gpe", p);
+				goto err_exit;
+			}
+		} else {
+			/*
+			 * Take ref on encap rule instance if another VXLAN-GPE tunnel is already active.
+			 * Deref in ppe_drv_tun_free for ptun->ptecxr which is gpe encap rule in this case.
+			 */
+			ppe_drv_tun_encap_xlate_rule_ref(p->tun_gbl.vxlan_gpe_encap_rule);
+		}
+
+		ptun->ptecxr = p->tun_gbl.vxlan_gpe_encap_rule;
+		rule_id = ppe_drv_tun_encap_xlate_rule_get_index(ptun->ptecxr);
+		ppe_drv_tun_encap_set_rule_id(ptun->ptec, rule_id);
+
+		/*
+		 * encap header control configuration for VXLAN-GPE.
+		 * UDP source port value is updated with a random value
+		 */
+		if (!ppe_drv_tun_encap_hdr_ctrl_vxlan_gpe_configure(p, ptun)) {
+			ppe_drv_warn("%p VXLAN-GPE: failed to configure encap header control", p);
 			goto err_exit;
 		}
 	}

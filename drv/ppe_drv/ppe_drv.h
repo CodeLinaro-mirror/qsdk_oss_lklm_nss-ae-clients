@@ -292,6 +292,7 @@ struct ppe_drv_tun_gre_acl;
 struct ppe_drv_tun_gbl {
 	struct ppe_drv_tun_l2tp tun_l2tp;
 	struct ppe_drv_tun_gre_acl *gre;
+	struct ppe_drv_tun_encap_xlate_rule *vxlan_gpe_encap_rule;	/* PPE VXLAN-GPE EG translate rule entry */
 };
 
 /*

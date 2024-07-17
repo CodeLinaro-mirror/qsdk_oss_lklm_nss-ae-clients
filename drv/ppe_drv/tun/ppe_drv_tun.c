@@ -92,6 +92,20 @@ static void ppe_drv_tun_free(struct kref *kref)
 		ppe_drv_tun_encap_deref(ptun->ptec);
 	}
 
+	/*
+	 * For GRE tunnels, deref the global gre csum object.
+	 * And reset the vp group id of the tunnel vp.
+	 */
+	if ((ptun->th.type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) && p->tun_gbl.gre) {
+		sw_error_t error;
+
+		ppe_drv_tun_gre_acl_deref(p->tun_gbl.gre);
+		error = fal_acl_vpgroup_set(PPE_DRV_SWITCH_ID, ptun->vp_num, FAL_VPORT_TYPE_TUNNEL, 0);
+		if (error != SW_OK) {
+			ppe_drv_warn("%p: Failed to reset the vp group for GRETAP vp %d\n", ptun, ptun->vp_num);
+		}
+	}
+
 	if (ptun->ptdc) {
 		ppe_drv_tun_decap_deref(ptun->ptdc);
 	}
@@ -1694,6 +1708,36 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 	if (!ptun->ptdc) {
 		ppe_drv_warn("%p: Failed to get decap instance", ptun);
 		goto err_exit;
+	}
+
+	/*
+	 * For GRE tunnels, create ACL rule to check for CSUM flag.
+	 */
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
+		if (!p->tun_gbl.gre) {
+			/*
+			 * Create ACL rules to check for CSUM flag in GRE header.
+			 * In addition to ACL rules, VP groupes are also created
+			 * so that the subsequent GRE tunnel VPs can just bind to the
+			 * VP group instead of having to create new ACL rules for each
+			 * tunnel VP.
+			 */
+			p->tun_gbl.gre = ppe_drv_tun_gre_acl_alloc(p);
+			if (!p->tun_gbl.gre) {
+				ppe_drv_warn("%p: GRE ACL object allocation failed\n", p);
+				goto err_exit;
+			}
+
+			if (!ppe_drv_tun_gre_acl_config(p->tun_gbl.gre)) {
+				ppe_drv_warn("%p: GRE ACL configuration failed\n", p);
+			}
+		} else {
+			/*
+			 * ACL rule is alredy created. Take a reference on the global
+			 * GRE ACL object.
+			 */
+			ppe_drv_tun_gre_acl_ref(p->tun_gbl.gre);
+		}
 	}
 
 	/*

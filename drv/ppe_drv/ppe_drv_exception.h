@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -44,6 +44,11 @@
 #define PPE_DRV_TCP_FLAG_PSH 0x08
 #define PPE_DRV_TCP_FLAG_ACK 0x10
 #define PPE_DRV_TCP_FLAG_URG 0x20
+
+/*
+ * Exception profile for GRE.
+ */
+#define PPE_DRV_EXCPN_GRE_CSUM_PROFILE 1
 
 /*
  * ppe_drv_exception

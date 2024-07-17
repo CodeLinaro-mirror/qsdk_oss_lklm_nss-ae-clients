@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,8 +19,11 @@
 #define PPE_DRV_TUN_UDF_PROFILE_ID_MAX	8 /* Max UDF profiles */
 #define PPE_DRV_TUN_UDF_MAX	4 /* Max number of UDF feilds within a UDF ID */
 
-#define PPE_DRV_TUN_L2TP_TUNNEL_ID_UDF	0 /*UDF index for l2tp tunnel ID  */
-#define PPE_DRV_TUN_L2TP_SESSION_ID_UDF	1 /* UDF index for l2tp session ID */
+#define PPE_DRV_TUN_L2TP_TUNNEL_ID_UDF	0	/*UDF index for l2tp tunnel ID  */
+#define PPE_DRV_TUN_L2TP_SESSION_ID_UDF	1	/* UDF index for l2tp session ID */
+
+#define PPE_DRV_TUN_UDF_IDX_GRE_CSUM	0	/* UDF index for GRE CSUM option. */
+#define PPE_DRV_TUN_UDF_OFFSET_GRE_CSUM 0	/* UDF offset to match GRE CSUM. */
 
 /*
  * ppe_drv_tun_udf_l3_type

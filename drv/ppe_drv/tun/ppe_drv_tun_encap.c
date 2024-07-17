@@ -656,6 +656,8 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 		struct gre_base_hdr greh;
 		uint16_t gre_hdr_flags = 0;
 		uint32_t gre_key = 0;
+		bool csum_en = false;
+		uint32_t csum = 0;
 
 		memset((void *)&greh, 0, sizeof(greh));
 
@@ -666,17 +668,35 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 			ppe_drv_trace("%p: GRE Local key: %d", ptec, gre_key);
 		}
 
+		if (th->tun.gre.flags & PPE_DRV_TUN_CMN_CTX_GRE_R_CSUM) {
+			gre_hdr_flags |= GRE_CSUM;
+			csum_en = true;
+			ppe_drv_trace("%p: GRE O_CSUM enabled \n", ptec);
+		}
+
 		greh.protocol = htons(ETH_P_TEB);
 		greh.flags = gre_hdr_flags;
 
 		memcpy((void *)tun_hdr, (void *)&greh, sizeof(greh));
 		tun_hdr += sizeof(greh);
 		tun_len += sizeof(greh);
+
+		/*
+		 * GRE has a 16 bit csum field, but when CSUM is enabled,
+		 * the optional 16 bit offset is also added to the header.
+		 */
+		if (csum_en) {
+			memcpy((void *)tun_hdr, (void *)&csum, sizeof(csum));
+			tun_hdr += sizeof(csum);
+			tun_len += sizeof(csum);
+		}
+
 		if (gre_key) {
 			memcpy((void *)tun_hdr, (void *)&gre_key, sizeof(gre_key));
 			tun_hdr += sizeof(gre_key);
 			tun_len += sizeof(gre_key);
 		}
+
 		l4_offset_valid = true;
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
 		struct udphdr udph;
@@ -867,6 +887,13 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
 		encap_cfg.payload_inner_type = FAL_TUNNEL_INNER_ETHERNET;
 		encap_cfg.l4_proto = 5; /* 0:Non;1:TCP;2:UDP;3:UDP-Lite;4:Reserved (ICMP);5:GRE; */
+
+		/*
+		 * Enable CSUM offload if Remote CSUM flag is enabled for the tunnel.
+		 */
+		if (th->tun.gre.flags & PPE_DRV_TUN_CMN_CTX_GRE_R_CSUM) {
+			encap_cfg.l4_checksum_en = A_TRUE;
+		}
 
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 		encap_cfg.ip_proto_update = 1;

@@ -60,6 +60,7 @@ qca-nss-ppe-objs += tun/ppe_drv_tun_prgm_prsr_gre.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_udf.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v4.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v6.o
+qca-nss-ppe-objs += tun/ppe_drv_tun_gre.o
 endif
 
 ccflags-y += -Wall -Werror

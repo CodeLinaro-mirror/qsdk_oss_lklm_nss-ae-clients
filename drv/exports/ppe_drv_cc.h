@@ -210,7 +210,7 @@ typedef enum ppe_drv_cc_type {
 	PPE_DRV_CC_VXLAN_GPE_HDR			= 217,	/**< CPU Code For Vxlan Gpe Hdr */
 	PPE_DRV_CC_GENEVE_HDR				= 218,	/**< CPU Code For Geneve Hdr */
 	PPE_DRV_CC_GRE_HDR				= 219,	/**< CPU Code For Gre Hdr */
-	PPE_DRV_CC_RESERVED				= 220,	/**< CPU Code For Reserved */
+	PPE_DRV_CC_GRE_CSUM				= 220,	/**< CPU Code For GRE Checksum error */
 	PPE_DRV_CC_UNKNOWN_INNER_TYPE			= 221,	/**< CPU Code For Unknown Inner Type */
 	PPE_DRV_CC_FLAG_VXLAN				= 222,	/**< CPU Code For Flag Vxlan */
 	PPE_DRV_CC_FLAG_VXLAN_GPE			= 223,	/**< CPU Code For Flag Vxlan Gpe */

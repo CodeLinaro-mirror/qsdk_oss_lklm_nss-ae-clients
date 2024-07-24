@@ -1730,6 +1730,7 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 
 			if (!ppe_drv_tun_gre_acl_config(p->tun_gbl.gre)) {
 				ppe_drv_warn("%p: GRE ACL configuration failed\n", p);
+				goto err_exit;
 			}
 		} else {
 			/*

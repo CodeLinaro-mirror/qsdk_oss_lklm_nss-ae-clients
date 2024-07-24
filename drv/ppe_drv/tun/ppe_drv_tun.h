@@ -31,9 +31,13 @@
 #define PPE_DRV_TUN_PORT_STATS_RESERVED_COUNT 10  /* Number of slots reserved for tunnel statistics */
 #define PPE_DRV_TUN_MAPT_V6_LEN_ADJUST (sizeof(struct ipv6hdr) - sizeof (struct iphdr)) /* IP6 header length difference to be added for MAPT */
 
-
+#ifdef NSS_PPE_IPQ53XX
+#define PPE_DRV_TUN_GRE_ACL_LIST_ID_CSUM_DIS 254		/* GRE CSUM disable check ACL list ID */
+#define PPE_DRV_TUN_GRE_ACL_LIST_ID_CSUM_EN 255			/* GRE CSUM enable check ACL list ID*/
+#else
 #define PPE_DRV_TUN_GRE_ACL_LIST_ID_CSUM_DIS 1022		/* GRE CSUM disable check ACL list ID */
 #define PPE_DRV_TUN_GRE_ACL_LIST_ID_CSUM_EN 1023		/* GRE CSUM enable check ACL list ID*/
+#endif
 
 /*
  * ppe_drv_tun_tl_action

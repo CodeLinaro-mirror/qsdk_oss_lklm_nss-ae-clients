@@ -70,6 +70,8 @@
 					/* Perform source translation */
 #define PPE_DRV_V6_CONN_FLOW_FLAG_XLATE_DEST 0x00080000
 					/* Perform destination translation */
+#define PPE_DRV_V6_CONN_FLAG_PASSIVE_FLOW 0x00100000
+					/* Flow is pushed from SFE */
 
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 /*

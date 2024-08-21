@@ -230,6 +230,8 @@ typedef enum ppe_drv_cc_type {
 #define PPE_DRV_CC_RANGE1			PPE_DRV_CC_UDP_LITE_CHECKSUM_ERR	/* CPU Code For Udp Lite Checksum Err */
 #define PPE_DRV_CC_RANGE2			PPE_DRV_CC_RESERVE0			/* PPE_DRV_CC_RESERVE0 */
 #define PPE_DRV_CC_RANGE3			PPE_DRV_CC_INNER_PACKET_TOO_SHORT	/* CPU Code For Inner Packet Too Short */
+#define PPE_DRV_CC_RANGE4			PPE_DRV_CC_GRE_HDR			/* CPU Code For GRE Header */
+#define PPE_DRV_CC_RANGE5			PPE_DRV_CC_PROGRAM5			/* CPU Code For Program5 */
 #define PPE_DRV_EXP_RANGE1_BASE			1
 #define PPE_DRV_EXP_RANGE2_BASE			144
 

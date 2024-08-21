@@ -154,6 +154,20 @@ struct ppe_drv_exception ppe_drv_exception_list[] = {
 		PPE_DRV_EXCEPTION_DEACCEL_EN,
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
+		| PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW,
+#ifdef PPE_TUNNEL_ENABLE
+	/*
+	 * Allow IPV6 Fragmentation packets to exception.
+	 */
+		FAL_MAC_RDT_TO_CPU,
+		PPE_DRV_EXCEPTION_DEACCEL_EN,
+		{
+			PPE_DRV_EXCPN_TUN_PROFILE_EN,
+			PPE_DRV_EXCPN_TUN_PROFILE_DIS,
+			PPE_DRV_EXCPN_TUN_PROFILE_DIS,
+			PPE_DRV_EXCPN_TUN_PROFILE_DIS,
+		}
+#endif
 	},
 	{
 		PPE_DRV_CC_IPV6_ESP_HDR_INCOMPLETE,
@@ -211,6 +225,25 @@ struct ppe_drv_exception ppe_drv_exception_list[] = {
 		PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT
 		| PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT
 	},
+#ifdef PPE_TUNNEL_ENABLE
+	/*
+	 * Enable GRE Checksum exception.
+	 */
+	{
+		PPE_DRV_CC_GRE_CSUM,
+		PPE_DRV_EXCEPTION_FIELD_INVALID,
+		PPE_DRV_EXCEPTION_FIELD_INVALID,
+		PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW,
+		FAL_MAC_RDT_TO_CPU,
+		PPE_DRV_EXCEPTION_DEACCEL_DIS,
+		{
+			PPE_DRV_EXCPN_TUN_PROFILE_DIS,
+			PPE_DRV_EXCPN_TUN_PROFILE_EN,
+			PPE_DRV_EXCPN_TUN_PROFILE_DIS,
+			PPE_DRV_EXCPN_TUN_PROFILE_DIS,
+		}
+	},
+#endif
 };
 
 /*
@@ -255,7 +288,8 @@ static inline uint8_t ppe_drv_exception_cc2exp(uint8_t cpu_code)
 {
 	if (cpu_code <= PPE_DRV_CC_RANGE1) {
 		return (cpu_code - PPE_DRV_EXP_RANGE1_BASE);
-	} else if (cpu_code >= PPE_DRV_CC_RANGE2 && cpu_code <= PPE_DRV_CC_RANGE3) {
+	} else if ((cpu_code >= PPE_DRV_CC_RANGE2 && cpu_code <= PPE_DRV_CC_RANGE3) ||
+			(cpu_code >= PPE_DRV_CC_RANGE4 && cpu_code <= PPE_DRV_CC_RANGE5)) {
 		return (cpu_code - PPE_DRV_EXP_RANGE2_BASE);
 	}
 
@@ -269,19 +303,7 @@ static inline uint8_t ppe_drv_exception_cc2exp(uint8_t cpu_code)
  */
 static void ppe_drv_exception_tun_init(struct ppe_drv *p)
 {
-	fal_tunnel_excep_ctrl_t tun_except_ctrl = {0};
 	sw_error_t err;
-
-	/*
-	 * Enable GRE Checksum exception.
-	 */
-	tun_except_ctrl.cmd = FAL_MAC_RDT_TO_CPU;
-	tun_except_ctrl.deacclr_en = A_FALSE;
-	tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_GRE_CSUM_PROFILE] = A_TRUE;
-	err = fal_sec_tunnel_excep_ctrl_set(PPE_DRV_SWITCH_ID, FAL_SEC_EXP_GRE_CHECKSUM_ERR, &tun_except_ctrl);
-	if (err != SW_OK) {
-		ppe_drv_warn("%p: Failed to configure GRE CSUM exception", p);
-	}
 
 	/*
 	 * Configure the GRE checksum error CPU code(220) exception mode to 0.
@@ -311,6 +333,9 @@ void ppe_drv_exception_init(void)
 	fal_l4_excep_parser_ctrl tcp_except_ctrl = {0};
 	struct ppe_drv_exception_tcpflag *tcpflag;
 	fal_l3_excep_ctrl_t except_ctrl = {0};
+#ifdef PPE_TUNNEL_ENABLE
+	fal_tunnel_excep_ctrl_t tun_except_ctrl = {0};
+#endif
 	sw_error_t err;
 	uint32_t i;
 	uint8_t exp_code;
@@ -320,7 +345,26 @@ void ppe_drv_exception_init(void)
 	 */
 	for (i = 0; i < exception_max; i++) {
 		struct ppe_drv_exception *pe = &ppe_drv_exception_list[i];
+		exp_code = ppe_drv_exception_cc2exp(pe->code);
 
+		ppe_drv_trace("%p: configuring exception code: %u flow_type: 0x%x",
+				p, exp_code, pe->flow_type);
+
+#ifdef PPE_TUNNEL_ENABLE
+		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW) == PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW) {
+			tun_except_ctrl.cmd = pe->tun_action;
+			tun_except_ctrl.deacclr_en = pe->tun_deaccel_en;
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_0] = pe->tun_profile[PPE_DRV_EXCPN_TUN_PROFILE_ID_0];
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_1] = pe->tun_profile[PPE_DRV_EXCPN_TUN_PROFILE_ID_1];
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_2] = pe->tun_profile[PPE_DRV_EXCPN_TUN_PROFILE_ID_2];
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_3] = pe->tun_profile[PPE_DRV_EXCPN_TUN_PROFILE_ID_3];
+
+			err = fal_sec_tunnel_excep_ctrl_set(PPE_DRV_SWITCH_ID, exp_code, &tun_except_ctrl);
+			if (err != SW_OK) {
+				ppe_drv_warn("%p: Failed to configure for tunnel exception code %u", p, exp_code);
+			}
+		}
+#endif
 		/*
 		 * Since our exception list is now defined using CPU code, we need to
 		 * Convert CPU code into exception code for exception configuration.
@@ -328,14 +372,10 @@ void ppe_drv_exception_init(void)
 		 * We need to do necessary check to avoid configuring exception
 		 * Table above 71.
 		 */
-		exp_code = ppe_drv_exception_cc2exp(pe->code);
 		if (exp_code > ppe_drv_exception_cc2exp(PPE_DRV_CC_UDP_LITE_CHECKSUM_ERR) + 4) {
 			ppe_drv_trace("%p: exception code greater than 71 not configured in l3 exception control table: %d\n", p, exp_code);
 			continue;
 		}
-
-		ppe_drv_trace("%p: configuring exception code: %u flow_type: 0x%x",
-				p, exp_code, pe->flow_type);
 
 		/*
 		 * Enable Exception
@@ -407,15 +447,13 @@ void ppe_drv_exception_init(void)
 		}
 
 		/*
-		 * TODO: Initialize tunnel exception here while adding support for tunnel.
-		 */
-
-		/*
 		 * Configure specific exception in PPE through SSDK.
 		 */
-		err = fal_sec_l3_excep_ctrl_set(PPE_DRV_SWITCH_ID, exp_code, &except_ctrl);
-		if (err != SW_OK) {
-			ppe_drv_warn("%p: failed to configure L3 exception: %d", p, exp_code);
+		if ((pe->flow_type != PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW)) {
+			err = fal_sec_l3_excep_ctrl_set(PPE_DRV_SWITCH_ID, exp_code, &except_ctrl);
+			if (err != SW_OK) {
+				ppe_drv_warn("%p: failed to configure L3 exception: %d", p, exp_code);
+			}
 		}
 	}
 

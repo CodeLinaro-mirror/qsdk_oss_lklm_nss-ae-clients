@@ -17,6 +17,12 @@
 #include <fal/fal_init.h>
 
 /*
+ * PPE exception invalid
+ * 	When the field are not required we can fill them as invalid.
+ */
+#define PPE_DRV_EXCEPTION_FIELD_INVALID		0x0
+
+/*
  * PPE exception type.
  */
 #define PPE_DRV_EXCEPTION_FLOW_TYPE_L2_ONLY		0x1
@@ -28,12 +34,13 @@
 #define PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT		0x40
 #define PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_MISS	0x80
 #define PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_MISS	0x100
+#define PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW		0x200
 
 /*
- * Deacceleration action for exception
+ *  Deacceleration action for exception
  */
-#define PPE_DRV_EXCEPTION_DEACCEL_DIS		0
-#define PPE_DRV_EXCEPTION_DEACCEL_EN		1
+#define PPE_DRV_EXCEPTION_DEACCEL_DIS	0
+#define PPE_DRV_EXCEPTION_DEACCEL_EN	1
 
 /*
  * TCP flag definitions
@@ -45,10 +52,24 @@
 #define PPE_DRV_TCP_FLAG_ACK 0x10
 #define PPE_DRV_TCP_FLAG_URG 0x20
 
+
+#ifdef PPE_TUNNEL_ENABLE
 /*
- * Exception profile for GRE.
+ * Tunnel profile action
  */
-#define PPE_DRV_EXCPN_GRE_CSUM_PROFILE 1
+#define PPE_DRV_EXCPN_TUN_PROFILE_DIS	A_FALSE
+#define PPE_DRV_EXCPN_TUN_PROFILE_EN	A_TRUE
+
+/*
+ * Exception profile ID for tunnels.
+ */
+#define PPE_DRV_EXCPN_TUN_PROFILE_ID_0		0
+#define	PPE_DRV_EXCPN_TUN_PROFILE_ID_1		1
+#define	PPE_DRV_EXCPN_TUN_PROFILE_ID_2		2
+#define	PPE_DRV_EXCPN_TUN_PROFILE_ID_3		3
+#define	PPE_DRV_EXCPN_TUN_PROFILE_ID_MAX	4
+
+#endif
 
 /*
  * ppe_drv_exception
@@ -58,7 +79,12 @@ struct ppe_drv_exception {
 	ppe_drv_cc_t code;
 	fal_fwd_cmd_t action;
 	uint8_t deaccel_en;
-	uint8_t flow_type;
+	uint16_t flow_type;
+#ifdef PPE_TUNNEL_ENABLE
+	fal_fwd_cmd_t tun_action;
+	uint8_t tun_deaccel_en;
+	bool tun_profile[PPE_DRV_EXCPN_TUN_PROFILE_ID_MAX];
+#endif
 };
 
 /*

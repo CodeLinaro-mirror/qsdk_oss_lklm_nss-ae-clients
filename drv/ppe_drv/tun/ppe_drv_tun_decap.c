@@ -424,7 +424,7 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 			/*
 			 * Enable GRE CSUM Exception.
 		 	 */
-			ftde.decap_action.exp_profile = PPE_DRV_EXCPN_GRE_CSUM_PROFILE;
+			ftde.decap_action.exp_profile = PPE_DRV_EXCPN_TUN_PROFILE_ID_1;
 
 			/*
 			 * Add the vp to CSUM Disabled ACL list. So that packets without GRE CSUM

@@ -63,6 +63,8 @@ static char src2uni_map[PPE_DRV_SRC2UNI_LEVEL_STR_LEN];
 static char packet_padding[PPE_DRV_PACKET_PADDING_STR_LEN];
 #endif
 
+int l4_checksum_exception_enable = false;
+
 /*
  * Define the filename to be used for assertions.
  */
@@ -1634,6 +1636,43 @@ static int ppe_drv_disable_port_mtu_check_handler(struct ctl_table *table,
 }
 
 /*
+ * ppe_drv_l4_checksum_exception_enable()
+ *	API to enable/disable the exception for l4 checksum.
+ */
+int ppe_drv_l4_checksum_exception_enable(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+	uint32_t current_value;
+
+	/*
+	 * Take the current value
+	 */
+	current_value = l4_checksum_exception_enable;
+
+	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+	if (!write) {
+		return ret;
+	}
+
+	/*
+	 * Return if you are trying to set the same value.
+	 */
+	if (current_value == l4_checksum_exception_enable) {
+		return 0;
+	}
+
+	if(ppe_drv_exception_l4_checksum_enable()) {
+		ppe_drv_trace("PPE DRV l4 exception is:%d ret:%d\n", l4_checksum_exception_enable, ret);
+		return -1;
+	}
+
+	ppe_drv_trace("PPE DRV l4 exception is %d\n", l4_checksum_exception_enable);
+
+	return 0;
+}
+
+/*
  * ppe_drv_eth2eth_offload_if_bitmap_handler()
  * 	Set eth to eth offload with if bitmap config
  */
@@ -2187,6 +2226,13 @@ static struct ctl_table ppe_drv_sub[] = {
 		.proc_handler   =       ppe_drv_pkt_padding_handler
 	},
 #endif
+	{
+		.procname	=	"l4_checksum_exception_enable",
+		.data		=	&l4_checksum_exception_enable,
+		.maxlen		=	sizeof(int),
+		.mode		=	0644,
+		.proc_handler	=	ppe_drv_l4_checksum_exception_enable
+	},
 	{}
 };
 

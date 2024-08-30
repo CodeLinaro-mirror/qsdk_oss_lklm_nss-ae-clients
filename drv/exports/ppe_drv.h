@@ -496,6 +496,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_PREFIX_ADD_FAIL,		/**< Failure in adding an entry into Prefix Table */
 	PPE_DRV_RET_FAILURE_IID_ADD_FAIL,		/**< Failure in adding an entry into IID Table */
 #endif
+	PPE_DRV_RET_HOST_QDISC_CFG_FAIL,		/**< Host Qdisc configuration failed. */
 } ppe_drv_ret_t;
 
 /**

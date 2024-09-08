@@ -31,6 +31,16 @@
 #define PPE_VP_DS_INVALID_NODE_ID	0xFF	/**< Invalid node id value */
 
 /**
+ * PPE VP field update flags.
+ */
+#define PPE_VP_UPDATE_FLAG_VP_CORE_MASK		0x1	/**< Flag to indicate core mask update */
+#define PPE_VP_UPDATE_FLAG_VP_USR_TYPE		0x2	/**< Flag to indicate user type update */
+#define PPE_VP_UPDATE_FLAG_VP_MPSK_EN		0x4	/**< Flag to indicate MPSK bit update */
+#define PPE_VP_UPDATE_FLAG_VP_SRC_CB		0x8	/**< Flag to indicate source cb update */
+#define PPE_VP_UPDATE_FLAG_VP_SRC_CB_DATA	0x10	/**< Flag to indicate source cb data update */
+#define PPE_VP_UPDATE_FLAG_INVALID		0xFF	/**< Flag to indicate invalid update */
+
+/**
  * @addtogroup ppe_vp_public_subsystem
  * @{
  */
@@ -166,8 +176,12 @@ enum ppe_vp_net_dev_pvt_flags {
  *	Data structure for VP update information.
  */
 struct ppe_vp_ui {
-	uint8_t core_mask;		/**< Updated Core to be used for a particular VP flow */
 	enum ppe_vp_user_type usr_type;	/**< VP user type */
+	void *src_cb;			/**< Source callback to be registered from VP owner */
+	void *cb_data;			/**< Callback data */
+	uint8_t mpsk_en;		/**< MPSK indication */
+	uint8_t core_mask;		/**< Updated Core to be used for a particular VP flow */
+	uint16_t update_flags;		/**< Flags to indicate the update fields */
 };
 
 /**

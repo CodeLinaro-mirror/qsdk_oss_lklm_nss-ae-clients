@@ -76,6 +76,8 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_LOOPBACK_RING = 35, 	 /* Service code for EDMA LOOPBACK ring */
 	PPE_DRV_SC_LOOPBACK_RING_NEXT = 36, 	 /* Next Service code for EDMA LOOPBACK ring */
 
+	PPE_DRV_SC_VP_MPSK = 37,		 /* Service code to bypass the egress VLAN table in case of MPSK */
+
 	PPE_DRV_SC_FLOW_ACL_FIRST = PPE_DRV_SC_FLOW_ACL_START,
 					/* First service code for combining flow and ACL rule */
 	PPE_DRV_SC_FLOW_ACL_LAST = PPE_DRV_SC_FLOW_ACL_END,

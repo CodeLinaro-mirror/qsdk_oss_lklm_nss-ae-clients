@@ -31,9 +31,14 @@
 #define PPE_DRV_PORT_ENQ_VP_START		34	/**< PPE enqueue vp start  */
 #define PPE_DRV_PORT_ENQ_VP_END			63	/**< PPE enqueue vp end  */
 #define PPE_DRV_PORT_ENQ_VP_METADTA_INVALID	-1	/**< PPE enqueue vp metadata */
-#define PPE_DRV_PORT_ENQ_VP_PRI_PRFL_INVALID	-1	/**<  PPE enqueue vp pri profile invalid */
+#define PPE_DRV_PORT_ENQ_VP_PRI_PRFL_INVALID	-1	/**< PPE enqueue vp pri profile invalid */
 #define PPE_DRV_PRI_PROF_DEFAULT 		0	/**< PPE enqueue vp pri profile default */
 #define PPE_DRV_PORT_EVP_PRI_PROF_START	((PPE_DRV_PORT_ENQ_VP_END) - (PPE_DRV_PORT_ENQ_VP_START) + 1)	/**<  PPE enqueue vp pri profile start */
+
+/*
+ * Port fields update flags.
+ */
+#define PPE_DRV_PORT_FLAG_UPDATE_INVALID	0xFF	/**< Indicate the port field update is invalid */
 
 /**
  * ppe_drv_port_evp_status
@@ -79,6 +84,7 @@ typedef enum ppe_drv_port_flag {
 	PPE_DRV_PORT_FLAG_OFFLOAD_ENABLED = 0x80,
 	PPE_DRV_PORT_FLAG_REDIR_ENABLED = 0x100,
 	PPE_DRV_PORT_FLAG_TUN_ENDPOINT_DS = 0x200,
+	PPE_DRV_PORT_FLAG_MPSK = 0x400,
 } ppe_drv_port_flag_t;
 
 /*

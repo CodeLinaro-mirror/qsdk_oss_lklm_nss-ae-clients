@@ -277,7 +277,18 @@ typedef enum ppe_acl_ret {
 	PPE_ACL_RET_CREATE_FAIL_ACTION_CONFIG,		/**< Rule create failed due to invalid action configuration. */
 	PPE_ACL_RET_CREATE_FAIL_INVALID_ID,		/**< Rule create failed due to invalid rule ID. */
 	PPE_ACL_RET_DESTROY_FAIL_INVALID_ID,		/**< Rule destroy failed due to invalid rule ID. */
+	PPE_ACL_RET_FLUSH_FAIL,				/**< Rule flush failed. */
 } ppe_acl_ret_t;
+
+/**
+ * ppe_acl_flush_type
+ *	Flush type for ACL rule
+ */
+typedef enum ppe_acl_flush_type {
+	PPE_ACL_FLUSH_TYPE_USERSPACE = 0,		/**< Flush userspace ACL rules. */
+	PPE_ACL_FLUSH_TYPE_KERNELSPACE,			/**< Flush kernel ACL rules. */
+	PPE_ACL_FLUSH_TYPE_ALL,				/**< Flush all the rules. */
+} ppe_acl_flush_type_t;
 
 /**
  * ppe_acl_rule_match_mac
@@ -540,6 +551,7 @@ struct ppe_acl_rule {
 	 */
 	ppe_acl_rule_id_t rule_id;			/**< Rule ID. */
 	uint32_t valid_flags;				/**< Bits indicating valid rule types in the rule. */
+	bool userspace_rule;                            /**< Flag indicating userspace rule */
 	struct ppe_acl_rule_match_cmn cmn;		/**< Common match rule. */
 	struct ppe_acl_rule_match_one rules[PPE_ACL_RULE_MATCH_TYPE_MAX];
 							/**< Multiple single rule. */
@@ -610,6 +622,18 @@ ppe_acl_ret_t ppe_acl_rule_destroy(ppe_acl_rule_id_t id);
  * Status of rule create operation.
  */
 ppe_acl_ret_t ppe_acl_rule_create(struct ppe_acl_rule *rule);
+
+/**
+ * ppe_acl_rule_flush()
+ *	Flush all ACL rules in PPE.
+ *
+ * @datatypes
+ * ppe_acl_flush_type_t
+ *
+ * @return
+ * Status of rule flush operation.
+ */
+ppe_acl_ret_t ppe_acl_rule_flush(ppe_acl_flush_type_t flush_type);
 
 /**
  * ppe_acl_rule_get_acl_hw_index()

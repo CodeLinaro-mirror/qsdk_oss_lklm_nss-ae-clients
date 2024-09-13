@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -26,6 +26,7 @@
 struct ppe_acl_stats_cmn {
 	atomic64_t acl_create_req;			/* ACL create requests. */
 	atomic64_t acl_destroy_req;			/* ACL destroy requests. */
+	atomic64_t acl_flush_req;			/* ACL flush requests. */
 	atomic64_t acl_free_req;			/* ACL rule free. */
 	atomic64_t rule_id_invalid;			/* ACL rule ID invalid. */
 	atomic64_t acl_hw_index_invalid;		/* ACL hardware index invalid. */

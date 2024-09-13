@@ -67,6 +67,7 @@ struct ppe_drv_policer_port;
  *	Policer structure
  */
 struct ppe_policer {
+	bool userspace_rule;				/* Flag indicating userspace rule */
 	struct list_head list;				/* List of active Policer rules */
 	struct kref kref_cnt;				/* Reference count */
 	struct net_device *dev;				/* Device associated with port policer */
@@ -99,4 +100,3 @@ void ppe_policer_deinit(void);
 void ppe_policer_init(struct dentry *dentry);
 
 extern struct ppe_policer_base gbl_ppe_policer;
-

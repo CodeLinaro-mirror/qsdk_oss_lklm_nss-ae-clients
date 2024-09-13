@@ -250,6 +250,89 @@ ppe_policer_ret_t ppe_policer_destroy(struct ppe_policer_destroy_info *destroy)
 EXPORT_SYMBOL(ppe_policer_destroy);
 
 /*
+ * ppe_policer_rule_flush()
+ * 	Flush IPv4 PPE POLICER rule
+ */
+ppe_policer_ret_t ppe_policer_rule_flush(ppe_policer_flush_type_t flush_type)
+{
+	struct ppe_policer_base *g_policer = &gbl_ppe_policer;
+	struct ppe_policer *pol, *tmp;
+
+	spin_lock_bh(&g_policer->lock);
+	ppe_policer_stats_inc(&g_policer->stats.policer_flush_req);
+
+	if (list_empty(&g_policer->port_active_rules) && list_empty(&g_policer->acl_active_rules)) {
+		ppe_policer_trace("Policer rule list already empty for both port and acl policer!\n");
+		spin_unlock_bh(&g_policer->lock);
+		return PPE_POLICER_SUCCESS;
+	}
+
+	/*
+	 * Iterating through rule list to flush all port policer rules
+	 */
+	if (!list_empty(&g_policer->port_active_rules)) {
+		list_for_each_entry_safe(pol, tmp, &g_policer->port_active_rules, list) {
+			switch (flush_type) {
+			case PPE_POLICER_FLUSH_TYPE_USERSPACE:
+				if (pol->userspace_rule) {
+					if (kref_put(&pol->kref_cnt, ppe_policer_port_rule_free)) {
+						ppe_policer_trace("%p: reference goes down to 0 for policer: %p\n", g_policer, pol);
+					}
+				}
+				break;
+
+			case PPE_POLICER_FLUSH_TYPE_KERNELSPACE:
+				if (!pol->userspace_rule) {
+					if (kref_put(&pol->kref_cnt, ppe_policer_port_rule_free)) {
+						ppe_policer_trace("%p: reference goes down to 0 for policer: %p\n", g_policer, pol);
+					}
+				}
+				break;
+
+			case PPE_POLICER_FLUSH_TYPE_ALL:
+				if (kref_put(&pol->kref_cnt, ppe_policer_port_rule_free)) {
+					ppe_policer_trace("%p: reference goes down to 0 for policer: %p\n", g_policer, pol);
+				}
+			}
+		}
+	}
+
+	/*
+	 * Iterating through rule list to flush all acl policer rules
+	 */
+	if (!list_empty(&g_policer->acl_active_rules)) {
+		list_for_each_entry_safe(pol, tmp, &g_policer->acl_active_rules, list) {
+			switch (flush_type) {
+			case PPE_POLICER_FLUSH_TYPE_USERSPACE:
+				if (pol->userspace_rule) {
+					if (kref_put(&pol->kref_cnt, ppe_policer_acl_rule_free)) {
+						ppe_policer_trace("%p: reference goes down to 0 for policer: %p\n", g_policer, pol);
+					}
+				}
+				break;
+
+			case PPE_POLICER_FLUSH_TYPE_KERNELSPACE:
+				if (!pol->userspace_rule) {
+					if (kref_put(&pol->kref_cnt, ppe_policer_acl_rule_free)) {
+						ppe_policer_trace("%p: reference goes down to 0 for policer: %p\n", g_policer, pol);
+					}
+				}
+				break;
+
+			case PPE_POLICER_FLUSH_TYPE_ALL:
+				if (kref_put(&pol->kref_cnt, ppe_policer_acl_rule_free)) {
+					ppe_policer_trace("%p: reference goes down to 0 for policer: %p\n", g_policer, pol);
+				}
+			}
+		}
+	}
+
+	spin_unlock_bh(&g_policer->lock);
+	return PPE_POLICER_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_policer_rule_flush);
+
+/*
  * ppe_policer_create_port()
  *	create port policer
  */
@@ -317,6 +400,7 @@ static bool ppe_policer_create_port(struct ppe_policer_create_info *info)
 
 	port_info->action.red_drop = true;
 
+	pol->userspace_rule = info->userspace_rule;
 	pol->drv_ctx.port_ctx = ppe_drv_policer_port_create(&create);
 	if (!pol->drv_ctx.port_ctx) {
 		ppe_policer_stats_inc(&g_policer->stats.create_port_policer_failed);
@@ -409,6 +493,7 @@ static bool ppe_policer_create_acl(struct ppe_policer_create_info *info)
 
 	acl_info->action.red_drop = true;
 
+	pol->userspace_rule = info->userspace_rule;
 	pol->drv_ctx.acl_ctx = ppe_drv_policer_acl_create(&create);
 	if (!pol->drv_ctx.acl_ctx) {
 		ppe_policer_stats_inc(&g_policer->stats.create_acl_policer_failed);

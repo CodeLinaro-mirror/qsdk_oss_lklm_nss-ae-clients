@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -180,4 +180,3 @@ extern struct ppe_acl_base ppe_acl_gbl;
  */
 void ppe_acl_deinit(void);
 void ppe_acl_init(struct dentry *d_rule);
-

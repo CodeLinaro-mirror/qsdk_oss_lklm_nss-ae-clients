@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -43,6 +43,7 @@ static const char *ppe_policer_stats_str[] = {
 	"policer_create_acl_policer_failed",			/* Acl policer creation failure */
 	"policer_destroy_acl_policer_success",			/* Acl policer destroy successful */
 	"policer_destroy_acl_policer_failed",			/* Acl policer destroy failure */
+	"policer_flush_req",					/* Policer flush rule success */
 	"policer_v4_create_ppe_rule_flow_policer",		/* Policer create rule request */
 	"policer_v4_create_ppe_rule_fail",			/* Policer create rule fail */
 	"policer_v4_destroy_ppe_rule_fail",			/* Policer create rule fail */

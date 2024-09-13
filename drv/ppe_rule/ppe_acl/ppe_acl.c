@@ -340,6 +340,60 @@ ppe_acl_ret_t ppe_acl_rule_destroy(ppe_acl_rule_id_t id)
 EXPORT_SYMBOL(ppe_acl_rule_destroy);
 
 /*
+ * ppe_acl_rule_flush()
+ *	flush ACL rules in PPE.
+ */
+ppe_acl_ret_t ppe_acl_rule_flush(ppe_acl_flush_type_t flush_type)
+{
+	struct ppe_acl_base *acl_g = &ppe_acl_gbl;
+	struct ppe_acl *acl, *tmp;
+
+	/*
+	 * Stats
+	 */
+	spin_lock_bh(&acl_g->lock);
+	ppe_acl_stats_inc(&acl_g->stats.cmn.acl_flush_req);
+
+	if (list_empty(&acl_g->active_rules)) {
+		ppe_acl_trace("ACL rule list already empty!\n");
+		spin_unlock_bh(&acl_g->lock);
+		return PPE_ACL_RET_SUCCESS;
+	}
+
+	/*
+	 * iterating through rule list to delete all rules
+	 */
+	list_for_each_entry_safe(acl, tmp, &acl_g->active_rules, list) {
+		switch (flush_type) {
+		case PPE_ACL_FLUSH_TYPE_USERSPACE:
+			if (acl->rule.userspace_rule) {
+				if (kref_put(&acl->ref_cnt, ppe_acl_rule_free)) {
+					ppe_acl_trace("%p: reference goes down to 0 for acl: %p\n", acl_g, acl);
+				}
+			}
+			break;
+
+		case PPE_ACL_FLUSH_TYPE_KERNELSPACE:
+			if (!acl->rule.userspace_rule) {
+				if (kref_put(&acl->ref_cnt, ppe_acl_rule_free)) {
+					ppe_acl_trace("%p: reference goes down to 0 for acl: %p\n", acl_g, acl);
+				}
+			}
+			break;
+
+		case PPE_ACL_FLUSH_TYPE_ALL:
+			if (kref_put(&acl->ref_cnt, ppe_acl_rule_free)) {
+				ppe_acl_trace("%p: reference goes down to 0 for acl: %p\n", acl_g, acl);
+			}
+		}
+	}
+
+	spin_unlock_bh(&acl_g->lock);
+	return PPE_ACL_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_acl_rule_flush);
+
+/*
  * ppe_acl_rule_to_slice_type
  *	Map ACL rule to PPE slice type.
  */

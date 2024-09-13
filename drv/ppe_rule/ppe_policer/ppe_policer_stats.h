@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -30,12 +30,12 @@ struct ppe_policer_stats {
 	atomic64_t acl_rule_not_found;			/* Port Policer create rule success */
 	atomic64_t policer_destroy_fail_invalid_id;
 	atomic64_t acl_create_fail_oom;			/* Port Policer destroy rule success */
-	atomic64_t acl_create_fail_rule_table_full;		/* Port Policer destroy rule fail */
-	atomic64_t policer_acl_create_req;			/* acl Policer destroy rule success */
-	atomic64_t policer_acl_already_exists;			/* acl policer already exists */
-	atomic64_t port_create_fail_oom;			/* Port Policer destroy rule success */
-	atomic64_t port_create_fail_rule_table_full;		/* Port Policer destroy rule fail */
-	atomic64_t policer_port_create_req;			/* acl Policer destroy rule success */
+	atomic64_t acl_create_fail_rule_table_full;	/* Port Policer destroy rule fail */
+	atomic64_t policer_acl_create_req;		/* acl Policer destroy rule success */
+	atomic64_t policer_acl_already_exists;		/* acl policer already exists */
+	atomic64_t port_create_fail_oom;		/* Port Policer destroy rule success */
+	atomic64_t port_create_fail_rule_table_full;	/* Port Policer destroy rule fail */
+	atomic64_t policer_port_create_req;		/* acl Policer destroy rule success */
 	atomic64_t create_port_policer_success;		/* Port Policer create rule success */
 	atomic64_t create_port_policer_failed;		/* Port Policer create rule fail */
 	atomic64_t create_acl_policer_success;		/* acl Policer create rule success */
@@ -44,11 +44,12 @@ struct ppe_policer_stats {
 	atomic64_t destroy_port_policer_failed;		/* Port Policer destroy rule fail */
 	atomic64_t destroy_acl_policer_success;		/* acl Policer destroy rule success */
 	atomic64_t destroy_acl_policer_failed;		/* acl Policer destroy rule fail */
-	atomic64_t v4_create_ppe_rule_flow_policer;		/* Policer create rule request */
+	atomic64_t policer_flush_req;			/* Policer flush rule success */
+	atomic64_t v4_create_ppe_rule_flow_policer;	/* Policer create rule request */
 	atomic64_t v4_create_ppe_rule_fail;		/* Policer create rule fail */
 	atomic64_t v4_destroy_ppe_rule_fail;		/* Policer create rule fail */
 	atomic64_t v6_create_ppe_rule_fail;		/* Policer destroy rule request */
-	atomic64_t v6_create_ppe_rule_flow_policer;		/* Policer create rule request */
+	atomic64_t v6_create_ppe_rule_flow_policer;	/* Policer create rule request */
 	atomic64_t v6_destroy_ppe_rule_fail;		/* Policer destroy rule fail */
 };
 

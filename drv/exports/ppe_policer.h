@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -81,7 +81,18 @@ typedef enum ppe_policer_ret {
 	PPE_POLICER_CREATE_V6_RULE_FAILURE,		/**< Create v6 rule failure */
 	PPE_POLICER_DESTROY_V4_RULE_FAILURE,		/**< Destroy v4 rule failure */
 	PPE_POLICER_DESTROY_V6_RULE_FAILURE,		/**< Destroy v6 rule failure */
+	PPE_POLICER_FLUSH_RULE_FAILURE,			/**< Flush rule failure */
 } ppe_policer_ret_t;
+
+/**
+ * ppe_policer_flush_type
+ *	Flush type for Policer rule
+ */
+typedef enum ppe_policer_flush_type {
+	PPE_POLICER_FLUSH_TYPE_USERSPACE = 0,		/**< Flush userspace Policer rules. */
+	PPE_POLICER_FLUSH_TYPE_KERNELSPACE,		/**< Flush kernel Policer rules. */
+	PPE_POLICER_FLUSH_TYPE_ALL,			/**< Flush all the rules. */
+} ppe_policer_flush_type_t;
 
 /*
  * ppe_policer_action_info
@@ -132,7 +143,8 @@ struct ppe_policer_destroy_info {
  */
 struct ppe_policer_create_info {
 	/* common configuration */
-	struct ppe_policer_config config;	/**< Create configuration */
+	struct ppe_policer_config config;		/**< Create configuration */
+	bool userspace_rule;				/**< Flag indicating userspace rule */
 
 	/* Only for ACL Policer */
 	uint16_t rule_id;				/**< Rule id for ACL + Policer */
@@ -230,5 +242,17 @@ ppe_policer_ret_t ppe_policer_destroy(struct ppe_policer_destroy_info *destroy);
  * status of ppe_policer_create
  */
 ppe_policer_ret_t ppe_policer_create(struct ppe_policer_create_info *create);
+
+/**
+ * ppe_policer_flush
+ *	Flush PPE policer rules.
+ *
+ * @datatypes
+ * ppe_policer_flush_type_t
+ *
+ * @return
+ * Status of rule flush operation.
+ */
+ppe_policer_ret_t ppe_policer_rule_flush(ppe_policer_flush_type_t flush_type);
 
 #endif /* _PPE_POLICER_H_ */

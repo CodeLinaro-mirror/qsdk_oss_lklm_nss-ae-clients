@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -203,4 +203,20 @@ bool ppe_tun_l2tp_port_set(uint16_t sport, uint16_t dport);
  * Status of operation
  */
 bool ppe_tun_l2tp_port_get(uint16_t *sport, uint16_t *dport);
+
+/*
+ *  ppe_tun_tunipip6_iface_get
+ *      Get TUNIPIP6 PPE interface
+ *
+ * @param type[IN] dev        netdevice
+ * @param type[IN] local_ip   local IP address
+ * @param type[IN] remote_ip  remote IP address
+ * @param type[IN] ip_type    IP address type
+ *
+ * @return
+ * PPE interface
+ */
+uint32_t ppe_tun_tunipip6_iface_get(struct net_device *dev, uint32_t *local_ip,
+				uint32_t *remote_ip, uint8_t ip_type);
+
 #endif /* _NSS_PPE_TUN_DRV_H_ */

@@ -53,6 +53,7 @@
  */
 static int nss_ppenl_acl_ops_create_rule(struct sk_buff *skb, struct genl_info *info);
 static int nss_ppenl_acl_ops_destroy_rule(struct sk_buff *skb, struct genl_info *info);
+static int nss_ppenl_acl_ops_flush_rule(struct sk_buff *skb, struct genl_info *info);
 
 /*
  * operation table called by the generic netlink layer based on the command
@@ -60,6 +61,7 @@ static int nss_ppenl_acl_ops_destroy_rule(struct sk_buff *skb, struct genl_info 
 static struct genl_ops nss_ppenl_acl_ops[] = {
 	{.cmd = NSS_PPE_ACL_CREATE_RULE_MSG, .doit = nss_ppenl_acl_ops_create_rule,},	/* rule create */
 	{.cmd = NSS_PPE_ACL_DESTROY_RULE_MSG, .doit = nss_ppenl_acl_ops_destroy_rule,},	/* rule destroy */
+	{.cmd = NSS_PPE_ACL_FLUSH_RULE_MSG, .doit = nss_ppenl_acl_ops_flush_rule,},	/* rule flush */
 };
 
 /*
@@ -189,6 +191,11 @@ static int nss_ppenl_acl_ops_create_rule(struct sk_buff *skb, struct genl_info *
 		return error;
 	}
 
+	/*
+	 * setting that the rule is from userspace
+	 */
+	nl_acl_rule->rule.userspace_rule = true;
+
 	ppe_acl_rule_dump_rule(&nl_acl_rule->rule);
 	status = ppe_acl_rule_create(&nl_acl_rule->rule);
 	if (status == PPE_ACL_RET_SUCCESS) {
@@ -267,6 +274,59 @@ static int nss_ppenl_acl_ops_destroy_rule(struct sk_buff *skb, struct genl_info 
 	return 0;
 done:
 	return error;
+}
+
+/*
+ * nss_ppenl_acl_ops_flush_rule()
+ * 	rule flush handler
+ */
+static int nss_ppenl_acl_ops_flush_rule(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nss_ppenl_acl_rule *nl_acl_rule;
+	struct nss_ppenl_cmn *nl_cm;
+	struct sk_buff *resp;
+	uint32_t pid;
+	ppe_acl_ret_t ret;
+
+	/*
+	 * extract the message payload
+	 */
+	nl_cm = nss_ppenl_get_msg(&nss_ppenl_acl_family, info, NSS_PPE_ACL_FLUSH_RULE_MSG);
+	if (!nl_cm) {
+		nss_ppenl_warn("unable to extract rule flush data, %p\n", skb);
+		return -EINVAL;
+	}
+
+	/*
+	 * Message validation required before accepting the configuration
+	 */
+	nl_acl_rule = container_of(nl_cm, struct nss_ppenl_acl_rule, cm);
+	pid = nl_cm->pid;
+
+	/*
+	 * copy the NL message for response
+	 */
+	resp = nss_ppenl_copy_msg(skb);
+	if (!resp) {
+		nss_ppenl_warn("%d:unable to save response data from NL buffer, %p\n", pid, skb);
+		return -ENOMEM;
+	}
+
+	ret = ppe_acl_rule_flush(PPE_ACL_FLUSH_TYPE_USERSPACE);
+	if (ret != PPE_ACL_RET_SUCCESS) {
+		nss_ppenl_warn("unable to flush rule in ppe driver, error = %d\n", ret);
+		return -EINVAL;
+	}
+
+	/*
+	 * Send the response back to user application
+	 */
+	nl_acl_rule = nss_ppenl_get_data(resp);
+	nl_acl_rule->rule.ret = ret;
+
+	nss_ppenl_trace("Sending response to userspace: ret %d\n", nl_acl_rule->rule.ret);
+	nss_ppenl_ucast_resp(resp);
+	return 0;
 }
 
 /*

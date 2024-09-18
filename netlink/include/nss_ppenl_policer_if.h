@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -72,6 +72,7 @@ struct nss_ppenl_policer_rule {
 enum nss_ppe_policer_message_types {
 	NSS_PPE_POLICER_CREATE_RULE_MSG,	/* Policer rule create message */
 	NSS_PPE_POLICER_DESTROY_RULE_MSG,	/* Policer rule delete message */
+	NSS_PPE_POLICER_FLUSH_RULE_MSG,		/* Policer rule flush message */
 	NSS_PPE_POLICER_MAX_MSG_TYPES		/* Maximum message type */
 };
 

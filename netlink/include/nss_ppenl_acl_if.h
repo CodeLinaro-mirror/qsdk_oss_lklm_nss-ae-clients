@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -46,6 +46,7 @@ struct nss_ppenl_acl_rule {
 enum nss_ppe_acl_message_types {
 	NSS_PPE_ACL_CREATE_RULE_MSG,		/**< ACL rule create message */
 	NSS_PPE_ACL_DESTROY_RULE_MSG,		/**< ACL rule destroy message */
+	NSS_PPE_ACL_FLUSH_RULE_MSG,		/**< ACL rule flush message */
 	NSS_PPE_ACL_MAX_MSG_TYPES,		/**< Maximum message type */
 };
 

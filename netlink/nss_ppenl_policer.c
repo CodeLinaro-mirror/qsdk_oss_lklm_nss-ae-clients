@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -54,6 +54,7 @@
  */
 static int nss_ppenl_policer_ops_create_rule(struct sk_buff *skb, struct genl_info *info);
 static int nss_ppenl_policer_ops_destroy_rule(struct sk_buff *skb, struct genl_info *info);
+static int nss_ppenl_policer_ops_flush_rule(struct sk_buff *skb, struct genl_info *info);
 
 /*
  * operation table called by the generic netlink layer based on the command
@@ -61,6 +62,7 @@ static int nss_ppenl_policer_ops_destroy_rule(struct sk_buff *skb, struct genl_i
 static struct genl_ops nss_ppenl_policer_ops[] = {
 	{.cmd = NSS_PPE_POLICER_CREATE_RULE_MSG, .doit = nss_ppenl_policer_ops_create_rule,},	/* rule create */
 	{.cmd = NSS_PPE_POLICER_DESTROY_RULE_MSG, .doit = nss_ppenl_policer_ops_destroy_rule,},	/* rule destroy */
+	{.cmd = NSS_PPE_POLICER_FLUSH_RULE_MSG, .doit = nss_ppenl_policer_ops_flush_rule,},	/* rule flush */
 };
 
 /*
@@ -85,7 +87,7 @@ static struct genl_family nss_ppenl_policer_family = {
 
 /*
  * nss_ppenl_policer_ops_create_rule()
- * rule create handler
+ * 	rule create handler
  */
 static int nss_ppenl_policer_ops_create_rule(struct sk_buff *skb, struct genl_info *info)
 {
@@ -147,6 +149,12 @@ static int nss_ppenl_policer_ops_create_rule(struct sk_buff *skb, struct genl_in
 	create.config.action_info.yellow_dei = nl_policer_rule->config.action_info.yellow_dei;
 	create.config.mode = nl_policer_rule->config.meter_mode;
 	create.config.meter_unit = nl_policer_rule->config.meter_unit;
+
+	/*
+	 * setting that the rule is from userspace
+	 */
+	create.userspace_rule = true;
+
 	if(!create.policer_type) {
 		create.config.action_info.yellow_dscp = nl_policer_rule->config.action_info.yellow_dscp;
 	}
@@ -177,7 +185,7 @@ static int nss_ppenl_policer_ops_create_rule(struct sk_buff *skb, struct genl_in
 
 /*
  * nss_ppenl_policer_ops_destroy_rule()
- * rule delete handler
+ * 	rule delete handler
  */
 static int nss_ppenl_policer_ops_destroy_rule(struct sk_buff *skb, struct genl_info *info)
 {
@@ -233,6 +241,56 @@ static int nss_ppenl_policer_ops_destroy_rule(struct sk_buff *skb, struct genl_i
 	return 0;
 done:
 	return error;
+}
+
+/*
+ * nss_ppenl_policer_ops_flush_rule()
+ * 	rule flush handler
+ */
+static int nss_ppenl_policer_ops_flush_rule(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nss_ppenl_policer_rule *nl_policer_rule;
+	struct nss_ppenl_cmn *nl_cm;
+	struct sk_buff *resp;
+	uint32_t pid;
+	enum ppe_policer_ret pt;
+
+	/*
+	 * extract the message payload
+	 */
+	nl_cm = nss_ppenl_get_msg(&nss_ppenl_policer_family, info, NSS_PPE_POLICER_FLUSH_RULE_MSG);
+	if (!nl_cm) {
+		nss_ppenl_info("unable to extract rule flush data, %p\n", skb);
+		return -EINVAL;
+	}
+
+	/*
+	 * Message validation required before accepting the configuration
+	 */
+	nl_policer_rule = container_of(nl_cm, struct nss_ppenl_policer_rule, cm);
+	pid = nl_cm->pid;
+
+	/*
+	 * copy the NL message for response
+	 */
+	resp = nss_ppenl_copy_msg(skb);
+	if (!resp) {
+		nss_ppenl_info("%d:unable to save response data from NL buffer, %p\n", pid, skb);
+		return -ENOMEM;
+	}
+
+	pt = ppe_policer_rule_flush(PPE_POLICER_FLUSH_TYPE_USERSPACE);
+	nl_policer_rule = nss_ppenl_get_data(resp);
+	nl_policer_rule->config.ret = pt;
+	nss_ppenl_ucast_resp(resp);
+
+	if (pt != PPE_POLICER_SUCCESS) {
+		nss_ppenl_info("Flush rule in ppe driver failed, error = %d",pt);
+		return pt;
+	}
+
+	nss_ppenl_info("PPE rule flush success");
+	return 0;
 }
 
 /*

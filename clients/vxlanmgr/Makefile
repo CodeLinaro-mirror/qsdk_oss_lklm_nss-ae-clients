@@ -9,6 +9,7 @@ qca-nss-ppe-vxlanmgr-objs := nss_ppe_vxlanmgr.o
 qca-nss-ppe-vxlanmgr-objs += nss_ppe_vxlanmgr_db.o
 qca-nss-ppe-vxlanmgr-objs += nss_ppe_vxlanmgr_tunnel.o
 qca-nss-ppe-vxlanmgr-objs += nss_ppe_vxlanmgr_tun_stats.o
+qca-nss-ppe-vxlanmgr-objs += nss_ppe_vxlanmgr_gpe_tunnel.o
 
 ccflags-y += -DNSS_PPE_VXLAN_MGR_DEBUG_LEVEL=3
 ccflags-y += -Wall -Werror

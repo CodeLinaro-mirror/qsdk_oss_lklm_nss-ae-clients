@@ -30,6 +30,7 @@
 #include "nss_ppe_vxlanmgr_priv.h"
 #include "nss_ppe_vxlanmgr_tun_stats.h"
 #include "ppe_drv_tun_cmn_ctx.h"
+#include "ppe_drv_iface.h"
 
 /*
  * FIB update event list.
@@ -240,8 +241,25 @@ static bool nss_ppe_vxlanmgr_gpe_src_exception(struct ppe_vp_cb_info *info, ppe_
 }
 
 /*
+ * nss_ppe_vxlanmgr_gpe_tunnel_update_l3_if_config()
+ *	Configure PPE L3 interface to forward packet when udp csum is zero.
+ */
+static bool nss_ppe_vxlanmgr_gpe_tunnel_update_l3_if_config(struct net_device *dev)
+{
+	struct ppe_drv_iface *iface;
+
+	iface = ppe_drv_iface_get_by_dev(dev);
+	if (!iface) {
+		nss_ppe_vxlanmgr_warn("%px: Failed to find iface.\n", dev);
+		return false;
+	}
+
+	return ppe_drv_iface_udp_zero_csum_action_set(iface, PPE_DRV_IFACE_ZERO_CSUM_ACTION_FRWRD);
+}
+
+/*
  * nss_ppe_vxlanmgr_gpe_tunnel_header_config()
- *	Configure the VxLAN-GPE tunnel header.
+ *	Configure the VXLAN tunnel header.
  */
 static void nss_ppe_vxlanmgr_gpe_tunnel_header_config(struct net_device *dev, struct nss_ppe_vxlanmgr_tun_ctx *tun_ctx)
 {
@@ -426,6 +444,14 @@ static void nss_ppe_vxlanmgr_fib_add_event_handler(struct nss_ppe_vxlanmgr_fib_e
 	}
 
 	/*
+	 * Update PPE tunnel interface config.
+	 */
+	if (!nss_ppe_vxlanmgr_gpe_tunnel_update_l3_if_config(nss_netdev)) {
+		nss_ppe_vxlanmgr_trace("%px: Failed to update PPE L3 interface config for %s\n", fib_newneigh_info, nss_netdev->name);
+		goto deconfig_tun_hdr;
+	}
+
+	/*
 	 * Enable Decap for nssdev.
 	 */
 	nss_ppe_vxlanmgr_gpe_decap_enable(pdev, nss_netdev);
@@ -436,6 +462,9 @@ static void nss_ppe_vxlanmgr_fib_add_event_handler(struct nss_ppe_vxlanmgr_fib_e
 	dev_put(pdev);
 
 	return;
+
+deconfig_tun_hdr:
+	ppe_tun_deconfigure(nss_netdev);
 
 dealloc_tun_hdr:
 	kfree(tun_ctx->tun_hdr);

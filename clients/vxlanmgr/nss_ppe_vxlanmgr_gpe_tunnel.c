@@ -165,7 +165,7 @@ static bool nss_ppe_vxlanmgr_gpe_tunnel_parse_end_points(struct net_device *dev,
 
 			rt = ip_route_output_key(priv->net, &fl4);
 			if (IS_ERR(rt)) {
-				nss_ppe_vxlanmgr_warn("%px: No route available\n", dev);
+				nss_ppe_vxlanmgr_warn("%px: [IPv4] No route available\n", dev);
 				return false;
 			}
 
@@ -173,10 +173,38 @@ static bool nss_ppe_vxlanmgr_gpe_tunnel_parse_end_points(struct net_device *dev,
 			nss_ppe_vxlanmgr_warn("%px: [IPv4] src ip: %pI4, dst ip: %pI4\n", dev, &l3->saddr, &l3->daddr);
 		}
 	} else {
+		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_IPV6;
+		memcpy(l3->saddr, &sip->sin6.sin6_addr, sizeof(struct in6_addr));
+		memcpy(l3->daddr, &rip->sin6.sin6_addr, sizeof(struct in6_addr));
+
 		/*
-		 * TODO: Add support for IPv6
+		 * Use the zero checksum rx flag for IPv6 from host netdevice
 		 */
-		nss_ppe_vxlanmgr_warn("%px: IPv6 not supported\n", dev);
+		if (priv->cfg.flags & VXLAN_F_UDP_ZERO_CSUM6_RX) {
+			l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX;
+		}
+
+		/*
+		 * Lookup to get the source address if not specified
+		 */
+		if (ipv6_addr_any(&sip->sin6.sin6_addr)) {
+			struct flowi6 fl6;
+			struct dst_entry *dentry;
+
+			memset(&fl6, 0, sizeof(fl6));
+			fl6.flowi6_proto = IPPROTO_UDP;
+			fl6.daddr = rip->sin6.sin6_addr;
+			fl6.saddr = sip->sin6.sin6_addr;
+
+			dentry = ipv6_stub->ipv6_dst_lookup_flow(priv->net, priv->vn6_sock->sock->sk, &fl6, NULL);
+			if (!dentry) {
+				nss_ppe_vxlanmgr_warn("%px: [IPv6] No route available.\n", dev);
+				return false;
+			}
+
+			memcpy(l3->saddr, &fl6.saddr, sizeof(struct in6_addr));
+			nss_ppe_vxlanmgr_warn("%px: [IPv6] src ip: %pI6, dst ip: %pI6\n", dev, &l3->saddr, &l3->daddr);
+		}
 	}
 
 	return true;
@@ -538,28 +566,36 @@ static int nss_ppe_vxlanmgr_fib_update_event(struct notifier_block *nb, unsigned
 			return NOTIFY_DONE;
 		}
 
-		nss_ppe_vxlanmgr_trace("IPv4: event for prefix: %pI4, prefix_len: %d \n", &fen_info->dst, fen_info->dst_len);
-
 		dev = nh->fib_nh_dev;
 		lwtstate = nh->fib_nh_lws;
-		if (!lwtstate) {
-			nss_ppe_vxlanmgr_trace("lwt state is NULL for IPv4 \n");
+		nss_ppe_vxlanmgr_trace("IPv4: event for prefix: %pI4, prefix_len: %d \n", &fen_info->dst, fen_info->dst_len);
+	} else if (info->family == AF_INET6) {
+		struct fib6_entry_notifier_info *fen_info6;
+		struct fib6_nh *nh6;
+
+		fen_info6 = container_of(info, struct fib6_entry_notifier_info, info);
+		nh6 = &fen_info6->rt->fib6_nh[0];
+		if (!nh6) {
+			nss_ppe_vxlanmgr_trace("%px: Next hop entry for IPv6 is NULL", info);
 			return NOTIFY_DONE;
 		}
-	} else if (info->family == AF_INET6) {
-		/*
-		 * TODO: add support for IPv6
-		 */
-		nss_ppe_vxlanmgr_warn("IPv6 not supported  \n");
-		return NOTIFY_DONE;
+
+		dev = nh6->nh_common.nhc_dev;
+		lwtstate = nh6->nh_common.nhc_lwtstate;
+		nss_ppe_vxlanmgr_trace("IPv6: event for prefix: %pI6, prefix_len: %d", &fen_info6->rt->fib6_dst.addr, fen_info6->rt->fib6_dst.plen);
 	} else {
 		nss_ppe_vxlanmgr_warn("Unsupported address family: %X ! \n", info->family);
 		return NOTIFY_DONE;
 	}
 
 	/*
-	 * Check if LW tunnel type is ENCAP IP or IP6, used for VxLAN-GPE encapsulation
+	 * Check if LW state is valid and tunnel type is ENCAP IP or IP6, used for VXLAN-GPE encapsulation
 	 */
+	if (!lwtstate) {
+		nss_ppe_vxlanmgr_trace("lwt state is NULL for %s \n", (info->family == AF_INET) ? "IPv4" : "IPv6");
+		return NOTIFY_DONE;
+	}
+
 	if (lwtstate->type != LWTUNNEL_ENCAP_IP && lwtstate->type != LWTUNNEL_ENCAP_IP6) {
 		nss_ppe_vxlanmgr_trace("%px: Unsupported tunnel encap type: %u", info, lwtstate->type);
 		return NOTIFY_DONE;
@@ -608,11 +644,9 @@ static int nss_ppe_vxlanmgr_fib_update_event(struct notifier_block *nb, unsigned
 		fib_event_data->sip.sin.sin_addr.s_addr = tun_info->key.u.ipv4.src;
 		nss_ppe_vxlanmgr_trace("%px: Local ip: %pI4, Remote_ip: %pI4", tun_info, &tun_info->key.u.ipv4.src, &tun_info->key.u.ipv4.dst);
 	} else {
-		/*
-		 * TODO: add support for IPv6
-		 */
-		nss_ppe_vxlanmgr_warn("IPv6 remote IP not supported  \n");
-		return NOTIFY_DONE;
+		fib_event_data->rip.sin6.sin6_addr = tun_info->key.u.ipv6.dst;
+		fib_event_data->sip.sin6.sin6_addr = tun_info->key.u.ipv6.src;
+		nss_ppe_vxlanmgr_trace("%px: Local ip: %pI6, Remote ip: %pI6", tun_info, &tun_info->key.u.ipv6.src, &tun_info->key.u.ipv6.dst);
 	}
 
 	nss_ppe_vxlanmgr_trace("%px: VxLAN-GPE - dev_name: %s, vni: %X, tos: %X, ttl: %X, tun_flags:%X \n",

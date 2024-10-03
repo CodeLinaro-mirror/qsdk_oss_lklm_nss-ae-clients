@@ -28,23 +28,6 @@ DEFINE_HASHTABLE(nss_ppe_vxlanmgr_tunnel_tbl, NSS_PPE_VXLANMGR_HASH_TABLE_SIZE);
 DEFINE_SPINLOCK(nss_ppe_vxlanmgr_tunnel_tbl_lock);
 
 /*
- * nss_ppe_vxlanmgr_convert_to_vxlan_addr()
- *	Convert the address to the VXLAN address format.
- */
-static inline void nss_ppe_vxlanmgr_convert_to_vxlan_addr(union vxlan_addr *vxlan_address, uint32_t *addr, uint8_t type)
-{
-	if (type == AF_INET) {
-		vxlan_address->sa.sa_family = AF_INET;
-		vxlan_address->sin.sin_addr.s_addr = addr[0];
-		nss_ppe_vxlanmgr_trace("%px: VXLAN remote IPV4: %X", vxlan_address, addr[0]);
-	} else {
-		vxlan_address->sa.sa_family = AF_INET6;
-		memcpy(&vxlan_address->sin6.sin6_addr, addr, sizeof(struct in6_addr));
-		nss_ppe_vxlanmgr_trace("%px: VXLAN remote IPV6: %pI6h", vxlan_address, &addr[0]);
-	}
-}
-
-/*
  * nss_ppe_vxlanmgr_addr_equal()
  *	Return true if both the VXLAN address are equal.
  */
@@ -125,7 +108,7 @@ uint8_t nss_ppe_vxlanmgr_get_remote_count(struct net_device *dev, __be32 vni_key
 }
 
 /*
- * nss_ppe_vxlanmgr_get_tun_ctx_by_pdev_and_rip()
+ * nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip()
  *	Find VxLAN tunnel context using vni and the remote IP address
  */
 struct nss_ppe_vxlanmgr_tun_ctx *nss_ppe_vxlanmgr_get_tun_ctx_by_vni_and_rip(__be32 vni_key, union vxlan_addr *rip)
@@ -162,15 +145,37 @@ bool nss_ppe_vxlanmgr_new_remote(__be32 vni_key, union vxlan_addr *rip)
 }
 
 /*
+ * nss_ppe_vxlanmgr_gpe_all_remotes_set_mtu()
+ *	Set mtu for all the remotes of the base parent linux netdevice
+ *
+ * For VXLAN-GPE VNI is not bound with the netdevice, hence unlike vxlan
+ * we need to iterate the database to find and update mtu for all the
+ * nss netdev which have Linux netdev as parent netdev.
+ */
+void nss_ppe_vxlanmgr_gpe_all_remotes_set_mtu(struct net_device *pdev, unsigned int mtu)
+{
+	struct nss_ppe_vxlanmgr_tun_ctx *curr_tun_ctx;
+	unsigned bkt;
+
+	spin_lock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
+	hash_for_each(nss_ppe_vxlanmgr_tunnel_tbl, bkt, curr_tun_ctx, node) {
+		if ((curr_tun_ctx->vp_status == NSS_PPE_VXLANMGR_VP_CREATION_SUCCESS) &&
+				(curr_tun_ctx->parent_dev == pdev) &&
+				(ppe_tun_mtu_set(curr_tun_ctx->remote_info.nss_netdev, mtu))) {
+			nss_ppe_vxlanmgr_warn("%px: Failed to set mtu for nss_netdev %s", pdev, curr_tun_ctx->remote_info.nss_netdev->name);
+		}
+	}
+	spin_unlock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
+}
+
+/*
  * nss_ppe_vxlanmgr_get_ifindex_and_vp_status()
  *	Find the parent/host netdevice using the parent ndetdevice and the remote IP address.
  */
-enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, uint32_t *remote_ip, uint8_t ip_type, int *ifindex)
+enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(struct net_device *dev, union vxlan_addr *remote_ip, uint32_t vni, int *ifindex)
 {
 	struct nss_ppe_vxlanmgr_tun_ctx *curr_tun_ctx, *remote_tun_ctx;
 	struct vxlan_dev *priv;
-	uint32_t vni_key;
-	union vxlan_addr vxlan_remote_ip = {0};
 	enum nss_ppe_vxlanmgr_vp_creation vp_status = NSS_PPE_VXLANMGR_VP_CREATION_INVALID;
 
 	nss_ppe_vxlanmgr_assert(netif_is_vxlan(dev));
@@ -180,14 +185,9 @@ enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(str
 		return NSS_PPE_VXLANMGR_VP_CREATION_INVALID;
 	}
 
-	nss_ppe_vxlanmgr_convert_to_vxlan_addr(&vxlan_remote_ip, remote_ip, ip_type);
-	nss_ppe_vxlanmgr_trace("%px: VXLAN remote ip_type: %d", dev, ip_type);
-
 	priv = netdev_priv(dev);
-	vni_key = vxlan_vni_field(priv->cfg.vni);
-
-	if (dstport != ntohs(priv->cfg.dst_port)) {
-		nss_ppe_vxlanmgr_warn("%px: VXLAN: configured PPE dport: %u is not-equal to user given dport:%dn", dev, dstport, ntohs(priv->cfg.dst_port));
+	if ((dstport != ntohs(priv->cfg.dst_port)) && (dstport_gpe != ntohs(priv->cfg.dst_port))) {
+		nss_ppe_vxlanmgr_warn("%px: VXLAN: configured PPE dport vxlan: %u / vxlan-gpe: %u is not-equal to user given dport:%d\n", dev, dstport, dstport_gpe, ntohs(priv->cfg.dst_port));
 		return NSS_PPE_VXLANMGR_VP_CREATION_FAILED;
 	}
 
@@ -196,8 +196,8 @@ enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(str
 	 */
 	*ifindex = -1;
 	spin_lock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
-	hash_for_each_possible(nss_ppe_vxlanmgr_tunnel_tbl, curr_tun_ctx, node, vni_key) {
-		if (curr_tun_ctx->vni == vni_key && nss_ppe_vxlanmgr_addr_equal(&curr_tun_ctx->remote_info.remote_ip, &vxlan_remote_ip)) {
+	hash_for_each_possible(nss_ppe_vxlanmgr_tunnel_tbl, curr_tun_ctx, node, vni) {
+		if (curr_tun_ctx->vni == vni && nss_ppe_vxlanmgr_addr_equal(&curr_tun_ctx->remote_info.remote_ip, remote_ip)) {
 			vp_status = curr_tun_ctx->vp_status;
 			remote_tun_ctx = curr_tun_ctx;
 			if (vp_status == NSS_PPE_VXLANMGR_VP_CREATION_SUCCESS) {
@@ -232,10 +232,10 @@ enum nss_ppe_vxlanmgr_vp_creation nss_ppe_vxlanmgr_get_ifindex_and_vp_status(str
 	/*
 	 * CASE 3: When the Remote IP (RIP) is NEVER found in the Data-Base (DB)
 	 * a) Never found in the data-base so return "FAILED".
-	 * b) Dint find in the data-base but it may be created soon, so set status as "IN_PROGRESS".
+	 * b) Did not find in the data-base but it may be created soon, so set status as "IN_PROGRESS".
 	 */
 	if (vp_status == NSS_PPE_VXLANMGR_VP_CREATION_INVALID) {
-		if (nss_ppe_vxlanmgr_get_remote_count(dev, vni_key) == NSS_PPE_VXLANMGR_MAX_REMOTES) {
+		if (nss_ppe_vxlanmgr_get_remote_count(dev, vni) == NSS_PPE_VXLANMGR_MAX_REMOTES) {
 			nss_ppe_vxlanmgr_warn("%px: VXLAN: The RIP is not found in the Data-Base/Hash table", dev);
 			return NSS_PPE_VXLANMGR_VP_CREATION_FAILED;
 		}

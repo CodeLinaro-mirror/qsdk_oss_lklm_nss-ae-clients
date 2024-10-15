@@ -735,6 +735,23 @@ bool ppe_drv_flow_v6_service_code_get(struct ppe_drv_v6_conn_flow *pcf, struct p
 	}
 
 	/*
+	 * If the egress port has MPSK support and if it is a bridge flow,
+	 * bypass the egress vlan table for the same.
+	 */
+	if (ppe_drv_port_flags_check(pp, PPE_DRV_PORT_FLAG_MPSK)) {
+		if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_VP_MPSK)) {
+				ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+							pcf, service_code, PPE_DRV_SC_VP_MPSK);
+				return false;
+			}
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
+	/*
 	 * Get the service code for the flow according to the flow type
 	 * and precedence of these features (like DS flows, policer/ACL based service code, etc)
 	 */
@@ -1638,6 +1655,23 @@ bool ppe_drv_flow_v4_service_code_get(struct ppe_drv_v4_conn_flow *pcf, struct p
 			ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
 						pcf, service_code, PPE_DRV_SC_NOEDIT_RULE);
 			return false;
+		}
+
+		*scp = service_code;
+		return true;
+	}
+
+	/*
+	 * If the egress port has MPSK support and it is a bridge flow,
+	 * bypass the egress vlan table for the same.
+	 */
+	if (ppe_drv_port_flags_check(pp, PPE_DRV_PORT_FLAG_MPSK)) {
+		if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_BRIDGE_FLOW)) {
+			if (!ppe_drv_sc_check_and_set(&service_code, PPE_DRV_SC_VP_MPSK)) {
+				ppe_drv_warn("%p: flow requires multiple service code, existing:%u new:%u",
+							pcf, service_code, PPE_DRV_SC_VP_MPSK);
+				return false;
+			}
 		}
 
 		*scp = service_code;

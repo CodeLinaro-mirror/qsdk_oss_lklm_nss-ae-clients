@@ -367,6 +367,18 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
+	case PPE_DRV_SC_VP_MPSK:
+		/*
+		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
+		 * packets sent to PPE, also bypass the egress VLAN table with MPSK specific service code.
+		 */
+		sc_cfg.bypass_bitmap[1] = ((1 << EG_VLAN_MEMBER_CHECK_BYP)
+						| (1 << SOURCE_FLTR_BYP)
+						| (1 << L2_SOURCE_SEC_BYP)
+						| (1 << EG_VLAN_XLT_BYP));
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
 	case PPE_DRV_SC_FLOW_ACL_FIRST ... PPE_DRV_SC_FLOW_ACL_LAST:
 		/*
 		 * These are primarily used for N-tuple lookup or flow+policer combintation.
@@ -672,5 +684,6 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING, PPE_DRV_SC_LOOPBACK_RING_NEXT, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING_NEXT, PPE_DRV_SC_BYPASS_ALL, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_VP_MPSK, PPE_DRV_SC_VP_MPSK, PPE_DRV_PORT_CPU);
 	return sc;
 }

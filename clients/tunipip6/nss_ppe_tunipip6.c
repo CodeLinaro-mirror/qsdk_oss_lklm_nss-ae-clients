@@ -36,6 +36,7 @@
 #include <net/ip6_tunnel.h>
 #include <linux/netdevice.h>
 
+#include <ppe_drv_iface.h>
 #include <nss_ppe_tun_drv.h>
 #include "nss_ppe_tunipip6.h"
 
@@ -59,6 +60,97 @@ MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
 static bool inherit_dscp = false;
 module_param(inherit_dscp, bool, 0644);
 MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
+
+/*
+ * ppe_tun_tunipip6_iface_get()
+ *	Get the PPE interface for tunipip6 tunnel
+ *
+ * This API returns an invalid interface if the flow's local/remote IP
+ * maps to an FMR rule as FMR rule offload is not supported in PPE.
+ */
+uint32_t ppe_tun_tunipip6_iface_get(struct net_device *dev, uint32_t *local_ip,
+				uint32_t *remote_ip, uint8_t ip_type)
+{
+	struct ip6_tnl *tunnel = NULL;
+	struct __ip6_tnl_fmr *fmr = NULL;
+	struct ppe_drv_iface *iface = NULL;
+	ppe_drv_iface_type_t iface_type = PPE_DRV_IFACE_TYPE_INVALID;
+
+	/*
+	 * Check if tunnel device is represented in PPE or not
+	 */
+	iface = ppe_drv_iface_get_by_dev(dev);
+	if (!iface) {
+		nss_ppe_tunipip6_trace("%px: No valid PPE interface found for the given dev %s",
+				dev, dev->name);
+		return PPE_DRV_IFACE_TYPE_INVALID;
+	}
+
+	/*
+	 * Check if PPE interface is of type L3
+	 */
+	iface_type = ppe_drv_iface_get_type(iface);
+	if (iface_type != PPE_DRV_IFACE_TYPE_VP_L3_TUN) {
+		nss_ppe_tunipip6_trace("%px: PPE interface is not L3 interface for the given dev %s",
+				dev, dev->name);
+		return PPE_DRV_IFACE_TYPE_INVALID;
+	}
+
+	tunnel = (struct ip6_tnl *)netdev_priv(dev);
+
+	/*
+	 * PPE offload of MAP-E flow using FMR rule is not supported, invalid interface be returned
+	 * TODO: Update the logic once FMR rules are supported in PPE.
+	 */
+	if (ip_type == AF_INET6) {
+		struct in6_addr src_addr;
+		struct in6_addr dst_addr;
+
+		src_addr.in6_u.u6_addr32[0] = htonl(local_ip[0]);
+		src_addr.in6_u.u6_addr32[1] = htonl(local_ip[1]);
+		src_addr.in6_u.u6_addr32[2] = htonl(local_ip[2]);
+		src_addr.in6_u.u6_addr32[3] = htonl(local_ip[3]);
+
+		dst_addr.in6_u.u6_addr32[0] = htonl(remote_ip[0]);
+		dst_addr.in6_u.u6_addr32[1] = htonl(remote_ip[1]);
+		dst_addr.in6_u.u6_addr32[2] = htonl(remote_ip[2]);
+		dst_addr.in6_u.u6_addr32[3] = htonl(remote_ip[3]);
+
+		/* Remote address didn't match BR address, may be using FMR rule */
+		if (!ipv6_addr_equal(&dst_addr, &tunnel->parms.raddr)) {
+			nss_ppe_tunipip6_trace("%px: TUNIPIP6 FMR is used for the flow, local ip: %pI6 remote ip: %pI6, BR ip: %pI6 \n",
+						dev, &src_addr.in6_u.u6_addr32[0], &dst_addr.in6_u.u6_addr32[0],
+						&tunnel->parms.raddr.in6_u.u6_addr32[0]);
+			return PPE_DRV_IFACE_TYPE_INVALID;
+		}
+
+		return iface_type;
+	}
+
+	/*
+	 * Remote address matched FMR src prefix, FMR rule is used.
+	 * This rule is used for inner flows.
+	 */
+	if (tunnel->parms.fmrs) {
+		for (fmr = tunnel->parms.fmrs; fmr; fmr = fmr->next) {
+			unsigned mshift = 32 - fmr->ip4_prefix_len;
+			if (ntohl(fmr->ip4_prefix.s_addr) >> mshift == (remote_ip[0]) >> mshift) {
+				break;
+			}
+		}
+	}
+
+	if (fmr) {
+		nss_ppe_tunipip6_trace("%px: TUNIPIP6 FMR is used for the flow, local ip: %pI4h remote ip: %pI4h\n",
+					dev, &local_ip[0], &remote_ip[0]);
+		return PPE_DRV_IFACE_TYPE_INVALID;
+	}
+
+	nss_ppe_tunipip6_trace("%px: TUNIPIP6 BMR is used for the flow, local ip: %pI4h remote ip: %pI4h\n",
+				dev, &local_ip[0], &remote_ip[0]);
+	return iface_type;
+}
+EXPORT_SYMBOL(ppe_tun_tunipip6_iface_get);
 
 /*
  * nss_ppe_tunipip6_dev_stats_update()
@@ -188,16 +280,10 @@ static int nss_ppe_tunipip6_dev_event(struct notifier_block  *nb,
 {
 	struct net_device *dev = netdev_notifier_info_to_dev(info);
 	struct ppe_drv_tun_cmn_ctx *tun_hdr;
-	struct ip6_tnl *tunnel = (struct ip6_tnl *)netdev_priv(dev);
 	struct ppe_tun_excp *tun_cb = NULL;
 	bool status;
 
 	if (dev->type != ARPHRD_TUNNEL6) {
-		return NOTIFY_DONE;
-	}
-
-	if (tunnel->parms.fmrs) {
-		nss_ppe_tunipip6_trace("%p: IPIP6 does not support fmr, skip PPE.\n", dev);
 		return NOTIFY_DONE;
 	}
 

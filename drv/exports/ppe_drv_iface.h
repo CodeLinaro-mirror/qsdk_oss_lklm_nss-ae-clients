@@ -60,6 +60,7 @@ enum ppe_drv_iface_type {
 	PPE_DRV_IFACE_TYPE_EIP,			/**< Interface type EIP. */
 	PPE_DRV_IFACE_TYPE_MAX,			/**< Interface type max. */
 };
+typedef enum ppe_drv_iface_type ppe_drv_iface_type_t;
 
 /**
  * ppe_drv_iface_zero_csum_action
@@ -87,6 +88,20 @@ typedef enum ppe_drv_iface_zero_csum_action ppe_drv_iface_zero_csum_action_t;
  * true or false
  */
 bool ppe_drv_iface_is_physical(struct ppe_drv_iface *iface);
+
+/*
+ * ppe_drv_iface_get_type()
+ *	Get the PPE interface type from the PPE interface.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[IN] iface  PPE interface.
+ *
+ * @return
+ * true or false
+ */
+ppe_drv_iface_type_t ppe_drv_iface_get_type(struct ppe_drv_iface *iface);
 
 /*
  * ppe_drv_iface_eip_set()

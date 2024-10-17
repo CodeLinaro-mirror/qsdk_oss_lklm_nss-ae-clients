@@ -43,6 +43,7 @@ endif
 
 ifeq ($(PPE_POLICER_ENABLED), y)
 qca-nss-ppe-rule-objs += ppe_policer/ppe_policer.o
+qca-nss-ppe-rule-objs += ppe_policer/ppe_policer_dump.o
 qca-nss-ppe-rule-objs += ppe_policer/ppe_policer_stats.o
 ccflags-y += -DPPE_POLICER_DEBUG_LEVEL=3
 endif

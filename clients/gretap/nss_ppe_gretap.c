@@ -125,11 +125,44 @@ static bool nss_ppe_gretap_src_exception(struct ppe_vp_cb_info *info, ppe_tun_da
 }
 
 /*
- * nss_ppe_gretap_set_gre_key_flags()
- *     Set GRE Key flags according to the config
+ * nss_ppe_gretap_flags_check_cmn()
+ * 	API to check the common tunnel create flags between v4 and v6.
+ */
+static bool nss_ppe_gretap_flags_check_cmn(struct net_device *dev, uint16_t i_flags, uint16_t o_flags)
+{
+	if (i_flags & TUNNEL_SEQ) {
+		nss_ppe_gretap_warning("%p:%s iflag SEQ not supported\n", dev, dev->name);
+		return false;
+	}
+
+	if (o_flags & TUNNEL_SEQ) {
+		nss_ppe_gretap_warning("%p:%s oflag SEQ not supported\n", dev, dev->name);
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * nss_ppe_gretap_flags_check_v6()
+ *	API to check if the v6 tunnel create flags are supported.
  *
- * TODO: Check for all the supported gre tunnel create flags, compare it with the ones
- * we support and throw an error for flags we do not support.
+ * There are a number if extended feature for GRETap tunnels which are specified
+ * when creating the tunnel.This API Checks if the flags are supported.
+ */
+static bool nss_ppe_gretap_flags_check_v6(struct net_device *dev, struct ip6_tnl *tun)
+{
+	if (!(tun->parms.flags & IP6_TNL_F_IGN_ENCAP_LIMIT)) {
+		nss_ppe_gretap_warning("%p:%s Encap limit should be none", dev, dev->name);
+		return false;
+	}
+
+	return nss_ppe_gretap_flags_check_cmn(dev, tun->parms.i_flags, tun->parms.o_flags);
+}
+
+/*
+ * nss_ppe_gretap_set_gre_key_flags()
+ *     Set GRE Key, optional flags according to the config
  */
 static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *gre, uint16_t iflags, uint16_t oflags, uint32_t i_key, uint32_t o_key)
 {
@@ -166,11 +199,18 @@ static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *
  */
 static bool nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
 {
+	bool tun_cfg_ol_support;
 	struct ip_tunnel *tunnel;
 	struct ppe_drv_tun_cmn_ctx_l3 *l3 = &tun_hdr->l3;
 	struct iphdr *iphdr;
 	struct ppe_drv_tun_cmn_ctx_gretap *gre = &tun_hdr->tun.gre;
 	tunnel = (struct ip_tunnel *)netdev_priv(netdev);
+
+	tun_cfg_ol_support = nss_ppe_gretap_flags_check_cmn(netdev, tunnel->parms.i_flags, tunnel->parms.o_flags);
+	if (!tun_cfg_ol_support) {
+		nss_ppe_gretap_warning("%p:Configured GREtap extended header not supported\n", netdev);
+		return false;
+	}
 
 	iphdr = &tunnel->parms.iph;
 	/*
@@ -214,19 +254,21 @@ static bool nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct
 
 /*
  * nss_ppe_gretap_ip6_dev_parse_param()
- *      Parse IPv4 gretap arguments sent to PPE driver
+ *      Parse IPv6 gretap arguments sent to PPE driver
  */
 static bool nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
 {
 	struct ip6_tnl *tunnel;
 	struct flowi6 *fl6;
 	struct ppe_drv_tun_cmn_ctx_l3 *l3 = &tun_hdr->l3;
+	bool tun_cfg_ol_support;
 
 	struct ppe_drv_tun_cmn_ctx_gretap *gre = &tun_hdr->tun.gre;
 	tunnel = (struct ip6_tnl *)netdev_priv(netdev);
 
-	if (!(tunnel->parms.flags & IP6_TNL_F_IGN_ENCAP_LIMIT)) {
-		nss_ppe_gretap_warning("%p: Encap limit should be none", netdev);
+	tun_cfg_ol_support = nss_ppe_gretap_flags_check_v6(netdev, tunnel);
+	if (!tun_cfg_ol_support) {
+		nss_ppe_gretap_warning("%p:Configured GREtap extended header not supported\n", netdev);
 		return false;
 	}
 
@@ -329,8 +371,14 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 			status = nss_ppe_gretap_ip4_dev_parse_param(netdev, tun_hdr);
 		}
 
+		/*
+		 * If we are not able to accelerate the outer flows in PPE.
+		 * We can delete the tunnel VP as well since we dont support unidirectional flows.
+		 */
 		if (!status) {
 			kfree(tun_hdr);
+			ppe_tun_free(netdev);
+			nss_gretap_stats_dentry_free(netdev);
 			break;
 		}
 

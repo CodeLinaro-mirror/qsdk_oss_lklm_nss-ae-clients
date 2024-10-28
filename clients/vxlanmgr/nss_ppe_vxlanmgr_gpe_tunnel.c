@@ -434,7 +434,11 @@ static void nss_ppe_vxlanmgr_fib_add_event_handler(struct nss_ppe_vxlanmgr_fib_e
 	tun_cb.src_excp_method = nss_ppe_vxlanmgr_gpe_src_exception;
 	tun_cb.stats_update_method = nss_ppe_vxlan_dev_stats_update;
 	udp_csum = !!(fib_newneigh_info->tun_flags & TUNNEL_CSUM);
-	nss_ppe_vxlanmgr_gpe_tunnel_parse_end_points(pdev, tun_ctx->tun_hdr, &fib_newneigh_info->rip, &fib_newneigh_info->sip, udp_csum);
+	status = nss_ppe_vxlanmgr_gpe_tunnel_parse_end_points(pdev, tun_ctx->tun_hdr, &fib_newneigh_info->rip, &fib_newneigh_info->sip, udp_csum);
+	if (!status) {
+		nss_ppe_vxlanmgr_warn("%px: Failed to parse endpoints for the tunnel\n", fib_newneigh_info);
+		goto dealloc_tun_hdr;
+	}
 
 	/*
 	 * Set MTU for nss netdev and configure PPE tunnel for VxLAN-GPE.

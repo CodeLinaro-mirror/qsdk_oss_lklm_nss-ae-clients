@@ -99,7 +99,10 @@ static void nss_ppe_vxlanmgr_gpe_tunnel_destroy(struct nss_ppe_vxlanmgr_tun_ctx 
 
 	ppe_tun_free(dev);
 
-	unregister_netdev(dev);
+	rtnl_lock();
+	unregister_netdevice(dev);
+	rtnl_unlock();
+
 	free_netdev(dev);
 
 	kfree(tun_ctx->tun_hdr);
@@ -473,7 +476,9 @@ dealloc_tunnel:
 	ppe_tun_free(nss_netdev);
 
 unregister_netdev:
-	rtnl_is_locked() ? unregister_netdevice(nss_netdev) : unregister_netdev(nss_netdev);
+	rtnl_lock();
+	unregister_netdevice(nss_netdev);
+	rtnl_unlock();
 
 dealloc_netdev:
 	free_netdev(nss_netdev);

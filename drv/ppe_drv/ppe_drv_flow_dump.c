@@ -202,11 +202,11 @@ int ppe_flow_dump_v6_get(struct ppe_drv_flow_dump_instance *fdi, struct list_hea
 				goto ppe_drv_flow_dump_write_error;
 			}
 
-			if ((result = ppe_drv_flow_dump_write(fdi, "sip_address", "%pI6", &pcf->dump_match_src_ip[4]))) {
+			if ((result = ppe_drv_flow_dump_write(fdi, "sip_address", "%pI6", pcf->dump_match_src_ip))) {
 				goto ppe_drv_flow_dump_write_error;
 			}
 
-			if ((result = ppe_drv_flow_dump_write(fdi, "sip_address_nat", "%pI6", &pcf->dump_xlate_src_ip[4]))) {
+			if ((result = ppe_drv_flow_dump_write(fdi, "sip_address_nat", "%pI6", pcf->dump_xlate_src_ip))) {
 				goto ppe_drv_flow_dump_write_error;
 			}
 
@@ -218,11 +218,11 @@ int ppe_flow_dump_v6_get(struct ppe_drv_flow_dump_instance *fdi, struct list_hea
 				goto ppe_drv_flow_dump_write_error;
 			}
 
-			if ((result = ppe_drv_flow_dump_write(fdi, "dip_address", "%pI6", &pcf->dump_match_dest_ip[4]))) {
+			if ((result = ppe_drv_flow_dump_write(fdi, "dip_address", "%pI6", pcf->dump_match_dest_ip))) {
 				goto ppe_drv_flow_dump_write_error;
 			}
 
-			if ((result = ppe_drv_flow_dump_write(fdi, "dip_address_nat", "%pI6", &pcf->dump_xlate_dest_ip[4]))) {
+			if ((result = ppe_drv_flow_dump_write(fdi, "dip_address_nat", "%pI6", pcf->dump_xlate_dest_ip))) {
 				goto ppe_drv_flow_dump_write_error;
 			}
 
@@ -381,11 +381,11 @@ int ppe_flow_dump_v6_get(struct ppe_drv_flow_dump_instance *fdi, struct list_hea
 					goto ppe_drv_flow_dump_write_error;
 				}
 
-				if ((result = ppe_drv_flow_dump_write(fdi, "sip_address", "%pI6", &pcr->dump_match_src_ip[4]))) {
+				if ((result = ppe_drv_flow_dump_write(fdi, "sip_address", "%pI6", pcr->dump_match_src_ip))) {
 					goto ppe_drv_flow_dump_write_error;
 				}
 
-				if ((result = ppe_drv_flow_dump_write(fdi, "sip_address_nat", "%pI6", &pcr->dump_xlate_src_ip[4]))) {
+				if ((result = ppe_drv_flow_dump_write(fdi, "sip_address_nat", "%pI6", pcr->dump_xlate_src_ip))) {
 					goto ppe_drv_flow_dump_write_error;
 				}
 
@@ -397,11 +397,11 @@ int ppe_flow_dump_v6_get(struct ppe_drv_flow_dump_instance *fdi, struct list_hea
 					goto ppe_drv_flow_dump_write_error;
 				}
 
-				if ((result = ppe_drv_flow_dump_write(fdi, "dip_address", "%pI6", &pcr->dump_match_dest_ip[4]))) {
+				if ((result = ppe_drv_flow_dump_write(fdi, "dip_address", "%pI6", pcr->dump_match_dest_ip))) {
 					goto ppe_drv_flow_dump_write_error;
 				}
 
-				if ((result = ppe_drv_flow_dump_write(fdi, "dip_address_nat", "%pI6", &pcr->dump_xlate_dest_ip[4]))) {
+				if ((result = ppe_drv_flow_dump_write(fdi, "dip_address_nat", "%pI6", pcr->dump_xlate_dest_ip))) {
 					goto ppe_drv_flow_dump_write_error;
 				}
 

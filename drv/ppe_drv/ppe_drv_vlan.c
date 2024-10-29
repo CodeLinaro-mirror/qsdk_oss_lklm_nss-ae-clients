@@ -16,6 +16,10 @@
 
 #include <linux/etherdevice.h>
 #include <linux/if_vlan.h>
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+#include <net/dsa.h>
+#include <linux/dsa/8021q.h>
+#endif
 #include <fal/fal_rss_hash.h>
 #include <fal/fal_ip.h>
 #include <fal/fal_init.h>
@@ -245,12 +249,47 @@ ppe_drv_ret_t ppe_drv_vlan_as_vp_del_xlate_rules(struct ppe_drv_iface *iface, st
 	sw_error_t rc;
 	struct net_device *base_dev;
 	struct ppe_drv_iface *base_if;
+	struct vlan_dev_priv *dev_priv;
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	struct dsa_port *dp __maybe_unused = NULL;
+#endif
 	uint8_t b_port;
 
-	base_dev = vlan_dev_priv(iface->dev)->real_dev;
+	/*
+	 * Handle VLAN or Q-in-Q (eg: eth0.10, eth0.10.20, lan1.10)
+	 * Post these checks, base_dev will point to base net device (eth0/lan1) for VLAN dev,
+	 * or NULL for non-VLAN interface (eg: eth0/lan1).
+	 */
+	dev_priv = (iface->dev && is_vlan_dev(iface->dev) ? vlan_dev_priv(iface->dev): NULL);
+	base_dev = dev_priv ? dev_priv->real_dev: NULL;
 	if (base_dev && is_vlan_dev(base_dev)) {
 		base_dev = vlan_dev_priv(base_dev)->real_dev;
 	}
+
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	/*
+	 * Handling for DSA/VLAN on DSA interface
+	 */
+	if (!base_dev && dsa_slave_dev_check(iface->dev)) {
+		/*
+		 * We reach here if it's not a VLAN dev, eg: lan1.
+		 * base_dev is NULL at this point. Set base_dev as lan1's CPU port.
+		 */
+		dp = dsa_port_from_netdev(iface->dev);
+		if (dp) {
+			base_dev = dsa_port_to_master(dp);
+		}
+	} else if (base_dev && dsa_slave_dev_check(base_dev)) {
+		/*
+		 * VLAN over DSA interface ? eg: lan1.10.
+		 * base_dev would already been set to lan1. Set base_dev as lan1's CPU port.
+		 */
+		dp = dsa_port_from_netdev(base_dev);
+		if (dp) {
+			base_dev = dsa_port_to_master(dp);
+		}
+	}
+#endif
 
 	if (!base_dev) {
 		ppe_drv_warn("%s: failed to obtain base_dev", iface->dev->name);
@@ -331,14 +370,47 @@ ppe_drv_ret_t ppe_drv_vlan_as_vp_add_xlate_rules(struct ppe_drv_iface *iface, st
 	struct ppe_drv_iface *base_if;
 	struct net_device *base_dev;
 	struct vlan_dev_priv *dev_priv;
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	struct dsa_port *dp __maybe_unused = NULL;
+#endif
 	uint8_t b_port;
 	int ret;
 
-	dev_priv = (iface->dev? vlan_dev_priv(iface->dev): NULL);
+	/*
+	 * Handle VLAN or Q-in-Q (eg: eth0.10, eth0.10.20, lan1.10)
+	 * Post these checks, base_dev will point to base net device (eth0/lan1) for VLAN dev,
+	 * or NULL for non-VLAN interface (eg: eth0/lan1).
+	 */
+	dev_priv = (iface->dev && is_vlan_dev(iface->dev) ? vlan_dev_priv(iface->dev): NULL);
 	base_dev = dev_priv ? dev_priv->real_dev: NULL;
 	if (base_dev && is_vlan_dev(base_dev)) {
 		base_dev = vlan_dev_priv(base_dev)->real_dev;
 	}
+
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	/*
+	 * Handling for DSA/VLAN on DSA interface
+	 */
+	if (!base_dev && dsa_slave_dev_check(iface->dev)) {
+		/*
+		 * We reach here if it's not a VLAN dev, eg: lan1.
+		 * base_dev is NULL at this point. Set base_dev as lan1's CPU port.
+		 */
+		dp = dsa_port_from_netdev(iface->dev);
+		if (dp) {
+			base_dev = dsa_port_to_master(dp);
+		}
+	} else if (base_dev && dsa_slave_dev_check(base_dev)) {
+		/*
+		 * VLAN over DSA interface ? eg: lan1.10.
+		 * base_dev would already been set to lan1. Set base_dev as lan1's CPU port.
+		 */
+		dp = dsa_port_from_netdev(base_dev);
+		if (dp) {
+			base_dev = dsa_port_to_master(dp);
+		}
+	}
+#endif
 
 	if (!base_dev) {
 		ppe_drv_warn("%s: failed to obtain base_dev", iface->dev->name);
@@ -366,9 +438,9 @@ ppe_drv_ret_t ppe_drv_vlan_as_vp_add_xlate_rules(struct ppe_drv_iface *iface, st
 	base_f_port = PPE_DRV_VIRTUAL_PORT_CHK(b_port) ? FAL_PORT_ID(FAL_PORT_TYPE_VPORT, b_port)
 		: FAL_PORT_ID(FAL_PORT_TYPE_PPORT, b_port);
 
-	ppe_drv_trace("%px: rule cvid: %d, rule svid: %d, act cvid: %d, act svid: %d, act src info: %d, port: %d\n",
+	ppe_drv_trace("%px: rule cvid: %d, rule svid: %d, act cvid: %d, act svid: %d, act src info: %d, port: %d, base_dev: %s\n",
 			iface, xlt_rule.c_vid, xlt_rule.s_vid, xlt_action.cvid_xlt,
-			xlt_action.svid_xlt, xlt_action.src_info, b_port);
+			xlt_action.svid_xlt, xlt_action.src_info, b_port, base_dev->name);
 
 	/*
 	 * Add ingress vlan translation rule.

@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -166,4 +166,41 @@ int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule(struct ppe_drv_iface *slave
  * @param cb[IN] callback function.
  */
 void nss_ppe_vlan_mgr_register_bond_dev_get_id_cb(nss_ppe_bond_dev_get_id_cb_t cb);
+
+/*
+ * TODO: Check if the export functions can be add in conditional compilation.
+ */
+
+/*
+ * nss_ppe_vlan_mgr_changeaddr_event()
+ *	Change MAC address of device.
+ *
+ * @param info[IN] netdevice notifier info.
+ */
+int nss_ppe_vlan_mgr_changeaddr_event(struct netdev_notifier_info *info);
+
+/*
+ * nss_ppe_vlan_mgr_changemtu_event()
+ *	Change MTU address of device.
+ *
+ * @param info[IN] netdevice notifier info.
+ */
+int nss_ppe_vlan_mgr_changemtu_event(struct netdev_notifier_info *info);
+
+/*
+ * nss_ppe_vlan_mgr_dsa_vp_destroy()
+ *	Destroy vlan as vp for DSA interface.
+ *
+ * @param dev[IN] DSA iface
+ */
+int nss_ppe_vlan_mgr_dsa_vp_destroy(struct net_device *dev);
+
+/*
+ * nss_ppe_vlan_mgr_dsa_vp_create()
+ *	Create vlan as vp for DSA interface.
+ *
+ * @param dev[IN] DSA iface
+ * @param dev[IN] DSA CPU port iface
+ */
+int nss_ppe_vlan_mgr_dsa_vp_create(struct net_device *dev, struct net_device *master_dev);
 #endif /* _NSS_PPE_VLAN_MGR_H_ */

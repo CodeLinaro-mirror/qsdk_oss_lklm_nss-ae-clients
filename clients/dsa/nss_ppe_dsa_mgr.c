@@ -34,19 +34,14 @@
  * nss_ppe_dsa_mgr_changeaddr_event()
  *	Change dsa netdev MAC address.
  */
-static int nss_ppe_dsa_mgr_changeaddr_event(struct dsa_port *dp)
+static int nss_ppe_dsa_mgr_changeaddr_event(struct netdev_notifier_info *info, struct dsa_port *dp)
 {
 	struct net_device *slave = dp->slave;
 
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
-		/*
-		* vlan_mgr api to change L3IF MAC by slave
-		*/
+		nss_ppe_dsa_mgr_info("slave:%s, MAC Addr change requested.\n", slave->name);
+		nss_ppe_vlan_mgr_changeaddr_event(info);
 	}
-
-	nss_ppe_dsa_mgr_info("slave:%s, idx:%u, proto:%d. \n",
-		slave->name, dp->index, dp->cpu_dp->tag_ops->proto);
-
 	return NOTIFY_DONE;
 }
 
@@ -54,19 +49,14 @@ static int nss_ppe_dsa_mgr_changeaddr_event(struct dsa_port *dp)
  * nss_ppe_dsa_mgr_changemtu_event()
  *     Change dsa netdev MTU.
  */
-static int nss_ppe_dsa_mgr_changemtu_event(struct dsa_port *dp)
+static int nss_ppe_dsa_mgr_changemtu_event(struct netdev_notifier_info *info, struct dsa_port *dp)
 {
 	struct net_device *slave = dp->slave;
 
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
-		/*
-		* vlan_mgr api to change VP mtu by slave
-		*/
+		nss_ppe_dsa_mgr_info("slave:%s, idx:%u, proto:%d. \n", slave->name, dp->index, dp->cpu_dp->tag_ops->proto);
+		nss_ppe_vlan_mgr_changemtu_event(info);
 	}
-
-	nss_ppe_dsa_mgr_info("slave:%s, idx:%u, proto:%d. \n",
-		slave->name, dp->index, dp->cpu_dp->tag_ops->proto);
-
 	return NOTIFY_DONE;
 }
 
@@ -80,13 +70,8 @@ static int nss_ppe_dsa_mgr_register_event(struct dsa_port *dp)
 	struct net_device *slave = dp->slave;
 
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
-		/*
-		* vlan_mgr api to add vp based xlt by master/slave
-		*/
+		nss_ppe_vlan_mgr_dsa_vp_create(slave, master);
 	}
-
-	nss_ppe_dsa_mgr_info("slave:%s, master:%s, idx:%u, proto:%d. \n",
-		slave->name, master->name, dp->index, dp->cpu_dp->tag_ops->proto);
 
 	return NOTIFY_DONE;
 }
@@ -95,20 +80,13 @@ static int nss_ppe_dsa_mgr_register_event(struct dsa_port *dp)
  * nss_ppe_dsa_mgr_unregister_event()
  *	dsa_mgr handles dsa netdev unregistration notification.
  */
-static int nss_ppe_dsa_mgr_unregister_event(struct dsa_port * dp)
+static int nss_ppe_dsa_mgr_unregister_event(struct dsa_port *dp)
 {
-	struct net_device *master = dsa_port_to_master(dp);
 	struct net_device *slave = dp->slave;
 
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
-		/*
-		* vlan_mgr api to delete vp based xlt by master/slave
-		*/
+		nss_ppe_vlan_mgr_dsa_vp_destroy(slave);
 	}
-
-	nss_ppe_dsa_mgr_info("slave:%s, master:%s, idx:%u, proto:%d. \n",
-		slave->name, master->name, dp->index, dp->cpu_dp->tag_ops->proto);
-
 	return NOTIFY_DONE;
 }
 
@@ -128,9 +106,9 @@ static int nss_ppe_dsa_mgr_netdevice_event(struct notifier_block *unused,
 
 	switch (event) {
 	case NETDEV_CHANGEADDR:
-		return nss_ppe_dsa_mgr_changeaddr_event(dp);
+		return nss_ppe_dsa_mgr_changeaddr_event(info, dp);
 	case NETDEV_CHANGEMTU:
-		return nss_ppe_dsa_mgr_changemtu_event(dp);
+		return nss_ppe_dsa_mgr_changemtu_event(info, dp);
 	case NETDEV_REGISTER:
 		return nss_ppe_dsa_mgr_register_event(dp);
 	case NETDEV_UNREGISTER:
@@ -143,7 +121,10 @@ static int nss_ppe_dsa_mgr_netdevice_event(struct notifier_block *unused,
 	return NOTIFY_DONE;
 }
 
-
+/*
+ * nss_ppe_dsa_mgr_netdevice_nb()
+ *	dsa_mgr netdevice event notifier.
+ */
 static struct notifier_block nss_ppe_dsa_mgr_netdevice_nb __read_mostly = {
 	.notifier_call = nss_ppe_dsa_mgr_netdevice_event,
 };
@@ -165,11 +146,6 @@ static void __exit nss_ppe_dsa_mgr_exit_module(void)
  */
 static int __init nss_ppe_dsa_mgr_init_module(void)
 {
-	if (!of_machine_is_compatible("qcom,ipq5332") &&
-		!of_machine_is_compatible("qcom,ipq5424")) {
-		return -EINVAL;
-	}
-
 	register_netdevice_notifier(&nss_ppe_dsa_mgr_netdevice_nb);
 
 	nss_ppe_dsa_mgr_info("PPE DSA MGR Module (Build %s) loaded\n", NSS_PPE_BUILD_ID);

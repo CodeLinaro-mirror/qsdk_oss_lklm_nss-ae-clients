@@ -28,6 +28,10 @@
 #include <linux/module.h>
 #include <linux/version.h>
 #include <net/bonding.h>
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+#include <linux/dsa/8021q.h>
+#include <net/dsa.h>
+#endif
 #include <ppe_drv_public.h>
 #include <ppe_vp_public.h>
 #include <nss_ppe_vlan_mgr.h>
@@ -53,6 +57,125 @@ static char vlan_as_vp_dev_name[NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX][IFNAMSIZ];
 static struct nss_ppe_vlan_mgr_context vlan_mgr_ctx;
 
 static bool nss_ppe_vlan_mgr_instance_deref(struct nss_vlan_pvt *v);
+
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+/*
+ * nss_ppe_vlan_mgr_add_vlan_as_vp()
+ *	Add the device name to vlan_as_vp_dev_name[]
+ */
+static int nss_ppe_vlan_mgr_add_vlan_as_vp(char *dev_name)
+{
+	int len, i;
+
+	for (i = 0; i < NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX; i++) {
+		if (vlan_as_vp_dev_name[i][0] == '\0')
+			break;
+	}
+
+	if (i == NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX) {
+		nss_ppe_vlan_mgr_warn("VLAN as VP array is FULL. Can't add: %s\n", dev_name);
+		return -1;
+	}
+
+	len = strlen(dev_name);
+	if (len > IFNAMSIZ) {
+		nss_ppe_vlan_mgr_info("Dev name %s too large to be added in VLAN as VP array\n", dev_name);
+		return -1;
+	}
+
+	strscpy(vlan_as_vp_dev_name[i], dev_name, len + 1);
+	nss_ppe_vlan_mgr_info("Added %s to VLAN as VP array at index:%d\n", dev_name, i);
+	return 0;
+}
+
+/*
+ * nss_ppe_vlan_mgr_del_vlan_as_vp()
+ *	Remove the device name from vlan_as_vp_dev_name[], if present
+ */
+static void nss_ppe_vlan_mgr_del_vlan_as_vp(char *dev_name)
+{
+	int i, free_count = 0;
+
+	for (i = 0; i < NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX; i++) {
+		if (vlan_as_vp_dev_name[i][0] == '\0') {
+			free_count++;
+			continue;
+		}
+
+		if (free_count == NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX) {
+			nss_ppe_vlan_mgr_info("Unable to remove %s from VLAN as VP array. List is empty.\n", dev_name);
+			return;
+		}
+
+		if (!strncmp(dev_name, vlan_as_vp_dev_name[i], IFNAMSIZ)) {
+			vlan_as_vp_dev_name[i][0] = '\0';
+			nss_ppe_vlan_mgr_info("Deleted %s from VLAN as VP array from index:%d\n", dev_name, i);
+			return;
+		}
+	}
+
+	nss_ppe_vlan_mgr_info("Unable to remove %s from VLAN as VP array. Not found\n", dev_name);
+	return;
+}
+
+/*
+ * nss_ppe_vlan_mgr_dsa_get_real_dev()
+ *	Get real dev for DSA interface
+ */
+static struct net_device *nss_ppe_vlan_mgr_dsa_get_real_dev(struct net_device *dev)
+{
+	struct dsa_port *dp = NULL;
+
+	dp = dsa_port_from_netdev(dev);
+	return dp ? dsa_port_to_master(dp) : NULL;
+}
+
+/*
+ * nss_ppe_vlan_mgr_dsa_interface_supported()
+ * 	Returns true if VLAN over DSA, is present
+ */
+static bool nss_ppe_vlan_mgr_dsa_interface_supported(struct net_device *dev)
+{
+	struct net_device *real_dev = NULL;
+	struct ppe_drv_iface *real_iface = NULL;
+
+	if (!is_vlan_dev(dev)) {
+		nss_ppe_vlan_mgr_trace("%s is not VLAN interface\n", dev->name);
+		return false;
+	}
+
+	/*
+	 * VLAN over DSA? eg: lan1.10
+	 */
+	real_dev = nss_ppe_vlan_mgr_get_real_dev(dev);
+	real_iface = ppe_drv_iface_get_by_dev(real_dev);
+	if (!real_iface) {
+		return false;
+	}
+
+	/*
+	 * Double VLAN on DSA interface? eg: lan1.10.20
+	 */
+	if (is_vlan_dev(real_dev)) {
+		nss_ppe_vlan_mgr_trace("%s is Double VLAN interface over DSA is not supported\n", dev->name);
+		return false;
+	}
+
+	/*
+	 * Valid DSA? eg: lan1
+	 */
+	if (dsa_slave_dev_check(real_dev)) {
+		real_dev = nss_ppe_vlan_mgr_dsa_get_real_dev(real_dev);
+	}
+	real_iface = real_dev ? ppe_drv_iface_get_by_dev(real_dev) : NULL;
+	if (!real_iface) {
+		nss_ppe_vlan_mgr_trace("Master of %s doesn't have real interface\n", dev->name);
+		return false;
+	}
+
+	return true;
+}
+#endif
 
 /*
  * nss_ppe_vlan_mgr_update_ppe_tpid()
@@ -625,11 +748,36 @@ bool nss_ppe_vlan_mgr_vp_src_exception(struct ppe_vp_cb_info *info, void *cb_dat
 {
 	struct sk_buff *skb = info->skb;
 	struct net_device *real_dev;
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	struct dsa_port *dp  __maybe_unused = NULL;
+#endif
 
 	real_dev = nss_ppe_vlan_mgr_get_real_dev(skb->dev);
 	if (real_dev && is_vlan_dev(real_dev)) {
 		real_dev = nss_ppe_vlan_mgr_get_real_dev(real_dev);
 	}
+
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	/*
+	 * DSA interface, if it's not a VLAN dev?
+	 */
+	if (!real_dev && dsa_slave_dev_check(skb->dev)) {
+		dp = dsa_port_from_netdev(skb->dev);
+		if (dp) {
+			real_dev = dsa_port_to_master(dp);
+		}
+	}
+
+	/*
+	 * VLAN over DSA interface ?
+	 */
+	if (real_dev && dsa_slave_dev_check(real_dev)) {
+		dp = dsa_port_from_netdev(real_dev);
+		if (dp) {
+			real_dev = dsa_port_to_master(dp);
+		}
+	}
+#endif
 
 	if (!real_dev) {
 		nss_ppe_vlan_mgr_warn("%s: failed to obtain real_dev", skb->dev->name);
@@ -1298,6 +1446,13 @@ static bool nss_ppe_vlan_mgr_interface_supported(struct net_device *dev)
 	real_dev = nss_ppe_vlan_mgr_get_real_dev(dev);
 	vid = vlan->vlan_id;
 
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	if (nss_ppe_vlan_mgr_dsa_interface_supported(dev)) {
+		nss_ppe_vlan_mgr_trace("%s is supported as VLAN interface\n", dev->name);
+		return true;
+	}
+#endif
+
 	/*
 	 * br-wan1.100 is already present and br-wan1 contains eth4.
 	 * With above config, creating eth4.100 is not allowed.
@@ -1345,6 +1500,7 @@ static bool nss_ppe_vlan_mgr_interface_supported(struct net_device *dev)
 			goto result;
 		}
 		real_dev = nss_ppe_vlan_mgr_get_real_dev(real_dev);
+
 		nss_ppe_vlan_mgr_trace("Double VLAN case and updated real dev as %s for dev %s", real_dev->name,
 				       dev->name);
 	}
@@ -1428,7 +1584,10 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_instance_find_and_ref(
 	struct nss_vlan_pvt *v;
 
 	if (!is_vlan_dev(dev)) {
-		return NULL;
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+		if (!dsa_slave_dev_check(dev))
+#endif
+			return NULL;
 	}
 
 	spin_lock(&vlan_mgr_ctx.lock);
@@ -1595,7 +1754,7 @@ vlan_over_bridge:
 /*
  * nss_ppe_vlan_mgr_changemtu_event()
  */
-static int nss_ppe_vlan_mgr_changemtu_event(struct netdev_notifier_info *info)
+int nss_ppe_vlan_mgr_changemtu_event(struct netdev_notifier_info *info)
 {
 	ppe_drv_ret_t ret;
 	struct net_device *dev = netdev_notifier_info_to_dev(info);
@@ -1631,11 +1790,12 @@ static int nss_ppe_vlan_mgr_changemtu_event(struct netdev_notifier_info *info)
 	nss_ppe_vlan_mgr_instance_deref(v);
 	return NOTIFY_DONE;
 }
+EXPORT_SYMBOL(nss_ppe_vlan_mgr_changemtu_event);
 
 /*
  * int nss_ppe_vlan_mgr_changeaddr_event()
  */
-static int nss_ppe_vlan_mgr_changeaddr_event(struct netdev_notifier_info *info)
+int nss_ppe_vlan_mgr_changeaddr_event(struct netdev_notifier_info *info)
 {
 	ppe_drv_ret_t ret;
 	struct net_device *dev = netdev_notifier_info_to_dev(info);
@@ -1676,6 +1836,7 @@ static int nss_ppe_vlan_mgr_changeaddr_event(struct netdev_notifier_info *info)
 	nss_ppe_vlan_mgr_instance_deref(v);
 	return NOTIFY_DONE;
 }
+EXPORT_SYMBOL(nss_ppe_vlan_mgr_changeaddr_event);
 
 /*
  * nss_ppe_vlan_mgr_register_event()
@@ -2559,7 +2720,7 @@ struct net_device *nss_ppe_vlan_mgr_get_real_dev(struct net_device *dev)
 {
 	struct vlan_dev_priv *vlan;
 
-	if (!dev) {
+	if (!dev || !is_vlan_dev(dev)) {
 		return NULL;
 	}
 
@@ -2567,6 +2728,166 @@ struct net_device *nss_ppe_vlan_mgr_get_real_dev(struct net_device *dev)
 	return vlan->real_dev;
 }
 EXPORT_SYMBOL(nss_ppe_vlan_mgr_get_real_dev);
+
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+/*
+ * nss_ppe_vlan_mgr_dsa_create_instance()
+ *	Create vlan instance for DSA interface.
+ */
+static struct nss_vlan_pvt *nss_ppe_vlan_mgr_dsa_create_instance(struct net_device *dev, struct net_device *real_dev)
+{
+	struct nss_vlan_pvt *v;
+	struct dsa_port *dsa_port = NULL;
+
+	v = kzalloc(sizeof(*v), GFP_KERNEL);
+	if (!v) {
+		nss_ppe_vlan_mgr_warn("%px: Allocation to private structure failed: %s\n",
+						dev, dev->name);
+		return NULL;
+	}
+
+	INIT_LIST_HEAD(&v->list);
+
+	dsa_port = dsa_port_from_netdev(dev);
+	if (dsa_port == NULL) {
+		nss_ppe_vlan_mgr_warn("%px: DSA port not found for %s\n",dev, dev->name);
+		kfree(v);
+		return NULL;
+	}
+
+	/*
+	 * VLAN used for representing DSA interface, has TPID always fixed to 802.1Q.
+	 * This is even when there is a inner VLAN in the packet, where ideally it should be 802.1AD
+	 */
+	v->vid = dsa_tag_8021q_standalone_vid(dsa_port);
+	v->tpid = DSA_TAG_8021Q_VLAN_PROTO;
+	v->bond_id = -1;
+
+	v->port[0] = nss_ppe_vlan_mgr_get_port_id(real_dev);
+	if (v->port[0] == NSS_PPE_VLAN_MGR_INVALID_PORT) {
+		nss_ppe_vlan_mgr_warn("%px: %s:%d is not valid PPE port\n", real_dev, real_dev->name, v->port[0]);
+		kfree(v);
+		return NULL;
+	}
+
+	/*
+	 * In no scenario, we can reach to this point where we have DOUBLE VLAN.
+	 * Hence v->parent is always NULL.
+	 */
+	if ((v->tpid != vlan_mgr_ctx.ctpid) && (v->tpid != vlan_mgr_ctx.stpid)) {
+		nss_ppe_vlan_mgr_warn("%s: single tag: tpid %04x not match global tpid(%04x, %04x)\n", dev->name, v->tpid, vlan_mgr_ctx.ctpid, vlan_mgr_ctx.stpid);
+		kfree(v);
+		return NULL;
+	}
+
+	v->mtu = dev->mtu;
+	ether_addr_copy(v->dev_addr, dev->dev_addr);
+	v->ifindex = dev->ifindex;
+	kref_init(&v->ref);
+	return v;
+}
+
+/*
+ * nss_ppe_vlan_mgr_dsa_vp_destroy()
+ *	Destroy vlan instance for DSA interface
+ */
+int nss_ppe_vlan_mgr_dsa_vp_destroy(struct net_device *dev)
+{
+	struct nss_vlan_pvt *v = nss_ppe_vlan_mgr_instance_find_and_ref(dev);
+
+	/*
+	 * Do we have it on record?
+	 */
+	if (!v) {
+		nss_ppe_vlan_mgr_warn("DSA %s, vlan_pvt not found. Already removed?\n", dev->name);
+		return -1;
+	}
+
+	nss_ppe_vlan_mgr_trace("Unregistering DSA dev: %s\n", dev->name);
+
+	/*
+	 * Release reference got by "nss_ppe_vlan_mgr_instance_find_and_ref"
+	 */
+	nss_ppe_vlan_mgr_instance_deref(v);
+
+	/*
+	 * Release reference got by "nss_ppe_vlan_mgr_dsa_create_instance".
+	 * Also remove from the vlan_as_vp array.
+	 */
+	nss_ppe_vlan_mgr_del_vlan_as_vp(dev->name);
+	nss_ppe_vlan_mgr_instance_deref(v);
+
+	return 0;
+}
+EXPORT_SYMBOL(nss_ppe_vlan_mgr_dsa_vp_destroy);
+
+/*
+ * nss_ppe_vlan_mgr_dsa_vp_create()
+ *	Create vlan instance for DSA interface
+ */
+int nss_ppe_vlan_mgr_dsa_vp_create(struct net_device *dev, struct net_device *master_dev)
+{
+	struct nss_vlan_pvt *v;
+	int res;
+
+	WARN_ON(!dev);
+	WARN_ON(!master_dev);
+
+	/*
+	 * We want to add DSA device to vlan_as_vp_dev_name[]
+	 * This is required, so that VLAN on a DSA interface is also treated as VLAN-as-VP allowed interface.
+	 */
+	if (nss_ppe_vlan_mgr_add_vlan_as_vp(dev->name)) {
+		nss_ppe_vlan_mgr_warn("DSA interface creation failed as dev %s couldn't be added to vlan_as_vp array.\n", dev->name);
+		return -1;
+	}
+
+	if (!dsa_port_from_netdev(nss_ppe_vlan_mgr_dsa_get_real_dev(dev))) {
+		nss_ppe_vlan_mgr_warn("DSA interface Port VLAN (%s) is not supported\n", dev->name);
+		goto fail;
+	}
+
+	v = nss_ppe_vlan_mgr_dsa_create_instance(dev, master_dev);
+	if (!v) {
+		nss_ppe_vlan_mgr_warn("DSA Port Vlan instance creation failed for dev:%s\n", dev->name);
+		goto fail;
+	}
+
+	res = nss_ppe_vlan_mgr_alloc_configure_ppe_vp(v, dev, master_dev);
+	if (res < 0) {
+		nss_ppe_vlan_mgr_instance_deref(v);
+		nss_ppe_vlan_mgr_warn("DSA Port Vlan configure as PPE-VP failed for dev:%s\n", dev->name);
+		goto fail;
+	}
+
+	spin_lock(&vlan_mgr_ctx.lock);
+	list_add(&v->list, &vlan_mgr_ctx.list);
+	spin_unlock(&vlan_mgr_ctx.lock);
+
+	nss_ppe_vlan_mgr_warn("DSA Port Vlan configure success for :%s\n", dev->name);
+	return 0;
+
+fail:
+	nss_ppe_vlan_mgr_del_vlan_as_vp(dev->name);
+	return -1;
+}
+EXPORT_SYMBOL(nss_ppe_vlan_mgr_dsa_vp_create);
+#else
+int nss_ppe_vlan_mgr_dsa_vp_destroy(struct net_device *dev)
+{
+	WARN_ON(1);
+	nss_ppe_vlan_mgr_warn("nss_ppe_vlan_mgr_dsa_vp_destroy() undefined :%s\n", dev->name);
+	return -1;
+
+}
+int nss_ppe_vlan_mgr_dsa_vp_create(struct net_device *dev, struct net_device *master_dev)
+{
+	WARN_ON(1);
+	nss_ppe_vlan_mgr_warn("nss_ppe_vlan_mgr_dsa_vp_create() undefined :%s\n", dev->name);
+	return -1;
+}
+EXPORT_SYMBOL(nss_ppe_vlan_mgr_dsa_vp_create);
+#endif
 
 /*
  * nss_ppe_vlan_mgr_exit_module()

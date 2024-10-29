@@ -33,6 +33,7 @@ static inline void ppe_qdisc_stats_queue_delayed_work(struct ppe_qdisc *pq)
 	bool restart_work = false;
 
 	if (!(pq->flags & PPE_QDISC_FLAG_NODE_ROOT)) {
+		ppe_qdisc_warning("%px: Work will not be scheduled for non root node\n", pq);
 		return;
 	}
 
@@ -41,7 +42,7 @@ static inline void ppe_qdisc_stats_queue_delayed_work(struct ppe_qdisc *pq)
 	 */
 	spin_lock_bh(&ppe_qdisc_stats_list_lock);
 	if (pqsw->stats_polling_stopped) {
-		ppe_qdisc_warning("%px Stats Polling has stopped", pq);
+		ppe_qdisc_warning("%px Stats Polling has stopped for port_id = %d", pq, pq->port_id);
 		spin_unlock_bh(&ppe_qdisc_stats_list_lock);
 		return;
 	}
@@ -51,7 +52,8 @@ static inline void ppe_qdisc_stats_queue_delayed_work(struct ppe_qdisc *pq)
 		/*
 		 * The list is empty, so we need to restart the delayed work queue
 		 */
-		ppe_qdisc_info("%px ppe_qdisc_stats_list List is empty, so we need to restart the delayed work queue", pq);
+		ppe_qdisc_info("%px ppe_qdisc_stats_list List is empty, so we need to restart"
+				"the delayed work for ppe_queues on port_id = %d", pq, pq->port_id);
 		restart_work = true;
 	}
 
@@ -62,7 +64,8 @@ static inline void ppe_qdisc_stats_queue_delayed_work(struct ppe_qdisc *pq)
 	spin_unlock_bh(&ppe_qdisc_stats_list_lock);
 
 	if (restart_work) {
-		ppe_qdisc_info("%px Restarting delayed work queue", pq);
+		ppe_qdisc_info("%px Restarting delayed work queue for root queue under port_id = %d",
+				pq, pq->port_id);
 		queue_delayed_work(ppe_qdisc_stats_workqueue, &ppe_qdisc_stats_dwork, 0);
 	}
 }
@@ -91,22 +94,18 @@ void ppe_qdisc_stats_update_parent(struct ppe_qdisc *pq, struct ppe_drv_qos_q_st
 {
 	struct Qdisc *rqdisc, *qdisc;
 	struct ppe_qdisc *leaf = pq;
-	struct ppe_drv_qos_q_stat *delta = kzalloc(sizeof(struct ppe_drv_qos_q_stat), GFP_KERNEL);
-	if (!delta) {
-		ppe_qdisc_warning("%px Failed to allocate mem", pq);
-		return;
-	}
+	struct ppe_drv_qos_q_stat delta;
 
-	delta->tx_pkts = (cur_stats->tx_pkts - prev_stats->tx_pkts);
-	delta->tx_bytes = (cur_stats->tx_bytes - prev_stats->tx_bytes);
-	delta->drop_pkts = (cur_stats->drop_pkts - prev_stats->drop_pkts);
-	delta->drop_bytes = (cur_stats->drop_bytes - prev_stats->drop_bytes);
+	delta.tx_pkts = (cur_stats->tx_pkts - prev_stats->tx_pkts);
+	delta.tx_bytes = (cur_stats->tx_bytes - prev_stats->tx_bytes);
+	delta.drop_pkts = (cur_stats->drop_pkts - prev_stats->drop_pkts);
+	delta.drop_bytes = (cur_stats->drop_bytes - prev_stats->drop_bytes);
 
 	/*
 	 * If root, return, else start iterating from the qdisc's parent node.
 	 */
 	if (pq->flags & PPE_QDISC_FLAG_NODE_ROOT) {
-		kfree(delta);
+		ppe_qdisc_warning("%px: Returning as node is root under port_id = %d\n", pq, pq->port_id);
 		return;
 	} else {
 		pq = pq->parent;
@@ -119,23 +118,23 @@ void ppe_qdisc_stats_update_parent(struct ppe_qdisc *pq, struct ppe_drv_qos_q_st
 		spin_lock_bh(&pq->lock);
 		if (pq->flags & PPE_QDISC_FLAG_NODE_CLASS) {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-			pq->bstats.packets += delta->tx_pkts;
-			pq->bstats.bytes += delta->tx_bytes;
+			pq->bstats.packets += delta.tx_pkts;
+			pq->bstats.bytes += delta.tx_bytes;
 #else
-			u64_stats_add(&pq->bstats.packets, delta->tx_pkts);
-			u64_stats_add(&pq->bstats.bytes, delta->tx_bytes);
+			u64_stats_add(&pq->bstats.packets, delta.tx_pkts);
+			u64_stats_add(&pq->bstats.bytes, delta.tx_bytes);
 #endif
-			pq->qstats.drops += delta->drop_pkts;
+			pq->qstats.drops += delta.drop_pkts;
 		} else {
 			qdisc = pq->qdisc;
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-			qdisc->bstats.packets += delta->tx_pkts;
-			qdisc->bstats.bytes += delta->tx_bytes;
+			qdisc->bstats.packets += delta.tx_pkts;
+			qdisc->bstats.bytes += delta.tx_bytes;
 #else
-			u64_stats_add(&qdisc->bstats.packets, delta->tx_pkts);
-			u64_stats_add(&qdisc->bstats.bytes, delta->tx_bytes);
+			u64_stats_add(&qdisc->bstats.packets, delta.tx_pkts);
+			u64_stats_add(&qdisc->bstats.bytes, delta.tx_bytes);
 #endif
-			qdisc->qstats.drops += delta->drop_pkts;
+			qdisc->qstats.drops += delta.drop_pkts;
 		}
 		spin_unlock_bh(&pq->lock);
 		pq = pq->parent;
@@ -148,17 +147,17 @@ void ppe_qdisc_stats_update_parent(struct ppe_qdisc *pq, struct ppe_drv_qos_q_st
 	rqdisc = pq->qdisc;
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-	rqdisc->bstats.packets += delta->tx_pkts;
-	rqdisc->bstats.bytes += delta->tx_bytes;
+	rqdisc->bstats.packets += delta.tx_pkts;
+	rqdisc->bstats.bytes += delta.tx_bytes;
 #else
-	u64_stats_add(&rqdisc->bstats.packets, delta->tx_pkts);
-	u64_stats_add(&rqdisc->bstats.bytes, delta->tx_bytes);
+	u64_stats_add(&rqdisc->bstats.packets, delta.tx_pkts);
+	u64_stats_add(&rqdisc->bstats.bytes, delta.tx_bytes);
 #endif
-	rqdisc->qstats.drops += delta->drop_pkts;
+	rqdisc->qstats.drops += delta.drop_pkts;
 	spin_unlock_bh(&pq->lock);
 
-	ppe_qdisc_info("%px:Root node stats is updated with stats of its leaf node %px", pq, leaf);
-	kfree(delta);
+	ppe_qdisc_info("%px:Root node stats is updated with stats of its leaf node %px"
+			" for port_id = %d", pq, leaf, pq->port_id);
 }
 
 /*
@@ -168,20 +167,9 @@ void ppe_qdisc_stats_update_parent(struct ppe_qdisc *pq, struct ppe_drv_qos_q_st
 static void ppe_qdisc_stats_get_node(struct ppe_qdisc *pqr)
 {
 	struct ppe_qdisc *cursor;
-	struct ppe_drv_qos_q_stat *prev_stats, *cur_stats;
+	struct ppe_drv_qos_q_stat prev_stats = {0};
+	struct ppe_drv_qos_q_stat cur_stats = {0};
 	bool is_red;
-
-	prev_stats = kzalloc(sizeof(struct ppe_drv_qos_q_stat), GFP_KERNEL);
-	if (!prev_stats) {
-		ppe_qdisc_warning("%px Failed to allocate mem", pqr);
-		return;
-	}
-
-	cur_stats = kzalloc(sizeof(struct ppe_drv_qos_q_stat), GFP_KERNEL);
-	if (!cur_stats) {
-		ppe_qdisc_warning("%px Failed to allocate mem", pqr);
-		return;
-	}
 
 	/*
 	 * Iterate through the list of leaf node list and update statistics
@@ -190,37 +178,36 @@ static void ppe_qdisc_stats_get_node(struct ppe_qdisc *pqr)
 		if (cursor != NULL) {
 			spin_lock_bh(&cursor->lock);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-			prev_stats->tx_pkts = cursor->qdisc->bstats.packets;
-			prev_stats->tx_bytes = cursor->qdisc->bstats.bytes;
+			prev_stats.tx_pkts = cursor->qdisc->bstats.packets;
+			prev_stats.tx_bytes = cursor->qdisc->bstats.bytes;
 #else
-			prev_stats->tx_pkts =
+			prev_stats.tx_pkts =
 				u64_stats_read(&cursor->qdisc->bstats.packets);
-			prev_stats->tx_bytes =
+			prev_stats.tx_bytes =
 				u64_stats_read(&cursor->qdisc->bstats.bytes);
 #endif
-			prev_stats->drop_pkts = cursor->qdisc->qstats.drops;
+			prev_stats.drop_pkts = cursor->qdisc->qstats.drops;
 			is_red = (cursor->type == PPE_QDISC_NODE_TYPE_RED) ? true : false;
 			/*
 			 * Getting statistics from PPE
 			 */
-			ppe_drv_qos_queue_stats_get(cursor->res.q.ucast_qid, is_red, cur_stats);
+			ppe_drv_qos_queue_stats_get(cursor->res.q.ucast_qid, is_red, &cur_stats);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
-			cursor->qdisc->bstats.packets = cur_stats->tx_pkts;
-			cursor->qdisc->bstats.bytes = cur_stats->tx_bytes;
+			cursor->qdisc->bstats.packets = cur_stats.tx_pkts;
+			cursor->qdisc->bstats.bytes = cur_stats.tx_bytes;
 #else
-			u64_stats_set(&cursor->qdisc->bstats.packets, cur_stats->tx_pkts);
-			u64_stats_set(&cursor->qdisc->bstats.bytes, cur_stats->tx_bytes);
+			u64_stats_set(&cursor->qdisc->bstats.packets, cur_stats.tx_pkts);
+			u64_stats_set(&cursor->qdisc->bstats.bytes, cur_stats.tx_bytes);
 #endif
-			cursor->qdisc->qstats.drops = cur_stats->drop_pkts;
+			cursor->qdisc->qstats.drops = cur_stats.drop_pkts;
 			spin_unlock_bh(&cursor->lock);
 
-			ppe_qdisc_stats_update_parent(cursor, cur_stats, prev_stats);
+			ppe_qdisc_stats_update_parent(cursor, &cur_stats, &prev_stats);
 		}
 	}
 
-	ppe_qdisc_info("%px Root node stats updated with stats all nodes under it", pqr);
-	kfree(prev_stats);
-	kfree(cur_stats);
+	ppe_qdisc_info("%px Root node stats for port id = %d is updated with stats of all"
+			" leaf nodes under it.", pqr, pqr->port_id);
 }
 
 /*
@@ -247,6 +234,7 @@ static void ppe_qdisc_stats_sync_process_work(struct work_struct *work)
 	ppe_qdisc_stats_get_node(pqsw->pq);
 	pqsw->stats_get_timer.expires = jiffies + PPE_QDISC_STATS_SYNC_MANY_PERIOD;
 	add_timer(&pqsw->stats_get_timer);
+	queue_delayed_work(ppe_qdisc_stats_workqueue, &ppe_qdisc_stats_dwork, 0);
 }
 
 /*
@@ -255,6 +243,7 @@ static void ppe_qdisc_stats_sync_process_work(struct work_struct *work)
  */
 void ppe_qdisc_stats_work_queue_exit(void)
 {
+	ppe_qdisc_info("Exiting delayed work queue\n");
 	cancel_delayed_work_sync(&ppe_qdisc_stats_dwork);
 	destroy_workqueue(ppe_qdisc_stats_workqueue);
 }
@@ -313,7 +302,7 @@ void ppe_qdisc_stats_sync_many_exit(struct ppe_qdisc *pq)
 			list_del(&pqsw->stats_list);
 			spin_unlock_bh(&ppe_qdisc_stats_list_lock);
 			ppe_qdisc_info("Qdisc %px pq:%px found work queue %px", pq->qdisc, pq, pqsw);
-			goto free_mem;
+			goto cleanup;
 		}
 	}
 
@@ -322,7 +311,6 @@ void ppe_qdisc_stats_sync_many_exit(struct ppe_qdisc *pq)
 cleanup:
 	del_timer(&pqsw->stats_get_timer);
 
-free_mem:
 	/*
 	 * Free the qdisc stats list for this root node
 	 */
@@ -347,7 +335,7 @@ bool ppe_qdisc_stats_sync_many_init(struct ppe_qdisc *pq)
 
 	pq->stats_wq = kzalloc(sizeof(struct ppe_qdisc_stats_wq), GFP_KERNEL);
 	if (!pq->stats_wq) {
-		ppe_qdisc_warning("%px Failed to allocate mem for stats struct ppe_qdisc_stats_wq", pq);
+		ppe_qdisc_warning("%px Failed to allocate memory", pq);
 		return false;
 	}
 
@@ -362,7 +350,8 @@ bool ppe_qdisc_stats_sync_many_init(struct ppe_qdisc *pq)
 	 * Initialize the timer that restarts the polling loop
 	 */
 	timer_setup(&pq->stats_wq->stats_get_timer, ppe_qdisc_stats_sync_restart, 0);
-	ppe_qdisc_info("%px Qdisc stats sync message initialized for pq:%p", pq->qdisc, pq);
+	ppe_qdisc_info("%px Qdisc stats sync message initialized for pq:%p,"
+			" port_id = %d", pq->qdisc, pq, pq->port_id);
 
 	return true;
 }
@@ -374,11 +363,13 @@ bool ppe_qdisc_stats_sync_many_init(struct ppe_qdisc *pq)
 void ppe_qdisc_stats_stop_polling(struct ppe_qdisc *pq)
 {
 	if (!(pq->flags & PPE_QDISC_FLAG_NODE_ROOT)) {
-		ppe_qdisc_info("Stats polling stop request received on non-root qdisc:%px with qos_tag %x", pq, pq->qos_tag);
+		ppe_qdisc_info("Stats polling stop request received on non-root qdisc:%px"
+			       " with qos_tag %x and port_id = %d", pq, pq->qos_tag, pq->port_id);
 	}
 
 	ppe_qdisc_stats_sync_many_exit(pq);
-	ppe_qdisc_info("%px stopped delayed work queue for root %x", pq, pq->qos_tag);
+	ppe_qdisc_info("%px stopped delayed work queue for root %x, portId= %d", pq, pq->qos_tag,
+			pq->port_id);
 }
 
 /*
@@ -388,11 +379,13 @@ void ppe_qdisc_stats_stop_polling(struct ppe_qdisc *pq)
 void ppe_qdisc_stats_start_polling(struct ppe_qdisc *pq)
 {
 	if (!(pq->flags & PPE_QDISC_FLAG_NODE_ROOT)) {
-		ppe_qdisc_info("%px Stats polling started on non-root qdisc with qos_tag %x", pq, pq->qos_tag);
+		ppe_qdisc_info("%px Stats polling started on non-root qdisc "
+			       "with qos_tag %x, port_id =%d", pq, pq->qos_tag, pq->port_id);
 	}
 
 	ppe_qdisc_stats_queue_delayed_work(pq);
-	ppe_qdisc_info("%px Started delayed work queue for root %x", pq, pq->qos_tag);
+	ppe_qdisc_info("%px Started delayed work queue for root %x, port_id = %d", pq, pq->qos_tag,
+			 pq->port_id);
 }
 
 /*
@@ -423,7 +416,8 @@ void ppe_qdisc_stats_qdisc_attach(struct ppe_qdisc *pq)
 	 */
 	rqdisc = ppe_qdisc_stats_get_root_qdisc(pq);
 	if (!(rqdisc)) {
-		ppe_qdisc_warning("%px Root qdisc not found for ppe queue with qos_tag:%xn", pq, pq->qos_tag);
+		ppe_qdisc_warning("%px Root qdisc not found for ppe queue with qos_tag:%xn",
+				 pq, pq->qos_tag);
 		return;
 	}
 
@@ -433,7 +427,8 @@ void ppe_qdisc_stats_qdisc_attach(struct ppe_qdisc *pq)
 	 * This is safety check. Ideally this would never happen
 	 */
 	if (!rpq || !rpq->stats_wq) {
-		ppe_qdisc_warning("%px Error, stats wq should be initialized by now for root qdisc:%x", pq, rpq?rpq->qos_tag:0);
+		ppe_qdisc_warning("%px Error, stats wq should be initialized by now for root qdisc:%x",
+				pq, rpq?rpq->qos_tag:0);
 		return;
 	}
 
@@ -474,7 +469,8 @@ void ppe_qdisc_stats_qdisc_detach(struct ppe_qdisc *pq)
 	 * This is safety check. Ideally this would never happen
 	 */
 	if (!rpq || !rpq->stats_wq) {
-		ppe_qdisc_warning("%px Error, stats wq should be initialized by now for root qdisc:%x", pq, rpq?rpq->qos_tag:0);
+		ppe_qdisc_warning("%px Error, stats wq should be initialized by now for root qdisc:%x", pq,
+				rpq?rpq->qos_tag:0);
 		return;
 	}
 

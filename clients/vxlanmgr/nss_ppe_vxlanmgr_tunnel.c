@@ -315,7 +315,10 @@ static void nss_ppe_vxlanmgr_tunnel_destroy(struct nss_ppe_vxlanmgr_tun_ctx *tun
 
 	ppe_tun_free(dev);
 
-	unregister_netdev(dev);
+	rtnl_lock();
+	unregister_netdevice(dev);
+	rtnl_unlock();
+
 	free_netdev(dev);
 
 	kfree(tun_ctx->tun_hdr);
@@ -729,11 +732,15 @@ static void nss_ppe_vxlanmgr_rtm_newneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 	nss_netdev_priv = netdev_priv(nss_netdev);
 	nss_netdev_priv->pdev_ifindex = pdev->ifindex;
 
-	status = rtnl_is_locked() ? register_netdevice(nss_netdev) : register_netdev(nss_netdev);
+	rtnl_lock();
+	status = register_netdevice(nss_netdev);
 	if (status) {
 		nss_ppe_vxlanmgr_warn("%px: VXLAN nss-netdev register Failed.", rtm_newneigh_info);
+		rtnl_unlock();
 		goto dealloc_netdev;
 	}
+
+	rtnl_unlock();
 
 	/*
 	 * Allocate PPE tunnel.
@@ -799,7 +806,9 @@ dealloc_tunnel:
 	ppe_tun_free(nss_netdev);
 
 unregister_netdev:
-	rtnl_is_locked() ? unregister_netdevice(nss_netdev) : unregister_netdev(nss_netdev);
+	rtnl_lock();
+	unregister_netdevice(nss_netdev);
+	rtnl_unlock();
 
 dealloc_netdev:
 	free_netdev(nss_netdev);

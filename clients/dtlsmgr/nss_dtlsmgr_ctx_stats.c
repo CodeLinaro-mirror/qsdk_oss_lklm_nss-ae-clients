@@ -1,7 +1,7 @@
 /*
  **************************************************************************
  * Copyright (c) 2017, 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -74,6 +74,21 @@ static ssize_t nss_dtlsmgr_ctx_fill_hw_error_stats(struct nss_dtlsmgr_stats *sta
 }
 
 /*
+ * nss_dtlsmgr_ctx_clear_hw_error_stats()
+ *	Fill hardware error statistics
+ */
+static void nss_dtlsmgr_ctx_clear_hw_error_stats(struct nss_dtlsmgr_stats *stats)
+{
+	int i;
+	struct nss_dtlsmgr_hw_stats *hw_stats = &stats->fail_hw;
+	memset(hw_stats, 0, sizeof(struct nss_dtlsmgr_hw_stats));
+
+	for (i = 0; i < NSS_DTLS_CMN_CLE_MAX; i++) {
+		stats->fail_cle[i] = 0;
+	}
+}
+
+/*
  * nss_dtlsmgr_ctx_encap_stats_read()
  *	Read the DTLS encapsulation statistics.
  */
@@ -136,6 +151,37 @@ static ssize_t nss_dtlsmgr_ctx_encap_stats_read(struct file *filep, char __user 
 
 	return ret;
 }
+
+/*
+ * nss_dtlsmgr_ctx_encap_stats_write()
+ *	Write the DTLS encapsulation statistics.
+ */
+static ssize_t nss_dtlsmgr_ctx_encap_stats_write(struct file *filep, const char __user *buffer, size_t count, loff_t *ppos)
+{
+	struct nss_dtlsmgr_ctx *ctx = filep->private_data;
+	struct nss_dtlsmgr_stats *stats;
+	uint32_t reset;
+
+	NSS_DTLSMGR_VERIFY_MAGIC(ctx);
+
+	if (kstrtou32_from_user(buffer, count, 0, &reset)) {
+		return -EINVAL;
+	}
+
+	if (reset != 0) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Clear decap statistics
+	 */
+	stats = &ctx->encap.stats;
+	memset(stats, 0, offsetof(struct nss_dtlsmgr_stats, fail_hw));
+	nss_dtlsmgr_ctx_clear_hw_error_stats(stats);
+
+	return count;
+}
+
 /*
  * nss_dtlsmgr_ctx_decap_stats_read()
  *	Read the DTLS decapsulation statistics.
@@ -209,18 +255,50 @@ static ssize_t nss_dtlsmgr_ctx_decap_stats_read(struct file *filep, char __user 
 }
 
 /*
+ * nss_dtlsmgr_ctx_decap_stats_write()
+ *	Write the DTLS decapsulation statistics.
+ */
+static ssize_t nss_dtlsmgr_ctx_decap_stats_write(struct file *filep, const char __user *buffer, size_t count, loff_t *ppos)
+{
+	struct nss_dtlsmgr_ctx *ctx = filep->private_data;
+	struct nss_dtlsmgr_stats *stats;
+	uint32_t reset;
+
+	NSS_DTLSMGR_VERIFY_MAGIC(ctx);
+
+	if (kstrtou32_from_user(buffer, count, 0, &reset)) {
+		return -EINVAL;
+	}
+
+	if (reset != 0) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Clear decap statistics
+	 */
+	stats = &ctx->decap.stats;
+	memset(stats, 0, offsetof(struct nss_dtlsmgr_stats, fail_hw));
+	nss_dtlsmgr_ctx_clear_hw_error_stats(stats);
+
+	return count;
+}
+
+/*
  * Context file operation structure instance
  */
 static const struct file_operations nss_dtlsmgr_encap_stats_op = {
 	.owner = THIS_MODULE,
 	.open = simple_open,
 	.read = nss_dtlsmgr_ctx_encap_stats_read,
+	.write = nss_dtlsmgr_ctx_encap_stats_write,
 };
 
 static const struct file_operations nss_dtlsmgr_decap_stats_op = {
 	.owner = THIS_MODULE,
 	.open = simple_open,
 	.read = nss_dtlsmgr_ctx_decap_stats_read,
+	.write = nss_dtlsmgr_ctx_decap_stats_write,
 };
 
 /*

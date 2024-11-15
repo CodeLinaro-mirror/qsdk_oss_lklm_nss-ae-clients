@@ -1550,9 +1550,9 @@ const struct file_operations ppe_tun_l2tp_xcpn_file_fops = {
 static ssize_t ppe_tun_vxlan_gpe_read(struct file *f, char *buf, size_t count, loff_t *offset)
 {
 	int len;
-	char lbuf[24];
+	char lbuf[32];
 
-	len = snprintf(lbuf, sizeof(lbuf), "vxlan gpe accel %s\n", (ptp->tun_accel.ppe_tun_vxlan_gpe_accel) ? ("enabled") : ("disabled"));
+	len = snprintf(lbuf, sizeof(lbuf), "vxlan-gpe accel %s\n", (ptp->tun_accel.ppe_tun_vxlan_gpe_accel) ? ("enabled") : ("disabled"));
 
 	return simple_read_from_buffer(buf, count, offset, lbuf, len);
 }

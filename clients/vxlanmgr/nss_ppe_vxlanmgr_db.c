@@ -161,7 +161,7 @@ void nss_ppe_vxlanmgr_gpe_all_remotes_set_mtu(struct net_device *pdev, unsigned 
 	hash_for_each(nss_ppe_vxlanmgr_tunnel_tbl, bkt, curr_tun_ctx, node) {
 		if ((curr_tun_ctx->vp_status == NSS_PPE_VXLANMGR_VP_CREATION_SUCCESS) &&
 				(curr_tun_ctx->parent_dev == pdev) &&
-				(ppe_tun_mtu_set(curr_tun_ctx->remote_info.nss_netdev, mtu))) {
+				(!ppe_tun_mtu_set(curr_tun_ctx->remote_info.nss_netdev, mtu))) {
 			nss_ppe_vxlanmgr_warn("%px: Failed to set mtu for nss_netdev %s", pdev, curr_tun_ctx->remote_info.nss_netdev->name);
 		}
 	}

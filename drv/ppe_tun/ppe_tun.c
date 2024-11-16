@@ -453,8 +453,10 @@ bool ppe_tun_mtu_set(struct net_device *dev, uint32_t mtu)
 	}
 
 	vp_num = tun->vp_num;
+	if (PPE_VP_STATUS_SUCCESS == ppe_vp_mtu_set(vp_num, mtu)) {
+		status = true;
+	}
 
-	status = ppe_vp_mtu_set(vp_num, mtu);
 	ppe_tun_deref(tun);
 	return status;
 }

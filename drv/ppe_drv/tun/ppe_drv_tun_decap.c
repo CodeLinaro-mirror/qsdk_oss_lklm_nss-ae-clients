@@ -311,13 +311,24 @@ void ppe_drv_tun_decap_set_tl_l3_idx(struct ppe_drv_tun_decap *ptdc, uint8_t tl_
  * ppe_drv_tun_decap_idx_activate
  *	Activate decap index
  */
-bool ppe_drv_tun_decap_activate(struct ppe_drv_tun_decap *ptdc, struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr)
+bool ppe_drv_tun_decap_activate(struct ppe_drv_tun_decap *ptdc, uint16_t xmit_port, struct ppe_drv_tun_cmn_ctx_l2 *l2_hdr)
 {
 	/*
 	 * Activate TL_TBL entry
 	 */
 	fal_tunnel_action_t ftde = {0};
 	sw_error_t err;
+	struct ppe_drv_port *dp;
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	/*
+	 * Get destination port
+	 */
+	dp = ppe_drv_port_from_port_num(xmit_port);
+	if (!dp) {
+		ppe_drv_warn("Couldn't get destination port for iface index %u", xmit_port);
+		return false;
+	}
 
 	/*
 	 * Update SVLAN Parameters
@@ -341,14 +352,26 @@ bool ppe_drv_tun_decap_activate(struct ppe_drv_tun_decap *ptdc, struct ppe_drv_t
 
 		ppe_drv_trace("%p: TL_TBL SVLAN_ID: %d", ptdc, ftde.verify_entry.svlan_id);
 		ppe_drv_trace("%p: TL_TBL CVLAN_ID: %d", ptdc, ftde.verify_entry.cvlan_id);
+
 	} else if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID) {
 		/*
 		 * Fill the CVLAN (Primary VLAN)
 		 */
-		ftde.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_CVLAN_UPDATE);
-		ftde.verify_entry.verify_bmp |= FAL_TUNNEL_CVLAN_CHECK_EN;
-		ftde.verify_entry.cvlan_fmt = PPE_DRV_TUN_FIELD_VALID;
-		ftde.verify_entry.cvlan_id = l2_hdr->vlan[0].tci;
+		if (l2_hdr->vlan[0].tpid == p->gbl_stpid) {
+			ftde.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_SVLAN_UPDATE);
+			ftde.verify_entry.verify_bmp |= FAL_TUNNEL_SVLAN_CHECK_EN;
+			ftde.verify_entry.svlan_fmt = PPE_DRV_TUN_FIELD_VALID;
+			ftde.verify_entry.svlan_id = l2_hdr->vlan[0].tci;
+		} else if (l2_hdr->vlan[0].tpid == p->gbl_ctpid){
+			ftde.update_bmp |= PPE_DRV_TUN_BIT(FAL_TUNNEL_CVLAN_UPDATE);
+			ftde.verify_entry.verify_bmp |= FAL_TUNNEL_CVLAN_CHECK_EN;
+			ftde.verify_entry.cvlan_fmt = PPE_DRV_TUN_FIELD_VALID;
+			ftde.verify_entry.cvlan_id = l2_hdr->vlan[0].tci;
+		} else {
+			ppe_drv_warn("TPID mismatch TPID:0x%x", l2_hdr->vlan[0].tpid);
+			return false;
+		}
+
 		ppe_drv_trace("%p: TL_TBL CVLAN_ID: %d", ptdc, ftde.verify_entry.cvlan_id);
 	}
 

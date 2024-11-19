@@ -326,13 +326,21 @@ static bool nss_ppe_vlan_mgr_calculate_new_port_role(int32_t port, int32_t porti
 		return false;
 	}
 
-	/*
-	 * If no other double VLAN interface on the same physcial port,
-	 * we set PPE port as edge port
-	 */
 	spin_lock(&vlan_mgr_ctx.lock);
 	list_for_each_entry(v, &vlan_mgr_ctx.list, list) {
+#ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
+		/*
+		 * If no other single/double VLAN on the same physcial port,
+		 * we set PPE port as edge port
+		 */
+		if (v->port[portindex] == port) {
+#else
+		/*
+		 * If no other double VLAN interface on the same physcial port,
+		 * we set PPE port as edge port
+		 */
 		if ((v->port[portindex] == port) && (v->parent)) {
+#endif
 			to_edge_port = false;
 			break;
 		}
@@ -618,10 +626,20 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 		 */
 		ret = ppe_drv_vlan_lag_slave_join(v->iface, slave_dev);
 		if (ret != PPE_DRV_RET_SUCCESS) {
+			rcu_read_unlock();
 			nss_ppe_vlan_mgr_warn("%px: %s:%d slave_dev failed to attach bond vlan iface\n",
 					slave_dev, slave_dev->name, port_id);
 			goto leave_lag_slaves;
 		}
+
+#ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
+		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port_id, FAL_QINQ_CORE_PORT)) {
+			rcu_read_unlock();
+			nss_ppe_vlan_mgr_warn("%s: failed to set %d as core port\n", slave_dev->name, port_id);
+			goto leave_lag_slaves;
+		}
+		vlan_mgr_ctx.port_role[port_id] = FAL_QINQ_CORE_PORT;
+#endif
 
 		/*
 		 * vlan_mgr_bond_port_role is same for all the slaves in the bond group
@@ -636,7 +654,23 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 	 * In case the bond interface has no slaves, we do not want to proceed further
 	 */
 	if (vlan_mgr_bond_port_role == -1) {
-		goto leave_lag_slaves;
+		if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) {
+			v->ppe_cvid = v->vid;
+			v->ppe_svid = v->parent->vid;
+		} else {
+			if (v->tpid == vlan_mgr_ctx.stpid) {
+				v->ppe_cvid = FAL_VLAN_INVALID;
+				v->ppe_svid = v->vid;
+			} else {
+				v->ppe_cvid = v->vid;
+				v->ppe_svid = FAL_VLAN_INVALID;
+			}
+		}
+
+		v->xlate_info.br = NULL;
+		v->xlate_info.svid = v->ppe_svid;
+		v->xlate_info.cvid = v->ppe_cvid;
+		return PPE_DRV_RET_SUCCESS;
 	}
 
 	/*
@@ -684,6 +718,7 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 	}
 	rcu_read_unlock();
 
+#ifndef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
 	/*
 	 * Update vlan port role
 	 */
@@ -708,9 +743,11 @@ static int nss_ppe_vlan_mgr_bond_configure_ppe(struct nss_vlan_pvt *v, struct ne
 		rcu_read_unlock();
 		res = NSS_PPE_VLAN_MGR_PORT_ROLE_CHANGED;
 	}
+#endif
 
 	return res;
 
+#ifndef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
 delete_ppe_rule:
 	rcu_read_lock();
 	for_each_netdev_in_bond_rcu(bond_dev, slave_dev) {
@@ -730,6 +767,7 @@ delete_ppe_rule:
 		}
 	}
 	rcu_read_unlock();
+#endif
 
 leave_lag_slaves:
 	rcu_read_lock();
@@ -1254,6 +1292,14 @@ static int nss_ppe_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_dev
 		return res;
 	}
 
+#ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
+	if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, v->port[0], FAL_QINQ_CORE_PORT)) {
+		nss_ppe_vlan_mgr_warn("%s: failed to set %d as core port\n", dev->name, v->port[0]);
+		goto delete_ppe_rule;
+	}
+	vlan_mgr_ctx.port_role[v->port[0]] = FAL_QINQ_CORE_PORT;
+#endif
+
 	/*
 	 * Calculate ppe cvid and svid
 	 */
@@ -1283,6 +1329,7 @@ static int nss_ppe_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_dev
 		goto clear_mac_addr;
 	}
 
+#ifndef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
 	if ((v->ppe_svid != FAL_VLAN_INVALID) && (vlan_mgr_ctx.port_role[v->port[0]] != FAL_QINQ_CORE_PORT)) {
 		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, v->port[0], FAL_QINQ_CORE_PORT)) {
 			nss_ppe_vlan_mgr_warn("%s: failed to set %d as core port\n", dev->name, v->port[0]);
@@ -1291,6 +1338,7 @@ static int nss_ppe_vlan_mgr_configure_ppe(struct nss_vlan_pvt *v, struct net_dev
 		vlan_mgr_ctx.port_role[v->port[0]] = FAL_QINQ_CORE_PORT;
 		res = NSS_PPE_VLAN_MGR_PORT_ROLE_CHANGED;
 	}
+#endif
 
 	return res;
 
@@ -2523,6 +2571,7 @@ int nss_ppe_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
 			return -1;
 		}
 
+#ifndef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
 		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, v->port[port_id - 1], FAL_QINQ_EDGE_PORT)) {
 			v->xlate_info.port_id = v->port[port_id - 1];
 			ppe_drv_vlan_add_xlate_rule(v->iface, &v->xlate_info);
@@ -2530,6 +2579,7 @@ int nss_ppe_vlan_mgr_delete_bond_slave(struct net_device *slave_dev)
 			nss_ppe_vlan_mgr_warn("%px: Failed to update role\n", v);
 			return -1;
 		}
+#endif
 
 		/*
 		 * Detach the slave dev also from vlan over bond instance
@@ -2602,6 +2652,17 @@ int nss_ppe_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 			return -1;
 		}
 
+#ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
+		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, v->port[port_id - 1], FAL_QINQ_CORE_PORT)) {
+			v->xlate_info.port_id = v->port[port_id - 1];
+			ppe_drv_vlan_del_xlate_rule(v->iface, &v->xlate_info);
+			spin_unlock(&vlan_mgr_ctx.lock);
+			nss_ppe_vlan_mgr_warn("%px: Failed to update role\n", v);
+			return -1;
+		}
+
+		vlan_mgr_ctx.port_role[v->port[port_id - 1]] = FAL_QINQ_CORE_PORT;
+#else
 		/*
 		 * Update port role
 		 */
@@ -2621,6 +2682,7 @@ int nss_ppe_vlan_mgr_add_bond_slave(struct net_device *bond_dev,
 
 			vlan_mgr_ctx.port_role[v->port[port_id - 1]] = FAL_QINQ_CORE_PORT;
 		}
+#endif
 
 		/*
 		 * Each slave dev should get attached to vlan over bond instance

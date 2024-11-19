@@ -568,16 +568,28 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 			ppe_drv_trace("%p: fdb learning disable for dev %s out_vlan %d in_vlan %d\n", pcf,
 				      pp->dev->name, out_vlan, in_vlan);
 
-			if (out_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
-				ppe_drv_trace("%p: fdb learning disable configuring STAG:%u", pcf, out_vlan);
+			if (vlan_cnt == 2) {
+				ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u CTAG:%u",
+						pcf, out_vlan, in_vlan);
 				fal_nh.stag_fmt = 1;
 				fal_nh.svid = out_vlan;
-			}
-
-			if (in_vlan !=PPE_DRV_VLAN_NOT_CONFIGURED) {
-				ppe_drv_trace("%p: fdb learning disable configuring CTAG:%u", pcf, in_vlan);
 				fal_nh.ctag_fmt = 1;
 				fal_nh.cvid = in_vlan;
+			} else {
+				if (pcf->egress_vlan[0].tpid == p->gbl_stpid) {
+					ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u", pcf, in_vlan);
+					fal_nh.stag_fmt = 1;
+					fal_nh.svid = in_vlan;
+				} else if (pcf->egress_vlan[0].tpid == p->gbl_ctpid){
+					ppe_drv_trace("%p: fdb learning disabled configuring CTAG:%u", pcf, in_vlan);
+					fal_nh.ctag_fmt = 1;
+					fal_nh.cvid = in_vlan;
+				} else {
+					ppe_drv_nexthop_deref(nh);
+					ppe_drv_warn("%p: nexthop configuration failed TPID mismatch TPID:0x%x",
+							nh, pcf->egress_vlan[0].tpid);
+					return NULL;
+				}
 			}
 		}
 	}
@@ -683,16 +695,28 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_bridge_flow_get_and_ref(struct ppe_dr
 	kref_init(&nh->ref);
 	list_add(&nh->list, &p->nh_active);
 
-	if (out_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
-		ppe_drv_trace("%p: configuring STAG:%u in nexthop table", pcf, out_vlan);
+	if (vlan_cnt == 2) {
+		ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u CTAG:%u",
+				pcf, out_vlan, in_vlan);
 		fal_nh.stag_fmt = 1;
 		fal_nh.svid = out_vlan;
-	}
-
-	if (in_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
-		ppe_drv_trace("%p: configuring CTAG:%u in nexthop table", pcf, in_vlan);
 		fal_nh.ctag_fmt = 1;
 		fal_nh.cvid = in_vlan;
+	} else {
+		if (pcf->egress_vlan[0].tpid == p->gbl_stpid) {
+			ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u", pcf, in_vlan);
+			fal_nh.stag_fmt = 1;
+			fal_nh.svid = in_vlan;
+		} else if (pcf->egress_vlan[0].tpid == p->gbl_ctpid){
+			ppe_drv_trace("%p: fdb learning disabled configuring CTAG:%u", pcf, in_vlan);
+			fal_nh.ctag_fmt = 1;
+			fal_nh.cvid = in_vlan;
+		} else {
+			ppe_drv_nexthop_deref(nh);
+			ppe_drv_warn("%p: nexthop configuration failed TPID mismatch TPID:0x%x",
+					nh, pcf->egress_vlan[0].tpid);
+			return NULL;
+		}
 	}
 
 	err = fal_ip_nexthop_set(PPE_DRV_SWITCH_ID, nh->index, &fal_nh);
@@ -779,16 +803,28 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_bridge_flow_get_and_ref(struct ppe_dr
 	kref_init(&nh->ref);
 	list_add(&nh->list, &p->nh_active);
 
-	if (out_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
-		ppe_drv_trace("%p: configuring STAG:%u in nexthop table", pcf, out_vlan);
+	if (vlan_cnt == 2) {
+		ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u CTAG:%u",
+				pcf, out_vlan, in_vlan);
 		fal_nh.stag_fmt = 1;
 		fal_nh.svid = out_vlan;
-	}
-
-	if (in_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
-		ppe_drv_trace("%p: configuring CTAG:%u in nexthop table", pcf, in_vlan);
 		fal_nh.ctag_fmt = 1;
 		fal_nh.cvid = in_vlan;
+	} else {
+		if (pcf->egress_vlan[0].tpid == p->gbl_stpid) {
+			ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u", pcf, in_vlan);
+			fal_nh.stag_fmt = 1;
+			fal_nh.svid = in_vlan;
+		} else if (pcf->egress_vlan[0].tpid == p->gbl_ctpid){
+			ppe_drv_trace("%p: fdb learning disabled configuring CTAG:%u", pcf, in_vlan);
+			fal_nh.ctag_fmt = 1;
+			fal_nh.cvid = in_vlan;
+		} else {
+			ppe_drv_nexthop_deref(nh);
+			ppe_drv_warn("%p: nexthop configuration failed TPID mismatch TPID:0x%x",
+					nh, pcf->egress_vlan[0].tpid);
+			return NULL;
+		}
 	}
 
 	err = fal_ip_nexthop_set(PPE_DRV_SWITCH_ID, nh->index, &fal_nh);
@@ -1007,16 +1043,28 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 			ppe_drv_trace("%p: fdb learning disable for dev %s out_vlan %d in_vlan %d\n", pcf,
 				      pp->dev->name, out_vlan, in_vlan);
 
-			if (out_vlan != PPE_DRV_VLAN_NOT_CONFIGURED) {
-				ppe_drv_trace("%p: fdb learning disable configuring STAG:%u", pcf, out_vlan);
+			if (vlan_cnt == 2) {
+				ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u CTAG:%u",
+						pcf, out_vlan, in_vlan);
 				fal_nh.stag_fmt = 1;
 				fal_nh.svid = out_vlan;
-			}
-
-			if (in_vlan !=PPE_DRV_VLAN_NOT_CONFIGURED) {
-				ppe_drv_trace("%p: fdb learning disable configuring CTAG:%u", pcf, in_vlan);
 				fal_nh.ctag_fmt = 1;
 				fal_nh.cvid = in_vlan;
+			} else {
+				if (pcf->egress_vlan[0].tpid == p->gbl_stpid) {
+					ppe_drv_trace("%p: fdb learning disabled configuring STAG:%u", pcf, in_vlan);
+					fal_nh.stag_fmt = 1;
+					fal_nh.svid = in_vlan;
+				} else if (pcf->egress_vlan[0].tpid == p->gbl_ctpid){
+					ppe_drv_trace("%p: fdb learning disabled configuring CTAG:%u", pcf, in_vlan);
+					fal_nh.ctag_fmt = 1;
+					fal_nh.cvid = in_vlan;
+				} else {
+					ppe_drv_nexthop_deref(nh);
+					ppe_drv_warn("%p: nexthop configuration failed TPID mismatch TPID:0x%x",
+							nh, pcf->egress_vlan[0].tpid);
+					return NULL;
+				}
 			}
 		}
 	}

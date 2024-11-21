@@ -173,22 +173,22 @@ static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *
 	memset(gre, 0, sizeof(struct ppe_drv_tun_cmn_ctx_gretap));
 
 	if (iflags & TUNNEL_KEY) {
-		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_L_KEY;
-		gre->local_key = i_key;
+		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_DECAP_KEY;
+		gre->decap_key = i_key;
 	}
 
 	if (oflags & TUNNEL_KEY) {
-		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_R_KEY;
-		gre->remote_key = o_key;
+		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_ENCAP_KEY;
+		gre->encap_key = o_key;
 	}
 
 	if (iflags & TUNNEL_CSUM) {
-		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_L_CSUM;
+		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_DECAP_CSUM;
 		nss_ppe_gretap_info("%p:ICSUM option enabled for GRE\n", gre);
 	}
 
 	if (oflags & TUNNEL_CSUM) {
-		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_R_CSUM;
+		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_ENCAP_CSUM;
 		nss_ppe_gretap_info("%p:OCSUM option enabled for GRE\n", gre);
 	}
 }

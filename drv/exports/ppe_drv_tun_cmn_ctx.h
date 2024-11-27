@@ -143,10 +143,10 @@ struct ppe_drv_tun_cmn_ctx_l2 {
 };
 
 /*
- * ppe_drv_tun_cmn_ctx_gretap
+ * ppe_drv_tun_cmn_ctx_gre
  *	GRE header parameters
  */
-struct ppe_drv_tun_cmn_ctx_gretap {
+struct ppe_drv_tun_cmn_ctx_gre {
 	uint32_t encap_key;	/**< GRE key used for encapsulation of the packet >*/
 	uint32_t decap_key;	/**< GRE key used for decapsulation of the packet>*/
 	uint16_t flags;		/**< flags to set optional fields >*/
@@ -233,7 +233,7 @@ struct ppe_drv_tun_cmn_ctx {
 	struct ppe_drv_tun_cmn_ctx_l2 l2;	/**< L2 Header >*/
 	struct ppe_drv_tun_cmn_ctx_l3 l3;	/**< L3 Header >*/
 	union {
-		struct ppe_drv_tun_cmn_ctx_gretap gre;	/**< GRE tunnel configuration >*/
+		struct ppe_drv_tun_cmn_ctx_gre gre;	/**< GRE tunnel configuration >*/
 		struct ppe_drv_tun_cmn_ctx_vxlan vxlan;	/**< VxLAN tunnel configuration >*/
 		struct ppe_drv_tun_cmn_ctx_mapt mapt;	/**< Map-T tunnel configuration >*/
 		struct ppe_drv_tun_cmn_ctx_l2tp l2tp;	/**< L2TP tunnel configuration >*/

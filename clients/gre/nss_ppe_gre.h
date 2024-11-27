@@ -14,65 +14,69 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __NSS_PPE_GRETAP_PRIV_H_
-#define __NSS_PPE_GRETAP_PRIV_H_
+#ifndef __NSS_PPE_GRE_PRIV_H_
+#define __NSS_PPE_GRE_PRIV_H_
 
 /*
- * NSS gre-tap interface debug macros
+ * NSS gre interface debug macros
  */
-#if (NSS_PPE_GRETAP_DEBUG_LEVEL < 1)
-#define nss_ppe_gretap_assert(fmt, args...)
+#if (NSS_PPE_GRE_DEBUG_LEVEL < 1)
+#define nss_ppe_gre_assert(fmt, args...)
 #else
-#define nss_ppe_gretap_assert(c) if (!(c)) { BUG_ON(!(c)); }
+#define nss_ppe_gre_assert(c) if (!(c)) { BUG_ON(!(c)); }
 #endif
 
 /*
  * Compile messages for dynamic enable/disable
  */
 #if defined(CONFIG_DYNAMIC_DEBUG)
-#define nss_ppe_gretap_warning(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define nss_ppe_gretap_info(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define nss_ppe_gretap_trace(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define nss_ppe_gre_warning(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define nss_ppe_gre_info(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define nss_ppe_gre_trace(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else /* CONFIG_DYNAMIC_DEBUG */
 /*
  * Statically compile messages at different levels
  */
-#if (NSS_PPE_GRETAP_DEBUG_LEVEL < 2)
-#define nss_ppe_gretap_warning(s, ...)
+#if (NSS_PPE_GRE_DEBUG_LEVEL < 2)
+#define nss_ppe_gre_warning(s, ...)
 #else
-#define nss_ppe_gretap_warning(s, ...) pr_warn("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define nss_ppe_gre_warning(s, ...) pr_warn("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 
-#if (NSS_PPE_GRETAP_DEBUG_LEVEL < 3)
-#define nss_ppe_gretap_info(s, ...)
+#if (NSS_PPE_GRE_DEBUG_LEVEL < 3)
+#define nss_ppe_gre_info(s, ...)
 #else
-#define nss_ppe_gretap_info(s, ...)   pr_notice("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define nss_ppe_gre_info(s, ...)   pr_notice("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 
-#if (NSS_PPE_GRETAP_DEBUG_LEVEL < 4)
-#define nss_ppe_gretap_trace(s, ...)
+#if (NSS_PPE_GRE_DEBUG_LEVEL < 4)
+#define nss_ppe_gre_trace(s, ...)
 #else
-#define nss_ppe_gretap_trace(s, ...)  pr_info("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define nss_ppe_gre_trace(s, ...)  pr_info("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #endif
 #endif /* CONFIG_DYNAMIC_DEBUG */
 
 /*
- * nss_ppe_gretap_stats
- *	GREtap client statistics.
+ * nss_ppe_gre_stats
+ *	GRE client statistics.
  */
-struct nss_ppe_gretap_stats {
+struct nss_ppe_gre_stats {
 	atomic64_t iflag_seq_err;		/* Sequence number enabled in iflag */
 	atomic64_t oflag_seq_err;		/* Sequence number enabled in oflag */
 	atomic64_t enc_lim_err;			/* Encap limit not set for v6 tunnel */
+	atomic64_t gretun_src_excep_drop_count; /* GRETUN source exception drop counter */
+	atomic64_t gretap_src_excep_drop_count;	/* GRETAP source exception drop counter */
+	atomic64_t gretun_key_flag_failure;	/* GRETUN key flag set failure */
+	atomic64_t gretun_csum_flag_failure;	/* GRETUN csum flag set failure */
 };
 
 /*
- * nss_ppe_gretap_ctx
- *	Global gretap client context.
+ * nss_ppe_gre_ctx
+ *	Global gre client context.
  */
-struct nss_ppe_gretap_ctx {
-	struct nss_ppe_gretap_stats stats;	/* GREtap client statistics */
-	struct dentry *dentry;			/* Root dentry for GREtap client */
+struct nss_ppe_gre_ctx {
+	struct nss_ppe_gre_stats stats;		/* GRE client statistics */
+	struct dentry *dentry;			/* Root dentry for GRE client */
 };
 
-#endif /* __NSS_PPE_GRETAP_PRIV_H_ */
+#endif /* __NSS_PPE_GRE_PRIV_H_ */

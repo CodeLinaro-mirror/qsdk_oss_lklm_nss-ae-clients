@@ -38,7 +38,7 @@
 #include <linux/debugfs.h>
 #include <ppe_drv_public.h>
 #include <ppe_vp_public.h>
-#include "nss_ppe_gretap.h"
+#include "nss_ppe_gre.h"
 
 static struct nss_ppe_gretap_ctx global;
 

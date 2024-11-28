@@ -721,7 +721,7 @@ static void nss_ppe_vxlanmgr_rtm_newneigh_handler(struct nss_ppe_vxlanmgr_rtm_ne
 	/*
 	 * Allocate child/dummy nss-netdevice.
 	 */
-	nss_netdev = alloc_netdev(sizeof(struct nss_ppe_vxlanmgr_nss_dev_priv), "ppe_vxlan_tun%d", NET_NAME_UNKNOWN, nss_ppe_vxlanmgr_nss_netdev_setup);
+	nss_netdev = alloc_netdev(sizeof(struct nss_ppe_vxlanmgr_nss_dev_priv), "ppe_vxlantun%d", NET_NAME_UNKNOWN, nss_ppe_vxlanmgr_nss_netdev_setup);
 
 	if (!nss_netdev) {
 		nss_ppe_vxlanmgr_warn("%px: Failed to allocate nss netdev", rtm_newneigh_info);

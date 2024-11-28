@@ -50,7 +50,7 @@ bool nss_ppe_vxlan_dev_stats_update(struct net_device *dev, ppe_tun_hw_stats *st
 	/*
 	 * For VXLAN device add the stats to the parent netdevice instead of nss_netdev.
 	 */
-	if (unlikely(strncmp(dev->name, "ppe_vxlan_tun", 13) == 0)) {
+	if (unlikely(strncmp(dev->name, "ppe_vxlantun", 12) == 0)) {
 		ifindex = *(int *)netdev_priv(dev);
 		pdev = dev_get_by_index(&init_net, ifindex);
 		if (!pdev) {

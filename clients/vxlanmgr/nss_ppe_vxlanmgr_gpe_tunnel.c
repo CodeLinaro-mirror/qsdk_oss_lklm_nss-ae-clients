@@ -389,7 +389,7 @@ static void nss_ppe_vxlanmgr_fib_add_event_handler(struct nss_ppe_vxlanmgr_fib_e
 	/*
 	 * Allocate child/dummy nss-netdevice.
 	 */
-	nss_netdev = alloc_netdev(sizeof(struct nss_ppe_vxlanmgr_nss_dev_priv), "ppe_vxlan_tun%d", NET_NAME_UNKNOWN, nss_ppe_vxlanmgr_gpe_nss_netdev_setup_dummy);
+	nss_netdev = alloc_netdev(sizeof(struct nss_ppe_vxlanmgr_nss_dev_priv), "ppe_vxlantun%d", NET_NAME_UNKNOWN, nss_ppe_vxlanmgr_gpe_nss_netdev_setup_dummy);
 
 	if (!nss_netdev) {
 		nss_ppe_vxlanmgr_warn("%px: Failed to allocate nss netdev\n", fib_newneigh_info);

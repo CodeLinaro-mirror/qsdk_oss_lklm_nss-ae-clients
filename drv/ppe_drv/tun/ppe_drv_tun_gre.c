@@ -152,23 +152,35 @@ struct ppe_drv_tun_gre_acl *ppe_drv_tun_gre_acl_alloc(struct ppe_drv *p)
  */
 bool ppe_drv_tun_gre_acl_config(struct ppe_drv_tun_gre_acl *gre)
 {
-	struct ppe_drv_tun_udf_profile udf_pf = {0};
+	struct ppe_drv_tun_udf_profile *udf_pf;
 	fal_acl_rule_t acl_rule = {0};
 	sw_error_t error;
+
+	udf_pf = kzalloc(sizeof(struct ppe_drv_tun_udf_profile), GFP_ATOMIC);
+	if (!udf_pf) {
+		ppe_drv_warn("%p: Couldn't allocate memory for udf profile", udf_pf);
+
+		/*
+		 * TODO: It is not correct to do acl_deref here.
+		 * clean up needed for acl_deref.
+		 */
+		ppe_drv_tun_gre_acl_deref(gre);
+		return false;
+	}
 
 	/*
 	 * The checksum flag is present in the first byte of the GRE header
 	 * Configure tunnel UDF to match the first byte of the GRE header to
 	 * "checksum present" bit.
 	 */
-	udf_pf.l4_match = true;
-	udf_pf.l4_type = PPE_DRV_TUN_UDF_L4_TYPE_GRE;
+	udf_pf->l4_match = true;
+	udf_pf->l4_type = PPE_DRV_TUN_UDF_L4_TYPE_GRE;
 
-	ppe_drv_tun_udf_bitmask_set(&udf_pf, PPE_DRV_TUN_GRE_UDF_IDX_CSUM);
+	ppe_drv_tun_udf_bitmask_set(udf_pf, PPE_DRV_TUN_GRE_UDF_IDX_CSUM);
 
-	udf_pf.udf[PPE_DRV_TUN_GRE_UDF_IDX_CSUM].offset_type = PPE_DRV_TUN_UDF_OFFSET_TYPE_L4;
-	udf_pf.udf[PPE_DRV_TUN_GRE_UDF_IDX_CSUM].offset = PPE_DRV_TUN_GRE_UDF_OFFSET_CSUM;
-	gre->udf = ppe_drv_tun_udf_entry_configure(&udf_pf);
+	udf_pf->udf[PPE_DRV_TUN_GRE_UDF_IDX_CSUM].offset_type = PPE_DRV_TUN_UDF_OFFSET_TYPE_L4;
+	udf_pf->udf[PPE_DRV_TUN_GRE_UDF_IDX_CSUM].offset = PPE_DRV_TUN_GRE_UDF_OFFSET_CSUM;
+	gre->udf = ppe_drv_tun_udf_entry_configure(udf_pf);
 	if (!gre->udf) {
 		ppe_drv_warn("%p: Failed to configure UDF profile for GRE CSUM match\n", gre);
 		goto err;
@@ -269,9 +281,11 @@ bool ppe_drv_tun_gre_acl_config(struct ppe_drv_tun_gre_acl *gre)
 
 	gre->acl_vpid_dis = PPE_DRV_TUN_GRE_ACL_VPID_CSUM_DIS;
 
+	kfree(udf_pf);
 	return true;
 
 err:
 	ppe_drv_tun_gre_acl_deref(gre);
+	kfree(udf_pf);
 	return false;
 }

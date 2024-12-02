@@ -647,6 +647,12 @@ bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_
 		return false;
 	}
 
+	err = fal_tunnel_port_intf_get(PPE_DRV_SWITCH_ID, xmit_port, &port_tnl_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: unable to set xmit port %d", ptun, xmit_port);
+		return false;
+	}
+
 	if (l2_hdr->flags & PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID) {
 		port_tnl_cfg.pppoe_en = (a_bool_t)PPE_DRV_TUN_FIELD_VALID;
 	} else {

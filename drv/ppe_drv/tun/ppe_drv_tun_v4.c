@@ -160,7 +160,7 @@ static bool ppe_drv_v4_vxlan_tunnel(struct ppe_drv_v4_rule_create *create, struc
 {
 	int vxlan_dport = ppe_drv_get_vxlan_dport();
 
-	if (netif_is_vxlan(dev) || (!strncmp(dev->name, "ppe_vxlan_tun", 13))) {
+	if (netif_is_vxlan(dev) || (!strncmp(dev->name, "ppe_vxlantun", 12))) {
 		/*
 		 * Check if it is an outer rule.
 		 */
@@ -181,7 +181,7 @@ static bool ppe_drv_v4_vxlan_gpe_tunnel(struct ppe_drv_v4_rule_create *create, s
 {
 	int vxlan_gpe_dport = ppe_drv_get_vxlan_gpe_dport();
 
-	if (netif_is_vxlan(dev) || (!strncmp(dev->name, "ppe_vxlan_tun", 13))) {
+	if (netif_is_vxlan(dev) || (!strncmp(dev->name, "ppe_vxlantun", 12))) {
 		/*
 		 * Check if it is an outer rule.
 		 */

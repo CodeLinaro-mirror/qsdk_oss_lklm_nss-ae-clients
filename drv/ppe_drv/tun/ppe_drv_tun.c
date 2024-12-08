@@ -1764,6 +1764,7 @@ static bool ppe_drv_tun_encap_header_rule_configure(enum ppe_drv_tun_cmn_ctx_typ
 	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
 		ptun->ptecxr = p->tun_gbl.tun_l2tp.l2tp_encap_rule;
 		ptun->ptecxr = ppe_drv_tun_encap_rule_id_alloc_or_ref(ptun->ptecxr, ptun);
+		p->tun_gbl.tun_l2tp.l2tp_encap_rule = ptun->ptecxr;
 		if (!ptun->ptecxr || !ppe_drv_tun_encap_hdr_ctrl_l2tp_configure(p, ptun)) {
 			ppe_drv_warn("%p L2TPv2: failed to configure encap header control", p);
 			return false;
@@ -1773,6 +1774,7 @@ static bool ppe_drv_tun_encap_header_rule_configure(enum ppe_drv_tun_cmn_ctx_typ
 	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE:
 		ptun->ptecxr = p->tun_gbl.vxlan_gpe_encap_rule;
 		ptun->ptecxr = ppe_drv_tun_encap_rule_id_alloc_or_ref(ptun->ptecxr, ptun);
+		p->tun_gbl.vxlan_gpe_encap_rule = ptun->ptecxr;
 		if (!ptun->ptecxr || !ppe_drv_tun_encap_hdr_ctrl_vxlan_gpe_configure(p, ptun)) {
 			ppe_drv_warn("%p VXLAN-GPE: failed to configure encap header control", p);
 			return false;
@@ -1782,6 +1784,7 @@ static bool ppe_drv_tun_encap_header_rule_configure(enum ppe_drv_tun_cmn_ctx_typ
 	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN:
 		ptun->ptecxr = p->tun_gbl.gretun_encap_rule;
 		ptun->ptecxr = ppe_drv_tun_encap_rule_id_alloc_or_ref(ptun->ptecxr, ptun);
+		p->tun_gbl.gretun_encap_rule = ptun->ptecxr;
 		if (!ptun->ptecxr || !ppe_drv_tun_encap_hdr_ctrl_gretun_configure(p, ptun)) {
 			ppe_drv_warn("%p GRETUN: failed to configure encap header control", p);
 			return false;;

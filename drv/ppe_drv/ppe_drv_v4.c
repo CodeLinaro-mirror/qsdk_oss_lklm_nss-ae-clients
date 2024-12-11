@@ -282,6 +282,15 @@ bool ppe_drv_v4_fse_interface_check(struct ppe_drv_v4_conn_flow *pcf)
 		return false;
 	}
 
+	/*
+	 * Interface type is not wifi.
+	 */
+	if (!ppe_drv_port_flags_check(rx_port, PPE_DRV_PORT_FLAG_WIFI_DEV) &&
+			!ppe_drv_port_flags_check(tx_port, PPE_DRV_PORT_FLAG_WIFI_DEV)) {
+		ppe_drv_trace("tx/Rx is not WIFI device\n");
+		return false;
+	}
+
 	return true;
 }
 

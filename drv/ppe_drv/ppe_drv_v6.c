@@ -800,7 +800,7 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 	struct ppe_drv_v6_conn_flow *pcr = &cn->pcr;
 	uint16_t valid_flags = create->valid_flags;
 	uint16_t rule_flags = create->rule_flags;
-	uint32_t sawf_tag;
+	uint32_t sawf_tag = 0;
 	bool is_wanif;
 	struct ppe_drv_flow_cookie_metadata fc_metadata = {0};
 	struct ppe_drv_comm_stats *comm_stats;
@@ -1059,6 +1059,13 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 						(ppe_drv_port_flags_check(pp_tx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
 					memset(&fc_metadata, 0, sizeof(fc_metadata));
 					fc_metadata.type.mark = create->wifi_rule.flow_mark;
+					/*
+					 * Update the mark if 11be SCS, legacy SCS/MSCS or SAWF have the valid mark.
+					 */
+					if (valid_flags & PPE_DRV_V6_VALID_FLAG_WIFI_TID)
+						fc_metadata.type.mark = qos_rule->flow_qos_tag;
+					if ((sawf_tag == PPE_DRV_SAWF_VALID_TAG) || (valid_flags & PPE_DRV_V6_VALID_FLAG_SCS))
+						fc_metadata.type.mark = sawf_rule->flow_mark;
 					ppe_drv_v6_conn_flow_metadata_set(pcf, &fc_metadata, PPE_DRV_TREE_ID_TYPE_MLO_ASSIST);
 			}
 		}
@@ -1297,6 +1304,13 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 						(ppe_drv_port_flags_check(pp_rx, PPE_DRV_PORT_FLAG_WIFI_DEV))) {
 					memset(&fc_metadata, 0, sizeof(fc_metadata));
 					fc_metadata.type.mark = create->wifi_rule.return_mark;
+					/*
+					 * Update the mark if 11be SCS, legacy SCS/MSCS or SAWF have the valid mark.
+					 */
+					if (valid_flags & PPE_DRV_V6_VALID_FLAG_WIFI_TID)
+						fc_metadata.type.mark = qos_rule->return_qos_tag;
+					if ((sawf_tag == PPE_DRV_SAWF_VALID_TAG) || (valid_flags & PPE_DRV_V6_VALID_FLAG_SCS))
+						fc_metadata.type.mark = sawf_rule->return_mark;
 					ppe_drv_v6_conn_flow_metadata_set(pcr, &fc_metadata, PPE_DRV_TREE_ID_TYPE_MLO_ASSIST);
 			}
 		}
@@ -1743,8 +1757,10 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 	 */
 	if (ppe_drv_tree_id_type_get(&pcf->flow_metadata) == PPE_DRV_TREE_ID_TYPE_SAWF) {
 		service_class = tree_id_data->info.sawf_metadata.service_class;
-		ppe_drv_stats_dec(&p->stats.sawf_sc_stats[service_class].flow_count);
-		ppe_drv_trace("Stats Updated: service class %u : flow  %llu\n",service_class, atomic64_read(&p->stats.sawf_sc_stats[service_class].flow_count));
+		if (PPE_DRV_SERVICE_CLASS_IS_VALID(service_class)) {
+			ppe_drv_stats_dec(&p->stats.sawf_sc_stats[service_class].flow_count);
+			ppe_drv_trace("Stats Updated: service class %u : flow  %llu\n",service_class, atomic64_read(&p->stats.sawf_sc_stats[service_class].flow_count));
+		}
 	}
 
 	/*

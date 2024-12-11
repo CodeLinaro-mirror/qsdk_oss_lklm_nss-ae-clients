@@ -40,10 +40,10 @@
 #include <ppe_vp_public.h>
 #include "nss_ppe_gre.h"
 
-static struct nss_ppe_gretap_ctx global;
+static struct nss_ppe_gre_ctx global;
 
-static bool nss_gretap_stats_dentry_create(struct nss_ppe_gretap_ctx *ctx, struct net_device *dev);
-static bool nss_gretap_stats_dentry_free(struct nss_ppe_gretap_ctx *ctx, struct net_device *dev);
+static bool nss_gre_stats_dentry_create(struct nss_ppe_gre_ctx *ctx, struct net_device *dev);
+static bool nss_gre_stats_dentry_free(struct nss_ppe_gre_ctx *ctx, struct net_device *dev);
 
 static uint8_t encap_ecn_mode = PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_NO_UPDATE;
 module_param(encap_ecn_mode, byte, 0644);
@@ -62,10 +62,10 @@ module_param(inherit_ttl, bool, 0644);
 MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
 
 /*
- * nss_ppe_gretap_dev_stats_update()
- *	Update gretap dev statistics
+ * nss_ppe_gre_dev_stats_update()
+ *	Update gre dev statistics
  */
-static bool nss_ppe_gretap_dev_stats_update(struct net_device *dev, ppe_tun_hw_stats *stats, ppe_tun_data *tun_data)
+static bool nss_ppe_gre_dev_stats_update(struct net_device *dev, ppe_tun_hw_stats *stats, ppe_tun_data *tun_data)
 {
 	struct pcpu_sw_netstats *tstats;
 
@@ -87,14 +87,52 @@ static bool nss_ppe_gretap_dev_stats_update(struct net_device *dev, ppe_tun_hw_s
 	u64_stats_add(&tstats->rx_packets,  stats->rx_pkt_cnt);
 #endif
 	u64_stats_update_end(&tstats->syncp);
-/*
- * TODO: Remove the following check when net_device support for
- * drop counters is added from Kernel for PPE Tunnel stats.
- */
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	atomic_long_add(stats->tx_drop_pkt_cnt, &dev->tx_dropped);
 	atomic_long_add(stats->rx_drop_pkt_cnt, &dev->rx_dropped);
 #endif
+
+	return true;
+}
+
+/*
+ * nss_ppe_gretun_src_exception()
+ *	Handle the source VP exception for GRETUN
+ */
+static bool nss_ppe_gretun_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
+{
+	struct sk_buff *skb = info->skb;
+	struct net_device * dev = skb->dev;
+	int ret;
+	struct nss_ppe_gre_ctx *ctx = &global;
+	unsigned char *data = skb->data;
+
+	skb_reset_network_header(skb);
+	if ((data[0] >> 4) == IPVERSION) {
+		skb->protocol = htons(ETH_P_IP);
+	} else if ((data[0] >> 4) == 6) {
+		skb->protocol = htons(ETH_P_IPV6);
+	} else {
+		dev_kfree_skb_any(skb);
+		nss_ppe_gre_warning("%p: Not an IP packet \n", dev);
+		atomic64_inc(&ctx->stats.gretun_src_excep_drop_count);
+		return true;
+	}
+
+	skb->pkt_type = PACKET_HOST;
+
+	/*
+	 * Reset skb flags.
+	 */
+	skb->fast_xmit = 0;
+	skb->fast_recycled = 0;
+	skb->recycled_for_ds = 0;
+	ret = netif_receive_skb(skb);
+	if (ret != NET_RX_SUCCESS) {
+		nss_ppe_gre_warning("%p: exception packet dropped for gretun\n", dev);
+		atomic64_inc(&ctx->stats.gretun_src_excep_drop_count);
+	}
 
 	return true;
 }
@@ -105,6 +143,8 @@ static bool nss_ppe_gretap_dev_stats_update(struct net_device *dev, ppe_tun_hw_s
  */
 static bool nss_ppe_gretap_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
+	struct nss_ppe_gre_ctx *ctx = &global;
+
 	struct sk_buff *skb = info->skb;
 	struct net_device *dev = skb->dev;
 	int ret;
@@ -116,30 +156,55 @@ static bool nss_ppe_gretap_src_exception(struct ppe_vp_cb_info *info, ppe_tun_da
 	 */
 	skb->pkt_type = PACKET_HOST;
 	skb_reset_network_header(skb);
+
+	/*
+	 * Reset skb flags.
+	 */
+	skb->fast_xmit = 0;
+	skb->fast_recycled = 0;
+	skb->recycled_for_ds = 0;
 	ret = netif_receive_skb(skb);
 	if (ret != NET_RX_SUCCESS) {
-		nss_ppe_gretap_warning("%p: excpetion packet dropped\n", dev);
+		nss_ppe_gre_warning("%p: excpetion packet dropped for gretap\n", dev);
+		atomic64_inc(&ctx->stats.gretap_src_excep_drop_count);
 	}
 
 	return true;
 }
 
 /*
- * nss_ppe_gretap_flags_check_cmn()
+ * nss_ppe_gre_flags_check_cmn()
  * 	API to check the common tunnel create flags between v4 and v6.
  */
-static bool nss_ppe_gretap_flags_check_cmn(struct net_device *dev, uint16_t i_flags, uint16_t o_flags)
+static bool nss_ppe_gre_flags_check_cmn(struct net_device *dev, uint16_t i_flags, uint16_t o_flags, enum ppe_drv_tun_cmn_ctx_type type)
 {
-	struct nss_ppe_gretap_ctx *ctx = &global;
+	struct nss_ppe_gre_ctx *ctx = &global;
+
+	/*
+	 * Currently GRE tunnel offload with KEY and CSUM flags are not supported in PPE
+	 */
+	if (type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN) {
+		if (i_flags & TUNNEL_KEY || o_flags & TUNNEL_KEY) {
+			nss_ppe_gre_warning("%p: GRE tunnel offload with keys flags are not supported in PPE \n", dev);
+			atomic64_inc(&ctx->stats.gretun_key_flag_failure);
+			return false;
+		}
+
+		if (i_flags & TUNNEL_CSUM || o_flags & TUNNEL_CSUM) {
+			nss_ppe_gre_warning("%p: GRE tunnel offload with csum flags are not supporeted in PPE \n", dev);
+			atomic64_inc(&ctx->stats.gretun_csum_flag_failure);
+			return false;
+		}
+	}
 
 	if (i_flags & TUNNEL_SEQ) {
-		nss_ppe_gretap_warning("%p:%s iflag SEQ not supported\n", dev, dev->name);
+		nss_ppe_gre_warning("%p:%s iflag SEQ not supported\n", dev, dev->name);
 		atomic64_inc(&ctx->stats.iflag_seq_err);
 		return false;
 	}
 
 	if (o_flags & TUNNEL_SEQ) {
-		nss_ppe_gretap_warning("%p:%s oflag SEQ not supported\n", dev, dev->name);
+		nss_ppe_gre_warning("%p:%s oflag SEQ not supported\n", dev, dev->name);
 		atomic64_inc(&ctx->stats.oflag_seq_err);
 		return false;
 	}
@@ -148,36 +213,36 @@ static bool nss_ppe_gretap_flags_check_cmn(struct net_device *dev, uint16_t i_fl
 }
 
 /*
- * nss_ppe_gretap_flags_check_v6()
+ * nss_ppe_gre_flags_check_v6()
  *	API to check if the v6 tunnel create flags are supported.
  *
- * There are a number if extended feature for GRETap tunnels which are specified
+ * There are a number if extended feature for GRE tunnels which are specified
  * when creating the tunnel.This API Checks if the flags are supported.
  */
-static bool nss_ppe_gretap_flags_check_v6(struct net_device *dev, struct ip6_tnl *tun)
+static bool nss_ppe_gre_flags_check_v6(struct net_device *dev, struct ip6_tnl *tun, enum ppe_drv_tun_cmn_ctx_type type)
 {
-	struct nss_ppe_gretap_ctx *ctx = &global;
+	struct nss_ppe_gre_ctx *ctx = &global;
 
 	if (!(tun->parms.flags & IP6_TNL_F_IGN_ENCAP_LIMIT)) {
-		nss_ppe_gretap_warning("%p:%s Encap limit should be none", dev, dev->name);
+		nss_ppe_gre_warning("%p:%s Encap limit should be none", dev, dev->name);
 		atomic64_inc(&ctx->stats.enc_lim_err);
 		return false;
 	}
 
-	return nss_ppe_gretap_flags_check_cmn(dev, tun->parms.i_flags, tun->parms.o_flags);
+	return nss_ppe_gre_flags_check_cmn(dev, tun->parms.i_flags, tun->parms.o_flags, type);
 }
 
 /*
- * nss_ppe_gretap_set_gre_key_flags()
+ * nss_ppe_gre_set_gre_flags()
  *     Set GRE Key, optional flags according to the config
  */
-static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *gre, uint16_t iflags, uint16_t oflags, uint32_t i_key, uint32_t o_key)
+bool nss_ppe_gre_set_gre_flags(struct ppe_drv_tun_cmn_ctx_gre *gre, uint16_t iflags, uint16_t oflags, uint32_t i_key, uint32_t o_key)
 {
 	if (!gre) {
-		return;
+		return false;
 	}
 
-	memset(gre, 0, sizeof(struct ppe_drv_tun_cmn_ctx_gretap));
+	memset(gre, 0, sizeof(struct ppe_drv_tun_cmn_ctx_gre));
 
 	if (iflags & TUNNEL_KEY) {
 		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_DECAP_KEY;
@@ -191,31 +256,34 @@ static void nss_ppe_gretap_set_gre_key_flags(struct ppe_drv_tun_cmn_ctx_gretap *
 
 	if (iflags & TUNNEL_CSUM) {
 		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_DECAP_CSUM;
-		nss_ppe_gretap_info("%p:ICSUM option enabled for GRE\n", gre);
+		nss_ppe_gre_info("%p:ICSUM option enabled for GRE\n", gre);
 	}
 
 	if (oflags & TUNNEL_CSUM) {
 		gre->flags |= PPE_DRV_TUN_CMN_CTX_GRE_ENCAP_CSUM;
-		nss_ppe_gretap_info("%p:OCSUM option enabled for GRE\n", gre);
+		nss_ppe_gre_info("%p:OCSUM option enabled for GRE\n", gre);
 	}
+
+	return true;
 }
 
 /*
- * nss_ppe_gretap_ip4_dev_parse_param()
- *      Parse IPv4 gretap arguments sent to PPE driver
+ * nss_ppe_gre_ip4_dev_parse_param()
+ *      Parse IPv4 gre arguments sent to PPE driver
  */
-static bool nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
+static bool nss_ppe_gre_ip4_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr,
+						enum ppe_drv_tun_cmn_ctx_type type)
 {
 	bool tun_cfg_ol_support;
 	struct ip_tunnel *tunnel;
 	struct ppe_drv_tun_cmn_ctx_l3 *l3 = &tun_hdr->l3;
 	struct iphdr *iphdr;
-	struct ppe_drv_tun_cmn_ctx_gretap *gre = &tun_hdr->tun.gre;
+	struct ppe_drv_tun_cmn_ctx_gre *gre = &tun_hdr->tun.gre;
 	tunnel = (struct ip_tunnel *)netdev_priv(netdev);
 
-	tun_cfg_ol_support = nss_ppe_gretap_flags_check_cmn(netdev, tunnel->parms.i_flags, tunnel->parms.o_flags);
+	tun_cfg_ol_support = nss_ppe_gre_flags_check_cmn(netdev, tunnel->parms.i_flags, tunnel->parms.o_flags, type);
 	if (!tun_cfg_ol_support) {
-		nss_ppe_gretap_warning("%p:Configured GREtap extended header not supported\n", netdev);
+		nss_ppe_gre_warning("%p:Configured GRE extended header not supported\n", netdev);
 		return false;
 	}
 
@@ -236,7 +304,9 @@ static bool nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct
 	l3->proto = IPPROTO_GRE;
 	l3->flags = PPE_DRV_TUN_CMN_CTX_L3_IPV4;
 
-	/* Set PPE flags to inherit TTL values if inherit flag is not set */
+	/*
+	 * Set PPE flags to inherit TTL values if inherit flag is not set
+	 */
 	if (inherit_ttl) {
 		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL;
 	}
@@ -253,29 +323,29 @@ static bool nss_ppe_gretap_ip4_dev_parse_param(struct net_device *netdev, struct
 		l3->decap_ecn_mode = decap_ecn_mode;
 	}
 
-	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP;
-	nss_ppe_gretap_set_gre_key_flags(gre, tunnel->parms.i_flags, tunnel->parms.o_flags, tunnel->parms.i_key, tunnel->parms.o_key);
+	tun_hdr->type = type;
 
-	return true;
+	return nss_ppe_gre_set_gre_flags(gre, tunnel->parms.i_flags, tunnel->parms.o_flags, tunnel->parms.i_key, tunnel->parms.o_key);
 }
 
 /*
- * nss_ppe_gretap_ip6_dev_parse_param()
- *      Parse IPv6 gretap arguments sent to PPE driver
+ * nss_ppe_gre_ip6_dev_parse_param()
+ *      Parse IPv6 gre arguments sent to PPE driver
  */
-static bool nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr)
+static bool nss_ppe_gre_ip6_dev_parse_param(struct net_device *netdev, struct ppe_drv_tun_cmn_ctx *tun_hdr,
+						enum ppe_drv_tun_cmn_ctx_type type)
 {
 	struct ip6_tnl *tunnel;
 	struct flowi6 *fl6;
 	struct ppe_drv_tun_cmn_ctx_l3 *l3 = &tun_hdr->l3;
 	bool tun_cfg_ol_support;
 
-	struct ppe_drv_tun_cmn_ctx_gretap *gre = &tun_hdr->tun.gre;
+	struct ppe_drv_tun_cmn_ctx_gre *gre = &tun_hdr->tun.gre;
 	tunnel = (struct ip6_tnl *)netdev_priv(netdev);
 
-	tun_cfg_ol_support = nss_ppe_gretap_flags_check_v6(netdev, tunnel);
+	tun_cfg_ol_support = nss_ppe_gre_flags_check_v6(netdev, tunnel, type);
 	if (!tun_cfg_ol_support) {
-		nss_ppe_gretap_warning("%p:Configured GREtap extended header not supported\n", netdev);
+		nss_ppe_gre_warning("%p:Configured GRE extended header not supported\n", netdev);
 		return false;
 	}
 
@@ -283,9 +353,9 @@ static bool nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct
 	 * Find the Tunnel device flow information
 	 */
 	fl6 = &tunnel->fl.u.ip6;
-	nss_ppe_gretap_trace("%px: Tunnel param saddr: %pI6 daddr: %pI6\n", netdev, fl6->saddr.s6_addr32, fl6->daddr.s6_addr32);
-	nss_ppe_gretap_trace("%px: Hop limit %d\n", netdev, tunnel->parms.hop_limit);
-	nss_ppe_gretap_trace("%px: Tunnel param flag %x  fl6.flowlabel %x\n", netdev,  tunnel->parms.flags, fl6->flowlabel);
+	nss_ppe_gre_trace("%px: Tunnel param saddr: %pI6 daddr: %pI6\n", netdev, fl6->saddr.s6_addr32, fl6->daddr.s6_addr32);
+	nss_ppe_gre_trace("%px: Hop limit %d\n", netdev, tunnel->parms.hop_limit);
+	nss_ppe_gre_trace("%px: Tunnel param flag %x  fl6.flowlabel %x\n", netdev,  tunnel->parms.flags, fl6->flowlabel);
 
 	/*
 	 * Prepare The Tunnel configuration parameter to send to PPE
@@ -303,7 +373,9 @@ static bool nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct
 	l3->proto = IPPROTO_GRE;
 	l3->flags = PPE_DRV_TUN_CMN_CTX_L3_IPV6;
 
-	/* Set PPE flags to inherit TTL values if its not set */
+	/*
+	 * Set PPE flags to inherit TTL values if its not set
+	 */
 	if (inherit_ttl) {
 		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL;
 	}
@@ -320,63 +392,68 @@ static bool nss_ppe_gretap_ip6_dev_parse_param(struct net_device *netdev, struct
 		l3->decap_ecn_mode = decap_ecn_mode;
 	}
 
-	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP;
-	nss_ppe_gretap_set_gre_key_flags(gre, tunnel->parms.i_flags, tunnel->parms.o_flags, tunnel->parms.i_key, tunnel->parms.o_key);
+	tun_hdr->type = type;
 
-	return true;
+	return nss_ppe_gre_set_gre_flags(gre, tunnel->parms.i_flags, tunnel->parms.o_flags, tunnel->parms.i_key, tunnel->parms.o_key);
 }
 
 /*
- * nss_ppe_gretap_dev_event()
- *      Net device notifier for gretap module
+ * nss_ppe_gre_dev_event()
+ *      Net device notifier for gre module
  */
-static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
+static int nss_ppe_gre_dev_event(struct notifier_block  *nb,
 		unsigned long event, void  *info)
 {
-	struct nss_ppe_gretap_ctx *ctx  = &global;
+	struct nss_ppe_gre_ctx *ctx  = &global;
 	struct net_device *netdev = netdev_notifier_info_to_dev(info);
 	bool status;
 	struct ppe_drv_tun_cmn_ctx *tun_hdr;
 	struct ppe_tun_excp *tun_cb = NULL;
+	enum ppe_drv_tun_cmn_ctx_type type = 0;
 
 	/*
-	 * Proceed to handle event only if it GRE netdevice
+	 * Proceed to handle event only if it GRE (GRETAP / GRETUN) netdevice
+	 * and set the type of tunnel accordingly.
 	 */
-	if (!netif_is_ip6gretap(netdev) && !netif_is_gretap(netdev)) {
+	if (netif_is_ip6gretap(netdev) || netif_is_gretap(netdev)) {
+		type = PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP;
+	} else if ((netdev->type == ARPHRD_IPGRE) || (netdev->type == ARPHRD_IP6GRE)) {
+		type = PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN;
+	} else {
 	      return NOTIFY_DONE;
 	}
 
 	switch (event) {
 	case NETDEV_REGISTER:
 		if (gre_tunnel_is_fallback_dev(netdev)) {
-			nss_ppe_gretap_warning("%p: GRETAP tunnel creation skipped for fb dev %s\n", netdev, netdev->name);
+			nss_ppe_gre_warning("%p: GRETAP tunnel creation skipped for fb dev %s\n", netdev, netdev->name);
 			break;
 		}
 
-		status = ppe_tun_alloc(netdev, PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP);
+		status = ppe_tun_alloc(netdev, type);
 		if (status) {
-			nss_gretap_stats_dentry_create(ctx, netdev);
+			nss_gre_stats_dentry_create(ctx, netdev);
 		}
 		break;
 
 	case NETDEV_UNREGISTER:
 		ppe_tun_free(netdev);
-		nss_gretap_stats_dentry_free(ctx, netdev);
+		nss_gre_stats_dentry_free(ctx, netdev);
 		break;
 
 	case NETDEV_UP:
-		nss_ppe_gretap_trace("%px: NETDEV_UP :event %lu name %s\n", netdev, event, netdev->name);
+		nss_ppe_gre_trace("%px: NETDEV_UP :event %lu name %s\n", netdev, event, netdev->name);
 
 		tun_hdr = kzalloc(sizeof(struct ppe_drv_tun_cmn_ctx), GFP_ATOMIC);
 		if (!tun_hdr) {
-			nss_ppe_gretap_warning("%px: memory allocation for tunnel %s failed\n", netdev, netdev->name);
+			nss_ppe_gre_warning("%px: memory allocation for tunnel %s failed\n", netdev, netdev->name);
 			break;
 		}
 
-		if (netif_is_ip6gretap(netdev)) {
-			status = nss_ppe_gretap_ip6_dev_parse_param(netdev, tun_hdr);
+		if (netif_is_ip6gretap(netdev) || (netdev->type == ARPHRD_IP6GRE)) {
+			status = nss_ppe_gre_ip6_dev_parse_param(netdev, tun_hdr, type);
 		} else {
-			status = nss_ppe_gretap_ip4_dev_parse_param(netdev, tun_hdr);
+			status = nss_ppe_gre_ip4_dev_parse_param(netdev, tun_hdr, type);
 		}
 
 		/*
@@ -386,24 +463,29 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 		if (!status) {
 			kfree(tun_hdr);
 			ppe_tun_free(netdev);
-			nss_gretap_stats_dentry_free(ctx, netdev);
+			nss_gre_stats_dentry_free(ctx, netdev);
 			break;
 		}
 
 		tun_cb = kzalloc(sizeof(struct ppe_tun_excp), GFP_ATOMIC);
 
 		if (!tun_cb) {
-			nss_ppe_gretap_warning("%px: memory allocation for tunnel callback failed for device %s\n", netdev, netdev->name);
+			nss_ppe_gre_warning("%px: memory allocation for tunnel callback failed for device %s\n", netdev, netdev->name);
 
 			kfree(tun_hdr);
 			break;
 		}
 
-		tun_cb->src_excp_method = nss_ppe_gretap_src_exception;
-		tun_cb->stats_update_method = nss_ppe_gretap_dev_stats_update;
+		if (type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
+			tun_cb->src_excp_method = nss_ppe_gretap_src_exception;
+		} else if (type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN) {
+			tun_cb->src_excp_method = nss_ppe_gretun_src_exception;
+		}
+
+		tun_cb->stats_update_method = nss_ppe_gre_dev_stats_update;
 
 		if (!(ppe_tun_configure(netdev, tun_hdr, tun_cb))) {
-			nss_ppe_gretap_trace("%px: Not able to create tunnel for dev: %s\n", netdev, netdev->name);
+			nss_ppe_gre_trace("%px: Not able to create tunnel for dev: %s\n", netdev, netdev->name);
 		}
 
 		kfree(tun_hdr);
@@ -411,31 +493,41 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 		break;
 
 	case NETDEV_DOWN:
-		nss_ppe_gretap_trace("%px: NETDEV_DOWN :event %lu name %s\n", netdev, event, netdev->name);
+		nss_ppe_gre_trace("%px: NETDEV_DOWN :event %lu name %s\n", netdev, event, netdev->name);
 		ppe_tun_deconfigure(netdev);
 		break;
 
 	case NETDEV_CHANGEMTU:
-		nss_ppe_gretap_trace("%px: NETDEV_CHANGEMTU :event %lu name %s\n", netdev, event, netdev->name);
+		nss_ppe_gre_trace("%px: NETDEV_CHANGEMTU :event %lu name %s\n", netdev, event, netdev->name);
 		ppe_tun_mtu_set(netdev, netdev->mtu);
 		break;
 
+	/*
+	 * Bridge leave / join events are relevant only for GRETAP netdevices and
+	 * not for GRETUN dev.
+	 */
 	case NETDEV_BR_LEAVE:
-		nss_ppe_gretap_trace("%px: NETDEV_BR_LEAVE: name %s\n", netdev, netdev->name);
-		if (!ppe_tun_decap_disable(netdev)) {
-			nss_ppe_gretap_warning("%p: Failed disabling decap at index %s", netdev, netdev->name);
+		if (type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
+			nss_ppe_gre_trace("%px: NETDEV_BR_LEAVE: name %s\n", netdev, netdev->name);
+			if (!ppe_tun_decap_disable(netdev)) {
+				nss_ppe_gre_warning("%p: Failed disabling decap at index %s", netdev, netdev->name);
+			}
 		}
+
 		break;
 
 	case NETDEV_BR_JOIN:
-		nss_ppe_gretap_trace("%px: NETDEV_BR_JOIN: name %s\n", netdev,  netdev->name);
-		if (!ppe_tun_decap_enable(netdev)) {
-			nss_ppe_gretap_warning("%p: Failed enabling decap at index %s", netdev, netdev->name);
+		if (type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP) {
+			nss_ppe_gre_trace("%px: NETDEV_BR_JOIN: name %s\n", netdev,  netdev->name);
+			if (!ppe_tun_decap_enable(netdev)) {
+				nss_ppe_gre_warning("%p: Failed enabling decap at index %s", netdev, netdev->name);
+			}
 		}
+
 		break;
 
 	default:
-		nss_ppe_gretap_trace("%px: Unhandled notifier dev %s event %x\n", netdev, netdev->name, (int)event);
+		nss_ppe_gre_trace("%px: Unhandled notifier dev %s event %x\n", netdev, netdev->name, (int)event);
 		break;
 	}
 
@@ -443,97 +535,101 @@ static int nss_ppe_gretap_dev_event(struct notifier_block  *nb,
 }
 
 /*
- * nss_ppe_gretap_stats_show()
+ * nss_ppe_gre_stats_show()
  *	Read ppe tunnel statistics.
  */
-static int nss_ppe_gretap_stats_show(struct seq_file *m, void __attribute__((unused))*ptr)
+static int nss_ppe_gre_stats_show(struct seq_file *m, void __attribute__((unused))*ptr)
 {
 	struct net_device *dev = (struct net_device *)m->private;
 	uint64_t exception_packet;
 	uint64_t exception_bytes;
 
 	ppe_tun_exception_packet_get(dev, &exception_packet, &exception_bytes);
-	seq_printf(m, "\n################ PPE Client gretap Statistics Start ################\n");
+	seq_printf(m, "\n################ PPE Client gre Statistics Start ################\n");
 	seq_printf(m, "dev: %s\n", dev->name);
 	seq_printf(m, "  Exception:\n");
 	seq_printf(m, "\t exception packet: %llu\n", exception_packet);
 	seq_printf(m, "\t exception bytes: %llu\n", exception_bytes);
-	seq_printf(m, "\n################ PPE Client gretap Statistics End ################\n");
+	seq_printf(m, "\n################ PPE Client gre Statistics End ################\n");
 
 	return 0;
 }
 
 /*
- * nss_ppe_gretap_stats_open()
+ * nss_ppe_gre_stats_open()
  */
-static int nss_ppe_gretap_stats_open(struct inode *inode, struct file *file)
+static int nss_ppe_gre_stats_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, nss_ppe_gretap_stats_show, inode->i_private);
+	return single_open(file, nss_ppe_gre_stats_show, inode->i_private);
 }
 
 /*
- * nss_ppe_gretap_stats_ops
- *	File operations for gretap tunnel stats
+ * nss_ppe_gre_stats_ops
+ *	File operations for gre tunnel stats
  */
-static const struct file_operations nss_ppe_gretap_stats_ops = {
-	.open = nss_ppe_gretap_stats_open,
+static const struct file_operations nss_ppe_gre_stats_ops = {
+	.open = nss_ppe_gre_stats_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = seq_release
 };
 
 /*
- * nss_ppe_gretap_client_stats_show()
- *	Read GREtap client statistics.
+ * nss_ppe_gre_client_stats_show()
+ *	Read GRE client statistics.
  *
  * TODO: Print module parameters and other client level stats here.
  */
-static int nss_ppe_gretap_client_stats_show(struct seq_file *m, void __attribute__((unused))*ptr)
+static int nss_ppe_gre_client_stats_show(struct seq_file *m, void __attribute__((unused))*ptr)
 {
-	struct nss_ppe_gretap_ctx *ctx = (struct nss_ppe_gretap_ctx *)m->private;
+	struct nss_ppe_gre_ctx *ctx = (struct nss_ppe_gre_ctx *)m->private;
 
-	seq_printf(m, "\n################ GREtap client statistics Start################\n");
+	seq_printf(m, "\n################ GRE client statistics Start################\n");
 	seq_printf(m, "\tTunnel create request with iflag Sequence number: %llu\n", atomic64_read(&ctx->stats.iflag_seq_err));
 	seq_printf(m, "\tTunnel create request with oflag Sequence number: %llu\n", atomic64_read(&ctx->stats.oflag_seq_err));
 	seq_printf(m, "\tV6 tunnel create requests with non null encap limit: %llu\n", atomic64_read(&ctx->stats.enc_lim_err));
-	seq_printf(m, "\n################ GREtap Client Statistics End ################\n");
+	seq_printf(m, "\tGRETAP source exception packet drop counter: %llu\n", atomic64_read(&ctx->stats.gretap_src_excep_drop_count));
+	seq_printf(m, "\tGRETUN source exception packet drop counter: %llu\n", atomic64_read(&ctx->stats.gretun_src_excep_drop_count));
+	seq_printf(m, "\tGRETUN key flags set failure: %llu\n", atomic64_read(&ctx->stats.gretun_key_flag_failure));
+	seq_printf(m, "\tGRETUN csum flags set failure: %llu\n", atomic64_read(&ctx->stats.gretun_csum_flag_failure));
+	seq_printf(m, "\n################ GRE Client Statistics End ################\n");
 
 	return 0;
 }
 
 /*
- * nss_ppe_gretap_client_stats_open()
+ * nss_ppe_gre_client_stats_open()
  */
-static int nss_ppe_gretap_client_stats_open(struct inode *inode, struct file *file)
+static int nss_ppe_gre_client_stats_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, nss_ppe_gretap_client_stats_show, inode->i_private);
+	return single_open(file, nss_ppe_gre_client_stats_show, inode->i_private);
 }
 
 /*
- * nss_ppe_gretap_client_stats_ops
- *	File operations for GREtap client stats
+ * nss_ppe_gre_client_stats_ops
+ *	File operations for GRE client stats
  */
-static const struct file_operations nss_ppe_gretap_client_stats_ops = {
-	.open = nss_ppe_gretap_client_stats_open,
+static const struct file_operations nss_ppe_gre_client_stats_ops = {
+	.open = nss_ppe_gre_client_stats_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = seq_release
 };
 
 /*
- * nss_gretap_stats_dentry_create()
+ * nss_gre_stats_dentry_create()
  *	Create dentry for a given netdevice.
  */
-static bool nss_gretap_stats_dentry_create(struct nss_ppe_gretap_ctx *ctx, struct net_device *dev)
+static bool nss_gre_stats_dentry_create(struct nss_ppe_gre_ctx *ctx, struct net_device *dev)
 {
 	char dentry_name[IFNAMSIZ];
 	struct dentry *dentry;
 
 	scnprintf(dentry_name, sizeof(dentry_name), "%s", dev->name);
 	dentry = debugfs_create_file(dentry_name, S_IRUGO,
-			ctx->dentry, dev, &nss_ppe_gretap_stats_ops);
+			ctx->dentry, dev, &nss_ppe_gre_stats_ops);
 	if (!dentry) {
-		nss_ppe_gretap_warning("%px: Debugfs file creation failed for device %s\n", dev, dev->name);
+		nss_ppe_gre_warning("%px: Debugfs file creation failed for device %s\n", dev, dev->name);
 		return false;
 	}
 
@@ -541,10 +637,10 @@ static bool nss_gretap_stats_dentry_create(struct nss_ppe_gretap_ctx *ctx, struc
 }
 
 /*
- * nss_gretap_stats_dentry_free()
+ * nss_gre_stats_dentry_free()
  *	Remove dentry for a given netdevice.
  */
-static bool nss_gretap_stats_dentry_free(struct nss_ppe_gretap_ctx *ctx, struct net_device *dev)
+static bool nss_gre_stats_dentry_free(struct nss_ppe_gre_ctx *ctx, struct net_device *dev)
 {
 	char dentry_name[IFNAMSIZ];
 	struct dentry *dentry;
@@ -553,29 +649,29 @@ static bool nss_gretap_stats_dentry_free(struct nss_ppe_gretap_ctx *ctx, struct 
 	dentry = debugfs_lookup(dentry_name, ctx->dentry);
 	if (dentry) {
 		debugfs_remove(dentry);
-		nss_ppe_gretap_trace("%px: removed stats debugfs entry for dev %s", dev, dentry_name);
+		nss_ppe_gre_trace("%px: removed stats debugfs entry for dev %s", dev, dentry_name);
 		return true;
 	}
 
-	nss_ppe_gretap_trace("%px: Could not find stats debugfs entry for dev %s", dev, dentry_name);
+	nss_ppe_gre_trace("%px: Could not find stats debugfs entry for dev %s", dev, dentry_name);
 	return false;
 }
 
 /*
- * nss_gretap_stats_dentry_deinit()
+ * nss_gre_stats_dentry_deinit()
  *	Cleanup the debugfs tree.
  */
-static void nss_ppe_gretap_dentry_deinit(struct nss_ppe_gretap_ctx *ctx)
+static void nss_ppe_gre_dentry_deinit(struct nss_ppe_gre_ctx *ctx)
 {
 	debugfs_remove_recursive(ctx->dentry);
 	ctx->dentry = NULL;
 }
 
 /*
- * nss_ppe_gretap_dentry_init()
- *	Create gretap tunnel statistics debugfs entry.
+ * nss_ppe_gre_dentry_init()
+ *	Create gre tunnel statistics debugfs entry.
  */
-static bool nss_ppe_gretap_dentry_init(struct nss_ppe_gretap_ctx *ctx)
+static bool nss_ppe_gre_dentry_init(struct nss_ppe_gre_ctx *ctx)
 {
 	/*
 	 * Initialize debugfs directory.
@@ -585,26 +681,26 @@ static bool nss_ppe_gretap_dentry_init(struct nss_ppe_gretap_ctx *ctx)
 
 	parent = debugfs_lookup("qca-nss-ppe", NULL);
 	if (!parent) {
-		nss_ppe_gretap_warning("parent debugfs entry for qca-nss-ppe not present\n");
+		nss_ppe_gre_warning("parent debugfs entry for qca-nss-ppe not present\n");
 		return false;
 	}
 
 	clients = debugfs_lookup("clients", parent);
 	if (!clients) {
-		nss_ppe_gretap_warning("clients debugfs entry inside qca-nss-ppe not present\n");
+		nss_ppe_gre_warning("clients debugfs entry inside qca-nss-ppe not present\n");
 		return false;
 	}
 
-	ctx->dentry = debugfs_create_dir("gretap", clients);
+	ctx->dentry = debugfs_create_dir("gre", clients);
 	if (!ctx->dentry) {
-		nss_ppe_gretap_warning("gretap debugfs entry inside qca-nss-ppe/clients could not be created\n");
+		nss_ppe_gre_warning("gre debugfs entry inside qca-nss-ppe/clients could not be created\n");
 		return false;
 	}
 
 	clients = debugfs_create_file("client", S_IRUGO,
-			ctx->dentry, ctx, &nss_ppe_gretap_client_stats_ops);
+			ctx->dentry, ctx, &nss_ppe_gre_client_stats_ops);
 	if (!clients) {
-		nss_ppe_gretap_warning("GREtap Client debugfs create failed\n");
+		nss_ppe_gre_warning("GRE Client debugfs create failed\n");
 		debugfs_remove(ctx->dentry);
 		return false;
 	}
@@ -615,74 +711,75 @@ static bool nss_ppe_gretap_dentry_init(struct nss_ppe_gretap_ctx *ctx)
 /*
  * Linux Net device Notifier
  */
-struct notifier_block nss_ppe_gretap_notifier = {
-	.notifier_call = nss_ppe_gretap_dev_event,
+struct notifier_block nss_ppe_gre_notifier = {
+	.notifier_call = nss_ppe_gre_dev_event,
 };
 
 /*
- * nss_ppe_gretap_init_module()
- *      Tunnel gretap module init function
+ * nss_ppe_gre_init_module()
+ *      Tunnel gre module init function
  */
-int __init nss_ppe_gretap_init_module(void)
+int __init nss_ppe_gre_init_module(void)
 {
-	struct nss_ppe_gretap_ctx *ctx = &global;
-	nss_ppe_gretap_info("module (platform - IPQ95xx , %s) loaded\n",
-			NSS_PPE_GRETAP_BUILD_ID);
+	struct nss_ppe_gre_ctx *ctx = &global;
+	nss_ppe_gre_info("GRE module with build id %s loaded\n",
+			NSS_PPE_GRE_BUILD_ID);
 
 	/*
 	 * Create the debugfs directory for statistics.
 	 */
-	if (!nss_ppe_gretap_dentry_init(ctx)) {
-		nss_ppe_gretap_trace("Failed to initialize debugfs\n");
+	if (!nss_ppe_gre_dentry_init(ctx)) {
+		nss_ppe_gre_trace("Failed to initialize debugfs\n");
 		return -1;
 	}
 
 	if (encap_ecn_mode > PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {
-		nss_ppe_gretap_dentry_deinit(ctx);
-		nss_ppe_gretap_warning("Invalid Encap ECN mode %u\n", encap_ecn_mode);
+		nss_ppe_gre_dentry_deinit(ctx);
+		nss_ppe_gre_warning("Invalid Encap ECN mode %u\n", encap_ecn_mode);
 		return -1;
 	}
 
 	if (decap_ecn_mode > PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
-		nss_ppe_gretap_dentry_deinit(ctx);
-		nss_ppe_gretap_warning("Invalid Decap ECN mode %u\n", decap_ecn_mode);
+		nss_ppe_gre_dentry_deinit(ctx);
+		nss_ppe_gre_warning("Invalid Decap ECN mode %u\n", decap_ecn_mode);
 		return -1;
 	}
 
-	register_netdevice_notifier(&nss_ppe_gretap_notifier);
-	nss_ppe_gretap_trace("gretap PPE driver registered\n");
+	register_netdevice_notifier(&nss_ppe_gre_notifier);
+	nss_ppe_gre_trace("gre PPE driver registered\n");
 
 	return 0;
 }
 
 /*
- * nss_ppe_gretap_exit_module()
- * Tunnel gretap module exit function
+ * nss_ppe_gre_exit_module()
+ * Tunnel gre module exit function
  */
-void __exit nss_ppe_gretap_exit_module(void)
+void __exit nss_ppe_gre_exit_module(void)
 {
-	struct nss_ppe_gretap_ctx *ctx = &global;
+	struct nss_ppe_gre_ctx *ctx = &global;
 
 	/*
 	 * deactivate all GRE PPE instances.
 	 */
 	ppe_tun_conf_accel(PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP, false);
+	ppe_tun_conf_accel(PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN, false);
 
 	/*
 	 * De-initialize debugfs.
 	 */
-	nss_ppe_gretap_dentry_deinit(ctx);
+	nss_ppe_gre_dentry_deinit(ctx);
 
 	/*
 	 * Unregister net device notification for standard tunnel.
 	 */
-	unregister_netdevice_notifier(&nss_ppe_gretap_notifier);
+	unregister_netdevice_notifier(&nss_ppe_gre_notifier);
 
-	nss_ppe_gretap_info("gretap module unloaded\n");
+	nss_ppe_gre_info("gre module unloaded\n");
 }
 
-module_init(nss_ppe_gretap_init_module);
-module_exit(nss_ppe_gretap_exit_module);
+module_init(nss_ppe_gre_init_module);
+module_exit(nss_ppe_gre_exit_module);
 
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_DESCRIPTION("NSS PPE gretap client driver");
+MODULE_DESCRIPTION("NSS PPE gre client driver");

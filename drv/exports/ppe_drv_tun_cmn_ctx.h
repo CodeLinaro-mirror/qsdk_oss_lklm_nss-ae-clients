@@ -39,6 +39,7 @@
 #define PPE_DRV_TUN_CMN_CTX_L3_INHERIT_TTL	0x08	/**< Inherit TTL from inner to outer >*/
 #define PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM_TX	0x10	/**< Set UDP Checksum to zero for VXLAN IPV4 and IPV6 tunnels >*/
 #define PPE_DRV_TUN_CMN_CTX_L3_UDP_ZERO_CSUM6_RX	0x20	/**< Allow zero UDP Checksum for VXLAN IPV6 tunnel only >*/
+#define PPE_DRV_TUN_CMN_CTX_L3_DF_BIT_SET	        0x40	/**< Set DF bit in outer tunnel header >*/
 
 /*
  * GRE flags

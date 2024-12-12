@@ -692,6 +692,9 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 			iph.tos = (th->l3.dscp << 2);
 		}
 
+		if (th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_DF_BIT_SET) {
+			iph.frag_off |= htons(IP_DF);
+		}
 
 		memcpy((void *)tun_hdr, (void *)&iph, sizeof(iph));
 		tun_hdr += sizeof(iph);

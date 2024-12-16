@@ -160,6 +160,7 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->flow_metadata.tree_id_data);
 	fal_entry_counter_t flow_cntrs = {0};
 	struct ppe_drv_v6_conn *cn = pcf->conn;
+	uint8_t service_class;
 
 	err = fal_flow_counter_get(PPE_DRV_SWITCH_ID, pf->index, &flow_cntrs);
 	if (err != SW_OK) {
@@ -207,7 +208,9 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	 * Update the stats only if tree_id is configured with SAWF.
 	 */
 	if (ppe_drv_tree_id_type_get(&pcf->flow_metadata) == PPE_DRV_TREE_ID_TYPE_SAWF) {
-		ppe_drv_flow_sawf_sc_stats_add(tree_id_data->info.sawf_metadata.service_class, delta_pkts, delta_bytes);
+		service_class = tree_id_data->info.sawf_metadata.service_class;
+		if (PPE_DRV_SERVICE_CLASS_IS_VALID(service_class))
+			ppe_drv_flow_sawf_sc_stats_add(service_class, delta_pkts, delta_bytes);
 	}
 }
 
@@ -227,6 +230,7 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	struct ppe_drv_v4_conn *cn = pcf->conn;
 	struct ppe_drv_v6_conn_flow *mapt_pcf_v6, *mapt_pcr_v6;
 	struct ppe_drv_v6_conn *mapt_cn_v6;
+	uint8_t service_class;
 
 	err = fal_flow_counter_get(PPE_DRV_SWITCH_ID, pf->index, &flow_cntrs);
 	if (err != SW_OK) {
@@ -285,7 +289,9 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	 * Update the stats only if tree_id has SAWF metadata.
 	 */
 	if (ppe_drv_tree_id_type_get(&pcf->flow_metadata) == PPE_DRV_TREE_ID_TYPE_SAWF) {
-		ppe_drv_flow_sawf_sc_stats_add(tree_id_data->info.sawf_metadata.service_class, delta_pkts, delta_bytes);
+		service_class = tree_id_data->info.sawf_metadata.service_class;
+		if (PPE_DRV_SERVICE_CLASS_IS_VALID(service_class))
+			ppe_drv_flow_sawf_sc_stats_add(service_class, delta_pkts, delta_bytes);
 	}
 }
 

@@ -221,7 +221,6 @@ static bool nss_ppe_vxlanmgr_gpe_tunnel_parse_end_points(struct net_device *dev,
 static bool nss_ppe_vxlanmgr_gpe_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
 	struct sk_buff *skb = info->skb;
-	struct net_device *dev = skb->dev;
 	const struct iphdr *iph;
 	int ret;
 
@@ -237,7 +236,7 @@ static bool nss_ppe_vxlanmgr_gpe_src_exception(struct ppe_vp_cb_info *info, ppe_
 	skb->recycled_for_ds = 0;
 	ret = netif_receive_skb(skb);
 	if (ret != NET_RX_SUCCESS) {
-		nss_ppe_vxlanmgr_trace("%p: exception packet dropped\n", dev);
+		nss_ppe_vxlanmgr_trace("%p: exception packet dropped\n", skb->dev);
 	}
 
 	return true;

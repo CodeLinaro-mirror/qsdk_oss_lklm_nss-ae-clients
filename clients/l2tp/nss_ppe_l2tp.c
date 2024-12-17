@@ -45,7 +45,6 @@ MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
 static bool nss_ppe_l2tp_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
 	struct sk_buff *skb = info->skb;
-	struct net_device *dev = skb->dev;
 	int ret;
 	const struct iphdr *iph;
 
@@ -66,7 +65,7 @@ static bool nss_ppe_l2tp_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data
 	skb->recycled_for_ds = 0;
 	ret = netif_receive_skb(skb);
 	if (ret != NET_RX_SUCCESS) {
-		nss_ppe_l2tp_trace("%p: exception packet dropped\n", dev);
+		nss_ppe_l2tp_trace("%p: exception packet dropped\n", skb->dev);
 	}
 	return true;
 }

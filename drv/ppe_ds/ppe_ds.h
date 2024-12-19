@@ -67,6 +67,9 @@
 #define PPE_DS_MAX_NODE		4	/* Max DS node supported */
 #define PPE_DS_RXFILL_LOW_THRES_DIVISOR	3	/* PPE-DS node's Rxfill low threshold divisor */
 #define PPE_DS_RXFILL_NUM_DESC_MAX	65535	/* PPE-DS node's Rxfill maximum descriptor count */
+#define PPE_DS_RXFILL_BUDGET_MIN	16	/* PPE-DS node's Rxfill budget minimum */
+#define PPE_DS_RXFILL_BUDGET_MAX	65535	/* PPE-DS node's Rxfill budget maximum */
+#define PPE_DS_RXFILL_BUDGET_DEF	128	/* PPE-DS node's Rxfill budget default */
 #if defined(PPE_DS_MEM_PROFILE_LOW)
 #define PPE_DS_RXFILL_NUM_DESC_MIN	256	/* PPE-DS node's Rxfill minimum descriptor count */
 #define PPE_DS_RXFILL_NUM_DESC_DEF	512	/* PPE-DS node's Rxfill default descriptor count */
@@ -90,6 +93,7 @@ extern unsigned int ppe2tcl_rxfill_num_desc;
 extern unsigned int reo2ppe_txcmpl_num_desc;
 extern unsigned int rxfill_low_threshold;
 extern unsigned int txcmpl_budget;
+extern unsigned int rxfill_budget;
 
 /*
  * ppe_ds_node_state_t

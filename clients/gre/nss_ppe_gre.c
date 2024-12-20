@@ -103,7 +103,6 @@ static bool nss_ppe_gre_dev_stats_update(struct net_device *dev, ppe_tun_hw_stat
 static bool nss_ppe_gretun_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
 	struct sk_buff *skb = info->skb;
-	struct net_device * dev = skb->dev;
 	int ret;
 	struct nss_ppe_gre_ctx *ctx = &global;
 	unsigned char *data = skb->data;
@@ -115,7 +114,7 @@ static bool nss_ppe_gretun_src_exception(struct ppe_vp_cb_info *info, ppe_tun_da
 		skb->protocol = htons(ETH_P_IPV6);
 	} else {
 		dev_kfree_skb_any(skb);
-		nss_ppe_gre_warning("%p: Not an IP packet \n", dev);
+		nss_ppe_gre_warning("%p: Not an IP packet \n", skb->dev);
 		atomic64_inc(&ctx->stats.gretun_src_excep_drop_count);
 		return true;
 	}
@@ -130,7 +129,7 @@ static bool nss_ppe_gretun_src_exception(struct ppe_vp_cb_info *info, ppe_tun_da
 	skb->recycled_for_ds = 0;
 	ret = netif_receive_skb(skb);
 	if (ret != NET_RX_SUCCESS) {
-		nss_ppe_gre_warning("%p: exception packet dropped for gretun\n", dev);
+		nss_ppe_gre_warning("%p: exception packet dropped for gretun\n", skb->dev);
 		atomic64_inc(&ctx->stats.gretun_src_excep_drop_count);
 	}
 

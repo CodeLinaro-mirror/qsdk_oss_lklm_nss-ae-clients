@@ -36,6 +36,8 @@
 #include "ppe_drv_tun_v4.h"
 #include "ppe_drv_tun_v6.h"
 
+static bool ppe_drv_tun_configure_internal(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, void *add_cb, void *del_cb);
+
 /*
  * ppe_drv_tun_check_support()
  *     check if protocol is tunnel
@@ -263,7 +265,6 @@ static struct ppe_drv_tun *ppe_drv_tun_mapt_alloc(struct ppe_drv *p, struct ppe_
 		return NULL;
 	}
 
-	spin_lock_bh(&p->lock);
 	kref_init(&ptun->ref);
 
 	ptun->ptec = ppe_drv_tun_encap_alloc(p);
@@ -359,13 +360,11 @@ static struct ppe_drv_tun *ppe_drv_tun_mapt_alloc(struct ppe_drv *p, struct ppe_
 	ppe_drv_tun_encap_set_rule_id(ptun->ptec, rule_id);
 
 	ppe_drv_port_tun_set(pp, ptun);
-	spin_unlock_bh(&p->lock);
 	ppe_drv_trace("%p: tun context of type %u created, VP: %d", ptun, th->type, vp_num);
 
 	return ptun;
 err_exit:
 	ppe_drv_tun_deref(ptun);
-	spin_unlock_bh(&p->lock);
 	return NULL;
 }
 
@@ -1318,12 +1317,22 @@ skip_tunnel_deactivation:
 	ppe_drv_v6_conn_free(cn_v6);
 	ppe_drv_v4_conn_free(cn_v4);
 
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6 && ptun->th.tun.mape.is_mape_br && ptun->th.tun.mape.is_mape_activate) {
+		ptun->th.tun.mape.is_mape_activate = A_FALSE;
+		ptun->mape_br_active_tun_count--;
+	}
+
 	return true;
 
 error:
 	spin_unlock_bh(&p->lock);
 	ppe_drv_v4_conn_stats_free(cns_v4);
 	ppe_drv_v6_conn_stats_free(cns_v6);
+
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6 && ptun->th.tun.mape.is_mape_br) {
+		ptun->th.tun.mape.is_mape_activate = A_FALSE;
+		ptun->mape_br_active_tun_count--;
+	}
 
 	return false;
 }
@@ -1461,7 +1470,10 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	struct ppe_drv_tun_cmn_ctx *pth;
 	bool dc_cfg_status = false;
 	struct ppe_drv_tun *ptun;
+	struct ppe_drv_tun *port_tun;
 	struct ppe_drv_port *pp;
+	struct ppe_drv_port *pp_port;
+	struct ppe_drv_iface *iface;
 	uint16_t tl_l3_if_idx;
 	fal_port_t port_id;
 	uint16_t xmit_port;
@@ -1484,6 +1496,76 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 		goto err_fail;
 	}
 
+	pth = &ptun->th;
+
+	/*
+	 * In case of MAPE BR, getting the IPV6 address from ECM outer rule
+	 * As previously, tunnel allocation and creation was bypassed so
+	 * calling the configure function to create and allocate the tunnel now
+	 */
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6 && ptun->th.tun.mape.is_mape_br) {
+		/*
+		 * Supporting only one FMR rule, in case of multiple FMR rules stop the tunnel activation
+		 */
+		if (ptun->mape_br_active_tun_count > PPE_DRV_TUN_MAPE_ACTIVE_TUN_MAX_BR_CNT) {
+			spin_unlock_bh(&p->lock);
+			return false;
+		}
+
+		ptun->th.tun.mape.is_mape_activate = A_TRUE;
+		ptun->mape_br_active_tun_count++;
+		struct ppe_drv_v6_rule_create *create = (struct ppe_drv_v6_rule_create *)vcreate_rule;
+		if (create) {
+			/*
+			 * The tunnel port is rx_if, the rule is pushed in the direction of tunnel_vp to WAN
+			 * Source Addr = flow_ip, Dest Addr = return_ip
+			 */
+			iface = ppe_drv_iface_get_by_idx(create->conn_rule.rx_if);
+			pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
+			port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+			if (port_tun) {
+				pth->l3.daddr[0] = htonl(create->tuple.return_ip[0]);
+				pth->l3.daddr[1] = htonl(create->tuple.return_ip[1]);
+				pth->l3.daddr[2] = htonl(create->tuple.return_ip[2]);
+				pth->l3.daddr[3] = htonl(create->tuple.return_ip[3]);
+				pth->l3.saddr[0] = htonl(create->tuple.flow_ip[0]);
+				pth->l3.saddr[1] = htonl(create->tuple.flow_ip[1]);
+				pth->l3.saddr[2] = htonl(create->tuple.flow_ip[2]);
+				pth->l3.saddr[3] = htonl(create->tuple.flow_ip[3]);
+			} else {
+				/*
+				 * The tunnel port is tx_if, the rule is pushed in the direction of WAN to tunnel_vp
+				 * Source Addr = return_ip, Dest Addr = flow_ip
+				 */
+				iface = ppe_drv_iface_get_by_idx(create->conn_rule.tx_if);
+				pp_port = (iface) ? (ppe_drv_iface_port_get(iface)) : (NULL);
+				port_tun = (pp_port) ? (ppe_drv_port_tun_get(pp_port)) : (NULL);
+				if (port_tun) {
+					pth->l3.daddr[0] = htonl(create->tuple.flow_ip[0]);
+					pth->l3.daddr[1] = htonl(create->tuple.flow_ip[1]);
+					pth->l3.daddr[2] = htonl(create->tuple.flow_ip[2]);
+					pth->l3.daddr[3] = htonl(create->tuple.flow_ip[3]);
+					pth->l3.saddr[0] = htonl(create->tuple.return_ip[0]);
+					pth->l3.saddr[1] = htonl(create->tuple.return_ip[1]);
+					pth->l3.saddr[2] = htonl(create->tuple.return_ip[2]);
+					pth->l3.saddr[3] = htonl(create->tuple.return_ip[3]);
+				}
+			}
+			ppe_drv_trace("Dest Addr: %pI6,	Src Addr: %pI6\n", &pth->l3.daddr, &pth->l3.saddr);
+		}
+
+		/*
+		 * this is to bypass the allocation of tunnel at encap and decap
+		 * and get the ipv6 addresses directly from ecm at the time of
+		 * outer rule push.
+		 */
+		status = ppe_drv_tun_configure_internal(port_num, &ptun->th, NULL, NULL);
+		if (!status) {
+			ppe_drv_warn("Failed to configure mape br tunnel after outer rule push from ecm");
+			goto err_fail;
+		}
+	}
+
 	if (!ptun->ptec) {
 		ppe_drv_warn("%p: tun encap is not initialized properly", ptun);
 		goto err_fail;
@@ -1492,8 +1574,6 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	/*
 	 * ptdc is not used for MAP-T
 	 */
-
-	pth = &ptun->th;
 	if ((pth->type != PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) && (!ptun->ptdc)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: tun is not initialized properly", ptun);
@@ -1813,10 +1893,10 @@ static bool ppe_drv_tun_encap_header_rule_configure(enum ppe_drv_tun_cmn_ctx_typ
 }
 
 /*
- * ppe_drv_tun_configure
+ * ppe_drv_tun_configure_internal
  *	Allocate PPE tunnel instance and initialize objects
  */
-bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, void *add_cb, void *del_cb)
+static bool ppe_drv_tun_configure_internal(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, void *add_cb, void *del_cb)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_tun *ptun = NULL;
@@ -1843,6 +1923,38 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 		return true;
 	}
 
+	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6 && pth->tun.mape.is_mape_br) {
+		if (!pth->tun.mape.is_mape_activate) {
+			/*
+			 * Check and try allocating tunnel instance corresponding to tun_idx
+			 * on allocation one reference would be taken
+			 */
+			ptun = kzalloc(sizeof(struct ppe_drv_tun), GFP_ATOMIC);
+			if (!ptun) {
+				ppe_drv_warn("%p: Couldn't allocate tun memory", p);
+				return false;
+			}
+
+			kref_init(&ptun->ref);
+			memcpy(&ptun->th, pth, sizeof(*pth));
+			ptun->pp = pp;
+			ptun->add_cb = add_cb;
+			ptun->del_cb = del_cb;
+			ptun->vp_num = ppe_drv_port_num_get(pp);
+			ppe_drv_port_tun_set(pp, ptun);
+			return true;
+		} else {
+			ptun = ppe_drv_port_tun_get(pp);
+		}
+
+		if (!ptun) {
+			ppe_drv_warn("%p: Failed to get tunnel instance", ptun);
+			return false;
+		}
+
+		goto skip_tun_alloc;
+	}
+
 	/*
 	 * Check and try allocating tunnel instance corresponding to tun_idx
 	 * on allocation one reference would be taken
@@ -1854,17 +1966,16 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 	}
 
 	kref_init(&ptun->ref);
-
 	memcpy(&ptun->th, pth, sizeof(*pth));
 	ptun->pp = pp;
 	ptun->add_cb = add_cb;
 	ptun->del_cb = del_cb;
 	ptun->vp_num = ppe_drv_port_num_get(pp);
 
+skip_tun_alloc:
 	/*
 	 * Inbound tunnel packets are processed through decap TL_TBL, get an instance.
 	 */
-	spin_lock_bh(&p->lock);
 	ptun->ptdc = ppe_drv_tun_decap_alloc(p);
 	if (!ptun->ptdc) {
 		ppe_drv_warn("%p: Failed to get decap instance", ptun);
@@ -1938,15 +2049,28 @@ bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, v
 
 	ppe_drv_port_tun_set(pp, ptun);
 
-	spin_unlock_bh(&p->lock);
 	ppe_drv_trace("%p: tun context with tun_idx %u of type %u created", ptun, ptun->tun_idx, pth->type);
 
 	return true;
 
 err_exit:
 	ppe_drv_tun_deref(ptun);
-	spin_unlock_bh(&p->lock);
 	return false;
+}
+
+/*
+ * ppe_drv_tun_configure
+ *	Wrapper to allocate PPE tunnel instance and initialize objects
+ */
+bool ppe_drv_tun_configure(uint16_t port_num, struct ppe_drv_tun_cmn_ctx *pth, void *add_cb, void *del_cb)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	bool error;
+
+	spin_lock_bh(&p->lock);
+	error = ppe_drv_tun_configure_internal(port_num,pth,add_cb,del_cb);
+	spin_unlock_bh(&p->lock);
+	return error;
 }
 EXPORT_SYMBOL(ppe_drv_tun_configure);
 

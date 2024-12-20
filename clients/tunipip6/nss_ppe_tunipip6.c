@@ -61,6 +61,10 @@ static bool inherit_dscp = false;
 module_param(inherit_dscp, bool, 0644);
 MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
 
+static bool mape_br_enable = false; /**< Module parameter to enable/disable BR mode in MAP-E >*/
+module_param(mape_br_enable, bool, 0644);
+MODULE_PARM_DESC(mape_br_enable, "MAP-E BR enabled 0: In CE mode, 1: In BR mode");
+
 /*
  * ppe_tun_tunipip6_iface_get()
  *	Get the PPE interface for tunipip6 tunnel
@@ -94,6 +98,13 @@ uint32_t ppe_tun_tunipip6_iface_get(struct net_device *dev, uint32_t *local_ip,
 		nss_ppe_tunipip6_trace("%px: PPE interface is not L3 interface for the given dev %s",
 				dev, dev->name);
 		return PPE_DRV_IFACE_TYPE_INVALID;
+	}
+
+	/*
+	 * In case of BR, bypassing the FMR check
+	 */
+	if (mape_br_enable) {
+		return iface_type;
 	}
 
 	tunnel = (struct ip6_tnl *)netdev_priv(dev);
@@ -326,6 +337,15 @@ static int nss_ppe_tunipip6_dev_event(struct notifier_block  *nb,
 		tun_cb->src_excp_method = nss_ppe_tunipip6_src_exception;
 		tun_cb->stats_update_method = nss_ppe_tunipip6_dev_stats_update;
 
+		/*
+		 * is_mape_br is used to bypass the tunnel configuration during NETDEV_UP
+		 * is_mape_activate is used to trigger tunnel configuration via activate path called during outer rule processing
+		 */
+		if (mape_br_enable) {
+			tun_hdr->tun.mape.is_mape_br = true;
+			tun_hdr->tun.mape.is_mape_activate = false;
+		}
+
 		if (!(ppe_tun_configure(dev, tun_hdr, tun_cb))) {
 			nss_ppe_tunipip6_trace("%p: Unable to configure PPE tunnel for dev: %s", dev, dev->name);
 		}
@@ -539,7 +559,6 @@ void __exit nss_ppe_tunipip6_exit_module(void)
 	 * De-initialize debugfs.
 	 */
 	nss_ppe_tunipip6_dentry_deinit();
-
 	/*
 	 * Unregister net device notification for standard tunnel.
 	 */

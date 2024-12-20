@@ -30,6 +30,7 @@
 #define PPE_DRV_TUN_MAX_CTX	128
 #define PPE_DRV_TUN_PORT_STATS_RESERVED_COUNT 10  /* Number of slots reserved for tunnel statistics */
 #define PPE_DRV_TUN_MAPT_V6_LEN_ADJUST (sizeof(struct ipv6hdr) - sizeof (struct iphdr)) /* IP6 header length difference to be added for MAPT */
+#define PPE_DRV_TUN_MAPE_ACTIVE_TUN_MAX_BR_CNT 1	/* Maximum Number of active tunnel count for MAP-E */
 
 #ifdef NSS_PPE_IPQ53XX
 #define PPE_DRV_TUN_GRE_ACL_LIST_ID_CSUM_DIS 254		/* GRE CSUM disable check ACL list ID */
@@ -164,6 +165,7 @@ struct ppe_drv_tun {
 	atomic_t flow_count;					/**< Number of active flows >*/
 	uint8_t encap_hdr_bitmap;				/**< Bitmap of feilds enabled in encap header control >**/
 	bool xcpn_mode;						/**< exception mode type >*/
+	uint8_t mape_br_active_tun_count;			/**< Number of active tunnels >*/
 };
 
 /*

@@ -429,6 +429,8 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 		ftde.decap_rule.dip.ip6_addr.ul[3] = ntohl(pth->l3.saddr[3]);
 
 		ftde.decap_rule.ip_ver = PPE_DRV_TUN_TL_TBL_ENTRY_TYPE_IPV6;
+
+		ppe_drv_trace("Decap SAddr: %pI6, Daddr: %pI6\n",ftde.decap_rule.sip.ip6_addr.ul,ftde.decap_rule.dip.ip6_addr.ul);
 	}
 
 	ftde.decap_action.ecn_mode = pth->l3.decap_ecn_mode;

@@ -29,6 +29,10 @@
 #include <ref/ref_vsi.h>
 #include "ppe_drv.h"
 #include "tun/ppe_drv_tun.h"
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+#include <linux/dsa/8021q.h>
+#include <net/dsa.h>
+#endif
 
 #if (PPE_DRV_DEBUG_LEVEL == 3)
 /*
@@ -1444,6 +1448,12 @@ bool ppe_drv_port_ucast_queue_set(struct ppe_drv_port *pp, uint8_t queue_id)
 	if ((pp->type == PPE_DRV_PORT_VIRTUAL) && is_vlan_dev(pp->dev)) {
 		profile = PPE_DRV_REDIR_PROFILE_ID;
 	}
+
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	if ((pp->type == PPE_DRV_PORT_VIRTUAL) && dsa_slave_dev_check(pp->dev)) {
+		profile = PPE_DRV_REDIR_PROFILE_ID;
+	}
+#endif
 
 	/*
 	 * Select PPE-DS profile ID for PPE-DS user ports.

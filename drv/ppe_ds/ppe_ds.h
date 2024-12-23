@@ -137,14 +137,26 @@ struct ppe_ds {
 	struct ppe_ds_wlan_ops_v2 *wlan_ops_v2;	/* PPE-DS WLAN operations */
 	struct nss_dp_ppeds_ops *dp_ops;	/* PPE-DS EDMA operations */
 	uint32_t node_cfg_idx;			/* Index of PPE-DS node configuration */
-	uint16_t last_edma_rx_cons_idx;		/* Last read EDMA Rx consumer index */
 	uint16_t last_reo2ppe_cons_idx;		/* Last read WLAN REO2PPE consumer index */
-	uint16_t last_ppe2tcl_cons_idx;         /* Last read WLAN PPE2TCL consumer index */
-	uint16_t last_edma_tx_prod_idx;		/* Last read EDMA Tx producer index */
+	uint16_t last_ppe2tcl_cons_idx;		/* Last read WLAN PPE2TCL consumer index */
+	uint16_t last_edma_rx_prod_idx;		/* Last read EDMA Rx producer index */
+	uint16_t last_reo2ppe_prod_idx;		/* Last read WLAN REO2PPE producer index */
+	uint16_t last_ppe2tcl_prod_idx;		/* Last read WLAN PPE2TCL producer index */
 	uint16_t umac_reset_inprogress;		/* Umac reset in progress information */
 	nss_dp_ppeds_handle_t *edma_handle;	/* EDMA handle */
 	ppe_ds_wlan_handle_t wlan_handle;	/* WLAN handle */
 };
 
+/*
+ * ppe_ds_intr_ts
+ * 	PPE-DS interrupt timestamp information
+ */
+struct ppe_ds_intr_ts {
+	struct {
+		atomic_t prev_intr_ts;
+	} reo2ppe, ppe2tcl;
+};
+
+extern struct ppe_ds_intr_ts prev_wlan_intr_ts[PPE_DS_MAX_NODE];
 extern struct ppe_ds_node_config ppe_ds_node_cfg[PPE_DS_MAX_NODE];
 #endif	/* __PPE_DS__ */

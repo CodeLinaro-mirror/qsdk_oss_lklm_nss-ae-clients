@@ -67,6 +67,11 @@ static int nss_ppe_vlan_mgr_add_vlan_as_vp(char *dev_name)
 {
 	int len, i;
 
+	if (vlan_as_vp_invert) {
+		nss_ppe_vlan_mgr_warn("VLAN as VP invert enabled. Don't add: %s\n", dev_name);
+		return -1;
+	}
+
 	for (i = 0; i < NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX; i++) {
 		if (vlan_as_vp_dev_name[i][0] == '\0')
 			break;
@@ -1883,14 +1888,16 @@ static int nss_ppe_vlan_mgr_register_event(struct netdev_notifier_info *info)
 	 * But, if the 'vlan_as_vp_invert' variable is true, then 'vlan_as_vp_dev_name'
 	 * array has the list of devices over which the VLAN as VP feature is not required.
 	 *
-	 * If vlan_as_vp_interface module param contains empty string,
-	 * then VLAN as VP mode is not enabled.
+	 * 'vlan_as_vp_dev_name' is filled in 2 ways. One from the module params, and
+	 * another when DSA interfaces are created. It's done to support VLAN-as-VP
+	 * for VLAN on DSA interfaces (eg: lan1.10). Also, this array can have holes
+	 * due to creation/deletion sequences of DSA interfaces.
+	 *
 	 */
-	if (vlan_as_vp_interface[0] != '\0') {
-		for (i = 0; i < NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX; i++) {
-			if (!strncmp(real_dev->name, vlan_as_vp_dev_name[i], IFNAMSIZ)) {
-				break;
-			}
+	for (i = 0; i < NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX; i++) {
+		nss_ppe_vlan_mgr_warn("Matching <%s> in array[%d]=<%s>\n", real_dev->name, i, vlan_as_vp_dev_name[i]);
+		if (!strncmp(real_dev->name, vlan_as_vp_dev_name[i], IFNAMSIZ)) {
+			break;
 		}
 	}
 
@@ -2799,6 +2806,7 @@ int nss_ppe_vlan_mgr_dsa_vp_destroy(struct net_device *dev)
 	 * Do we have it on record?
 	 */
 	if (!v) {
+		nss_ppe_vlan_mgr_del_vlan_as_vp(dev->name);
 		nss_ppe_vlan_mgr_warn("DSA %s, vlan_pvt not found. Already removed?\n", dev->name);
 		return -1;
 	}

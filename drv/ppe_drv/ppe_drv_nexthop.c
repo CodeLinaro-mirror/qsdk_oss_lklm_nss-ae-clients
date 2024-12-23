@@ -17,6 +17,10 @@
 #include <linux/etherdevice.h>
 #include <linux/if_vlan.h>
 #include <fal/fal_ip.h>
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+#include <linux/dsa/8021q.h>
+#include <net/dsa.h>
+#endif
 #include "ppe_drv.h"
 
 #if (PPE_DRV_DEBUG_LEVEL == 3)
@@ -405,6 +409,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	struct ppe_drv_port *pp_rx;
 	sw_error_t err;
 	bool is_vlan_as_vp;
+	bool is_dsa_dev = false;
 
 	ppe_drv_v6_conn_flow_match_src_ip_get(pcf, match_src_ip);
 	ppe_drv_v6_conn_flow_match_dest_ip_get(pcf, match_dest_ip);
@@ -489,13 +494,16 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	 */
 	iface_tx = ppe_drv_v6_conn_flow_eg_port_if_get(pcf);
 	is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	is_dsa_dev = dsa_slave_dev_check(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+#endif
 
 	/*
 	 * Get vsi for vlan flows.
 	 */
 	iface_vsi = ppe_drv_v6_conn_flow_eg_vsi_if_get(pcf);
 	vsi = iface_vsi ? ppe_drv_iface_vsi_get(iface_vsi) : NULL;
-	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi && !is_vlan_as_vp) {
+	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi && !is_vlan_as_vp && !is_dsa_dev) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: vlan-vsi not configured on interface: %u in_vlan: %u, out_vlan: %u",
 				p, pp->port, in_vlan, out_vlan);
@@ -788,6 +796,7 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	struct ppe_drv_port *pp_rx;
 	sw_error_t err;
 	bool is_vlan_as_vp;
+	bool is_dsa_dev = false;
 
 	/*
 	 * Both single and double VLANs are handled by EG_VLAN_XLT_* tables, we just need to
@@ -886,13 +895,16 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	 */
 	iface_tx = ppe_drv_v4_conn_flow_eg_port_if_get(pcf);
 	is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+	is_dsa_dev = dsa_slave_dev_check(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+#endif
 
 	/*
 	 * Get vsi for vlan flows.
 	 */
 	iface_vsi = ppe_drv_v4_conn_flow_eg_vsi_if_get(pcf);
 	vsi = iface_vsi ? ppe_drv_iface_vsi_get(iface_vsi) : NULL;
-	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi && !is_vlan_as_vp) {
+	if ((vtag == PPE_DRV_VLAN_TAGGED) && !vsi && !is_vlan_as_vp && !is_dsa_dev) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: vlan-vsi not configured on interface: %u in_vlan: %u, out_vlan: %u",
 				p, pp->port, in_vlan, out_vlan);

@@ -42,6 +42,7 @@
 #include "ppe_drv_if_map.h"
 
 extern uint32_t static_dbg_level;
+extern bool flow_deacclr_dis;
 
 /*
  * ppe_drv_static_dbg_level

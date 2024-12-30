@@ -202,6 +202,9 @@ static bool ppe_drv_tun_activate_mapt(struct ppe_drv_tun *ptun, struct ppe_drv_t
 	struct ppe_drv_tun_cmn_ctx *th = &ptun->th;
 	uint32_t tl_l3_if_idx = ppe_drv_tun_l3_if_get_index(ptun->pt_l3_if);
 
+	ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]->tl_l3_if_idx = tl_l3_if_idx;
+	ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]->tl_l3_if_idx = tl_l3_if_idx;
+
 	rule_id = ppe_drv_tun_decap_xlate_rule_get_index(ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]);
 	status = ppe_drv_tun_decap_map_configure(ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY], &th->l3.daddr[0],
 			th->tun.mapt.remote.ipv6_prefix_len, l2_hdr, true, ptun->vp_num, rule_id, false);
@@ -210,8 +213,6 @@ static bool ppe_drv_tun_activate_mapt(struct ppe_drv_tun *ptun, struct ppe_drv_t
 		return status;
 	}
 
-	ptun->ptdcm[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]->tl_l3_if_idx = tl_l3_if_idx;
-	ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]->tl_l3_if_idx = tl_l3_if_idx;
 
 	rule_id = ppe_drv_tun_decap_xlate_rule_get_index(ptun->ptdcxr[PPE_DRV_TUN_DECAP_LOCAL_ENTRY]);
 	status = ppe_drv_tun_decap_map_configure(ptun->ptdcm[PPE_DRV_TUN_DECAP_LOCAL_ENTRY], &th->l3.saddr[0],

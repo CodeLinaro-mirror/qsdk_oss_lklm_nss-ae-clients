@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -81,13 +81,6 @@ static void ppe_drv_tun_free(struct kref *kref)
 	}
 
 	/*
-	 * Reset encap header control settings if configured
-	 */
-	if (ptun->encap_hdr_bitmap) {
-		ppe_drv_tun_encap_hdr_ctrl_reset(ptun->encap_hdr_bitmap);
-	}
-
-	/*
 	 * Release all the tables reserved for this tunnel context
 	 */
 	if (ptun->ptec) {
@@ -112,20 +105,8 @@ static void ppe_drv_tun_free(struct kref *kref)
 		ppe_drv_tun_decap_deref(ptun->ptdc);
 	}
 
-	if (ptun->ptecxr) {
+	if ((ptun->th.type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) && ptun->ptecxr) {
 		ppe_drv_tun_encap_xlate_rule_deref(ptun->ptecxr);
-	}
-
-	if (p->tun_gbl.tun_l2tp.l2tp_encap_rule && (!(kref_read(&p->tun_gbl.tun_l2tp.l2tp_encap_rule->ref)))) {
-		p->tun_gbl.tun_l2tp.l2tp_encap_rule = NULL;
-	}
-
-	if (p->tun_gbl.vxlan_gpe_encap_rule && (!(kref_read(&p->tun_gbl.vxlan_gpe_encap_rule->ref)))) {
-		p->tun_gbl.vxlan_gpe_encap_rule = NULL;
-	}
-
-	if (p->tun_gbl.gretun_encap_rule && (!(kref_read(&p->tun_gbl.gretun_encap_rule->ref)))) {
-		p->tun_gbl.gretun_encap_rule = NULL;
 	}
 
 	if (ptun->ptdcxr[PPE_DRV_TUN_DECAP_REMOTE_ENTRY]) {
@@ -274,7 +255,7 @@ static struct ppe_drv_tun *ppe_drv_tun_mapt_alloc(struct ppe_drv *p, struct ppe_
 	}
 
 	ptun->ptec->port = pp;
-	ptun->ptecxr = ppe_drv_tun_encap_xlate_rule_alloc(p);
+	ptun->ptecxr = ppe_drv_tun_encap_xlate_rule_alloc(p, PPE_DRV_TUN_CMN_CTX_TYPE_MAPT);
 	if (!ptun->ptecxr) {
 		ppe_drv_warn("%p: couldn't get free EG EDIT RULE instance", p);
 		goto err_exit;
@@ -1269,6 +1250,22 @@ disable_encap:
 	}
 
 	/*
+	 * Free tunnel encap header control settings for tunnels configured during activation.
+	 * For MAPT the encap rule is allocated during ppe_drv_tun_configure and is
+	 * freed up when tunnel is destroyed. So should not be freed here
+	 */
+	if (pth->type != PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
+		if (ptun->encap_hdr_bitmap) {
+			ppe_drv_tun_encap_hdr_ctrl_reset(ptun->encap_hdr_bitmap);
+		}
+
+		if (ptun->ptecxr) {
+			ppe_drv_tun_encap_xlate_rule_deref(ptun->ptecxr);
+		}
+	}
+
+
+	/*
 	 * Delete FSE entry created for GRETAP tunnel if endpoint is a DS VP
 	 */
 	if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP &&
@@ -1805,94 +1802,6 @@ err_fail:
 EXPORT_SYMBOL(ppe_drv_tun_activate);
 
 /*
- * ppe_drv_tun_encap_rule_id_alloc_or_ref
- *	Allocate/Take reference on encap rule id
- */
-static struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_rule_id_alloc_or_ref(struct ppe_drv_tun_encap_xlate_rule *ptecxr, struct ppe_drv_tun *ptun)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-	struct ppe_drv_tun_encap_xlate_rule *encap_rule = ptecxr;
-	uint8_t rule_id;
-
-	if (ptecxr == NULL) {
-		/*
-		 * Alloc encap EG table
-		 * Alloc is called for first instance of the tunnel only.
-		 */
-		encap_rule = ppe_drv_tun_encap_xlate_rule_alloc(p);
-		if (encap_rule == NULL) {
-			ppe_drv_warn("%p: couldn't get encap rule entry index", p);
-			return NULL;
-		}
-	} else {
-		/*
-		 * Take ref on  an already allocated encap rule instance if another tunnel of same type is active.
-		 * Reuse the same rule ID configuration as offset remain the same for additional
-		 * tunnels of the same type.
-		 */
-		ppe_drv_tun_encap_xlate_rule_ref(encap_rule);
-	}
-
-	rule_id = ppe_drv_tun_encap_xlate_rule_get_index(encap_rule);
-	ppe_drv_tun_encap_set_rule_id(ptun->ptec, rule_id);
-
-	return encap_rule;
-}
-
-/*
- * ppe_drv_tun_encap_header_rule_configure
- *	Encap header rule configurations for tunnels which require modification
- */
-static bool ppe_drv_tun_encap_header_rule_configure(enum ppe_drv_tun_cmn_ctx_type type, struct ppe_drv_tun *ptun)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-
-	switch (type) {
-	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
-		ptun->ptecxr = p->tun_gbl.tun_l2tp.l2tp_encap_rule;
-		ptun->ptecxr = ppe_drv_tun_encap_rule_id_alloc_or_ref(ptun->ptecxr, ptun);
-		p->tun_gbl.tun_l2tp.l2tp_encap_rule = ptun->ptecxr;
-		if (!ptun->ptecxr || !ppe_drv_tun_encap_hdr_ctrl_l2tp_configure(p, ptun)) {
-			ppe_drv_warn("%p L2TPv2: failed to configure encap header control", p);
-			return false;
-		}
-		break;
-
-	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE:
-		ptun->ptecxr = p->tun_gbl.vxlan_gpe_encap_rule;
-		ptun->ptecxr = ppe_drv_tun_encap_rule_id_alloc_or_ref(ptun->ptecxr, ptun);
-		p->tun_gbl.vxlan_gpe_encap_rule = ptun->ptecxr;
-		if (!ptun->ptecxr || !ppe_drv_tun_encap_hdr_ctrl_vxlan_gpe_configure(p, ptun)) {
-			ppe_drv_warn("%p VXLAN-GPE: failed to configure encap header control", p);
-			return false;
-		}
-		break;
-
-	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN:
-		ptun->ptecxr = p->tun_gbl.gretun_encap_rule;
-		ptun->ptecxr = ppe_drv_tun_encap_rule_id_alloc_or_ref(ptun->ptecxr, ptun);
-		p->tun_gbl.gretun_encap_rule = ptun->ptecxr;
-		if (!ptun->ptecxr || !ppe_drv_tun_encap_hdr_ctrl_gretun_configure(p, ptun)) {
-			ppe_drv_warn("%p GRETUN: failed to configure encap header control", p);
-			return false;;
-		}
-		break;
-
-	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN:
-		if (!ppe_drv_tun_encap_hdr_ctrl_vxlan_configure(p, ptun)) {
-			ppe_drv_warn("%p VXLAN: failed to configure encap header control", p);
-			return false;
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	return true;
-}
-
-/*
  * ppe_drv_tun_configure_internal
  *	Allocate PPE tunnel instance and initialize objects
  */
@@ -2033,15 +1942,6 @@ skip_tun_alloc:
 	ptun->ptec = ppe_drv_tun_encap_alloc(p);
 	if (!ptun->ptec) {
 		ppe_drv_warn("%p: couldn't get encap index", ptun);
-		goto err_exit;
-	}
-
-	/*
-	 * Configure encap header rule for tunnels which require encap header
-	 * to be updated based on inner payload
-	 */
-	if (!ppe_drv_tun_encap_header_rule_configure(pth->type, ptun)) {
-		ppe_drv_warn("%p: Tunnel encap header configuration failed for tunnel type %d", ptun, pth->type);
 		goto err_exit;
 	}
 

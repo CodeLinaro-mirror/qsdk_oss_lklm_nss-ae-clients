@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -278,7 +278,6 @@ enum ppe_drv_entry_valid {
 struct ppe_drv_tun_l2tp {
 	uint16_t l2tp_sport;				/* L2TP Source port */
 	uint16_t l2tp_dport;				/* L2TP Destination port */
-	struct ppe_drv_tun_encap_xlate_rule *l2tp_encap_rule; 	/* PPE L2TP EG translate rule entry */
 };
 
 /*
@@ -293,8 +292,6 @@ struct ppe_drv_tun_gre_acl;
 struct ppe_drv_tun_gbl {
 	struct ppe_drv_tun_l2tp tun_l2tp;				/* L2TP global object */
 	struct ppe_drv_tun_gre_acl *gre;				/* GREtap ACL rules for checksum handling */
-	struct ppe_drv_tun_encap_xlate_rule *vxlan_gpe_encap_rule;	/* PPE VXLAN-GPE EG translate rule entry */
-	struct ppe_drv_tun_encap_xlate_rule *gretun_encap_rule; 	/* PPE GRE-TUN EG translate rule entry */
 };
 
 /*

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -65,7 +65,7 @@ struct ppe_drv_tun_encap {
 	uint8_t tun_len;		/* Tunnel header length */
 	uint8_t l3_offset;		/* Tunnel L3 offset */
 	uint8_t l4_offset;		/* Tunnel L4 offset */
-	uint8_t rule_id;		/* EG edit rule index for MAP-T/L2TP */
+	uint8_t rule_id;		/* EG edit rule index for MAP-T/L2TP/VxLAN-GPE/GRETUN */
 	uint8_t l4_offset_valid;	/* is L4 offset valid in header */
 };
 

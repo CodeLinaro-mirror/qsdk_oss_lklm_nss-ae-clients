@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -161,9 +161,9 @@ struct ppe_drv_tun {
 	struct kref ref;					/**< Reference count >*/
 	uint8_t vp_num;						/**< Tunnel VP number >*/
 	uint8_t tun_idx;					/**< Tunnel context ID >*/
-	uint8_t xmit_port;					/**< Egress I/O port for tunnel> */
+	uint8_t xmit_port;					/**< Egress I/O port for tunnel>*/
 	atomic_t flow_count;					/**< Number of active flows >*/
-	uint8_t encap_hdr_bitmap;				/**< Bitmap of feilds enabled in encap header control >**/
+	uint8_t encap_hdr_bitmap;				/**< Bitmap of feilds enabled in encap header control >*/
 	bool xcpn_mode;						/**< exception mode type >*/
 	uint8_t mape_br_active_tun_count;			/**< Number of active tunnels >*/
 };

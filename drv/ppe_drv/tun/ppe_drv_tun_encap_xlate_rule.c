@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -75,6 +75,8 @@ static void ppe_drv_tun_encap_xlate_rule_free(struct kref *kref)
 	if (err != SW_OK) {
 		return;
 	}
+
+	ptecxr->tun_type = 0;
 
 	ppe_drv_trace("%p: encap_xlate_rule_rule reset at entry index: %u", ptecxr, ptecxr->rule_index);
 	return;
@@ -244,10 +246,61 @@ bool ppe_drv_tun_encap_xlate_rule_configure(struct ppe_drv_tun_encap_xlate_rule 
 }
 
 /*
+ * ppe_drv_tun_encap_xlate_rule_entry_equal
+ *	Checks if the encap rule configurations are same
+ */
+static bool ppe_drv_tun_encap_xlate_rule_entry_equal(struct ppe_drv_tun_encap_xlate_data *sdata, struct ppe_drv_tun_encap_xlate_data *cdata)
+{
+	int idx;
+
+	if ((sdata->src1_sel != cdata->src1_sel) || (sdata->src2_sel != cdata->src2_sel) ||
+			(sdata->src2_sel != cdata->src2_sel) || (sdata->src1_start != cdata->src1_start)) {
+		return false;
+	}
+
+	for (idx=0; idx < PPE_DRV_TUN_ENCAP_XLATE_SRC_ENTRY_MAX; idx++) {
+		if (!ppe_drv_tun_encap_xlate_cmp_src_sel(&sdata->src2_entry[idx], &cdata->src2_entry[idx]) ||
+				!ppe_drv_tun_encap_xlate_cmp_src_sel(&sdata->src3_entry[idx], &cdata->src3_entry[idx])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/*
+ * ppe_drv_tun_encap_xlate_rule_exists
+ *	Check if encap rule entry already exists.
+ */
+struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_exists(enum ppe_drv_tun_cmn_ctx_type type, struct ppe_drv_tun_encap_xlate_data *data)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	uint16_t index = 0;
+	struct ppe_drv_tun_encap_xlate_rule *ptecxr = NULL;
+	struct ppe_drv_tun_encap_xlate_data *exrdata = NULL;
+
+	for (index = 0; index < PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES; index++) {
+		ptecxr = &p->encap_xlate_rules[index];
+		if (!kref_read(&ptecxr->ref)) {
+			continue;
+		}
+
+		if (ptecxr->tun_type == type) {
+			exrdata = &ptecxr->data;
+			if (ppe_drv_tun_encap_xlate_rule_entry_equal(exrdata, data)) {
+				return ptecxr;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+/*
  * ppe_drv_tun_encap_xlate_rule_alloc
  *	Return free encap rule instance
  */
-struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_alloc(struct ppe_drv *p)
+struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_alloc(struct ppe_drv *p, enum ppe_drv_tun_cmn_ctx_type type)
 {
 	uint16_t index = 0;
 	struct ppe_drv_tun_encap_xlate_rule *ptecxr;
@@ -255,7 +308,7 @@ struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_alloc(struct p
 	/*
 	 * Return first free instance
 	 */
-	for (index = 0; index < PPE_DRV_TUN_ENCAP_XLTE_RULE_MAX_RULES; index++) {
+	for (index = 0; index < PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES; index++) {
 		ptecxr = &p->encap_xlate_rules[index];
 		if (kref_read(&ptecxr->ref)) {
 			continue;
@@ -263,6 +316,8 @@ struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_alloc(struct p
 
 		kref_init(&ptecxr->ref);
 		ppe_drv_trace("%p: Free encap rule instance found, index: %d", ptecxr, index);
+		ptecxr->tun_type = type;
+		memset(&ptecxr->data, 0, sizeof(ptecxr->data));
 		return ptecxr;
 	}
 
@@ -290,13 +345,13 @@ struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_entries_alloc(
 
 	ppe_drv_assert(!p->encap_xlate_rules, "%p: Encap xlate rules already allocated", p);
 
-	encap_xlate_rules = vzalloc(sizeof(struct ppe_drv_tun_encap_xlate_rule) * PPE_DRV_TUN_ENCAP_XLTE_RULE_MAX_RULES);
+	encap_xlate_rules = vzalloc(sizeof(struct ppe_drv_tun_encap_xlate_rule) * PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES);
 	if (!encap_xlate_rules) {
 		ppe_drv_warn("%p: failed to allocate encap_xlate_rules entries", p);
 		return NULL;
 	}
 
-	for (index = 0; index < PPE_DRV_TUN_ENCAP_XLTE_RULE_MAX_RULES; index++) {
+	for (index = 0; index < PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES; index++) {
 		encap_xlate_rules[index].rule_index = index;
 	}
 

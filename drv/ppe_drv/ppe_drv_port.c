@@ -1862,6 +1862,7 @@ bool ppe_drv_port_xcpn_mode_set(uint16_t vp_num, uint8_t action)
 {
 	uint32_t port = vp_num;
 	sw_error_t err;
+	struct ppe_drv_tun *ptun;
 	a_bool_t xcpn_mode = (bool) action;
 	struct ppe_drv_port *pp = ppe_drv_port_from_port_num(vp_num);
 
@@ -1883,6 +1884,11 @@ bool ppe_drv_port_xcpn_mode_set(uint16_t vp_num, uint8_t action)
 	if (err != SW_OK) {
 		ppe_drv_warn("Failed to set xcpn mode config for vp port: %d", port);
 		return false;
+	}
+
+	ptun = pp->port_tun;
+	if (ptun) {
+		ptun->xcpn_mode = xcpn_mode;
 	}
 
 	return true;

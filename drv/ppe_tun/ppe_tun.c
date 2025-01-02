@@ -567,6 +567,67 @@ bool ppe_tun_activate(struct net_device *dev)
 EXPORT_SYMBOL(ppe_tun_activate);
 
 /*
+ * ppe_tun_xcpn_mode_get()
+ *	Get the exception mode based on tunnel type.
+ */
+static uint8_t ppe_tun_xcpn_mode_get(enum ppe_drv_tun_cmn_ctx_type type)
+{
+	uint8_t action = PPE_TUN_XCPN_MODE_0;
+
+	switch (type) {
+	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP:
+		action = ptp->xcpn_mode.gretap;
+		break;
+
+	case PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6:
+		action = ptp->xcpn_mode.ipip6;
+		break;
+
+	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
+		/*
+		 * exception mode is PPE_TUN_XCPN_MODE_1 by default
+		 * for L2TP
+		 */
+		action = ptp->xcpn_mode.l2tp;
+		break;
+
+	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN:
+		action = ptp->xcpn_mode.gretun;
+		break;
+
+	default:
+		ppe_tun_info("Tunnel type %u is invalid or doesn't support xcpn mode.", type);
+
+	}
+
+	return action;
+}
+
+/*
+ * ppe_tun_get_tun_vp_type()
+ *	Return tunnel VP type from tunnel type.
+ */
+static ppe_vp_type_t ppe_tun_get_tun_vp_type(enum ppe_drv_tun_cmn_ctx_type type)
+{
+	switch (type) {
+	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP:
+	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN:
+		return PPE_VP_TYPE_HW_L2TUN;
+
+	case PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6:
+	case PPE_DRV_TUN_CMN_CTX_TYPE_MAPT:
+	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
+	case PPE_DRV_TUN_CMN_CTX_TYPE_CUST:
+	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE:
+	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN:
+		return PPE_VP_TYPE_HW_L3TUN;
+
+	default:
+		return PPE_VP_TYPE_MAX;
+	}
+}
+
+/*
  * ppe_tun_conf_accel()
  *	Enable / Disable acceleration for a tunnel type
  */
@@ -684,6 +745,7 @@ bool ppe_tun_configure(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_h
 {
 	struct ppe_tun *tun = ppe_tun_get_tun_by_netdev_and_ref(dev);
 	ppe_vp_num_t vp_num;
+	uint8_t action;
 	bool status;
 
 	if (!tun) {
@@ -703,6 +765,16 @@ bool ppe_tun_configure(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_h
 				       ppe_tun_deactivate_with_conn_entry);
 	if (!status) {
 		ppe_tun_trace("%p: tunnel driver configuration failed", tun);
+		ppe_tun_deref(tun);
+		return false;
+	}
+
+	/*
+	 * Set exception mode.
+	 */
+	action = ppe_tun_xcpn_mode_get(tun->type);
+	if (action && !ppe_drv_port_xcpn_mode_set(tun->vp_num, action)) {
+		ppe_tun_warn("%p: xcpn_mode set failed for dev %s", ptp, dev->name);
 		ppe_tun_deref(tun);
 		return false;
 	}
@@ -746,67 +818,6 @@ bool ppe_tun_free(struct net_device *dev)
 EXPORT_SYMBOL(ppe_tun_free);
 
 /*
- * ppe_tun_xcpn_mode_get()
- *	Get the exception mode based on tunnel type.
- */
-uint8_t ppe_tun_xcpn_mode_get(enum ppe_drv_tun_cmn_ctx_type type)
-{
-	uint8_t action = PPE_TUN_XCPN_MODE_0;
-
-	switch (type) {
-	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP:
-		action = ptp->xcpn_mode.gretap;
-		break;
-
-	case PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6:
-		action = ptp->xcpn_mode.ipip6;
-		break;
-
-	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
-		/*
-		 * exception mode is PPE_TUN_XCPN_MODE_1 by default
-		 * for L2TP
-		 */
-		action = ptp->xcpn_mode.l2tp;
-		break;
-
-	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN:
-		action = ptp->xcpn_mode.gretun;
-		break;
-
-	default:
-		ppe_tun_info("Tunnel type %u is invalid or doesn't support xcpn mode.", type);
-
-	}
-
-	return action;
-}
-
-/*
- * ppe_tun_get_tun_vp_type()
- *	Return tunnel VP type from tunnel type.
- */
-static ppe_vp_type_t ppe_tun_get_tun_vp_type(enum ppe_drv_tun_cmn_ctx_type type)
-{
-	switch (type) {
-	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP:
-	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN:
-		return PPE_VP_TYPE_HW_L2TUN;
-
-	case PPE_DRV_TUN_CMN_CTX_TYPE_IPIP6:
-	case PPE_DRV_TUN_CMN_CTX_TYPE_MAPT:
-	case PPE_DRV_TUN_CMN_CTX_TYPE_L2TP_V2:
-	case PPE_DRV_TUN_CMN_CTX_TYPE_CUST:
-	case PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN_GPE:
-	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETUN:
-		return PPE_VP_TYPE_HW_L3TUN;
-
-	default:
-		return PPE_VP_TYPE_MAX;
-	}
-}
-
-/*
  * ppe_tun_alloc()
  *	Allocate a struct ppe_tun.
  */
@@ -816,7 +827,6 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	struct ppe_vp_ai vpai = {0};
 	int32_t idx;
 	ppe_vp_num_t vp_num;
-	uint8_t action;
 
 	if (!atomic_read(&ptp->total_free)) {
 		ppe_tun_info("%p: Max tunnel %u limit reached", ptp, PPE_TUN_MAX);
@@ -866,18 +876,6 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 	if (vp_num == -1) {
 		ppe_tun_warn("%p: vp alloc failed for dev %s", ptp, dev->name);
 		atomic_inc(&ptp->alloc_fail);
-		kfree(tun);
-		return false;
-	}
-
-	/*
-	 * Set exception mode.
-	 */
-	action = ppe_tun_xcpn_mode_get(type);
-	if (!ppe_drv_port_xcpn_mode_set(vp_num, action)) {
-		ppe_tun_warn("%p: xcpn_mode set failed for dev %s", ptp, dev->name);
-		atomic_inc(&ptp->alloc_fail);
-		ppe_vp_free(vp_num);
 		kfree(tun);
 		return false;
 	}

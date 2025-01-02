@@ -163,6 +163,7 @@ struct ppe_drv_tun {
 	uint8_t xmit_port;					/**< Egress I/O port for tunnel> */
 	atomic_t flow_count;					/**< Number of active flows >*/
 	uint8_t encap_hdr_bitmap;				/**< Bitmap of feilds enabled in encap header control >**/
+	bool xcpn_mode;						/**< exception mode type >*/
 };
 
 /*

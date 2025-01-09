@@ -428,8 +428,8 @@ static int nss_ppe_gre_dev_event(struct notifier_block  *nb,
 
 	switch (event) {
 	case NETDEV_REGISTER:
-		if (gre_tunnel_is_fallback_dev(netdev)) {
-			nss_ppe_gre_warning("%p: GRETAP tunnel creation skipped for fb dev %s\n", netdev, netdev->name);
+		if (gre_tunnel_is_fallback_dev(netdev) || gre6_tunnel_is_fallback_dev(netdev)) {
+			nss_ppe_gre_warning("%p: GRE tunnel creation skipped for fb dev %s\n", netdev, netdev->name);
 			break;
 		}
 

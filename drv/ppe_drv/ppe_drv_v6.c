@@ -2830,6 +2830,7 @@ ppe_drv_ret_t ppe_drv_v6_policer_flow_create(struct ppe_drv_v6_rule_create *crea
 			ppe_drv_warn("%p: acceleration of return direction failed: %p", p, pcr);
 			ret = PPE_DRV_RET_FAILURE_FLOW_ADD_FAIL;
 			ppe_drv_v6_conn_flow_flags_clear(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PPE_POLICER_ASSIST);
+			spin_unlock_bh(&p->lock);
 			return ret;
 		}
 

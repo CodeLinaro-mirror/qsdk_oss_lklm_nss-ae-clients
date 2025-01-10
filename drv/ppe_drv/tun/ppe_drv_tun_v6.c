@@ -229,6 +229,7 @@ static bool ppe_drv_v6_vxlan_gpe_tunnel(struct ppe_drv_v6_rule_create *create, s
  */
 bool ppe_drv_v6_tun_allow_tunnel_create(struct ppe_drv_v6_rule_create *create)
 {
+	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_tun *port_tun;
 	struct net_device *dev;
 	struct ppe_drv_iface *if_rx, *if_tx;
@@ -256,8 +257,10 @@ bool ppe_drv_v6_tun_allow_tunnel_create(struct ppe_drv_v6_rule_create *create)
 		return true;
 	}
 
+	spin_lock_bh(&p->lock);
 	port_tun = ppe_drv_v6_tun_get_tun_from_create_rule(&create->conn_rule);
 	if (!port_tun) {
+		spin_unlock_bh(&p->lock);
 		return false;
 	}
 
@@ -266,10 +269,12 @@ bool ppe_drv_v6_tun_allow_tunnel_create(struct ppe_drv_v6_rule_create *create)
 	 */
 	dev = ppe_drv_port_to_dev(port_tun->pp);
 	if (ppe_drv_v6_vxlan_tunnel(create, dev)) {
+		spin_unlock_bh(&p->lock);
 		return true;
 	}
 
 	if (ppe_drv_v6_vxlan_gpe_tunnel(create, dev)) {
+		spin_unlock_bh(&p->lock);
 		return true;
 	}
 
@@ -277,9 +282,11 @@ bool ppe_drv_v6_tun_allow_tunnel_create(struct ppe_drv_v6_rule_create *create)
 	 * Check if the rule is for MAP-T
 	 */
 	if (dev->priv_flags_ext & IFF_EXT_MAPT) {
+		spin_unlock_bh(&p->lock);
 		return true;
 	}
 
+	spin_unlock_bh(&p->lock);
 	return false;
 }
 

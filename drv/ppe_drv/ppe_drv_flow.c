@@ -1022,6 +1022,7 @@ bool ppe_drv_flow_v6_sawf_mark_update(struct ppe_drv_v6_conn_flow *pcf)
 #endif
 
 	if (!ppe_drv_flow_v6_wifi_qos_get(pcf, &flow_qos.qos, &wifi_qos_en)) {
+		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
 		return false;
 	}
@@ -2041,6 +2042,7 @@ bool ppe_drv_flow_v4_sawf_mark_update(struct ppe_drv_v4_conn_flow *pcf)
 #endif
 
 	if (!ppe_drv_flow_v4_wifi_qos_get(pcf, &flow_qos.qos, &wifi_qos_en)) {
+		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
 		return false;
 	}

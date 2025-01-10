@@ -1918,7 +1918,8 @@ static int ppe_drv_upstream_dev_handler(struct ctl_table *table,
 	 */
 	ret = ppe_drv_sc_in_service_tbl_dest_port(PPE_DRV_SC_LOOPBACK_RING_NEXT, pp->port);
 	if (ret != SW_OK) {
-                ppe_drv_warn("%p: service code configuration failed for sc", p);
+		spin_unlock_bh(&p->lock);
+		ppe_drv_warn("%p: service code configuration failed for sc", p);
 		return false;
         }
 

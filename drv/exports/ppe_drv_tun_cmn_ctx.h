@@ -227,6 +227,15 @@ struct ppe_drv_tun_cmn_ctx_cust {
 };
 
 /*
+ * ppe_drv_tun_cmn_ctx_mape
+ *	Mape tunnel context.
+ */
+struct ppe_drv_tun_cmn_ctx_mape_br {
+	bool is_mape_br;		/**< 1 - BR, 0 - CE in MAP-E tunnel >*/
+	bool is_mape_activate;		/**< Active MAP-E tunnel >*/
+};
+
+/*
  * ppe_drv_tun_cmn_ctx
  *	PPE tunnel header parameters
  */
@@ -239,6 +248,7 @@ struct ppe_drv_tun_cmn_ctx {
 		struct ppe_drv_tun_cmn_ctx_mapt mapt;	/**< Map-T tunnel configuration >*/
 		struct ppe_drv_tun_cmn_ctx_l2tp l2tp;	/**< L2TP tunnel configuration >*/
 		struct ppe_drv_tun_cmn_ctx_cust cust;	/**< Custom tunnel configuration >*/
+		struct ppe_drv_tun_cmn_ctx_mape_br mape;	/**< Map-E BR tunnel configuration >*/
 	} tun;
 	enum ppe_drv_tun_cmn_ctx_type type;
 };

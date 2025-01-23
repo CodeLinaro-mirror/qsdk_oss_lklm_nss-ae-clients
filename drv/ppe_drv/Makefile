@@ -78,7 +78,7 @@ ccflags-y += -DNSS_PPE_IPQ54XX
 qca-nss-ppe-objs += ppe_drv_nptv6.o
 endif
 
-ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq54xx))
+ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx ipq54xx))
 ccflags-y += -DNSS_VLAN_BASED_DSA_SUPPORT
 endif
 

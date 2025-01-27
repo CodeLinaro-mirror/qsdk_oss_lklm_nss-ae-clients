@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,6 +17,7 @@
 #include <fal/fal_sec.h>
 #include <fal/fal_ctrlpkt.h>
 #include "ppe_drv.h"
+#include "ppe_drv_cc_usr.h"
 
 extern int l4_checksum_exception_enable;
 
@@ -374,6 +375,77 @@ int ppe_drv_exception_l4_checksum_enable()
 }
 
 /*
+ * ppe_drv_exception_configure_internal()
+ *	Configuring CPU code fields
+ */
+static void ppe_drv_exception_configure_internal(fal_l3_excep_ctrl_t *except_ctrl, fal_fwd_cmd_t action, uint16_t flow_type)
+{
+	except_ctrl->cmd = action;
+	/*
+	 * L2_Only - bridge flow, with flow disable or bypassed by sc.
+	 */
+	if ((flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_ONLY)
+			== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_ONLY) {
+		except_ctrl->l2fwd_only_en = A_TRUE;
+		except_ctrl->l2flow_type = FAL_FLOW_AWARE;
+	}
+
+	/*
+	 * L3_Only - routed flow, with flow disable or bypassed by sc.
+	 */
+	if ((flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_ONLY)
+			== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_ONLY) {
+		except_ctrl->l3route_only_en = A_TRUE;
+		except_ctrl->l3flow_type = FAL_FLOW_AWARE;
+	}
+
+	/*
+	 * L2_Flow - bridge flow with flow enabled.
+	 */
+	if ((flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW)
+			== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW) {
+		except_ctrl->l2flow_en = A_TRUE;
+		except_ctrl->l2flow_type = FAL_FLOW_AWARE;
+	}
+
+	/*
+	 * L3_Flow - routed flow with flow enabled.
+	 */
+	if ((flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW)
+			== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW) {
+		except_ctrl->l3flow_en = A_TRUE;
+		except_ctrl->l3flow_type = FAL_FLOW_AWARE;
+	}
+
+	/*
+	 * Multicast flows
+	 */
+	if ((flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_MULTICAST)
+			== PPE_DRV_EXCEPTION_FLOW_TYPE_MULTICAST) {
+		except_ctrl->multicast_en = A_TRUE;
+		except_ctrl->l2flow_type = FAL_FLOW_AWARE;
+	}
+
+	/*
+	 * L2_FLOW_HIT - bridged flow with flow match.
+	 */
+	if ((flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT)
+			== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT) {
+		except_ctrl->l2flow_en = A_TRUE;
+		except_ctrl->l2flow_type = FAL_FLOW_HIT;
+	}
+
+	/*
+	 * L3_FLOW_HIT - routed flow with flow match.
+	 */
+	if ((flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT)
+			== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT) {
+		except_ctrl->l3flow_en = A_TRUE;
+		except_ctrl->l3flow_type = FAL_FLOW_HIT;
+	}
+}
+
+/*
  * ppe_drv_exception_init()
  *	Initialize PPE exceptions
  */
@@ -435,70 +507,7 @@ void ppe_drv_exception_init(void)
 		if (!flow_deacclr_dis)
 			except_ctrl.deacclr_en = pe->deaccel_en;
 
-		except_ctrl.cmd = pe->action;
-
-		/*
-		 * L2_Only - bridge flow, with flow disable or bypassed by sc.
-		 */
-		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_ONLY)
-				== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_ONLY) {
-			except_ctrl.l2fwd_only_en = A_TRUE;
-			except_ctrl.l2flow_type = FAL_FLOW_AWARE;
-		}
-
-		/*
-		 * L3_Only - routed flow, with flow disable or bypassed by sc.
-		 */
-		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_ONLY)
-				== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_ONLY) {
-			except_ctrl.l3route_only_en = A_TRUE;
-			except_ctrl.l3flow_type = FAL_FLOW_AWARE;
-		}
-
-		/*
-		 * L2_Flow - bridge flow with flow enabled.
-		 */
-		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW)
-				== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW) {
-			except_ctrl.l2flow_en = A_TRUE;
-			except_ctrl.l2flow_type = FAL_FLOW_AWARE;
-		}
-
-		/*
-		 * L3_Flow - routed flow with flow enabled.
-		 */
-		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW)
-				== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW) {
-			except_ctrl.l3flow_en = A_TRUE;
-			except_ctrl.l3flow_type = FAL_FLOW_AWARE;
-		}
-
-		/*
-		 * Multicast flows
-		 */
-		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_MULTICAST)
-				== PPE_DRV_EXCEPTION_FLOW_TYPE_MULTICAST) {
-			except_ctrl.multicast_en = A_TRUE;
-			except_ctrl.l2flow_type = FAL_FLOW_AWARE;
-		}
-
-		/*
-		 * L2_FLOW_HIT - bridged flow with flow match.
-		 */
-		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT)
-				== PPE_DRV_EXCEPTION_FLOW_TYPE_L2_FLOW_HIT) {
-			except_ctrl.l2flow_en = A_TRUE;
-			except_ctrl.l2flow_type = FAL_FLOW_HIT;
-		}
-
-		/*
-		 * L3_FLOW_HIT - routed flow with flow match.
-		 */
-		if ((pe->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT)
-				== PPE_DRV_EXCEPTION_FLOW_TYPE_L3_FLOW_HIT) {
-			except_ctrl.l3flow_en = A_TRUE;
-			except_ctrl.l3flow_type = FAL_FLOW_HIT;
-		}
+		ppe_drv_exception_configure_internal(&except_ctrl, pe->action, pe->flow_type);
 
 		/*
 		 * Configure specific exception in PPE through SSDK.
@@ -535,3 +544,142 @@ void ppe_drv_exception_init(void)
 	ppe_drv_exception_tun_init(p);
 #endif
 }
+
+/*
+ * ppe_drv_cc_exception_configure()
+ *	Initialize PPE exceptions
+ */
+ppe_drv_cc_usr_ret_t ppe_drv_cc_exception_configure(struct ppe_drv_cc_usr_exception_info *info)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_cc *pcc;
+	fal_l4_excep_parser_ctrl tcp_except_ctrl = {0};
+	fal_l3_excep_ctrl_t except_ctrl = {0};
+	fal_ip_global_cfg_t cfg = {0};
+#ifdef PPE_TUNNEL_ENABLE
+	fal_tunnel_excep_ctrl_t tun_except_ctrl = {0};
+#endif
+	sw_error_t err;
+	uint8_t exp_code;
+	ppe_drv_cc_usr_ret_t ret;
+	uint8_t profile __maybe_unused;
+	uint8_t cpu_code;
+	uint8_t flag;
+
+	exp_code = ppe_drv_exception_cc2exp((uint8_t)info->code);
+	ppe_drv_trace("%p: configuring exception code: %u flow_type: 0x%x",
+			p, exp_code, info->flow_type);
+
+	cpu_code = (uint8_t)info->code;
+	pcc = &p->cc[cpu_code];
+
+	/*
+	 * Enable Flush
+	 */
+	if (info->flush_en) {
+		pcc->flush = true;
+	}
+
+#ifdef PPE_TUNNEL_ENABLE
+	if ((info->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW) == PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW) {
+		tun_except_ctrl.cmd = (fal_fwd_cmd_t)info->action;
+		tun_except_ctrl.deacclr_en = info->deaccel_en;
+		profile = info->tun_profile;
+		if ((profile >> 0) & 1) {
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_0] = PPE_DRV_EXCPN_TUN_PROFILE_EN;
+		} else if ((profile >> 1) & 1) {
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_1]  = PPE_DRV_EXCPN_TUN_PROFILE_EN;
+		} else if ((profile >> 2) & 1) {
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_2] = PPE_DRV_EXCPN_TUN_PROFILE_EN;
+		} else if ((profile >> 3) & 1) {
+			tun_except_ctrl.profile_exp_en[PPE_DRV_EXCPN_TUN_PROFILE_ID_3] = PPE_DRV_EXCPN_TUN_PROFILE_EN;
+		}
+
+		err = fal_sec_tunnel_excep_ctrl_set(PPE_DRV_SWITCH_ID, exp_code, &tun_except_ctrl);
+		if (err != SW_OK) {
+			ppe_drv_warn("%p: Failed to configure for tunnel exception code %u", p, exp_code);
+			ret = PPE_DRV_CC_USR_RET_TUNNEL_CONFIG_FAILED;
+			return ret;
+		}
+	}
+#else
+	if (info->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW) {
+		return PPE_DRV_CC_USR_RET_TUNNEL_CONFIG_FAILED;
+	}
+#endif
+
+	/*
+	 * Enable Exception
+	 */
+	except_ctrl.deacclr_en = info->deaccel_en;
+
+	/*
+	 * Since our exception list is now defined using CPU code, we need to
+	 * Convert CPU code into exception code for exception configuration.
+	 * l3_excep_ctrl table only configures exceptions till number 71, hence
+	 * We need to do necessary check to avoid configuring exception
+	 * Table above 71.
+	 */
+	if (exp_code > ppe_drv_exception_cc2exp(PPE_DRV_CC_UDP_LITE_CHECKSUM_ERR) + 4) {
+		/*
+		 * Configure the exception if it is of MTU FAIL type
+		 */
+		if (info->code == PPE_DRV_CC_L3_EXP_MTU_FAIL) {
+			cfg.mtu_fail_action = (fal_fwd_cmd_t)info->action;
+			cfg.mtu_deacclr_en = info->deaccel_en;
+			if (fal_ip_global_ctrl_set(PPE_DRV_SWITCH_ID, &cfg) != SW_OK) {
+				ppe_drv_warn("%p: IP global control configuration failed\n", p);
+				ret = PPE_DRV_CC_USR_RET_L4_CONFIGURE_FAILED;
+				return ret;
+			}
+			return PPE_DRV_CC_USR_RET_SUCCESS;
+		}
+
+		if (info->code == PPE_DRV_CC_L3_EXP_MRU_FAIL) {
+			cfg.mru_fail_action = (fal_fwd_cmd_t)info->action;
+			cfg.mru_deacclr_en = info->deaccel_en;
+			if (fal_ip_global_ctrl_set(PPE_DRV_SWITCH_ID, &cfg) != SW_OK) {
+				ppe_drv_warn("%p: failed to configure MRU exception\n", p);
+				ret = PPE_DRV_CC_USR_RET_MRU_CONFIGURE_FAILED;
+				return ret;
+			}
+			return PPE_DRV_CC_USR_RET_SUCCESS;
+		}
+
+		ppe_drv_trace("%p: exception code greater than 71 not configured in l3 exception control table: %d\n", p, exp_code);
+		ret = PPE_DRV_CC_USR_RET_CONFIGURE_NOT_ALLOWED;
+		return ret;
+	}
+
+	ppe_drv_exception_configure_internal(&except_ctrl, (fal_fwd_cmd_t)info->action, info->flow_type);
+
+	/*
+	 * Configure specific exception in PPE through SSDK.
+	 */
+	err = fal_sec_l3_excep_ctrl_set(PPE_DRV_SWITCH_ID, exp_code, &except_ctrl);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to configure L3 exception: %d", p, exp_code);
+		ret = PPE_DRV_CC_USR_RET_L3_CONFIGURE_FAILED;
+		return ret;
+	}
+
+	/*
+	 * TCP_FLAG_* are special cases, need to set ctrl and mask register.
+	 */
+	if ((info->code >= PPE_DRV_CC_USR_TCP_FLAG_MIN) && (info->code < PPE_DRV_CC_USR_TCP_FLAG_MAX)) {
+		int index = (info->code) - PPE_DRV_CC_USR_TCP_FLAG_MIN;
+		flag = (1 << index);
+		tcp_except_ctrl.tcp_flags[index] =  flag;
+		tcp_except_ctrl.tcp_flags_mask[index] = flag;
+
+		err = fal_sec_l4_excep_parser_ctrl_set(PPE_DRV_SWITCH_ID, &tcp_except_ctrl);
+		if (err != SW_OK) {
+			ppe_drv_warn("%p: failed to configure L4 exception: %p", p, &tcp_except_ctrl);
+			ret = PPE_DRV_CC_USR_RET_L4_CONFIGURE_FAILED;
+			return ret;
+		}
+	}
+
+	return PPE_DRV_CC_USR_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_cc_exception_configure);

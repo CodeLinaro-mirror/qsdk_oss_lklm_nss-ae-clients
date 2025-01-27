@@ -5,10 +5,12 @@ ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BUILD_ID)"
 ccflags-y += -DCONFIG_NSS_PPENL_ACL=1
 ccflags-y += -DCONFIG_NSS_PPENL_POLICER=1
 ccflags-y += -DCONFIG_NSS_PPENL_QOS=1
+ccflags-y += -DCONFIG_NSS_PPENL_EXCEPTION=1
 
 qca-nss-ppe-netlink-objs := nss_ppenl.o
 qca-nss-ppe-netlink-objs += nss_ppenl_acl.o
 qca-nss-ppe-netlink-objs += nss_ppenl_policer.o
 qca-nss-ppe-netlink-objs += nss_ppenl_qos.o
+qca-nss-ppe-netlink-objs += nss_ppenl_exception.o
 
 obj-m += qca-nss-ppe-netlink.o

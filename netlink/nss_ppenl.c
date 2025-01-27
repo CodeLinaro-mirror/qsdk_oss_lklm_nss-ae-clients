@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,7 +31,8 @@
 #include "nss_ppenl_policer_if.h"
 #include "nss_ppenl_qos.h"
 #include "nss_ppenl_qos_if.h"
-
+#include "nss_ppenl_exception.h"
+#include "nss_ppenl_exception_if.h"
 
 /*
  * nss_ppenl.c
@@ -79,6 +80,15 @@ static struct nss_ppenl_family family_handlers[] = {
                 .exit = NSS_PPENL_QOS_EXIT,		/* exit */
                 .valid = CONFIG_NSS_PPENL_QOS       	/* 1 or 0 */
         },
+	{
+		/*
+		 * NSS_PPENL_EXCEPTION
+		 */
+		.name = NSS_PPENL_EXCEPTION_FAMILY,		/* Exception Family */
+		.entry = NSS_PPENL_EXCEPTION_INIT,		/* Init */
+		.exit = NSS_PPENL_EXCEPTION_EXIT,		/* exit */
+		.valid = CONFIG_NSS_PPENL_EXCEPTION		/* 1 or 0 */
+	},
 
 };
 

@@ -1178,21 +1178,18 @@ bool ppe_drv_port_check_rfs_support(struct net_device *dev)
 	struct ppe_drv *p = &ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
+
 	pp = ppe_drv_port_from_dev(dev);
 	if (!pp) {
 		spin_unlock_bh(&p->lock);
-		return false;
-	}
-
-	if (!ppe_drv_is_wlan_vp_port_type(pp->user_type)) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_trace("ppe port is of invalid type: %d\n", pp->user_type);
-		return false;
-	}
-
-	if (ppe_drv_port_is_tunnel_vp(pp)) {
-		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p: VP is tunnel VP", pp);
+		/*
+		 * For wlan dev in SFE, if passive VP is not allocated.
+		 * Hence, no port there.
+		 */
+		if (dev->ieee80211_ptr) {
+			ppe_drv_trace("%p: Dev is wlan dev\n", dev);
+			return p->rfs.wlan_rfs_enable;
+		}
 		return false;
 	}
 
@@ -2094,6 +2091,41 @@ int16_t ppe_drv_port_enq_vp_alloc(void)
 	return PPE_DRV_PORT_ID_INVALID;
 }
 
+/*
+ * ppe_drv_port_phy_rfs_clear()
+ *	Clears RFS flag for physical ports.
+ */
+void ppe_drv_port_phy_rfs_clear(void)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	uint8_t i;
+
+	spin_lock_bh(&p->lock);
+	for (i = PPE_DRV_PHY_ETH_PORT_START; i <= PPE_DRV_PHY_ETH_PORT_MAX; i++)
+	{
+		p->port[i].flags &= ~(PPE_DRV_PORT_RFS_ENABLED);
+	}
+	spin_unlock_bh(&p->lock);
+}
+EXPORT_SYMBOL(ppe_drv_port_phy_rfs_clear);
+
+/*
+ * ppe_drv_port_phy_rfs_set()
+ *	Sets RFS flag for physical ports.
+ */
+void ppe_drv_port_phy_rfs_set(void)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	uint8_t i;
+
+	spin_lock_bh(&p->lock);
+	for (i = PPE_DRV_PHY_ETH_PORT_START; i <= PPE_DRV_PHY_ETH_PORT_MAX; i++)
+	{
+		p->port[i].flags |= PPE_DRV_PORT_RFS_ENABLED;
+	}
+	spin_unlock_bh(&p->lock);
+}
+EXPORT_SYMBOL(ppe_drv_port_phy_rfs_set);
 
 /*
  * ppe_drv_port_src_profile_get_byidx()
@@ -2188,6 +2220,29 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 		 * This will be released when the user releases the final reference on port.
 		 */
 		kref_init(&pp->ref_cnt);
+	} else if (type == PPE_DRV_PORT_CPU_TYPE) {
+
+		/*
+		 * Use fixed port number 0 for CPU port configuration.
+		 */
+		port = PPE_DRV_PORT_CPU;
+		pp = &p->port[port];
+
+		/*
+		 * Is port already configured?
+		 */
+		if (kref_read(&pp->ref_cnt)) {
+			ppe_drv_warn("%p: The CPU port: %u is already configured!",
+					p, PPE_DRV_PORT_CPU);
+			return NULL;
+		}
+
+		/*
+		 * Take a reference on the port.
+		 * This will be released when the user releases the final reference on port.
+		 */
+		kref_init(&pp->ref_cnt);
+
 	} else {
 		ppe_drv_assert(false, "%p: Invalid type of port: %u", p, type);
 		ppe_drv_warn("%p: Invalid type of port: %u", p, type);

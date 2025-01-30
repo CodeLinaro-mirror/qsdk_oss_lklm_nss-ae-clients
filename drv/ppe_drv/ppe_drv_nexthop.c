@@ -409,8 +409,9 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	struct ppe_drv_vsi *vsi;
 	struct ppe_drv_port *pp;
 	struct ppe_drv_port *pp_rx;
-	struct ppe_drv_port *port_tx_orig;;
-	struct ppe_drv_iface *iface_tx_orig;
+	struct ppe_drv_port *tx_port_orig = NULL;
+	struct ppe_drv_iface *cpu_port_if = p->rfs.cpu_iface;
+	struct ppe_drv_iface *tx_port_if_orig = NULL, *tx_l3_if_orig = NULL;
 	sw_error_t err;
 	bool is_vlan_as_vp;
 	bool is_dsa_dev = false;
@@ -445,11 +446,13 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	 */
 	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
 	{
-		port_tx_orig = ppe_drv_v6_conn_flow_tx_port_get(pcf);
-		iface_tx_orig = pcf->eg_port_if;
-		pcf->tx_port = ppe_drv_iface_port_get(p->rfs.cpu_iface);
-		pcf->eg_port_if = p->rfs.cpu_iface;
-		pcf->eg_l3_if = p->rfs.cpu_iface;
+		tx_port_if_orig = ppe_drv_v6_conn_flow_eg_port_if_get(pcf);
+		tx_l3_if_orig = ppe_drv_v6_conn_flow_eg_l3_if_get(pcf);
+		tx_port_orig = ppe_drv_v6_conn_flow_tx_port_get(pcf);
+
+		pcf->eg_port_if = cpu_port_if;
+		pcf->eg_l3_if = cpu_port_if;
+		pcf->tx_port = ppe_drv_iface_port_get(cpu_port_if);
 	}
 
 	nh = ppe_drv_nexthop_v6_match(pcf);
@@ -459,14 +462,14 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 		 */
 		ppe_drv_trace("%p: matching nexthop entry found with index(%x)", nh, nh->index);
 		ppe_drv_nexthop_ref(nh);
-		return nh;
+		goto skip_to_return;
 	}
 
 	nh = list_first_entry_or_null(&p->nh_free, struct ppe_drv_nexthop, list);
 	if (!nh) {
 		ppe_drv_stats_inc(&p->stats.gen_stats.fail_nh_full);
 		ppe_drv_warn("%p: nexthop full - cannot accelerate flow", pcf);
-		return NULL;
+		goto skip_to_return;
 	}
 
 	/*
@@ -490,7 +493,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 		 */
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: egress port invalid", nh);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	pp_rx = ppe_drv_v6_conn_flow_rx_port_get(pcf);
@@ -500,7 +504,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 		 */
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: inress port invalid", nh);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	ppe_drv_info("%p: ppe_port: %d", nh, pp->port);
@@ -526,14 +531,16 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: vlan-vsi not configured on interface: %u in_vlan: %u, out_vlan: %u",
 				p, pp->port, in_vlan, out_vlan);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	l3_if = ppe_drv_nexthop_v6_l3_if_get(pcf);
 	if (!l3_if) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: No egress L3 interface setup for port: %u", pcf, pp->port);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	fal_nh.if_index = l3_if->l3_if_index;
@@ -579,7 +586,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	if (err != SW_OK) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: nexthop configuration failed for flow: %p", nh, pcf);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	/*
@@ -593,14 +601,15 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 
 	ppe_drv_nexthop_dump(nh);
 
+skip_to_return:
 	/*
 	 * Changing the flow port and interface back to the original values.
 	 */
 	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
 	{
-		pcf->tx_port = port_tx_orig;
-		pcf->eg_port_if = iface_tx_orig;
-		pcf->eg_l3_if = iface_tx_orig;
+		pcf->eg_port_if = tx_port_if_orig;
+		pcf->eg_l3_if = tx_l3_if_orig;
+		pcf->tx_port = tx_port_orig;
 	}
 
 	return nh;
@@ -823,8 +832,9 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	struct ppe_drv_vsi *vsi;
 	struct ppe_drv_port *pp;
 	struct ppe_drv_port *pp_rx;
-	struct ppe_drv_port *port_tx_orig;
-	struct ppe_drv_iface *iface_tx_orig;
+	struct ppe_drv_port *tx_port_orig = NULL;
+	struct ppe_drv_iface *cpu_port_if = p->rfs.cpu_iface;
+	struct ppe_drv_iface *tx_port_if_orig = NULL, *tx_l3_if_orig = NULL;
 	sw_error_t err;
 	bool is_vlan_as_vp;
 	bool is_dsa_dev = false;
@@ -856,11 +866,13 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	 */
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
 	{
-		port_tx_orig = ppe_drv_v4_conn_flow_tx_port_get(pcf);
-		iface_tx_orig = pcf->eg_port_if;
-		pcf->tx_port = ppe_drv_iface_port_get(p->rfs.cpu_iface);
-		pcf->eg_port_if = p->rfs.cpu_iface;
-		pcf->eg_l3_if = p->rfs.cpu_iface;
+		tx_port_if_orig = ppe_drv_v4_conn_flow_eg_port_if_get(pcf);
+		tx_l3_if_orig = ppe_drv_v4_conn_flow_eg_l3_if_get(pcf);
+		tx_port_orig = ppe_drv_v4_conn_flow_tx_port_get(pcf);
+
+		pcf->eg_port_if = cpu_port_if;
+		pcf->eg_l3_if = cpu_port_if;
+		pcf->tx_port = ppe_drv_iface_port_get(cpu_port_if);
 	}
 
 	nh = ppe_drv_nexthop_v4_match(pcf);
@@ -870,14 +882,14 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 		 */
 		ppe_drv_trace("%p: matching nexthop entry found with index(%x)", nh, nh->index);
 		ppe_drv_nexthop_ref(nh);
-		return nh;
+		goto skip_to_return;
 	}
 
 	nh = list_first_entry_or_null(&p->nh_free, struct ppe_drv_nexthop, list);
 	if (!nh) {
 		ppe_drv_stats_inc(&p->stats.gen_stats.fail_nh_full);
 		ppe_drv_warn("%p: nexthop table full - cannot accelerate flow", pcf);
-		return NULL;
+		goto skip_to_return;
 	}
 
 	/*
@@ -901,7 +913,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 		 */
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: egress port invalid", nh);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	pp_rx = ppe_drv_v4_conn_flow_rx_port_get(pcf);
@@ -911,7 +924,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 		 */
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: ingress port invalid", nh);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	ppe_drv_info("%p: ppe_port: %d", nh, pp->port);
@@ -927,7 +941,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 			 */
 			ppe_drv_warn("%p: failed to get a pub ip entry", nh);
 			ppe_drv_nexthop_deref(nh);
-			return NULL;
+			nh = NULL;
+			goto skip_to_return;
 		}
 
 		nh->snat_en = true;
@@ -954,14 +969,16 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: vlan-vsi not configured on interface: %u in_vlan: %u, out_vlan: %u",
 				p, pp->port, in_vlan, out_vlan);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	l3_if = ppe_drv_nexthop_v4_l3_if_get(pcf);
 	if (!l3_if) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: No egress L3 interface setup for port: %u", pcf, pp->port);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	fal_nh.if_index = l3_if->l3_if_index;
@@ -1008,7 +1025,8 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	if (err != SW_OK) {
 		ppe_drv_nexthop_deref(nh);
 		ppe_drv_warn("%p: nexthop configuration failed for flow: %p", nh, pcf);
-		return NULL;
+		nh = NULL;
+		goto skip_to_return;
 	}
 
 	/*
@@ -1022,14 +1040,15 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 
 	ppe_drv_nexthop_dump(nh);
 
+skip_to_return:
 	/*
 	 * Changing the flow port and interface back to the original values.
 	 */
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
 	{
-		pcf->tx_port = port_tx_orig;
-		pcf->eg_port_if = iface_tx_orig;
-		pcf->eg_l3_if = iface_tx_orig;
+		pcf->eg_port_if = tx_port_if_orig;
+		pcf->eg_l3_if = tx_l3_if_orig;
+		pcf->tx_port = tx_port_orig;
 	}
 
 	return nh;

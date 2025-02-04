@@ -31,7 +31,6 @@
  */
 enum ppe_drv_conn_type {
 	PPE_DRV_CONN_TYPE_FLOW,		/* inner flow or TCP/UDP flow*/
-	PPE_DRV_CONN_TYPE_FLOW_WLAN,	/* TCP/UDP WLAN flow */
 	PPE_DRV_CONN_TYPE_TUNNEL,	/* Tunnel flow */
 	PPE_DRV_CONN_TYPE_MAX,
 };

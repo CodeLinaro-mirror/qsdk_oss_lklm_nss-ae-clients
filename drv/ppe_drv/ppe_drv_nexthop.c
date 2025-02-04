@@ -178,7 +178,6 @@ static inline struct ppe_drv_nexthop *ppe_drv_nexthop_v6_match(struct ppe_drv_v6
 		return nh;
 	}
 
-	ppe_drv_trace("%p: NOT found a matching nexthop entry for flow: %p", nh, pcf);
 	return NULL;
 }
 
@@ -309,7 +308,6 @@ static inline struct ppe_drv_nexthop *ppe_drv_nexthop_v4_match(struct ppe_drv_v4
 		ppe_drv_trace("%p: found a matching nexthop entry for flow: %p", nh, pcf);
 		return nh;
 	}
-	ppe_drv_trace("%p: NOT found a matching nexthop entry for flow: %p", nh, pcf);
 
 	return NULL;
 }
@@ -409,8 +407,6 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	struct ppe_drv_vsi *vsi;
 	struct ppe_drv_port *pp;
 	struct ppe_drv_port *pp_rx;
-	struct ppe_drv_port *port_tx_orig;;
-	struct ppe_drv_iface *iface_tx_orig;
 	sw_error_t err;
 	bool is_vlan_as_vp;
 	bool is_dsa_dev = false;
@@ -437,19 +433,6 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	default:
 		ppe_drv_warn("%p: ppe doesn't support more than 2 VLANs: %u", pcf, vlan_cnt);
 		return NULL;
-	}
-
-	/*
-	 * In case of RFS PPE ASSIST the pcf tx port and tx iface become the CPU port and iface,
-	 * this is used to allocate and assign next hop.
-	 */
-	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
-	{
-		port_tx_orig = ppe_drv_v6_conn_flow_tx_port_get(pcf);
-		iface_tx_orig = pcf->eg_port_if;
-		pcf->tx_port = ppe_drv_iface_port_get(p->rfs.cpu_iface);
-		pcf->eg_port_if = p->rfs.cpu_iface;
-		pcf->eg_l3_if = p->rfs.cpu_iface;
 	}
 
 	nh = ppe_drv_nexthop_v6_match(pcf);
@@ -510,12 +493,10 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	 * So skip vsi check if the port is VLAN as VP.
 	 */
 	iface_tx = ppe_drv_v6_conn_flow_eg_port_if_get(pcf);
-	if (iface_tx->dev) {
-		is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+	is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
 #ifdef NSS_VLAN_BASED_DSA_SUPPORT
-		is_dsa_dev = dsa_slave_dev_check(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+	is_dsa_dev = dsa_slave_dev_check(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
 #endif
-	}
 
 	/*
 	 * Get vsi for vlan flows.
@@ -592,16 +573,6 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v6_get_and_ref(struct ppe_drv_v6_conn_fl
 	memcpy(nh->mac_addr, ppe_drv_v6_conn_flow_xmit_dest_mac_addr_get(pcf), ETH_ALEN);
 
 	ppe_drv_nexthop_dump(nh);
-
-	/*
-	 * Changing the flow port and interface back to the original values.
-	 */
-	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
-	{
-		pcf->tx_port = port_tx_orig;
-		pcf->eg_port_if = iface_tx_orig;
-		pcf->eg_l3_if = iface_tx_orig;
-	}
 
 	return nh;
 }
@@ -823,8 +794,6 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	struct ppe_drv_vsi *vsi;
 	struct ppe_drv_port *pp;
 	struct ppe_drv_port *pp_rx;
-	struct ppe_drv_port *port_tx_orig;
-	struct ppe_drv_iface *iface_tx_orig;
 	sw_error_t err;
 	bool is_vlan_as_vp;
 	bool is_dsa_dev = false;
@@ -848,19 +817,6 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	default:
 		ppe_drv_warn("%p: ppe doesn't support more than 2 VLANs: %u", pcf, vlan_cnt);
 		return NULL;
-	}
-
-	/*
-	 * In case of RFS PPE ASSIST the pcf tx port and tx iface become the CPU port and iface,
-	 * this is used to allocate and assign next hop.
-	 */
-	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
-	{
-		port_tx_orig = ppe_drv_v4_conn_flow_tx_port_get(pcf);
-		iface_tx_orig = pcf->eg_port_if;
-		pcf->tx_port = ppe_drv_iface_port_get(p->rfs.cpu_iface);
-		pcf->eg_port_if = p->rfs.cpu_iface;
-		pcf->eg_l3_if = p->rfs.cpu_iface;
 	}
 
 	nh = ppe_drv_nexthop_v4_match(pcf);
@@ -938,12 +894,10 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	 * So skip vsi check if the port is VLAN as VP.
 	 */
 	iface_tx = ppe_drv_v4_conn_flow_eg_port_if_get(pcf);
-	if (iface_tx->dev) {
-		is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+	is_vlan_as_vp = is_vlan_dev(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
 #ifdef NSS_VLAN_BASED_DSA_SUPPORT
-		is_dsa_dev = dsa_slave_dev_check(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
+	is_dsa_dev = dsa_slave_dev_check(iface_tx->dev) && (iface_tx->type == PPE_DRV_IFACE_TYPE_VIRTUAL);
 #endif
-	}
 
 	/*
 	 * Get vsi for vlan flows.
@@ -1021,16 +975,6 @@ struct ppe_drv_nexthop *ppe_drv_nexthop_v4_get_and_ref(struct ppe_drv_v4_conn_fl
 	memcpy(nh->mac_addr, ppe_drv_v4_conn_flow_xmit_dest_mac_addr_get(pcf), ETH_ALEN);
 
 	ppe_drv_nexthop_dump(nh);
-
-	/*
-	 * Changing the flow port and interface back to the original values.
-	 */
-	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_RFS_PPE_ASSIST))
-	{
-		pcf->tx_port = port_tx_orig;
-		pcf->eg_port_if = iface_tx_orig;
-		pcf->eg_l3_if = iface_tx_orig;
-	}
 
 	return nh;
 }

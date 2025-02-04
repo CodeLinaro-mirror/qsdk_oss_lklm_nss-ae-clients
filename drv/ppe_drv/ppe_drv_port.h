@@ -25,7 +25,6 @@
  * Enqueue vport and pri profile mapping
  * 	Each enqueue vport defined are mapped to pri profile on PPE VSI table.
  * 	Use case 1: Enqueue vp could be used by PPE-DS to map with queue and hence ring.
- * 	Use case 2: Enqueue vp could be used for SFE-RFS to map with queue and hence cpu.
  *
  * Note: Ports 32,33 could be used for trunk. Hence MAX enqueue vp is 30[From 34 to 63].
  */
@@ -190,7 +189,6 @@ struct ppe_drv_tun *ppe_drv_port_tun_get(struct ppe_drv_port *pp);
 bool ppe_drv_port_check_flow_offload_enabled(struct ppe_drv_port *drv_port);
 bool ppe_drv_is_wlan_vp_port_type(uint8_t user_type);
 int16_t ppe_drv_port_enq_vp_alloc(void);
-ppe_drv_ret_t ppe_drv_port_enq_vp_map_to_queue(uint8_t queue_id, uint8_t enq_vp);
 void ppe_drv_port_enq_vp_init(void);
 bool ppe_drv_port_enq_vp_metadata_set(int16_t enq_vp, uint8_t evp_metadata);
 bool ppe_drv_port_enq_vp_free(int16_t enq_vp);

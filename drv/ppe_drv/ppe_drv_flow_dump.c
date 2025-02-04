@@ -343,10 +343,6 @@ int ppe_flow_dump_v6_get(struct ppe_drv_flow_dump_instance *fdi, struct list_hea
 					if ((result = ppe_drv_flow_dump_write(fdi, "evp_pri_profile", "%u", ppe_drv_port_metadata_to_pri_prof_internal(pcf->wifi_rule_ds_metadata)))) {
 						goto ppe_drv_flow_dump_write_error;
 					}
-				} else {
-					if ((result = ppe_drv_flow_dump_write(fdi, "pri_profile", "%u", pcf->pf->pri_profile))) {
-						goto ppe_drv_flow_dump_write_error;
-					}
 				}
 			}
 
@@ -729,10 +725,6 @@ int ppe_flow_dump_v4_get(struct ppe_drv_flow_dump_instance *fdi, struct list_hea
 					}
 
 					if ((result = ppe_drv_flow_dump_write(fdi, "evp_pri_profile", "%u", ppe_drv_port_metadata_to_pri_prof_internal(pcf_v4->wifi_rule_ds_metadata)))) {
-						goto ppe_drv_flow_dump_write_error;
-					}
-				} else {
-					if ((result = ppe_drv_flow_dump_write(fdi, "pri_profile", "%u", pcf_v4->pf->pri_profile))) {
 						goto ppe_drv_flow_dump_write_error;
 					}
 				}

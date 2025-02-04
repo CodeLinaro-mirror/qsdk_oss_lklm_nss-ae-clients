@@ -44,9 +44,6 @@
 #define PPE_DRV_PACKET_PADDING_STR_LEN 128
 #endif
 
-#define PPE_DRV_RFS_COREMASK_MIN	1
-#define PPE_DRV_RFS_COREMASK_MAX	((1 << NR_CPUS) - 1)
-
 /*
  * Module parameter to enable/disable 2-tuple RSS hash for IP fragments.
  */
@@ -61,18 +58,6 @@ bool flow_deacclr_dis = false;
 module_param(flow_deacclr_dis, bool, 0644);
 MODULE_PARM_DESC(flow_deacclr_dis, "Disable Flow deacceleration & Flush on Exception");
 
-/*
- * Module parameter to enable/disable passive VP creation for SFE flows.
- */
-static bool passive_vp_enable = true;
-module_param(passive_vp_enable, bool, 0644);
-MODULE_PARM_DESC(passive_vp_enable, "Passive VP creation enable/disable");
-
-/*
- * Module parameter to set eth coremask.
- */
-static uint8_t eth_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
-MODULE_PARM_DESC(eth_coremask, "Coremask for Ethernet to Ethernet Flows");
 
 uint32_t if_bm_to_offload;
 bool disable_port_mtu_check = true;
@@ -80,7 +65,6 @@ uint32_t static_dbg_level = 0;
 static char static_dbg_level_str[PPE_DRV_STATIC_DBG_LEVEL_STR_LEN];
 uint8_t ppe_drv_redir_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 static bool eth2eth_offload_if_bitmap;
-
 static char upstream_dev_str[PPE_DRV_UPSTREAM_DEV_LEVEL_STR_LEN];
 static char src2uni_map[PPE_DRV_SRC2UNI_LEVEL_STR_LEN];
 #ifdef PPE_DRV_PKT_PADDING_STRIP
@@ -455,6 +439,51 @@ void ppe_drv_loopback_base_queue(uint8_t queue_id)
 EXPORT_SYMBOL(ppe_drv_loopback_base_queue);
 
 /*
+ * ppe_drv_core2queue_mapping()
+ *	Core to queue mapping
+ *
+ * This API will be invoked by DP driver to provide core to queue
+ * mapping. This internally will be used to configure service code
+ * to queue mapping for PPE RFS feature.
+ */
+void ppe_drv_core2queue_mapping(uint8_t core, uint8_t queue_id)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+
+	if (core >= NR_CPUS) {
+		ppe_drv_warn("%p: invalid core-id: %d", p, core);
+		return;
+	}
+
+	ppe_drv_trace("%d: queue mapping called for core(%d)\n", queue_id, core);
+
+	switch(core) {
+	case 0:
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE0, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE0, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		break;
+	case 1:
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE1, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE1, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		break;
+	case 2:
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE2, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE2, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		break;
+	case 3:
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE3, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE3, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
+		break;
+	default:
+		ppe_drv_warn("%d Invalid core(%d)\n", queue_id, core);
+		return;
+	}
+
+	p->core2queue[core] = queue_id;
+}
+EXPORT_SYMBOL(ppe_drv_core2queue_mapping);
+
+/*
  * ppe_drv_loopback_sc2queue_mapping()
  *	Loopback to queue mapping
  */
@@ -555,48 +584,6 @@ static bool ppe_drv_enq_vp_queue_set(struct ppe_drv *p,
 }
 
 /*
- * ppe_drv_enq_vp_map_to_queue()
- *	Enqueue VP to queue mapping.
- */
-ppe_drv_ret_t ppe_drv_enq_vp_map_to_queue(uint8_t queue_id, int8_t enq_vp)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-	fal_enqueue_cfg_t enqueue_cfg = {0};
-        sw_error_t ret;
-	int8_t pri_profile;
-
-	pri_profile = ppe_drv_port_enq_vp_to_pri_prof(enq_vp);
-	if (pri_profile == PPE_DRV_PORT_ENQ_VP_PRI_PRFL_INVALID) {
-		ppe_drv_warn("%p: Unable to get pri profile for enqueue vport:%d ", p, enq_vp);
-		return PPE_DRV_RET_ENQ_VP_TO_PRI_PROF_FAIL;
-	}
-
-	/*
-	 * Set queue_id for a given port on PPE.
-	 */
-	if (!ppe_drv_enq_vp_queue_set(p, enq_vp, queue_id)) {
-		ppe_drv_warn("%p: Enqueue vp queue init failed for qid:%d", p, queue_id);
-		return PPE_DRV_RET_ENQ_VP_QID_SET_FAIL;
-	}
-
-	/*
-	 * Configure the allocated enqueue vp number on PORT_VSI_ENQUEUE table.
-	 */
-	enqueue_cfg.rule_entry.enqueue_type = FAL_ENQUEUE_FLOW;
-	enqueue_cfg.rule_entry.flow_pri_profile = PPE_DRV_PORT_ENQVP_VSI_TBL_START_IDX + pri_profile;
-	enqueue_cfg.index_entry.enqueue_en = (a_bool_t)PPE_DRV_PORT_EVP_ENABLE;
-	enqueue_cfg.index_entry.enqueue_vport = enq_vp;
-	ret = fal_qm_enqueue_config_set(PPE_DRV_SWITCH_ID, &enqueue_cfg);
-	if (ret != SW_OK) {
-		ppe_drv_warn("%p: Unable to set the enqueue vp config", p);
-		return PPE_DRV_RET_ENQ_VP_EN_FAIL;
-	}
-
-	ppe_drv_trace("%p: Enqueue vp node to queue map done qid:%d enq_vp:%d pri_prof:%d", p, queue_id, enq_vp, enqueue_cfg.rule_entry.flow_pri_profile);
-	return PPE_DRV_RET_SUCCESS;
-}
-
-/*
  * ppe_drv_ds_map_free()
  *	Provides unmapping of node with enqueue vp and queue
  */
@@ -661,8 +648,10 @@ EXPORT_SYMBOL(ppe_drv_ds_map_free);
 ppe_drv_ret_t ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
-	uint8_t enq_vp;
-	ppe_drv_ret_t status;
+	fal_enqueue_cfg_t enqueue_cfg = {0};
+        sw_error_t ret;
+	int8_t pri_profile;
+	int16_t enq_vp;
 
 	spin_lock_bh(&p->lock);
 	enq_vp = ppe_drv_port_enq_vp_alloc();
@@ -672,15 +661,37 @@ ppe_drv_ret_t ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id)
 		return PPE_DRV_RET_ENQ_VP_ALLOC_FAIL;
 	}
 
-	/*
-	 * Map enqueue VP to specific queue
-	 */
-	status = ppe_drv_enq_vp_map_to_queue(queue_id, enq_vp);
-	if (status != PPE_DRV_RET_SUCCESS) {
-		ppe_drv_port_enq_vp_free(enq_vp);
+	pri_profile = ppe_drv_port_enq_vp_to_pri_prof(enq_vp);
+	if (pri_profile == PPE_DRV_PORT_ENQ_VP_PRI_PRFL_INVALID) {
 		spin_unlock_bh(&p->lock);
-		ppe_drv_warn("%p: Unable to map enq_vp:%u to queue:%u ", p, enq_vp, queue_id);
-		return status;
+		ppe_drv_port_enq_vp_free(enq_vp);
+		ppe_drv_warn("%p: Unable to get pri profile for enqueue vport:%d ", p, enq_vp);
+		return PPE_DRV_RET_ENQ_VP_TO_PRI_PROF_FAIL;
+	}
+
+	/*
+	 * Set queue_id for a given port on PPE.
+	 */
+	if (!ppe_drv_enq_vp_queue_set(p, enq_vp, queue_id)) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_port_enq_vp_free(enq_vp);
+		ppe_drv_warn("%p: Enqueue vp queue init failed for qid:%d", p, queue_id);
+		return PPE_DRV_RET_ENQ_VP_QID_SET_FAIL;
+	}
+
+	/*
+	 * Configure the allocated enqueue vp number on PORT_VSI_ENQUEUE table.
+	 */
+	enqueue_cfg.rule_entry.enqueue_type = FAL_ENQUEUE_FLOW;
+	enqueue_cfg.rule_entry.flow_pri_profile = PPE_DRV_PORT_ENQVP_VSI_TBL_START_IDX + pri_profile;
+	enqueue_cfg.index_entry.enqueue_en = (a_bool_t)PPE_DRV_PORT_EVP_ENABLE;
+	enqueue_cfg.index_entry.enqueue_vport = enq_vp;
+	ret = fal_qm_enqueue_config_set(PPE_DRV_SWITCH_ID, &enqueue_cfg);
+	if (ret != SW_OK) {
+		spin_unlock_bh(&p->lock);
+		ppe_drv_port_enq_vp_free(enq_vp);
+		ppe_drv_warn("%p: Unable to set the enqueue vp config", p);
+		return PPE_DRV_RET_ENQ_VP_EN_FAIL;
 	}
 
 	/*
@@ -691,122 +702,10 @@ ppe_drv_ret_t ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id)
 	ppe_drv_port_enq_vp_metadata_set(enq_vp, node_id);
 	spin_unlock_bh(&p->lock);
 
-	ppe_drv_trace("%p: Enqueue vp node to queue map done qid:%d enq_vp:%d node_id:%d", p, queue_id, enq_vp, node_id);
-	return status;
+	ppe_drv_trace("%p: Enqueue vp node to queue map done qid:%d enq_vp:%d pri_prof:%d node_id:%d", p, queue_id, enq_vp, enqueue_cfg.rule_entry.flow_pri_profile, node_id);
+	return PPE_DRV_RET_SUCCESS;
 }
 EXPORT_SYMBOL(ppe_drv_ds_map_node_to_queue);
-
-/*
- * ppe_drv_rfs_map_core_to_enqueue_vp()
- *	Core to queue mapping
- *
- * This API will be invoked at dp-init time to map each core to enq_vp
- */
-static ppe_drv_ret_t ppe_drv_rfs_map_core_to_enqueue_vp(uint8_t core, uint8_t queue_id)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-	uint8_t enq_vp;
-	ppe_drv_ret_t status;
-
-	/*
-	 * Set passive vp enable in global structure.
-	 */
-	p->rfs.passive_vp_enable = passive_vp_enable;
-
-	/*
-	 * Default coremask for the physical interface is set.
-	 */
-	p->rfs.coremask_default = eth_coremask;
-	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = p->rfs.coremask_default;
-	p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = p->rfs.coremask_default;
-
-	enq_vp = ppe_drv_port_enq_vp_alloc();
-	if (enq_vp == PPE_DRV_PORT_ID_INVALID) {
-		ppe_drv_warn("%p: Unable to get the enqueue vport ", p);
-		return PPE_DRV_RET_ENQ_VP_ALLOC_FAIL;
-	}
-
-	/*
-	 * Maps enqueue with given queue
-	 */
-	status = ppe_drv_enq_vp_map_to_queue(queue_id, enq_vp);
-	if (status != PPE_DRV_RET_SUCCESS) {
-		ppe_drv_warn("%p: Unable to map enq_vp:%u to queue:%u ", p, enq_vp, queue_id);
-		ppe_drv_port_enq_vp_free(enq_vp);
-		return status;
-	}
-
-	ppe_drv_trace("%p: RFS core mappped to enqueue VP. qid:%d enq_vp:%d core:%d", p, queue_id, enq_vp, core);
-
-	/*
-	 * Core id will be used as key to find the corresponding enqueue vp during PPE flow addition.
-	 */
-	p->rfs.core2enq_vp[core] = enq_vp;
-	return status;
-}
-
-/*
- * ppe_drv_core2queue_mapping()
- *	Core to queue mapping
- *
- * This API will be invoked by DP driver to provide core to queue
- * mapping. This internally will be used to configure service code
- * to queue mapping for PPE RFS feature.
- */
-void ppe_drv_core2queue_mapping(uint8_t core, uint8_t queue_id)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-	ppe_drv_ret_t status;
-
-	if (core >= NR_CPUS) {
-		ppe_drv_warn("%p: invalid core-id: %d", p, core);
-		return;
-	}
-
-	/*
-	 * This API is called to map a core to an enqueue_vp.
-	 */
-	spin_lock_bh(&p->lock);
-	status = ppe_drv_rfs_map_core_to_enqueue_vp(core, queue_id);
-	if (status != PPE_DRV_RET_SUCCESS) {
-		ppe_drv_warn("%p: Core failed to allocate to an enqueue vp, core %u, fail status: %u", p, core, status);
-	}
-
-	ppe_drv_trace("%d: queue mapping called for core(%d)\n", queue_id, core);
-
-	switch(core) {
-	case 0:
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE0, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE0, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		break;
-	case 1:
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE1, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE1, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		break;
-	case 2:
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE2, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE2, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		break;
-	case 3:
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_NOEDIT_REDIR_CORE3, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_EDIT_REDIR_CORE3, queue_id, PPE_DRV_PORT_SRC_PROFILE, PPE_DRV_REDIR_PROFILE_ID);
-		break;
-	default:
-		ppe_drv_warn("%d Invalid core(%d)\n", queue_id, core);
-		spin_unlock_bh(&p->lock);
-		return;
-	}
-
-	/*
-	 * Store core to queue mapping in ppe_drv structure.
-	 */
-	p->core2queue[core] = queue_id;
-	spin_unlock_bh(&p->lock);
-
-	return;
-
-}
-EXPORT_SYMBOL(ppe_drv_core2queue_mapping);
 
 /*
  * ppe_drv_l3_route_ctrl_init()
@@ -976,102 +875,6 @@ static bool ppe_drv_confgiure_ucast_prio_map_tbl(struct ppe_drv *p, uint8_t prof
 }
 
 /*
- * ppe_drv_wlan_rfs_enable_set()
- *	Sets the value of the global variable to enable.
- */
-void ppe_drv_wlan_rfs_enable_set(bool enable)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-
-	spin_lock_bh(&p->lock);
-	p->rfs.wlan_rfs_enable = enable;
-	spin_unlock_bh(&p->lock);
-
-	return;
-}
-EXPORT_SYMBOL(ppe_drv_wlan_rfs_enable_set);
-
-/*
- * ppe_drv_cpu_port_init()
- *	Initialize the CPU port.
- */
-ppe_drv_ret_t ppe_drv_cpu_port_init(void)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-	struct ppe_drv_iface *iface;
-	struct ppe_drv_l3_if *l3_if;
-	struct ppe_drv_port *port;
-	uint16_t max_mtu = PPE_DRV_PORT_JUMBO_MAX;
-	uint8_t status = PPE_DRV_RET_SUCCESS;
-
-	/*
-	 * Allocate and initialize the inline port
-	 */
-	iface = ppe_drv_iface_alloc(PPE_DRV_IFACE_TYPE_PHYSICAL, NULL);
-	if (!iface) {
-		ppe_drv_warn("%px: failed to allocate PPE interface for init", p);
-		status = PPE_DRV_RET_IFACE_INVALID;
-		goto iface_fail;
-	}
-
-	spin_lock_bh(&p->lock);
-	p->rfs.cpu_iface = iface;
-
-	port = ppe_drv_port_alloc(PPE_DRV_PORT_CPU_TYPE, NULL, false);
-	if (!port) {
-		ppe_drv_warn("%p: unable to get a valid port of type(%d), iface index: %u\n", iface, PPE_DRV_PORT_CPU_TYPE, iface->index);
-		status = PPE_DRV_RET_PORT_ALLOC_FAIL;
-		goto port_fail;
-	}
-
-	l3_if = ppe_drv_l3_if_alloc(PPE_DRV_L3_IF_TYPE_PORT);
-	if (!l3_if) {
-		ppe_drv_warn("%p: unable to get a valid l3_if of type(%d), iface index: %u\n", iface, PPE_DRV_L3_IF_TYPE_PORT, iface->index);
-		status = PPE_DRV_RET_L3_IF_ALLOC_FAIL;
-		goto l3_if_fail;
-	}
-
-	if (!ppe_drv_port_mtu_mru_set(port, max_mtu, max_mtu)) {
-		ppe_drv_warn("%p: PORT MTU MRU failed, iface index: %u\n", iface, iface->index);
-		status = PPE_DRV_RET_MTU_CFG_FAIL;
-		goto fail;
-	}
-
-	if (!ppe_drv_l3_if_mtu_mru_set(l3_if, max_mtu, max_mtu)) {
-		ppe_drv_warn("%p: L3_IF MTU MRU failed, iface index: %u\n", iface, iface->index);
-		status = PPE_DRV_RET_MTU_CFG_FAIL;
-		goto fail;
-	}
-
-	/*
-	 * Attach l3_if to port
-	 */
-	if (!ppe_drv_port_l3_if_attach(port, l3_if)) {
-		ppe_drv_warn("%p: unable to attach valid l3_if(%p) to port(%p), iface index(%u)\n", iface, l3_if, port, iface->index);
-		status = PPE_DRV_RET_L3_IF_PORT_ATTACH_FAIL;
-		goto fail;
-	}
-
-	port->port_l3_if = l3_if;
-	ppe_drv_iface_port_set(iface, port);
-	ppe_drv_iface_l3_if_set(iface, l3_if);
-
-	spin_unlock_bh(&p->lock);
-
-	return PPE_DRV_RET_SUCCESS;
-
-fail:
-	ppe_drv_l3_if_deref(l3_if);
-l3_if_fail:
-	ppe_drv_port_deref(port);
-port_fail:
-	spin_unlock_bh(&p->lock);
-	ppe_drv_iface_deref(iface);
-iface_fail:
-	return status;
-}
-
-/*
  * ppe_drv_probe()
  *	probe the PPE driver
  */
@@ -1081,7 +884,6 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	struct device_node *np;
 	fal_ppe_tbl_caps_t cap;
 	int i = 0;
-	uint8_t status;
 
 	np = of_node_get(pdev->dev.of_node);
 
@@ -1202,11 +1004,6 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	}
 
 	ppe_drv_exception_init();
-	status = ppe_drv_cpu_port_init();
-	if (status) {
-		ppe_drv_warn("%p: failed to initialize cpu port, error code = %u\n", p, status);
-		goto fail;
-	}
 
 	if (!ppe_drv_phy_port_base_queue_init(p)) {
 		ppe_drv_warn("%p: failed to initialize physical port base queue\n", p);
@@ -2475,40 +2272,6 @@ int32_t ppe_drv_mht_port_from_fdb(uint8_t *dmac, uint16_t vid)
 EXPORT_SYMBOL(ppe_drv_mht_port_from_fdb);
 
 /*
- * ppe_drv_eth_coremask_set_handler()
- *	Handler function to set value of eth_coremask.
- */
-static int ppe_drv_eth_coremask_set_handler(const char *val, const struct kernel_param *kp)
-{
-	struct ppe_drv *p = &ppe_drv_gbl;
-	int res = param_set_int(val, kp);
-
-	if ((eth_coremask < PPE_DRV_RFS_COREMASK_MIN) || (eth_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
-		ppe_drv_warn("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
-						PPE_DRV_RFS_COREMASK_MIN, PPE_DRV_RFS_COREMASK_MAX, PPE_DRV_RFS_COREMASK_DEFAULT);
-		eth_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
-		res = 0;
-	}
-
-	spin_lock_bh(&p->lock);
-	p->rfs.coremask_default = eth_coremask;
-	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = eth_coremask;
-	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = eth_coremask;
-	spin_unlock_bh(&p->lock);
-
-	ppe_drv_trace("Ethernet coremask value is set to : %u\n", eth_coremask);
-
-	return res;
-}
-
-static const struct kernel_param_ops eth_coremask_ops = {
-    .set = ppe_drv_eth_coremask_set_handler,
-    .get = param_get_int,
-};
-
-module_param_cb(eth_coremask, &eth_coremask_ops, &eth_coremask, 0644);
-
-/*
  * ppe_drv_module_init()
  *	module init for ppe driver
  */
@@ -2532,8 +2295,6 @@ static int __init ppe_drv_module_init(void)
 		platform_driver_unregister(&ppe_drv_platform);
 		return -EINVAL;
 	}
-
-	ppe_drv_trace("Ethernet coremask value is set to : %u\n", eth_coremask);
 
 	/*
 	 * Register sysctl framework for PPE DRV

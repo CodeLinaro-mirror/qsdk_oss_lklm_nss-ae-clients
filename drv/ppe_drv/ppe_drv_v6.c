@@ -360,15 +360,13 @@ ppe_drv_ret_t ppe_drv_v6_rfs_conn_fill(struct ppe_drv_v6_rule_create *create,  s
 				       struct ppe_drv_v6_conn *cn, enum ppe_drv_conn_type flow_type)
 {
 	struct ppe_drv_v6_connection_rule *conn = &create->conn_rule;
-	struct ppe_drv_qos_rule *qos_rule = &create->qos_rule;
 	struct ppe_drv_v6_5tuple *tuple = &create->tuple;
 	struct ppe_drv_iface *if_rx, *if_tx, *top_rx_iface;
 	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
+	uint16_t rule_flags = create->rule_flags;
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_port *pp_rx, *pp_tx;
 	struct ppe_drv *p = &ppe_drv_gbl;
-	uint16_t rule_flags = create->rule_flags;
-	uint16_t valid_flags = create->valid_flags;
 
 	comm_stats = &p->stats.comm_stats[flow_type];
 
@@ -431,8 +429,13 @@ ppe_drv_ret_t ppe_drv_v6_rfs_conn_fill(struct ppe_drv_v6_rule_create *create,  s
 
 	/*
 	 * Set the egress point based on direction of the flow
+	 * TODO: Handle the else case and add error counter for it
 	 */
-	pcf->eg_port_if = ppe_drv_iface_ref(if_tx);
+	if ((pp_tx->flags & PPE_DRV_PORT_RFS_ENABLED) && ppe_drv_is_wlan_vp_port_type(pp_tx->user_type)) {
+		pcf->eg_port_if = ppe_drv_iface_ref(if_tx);
+	} else if ((pp_rx->flags & PPE_DRV_PORT_RFS_ENABLED) && ppe_drv_is_wlan_vp_port_type(pp_rx->user_type)) {
+		pcf->eg_port_if = ppe_drv_iface_ref(if_rx);
+	}
 
 	/*
 	 * Bridge flow
@@ -446,20 +449,6 @@ ppe_drv_ret_t ppe_drv_v6_rfs_conn_fill(struct ppe_drv_v6_rule_create *create,  s
 	}
 
 	ppe_drv_v6_conn_flow_conn_set(pcf, cn);
-
-	if (flow_type == PPE_DRV_CONN_TYPE_FLOW_WLAN) {
-		ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_PASSIVE_WLAN_FLOW);
-		pcf->fl_mdata.coremask = &p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_WLAN];
-		pcf->fl_mdata.shadow_coremask = &p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_WLAN];
-
-	} else if (flow_type == PPE_DRV_CONN_TYPE_FLOW) {
-		/*
-		 * Set coremask and shadow_coremask
-		 */
-		p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = p->rfs.coremask_default;
-		pcf->fl_mdata.coremask = &p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL];
-		pcf->fl_mdata.shadow_coremask = &p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL];
-	}
 
 	/*
 	 * Set Rx and Tx port.
@@ -475,38 +464,17 @@ ppe_drv_ret_t ppe_drv_v6_rfs_conn_fill(struct ppe_drv_v6_rule_create *create,  s
 	ppe_drv_v6_conn_flow_match_src_ident_set(pcf, tuple->flow_ident);
 	ppe_drv_v6_conn_flow_match_dest_ip_set(pcf, tuple->return_ip);
 	ppe_drv_v6_conn_flow_match_dest_ident_set(pcf, tuple->return_ident);
-	ppe_drv_v6_conn_flow_xlate_src_ip_set(pcf, conn->flow_ip_xlate);
-	ppe_drv_v6_conn_flow_xlate_src_ident_set(pcf, conn->flow_ident_xlate);
-	ppe_drv_v6_conn_flow_xlate_dest_ip_set(pcf, conn->return_ip_xlate);
-	ppe_drv_v6_conn_flow_xlate_dest_ident_set(pcf, conn->return_ident_xlate);
 
 	/*
 	 * Host order IP addr.
 	 */
 	ppe_drv_v6_conn_flow_dump_match_src_ip_set(pcf, pcf->match_src_ip);
 	ppe_drv_v6_conn_flow_dump_match_dest_ip_set(pcf, pcf->match_dest_ip);
-	ppe_drv_v6_conn_flow_dump_xlate_src_ip_set(pcf, pcf->xlate_src_ip);
-	ppe_drv_v6_conn_flow_dump_xlate_dest_ip_set(pcf, pcf->xlate_dest_ip);
-
-	/*
-	 * Set Qos tag information into int pri.
-	 * if the value of qos tag is greater than 15 int pri max value is configured.
-	 */
-	if (valid_flags & PPE_DRV_V6_VALID_FLAG_QOS) {
-		qos_rule->flow_qos_tag = (qos_rule->flow_qos_tag > PPE_DRV_INT_PRI_MAX) ? PPE_DRV_INT_PRI_MAX : qos_rule->flow_qos_tag;
-		ppe_drv_v6_conn_flow_int_pri_set(pcf, qos_rule->flow_qos_tag);
-		ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_QOS_VALID);
-	}
 
 	/*
 	 * Flow MTU and transmit MAC address.
 	 */
 	ppe_drv_v6_conn_flow_xmit_interface_mtu_set(pcf, conn->flow_mtu);
-
-	/*
-	 * RFS PPE Assist is set in pcf.
-	 */
-	ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST);
 
 	return PPE_DRV_RET_SUCCESS;
 }
@@ -564,31 +532,31 @@ static inline void ppe_drv_v6_conn_flow_metadata_set(struct ppe_drv_v6_conn_flow
 {
 	switch (tree_id_type) {
 	case PPE_DRV_TREE_ID_TYPE_NONE:
-		pcf->fl_mdata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_NONE;
-		pcf->fl_mdata.tree_id_data.info.value = fc_metadata->type.mark;
+		pcf->flow_metadata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_NONE;
+		pcf->flow_metadata.tree_id_data.info.value = fc_metadata->type.mark;
 		return;
 
 	case PPE_DRV_TREE_ID_TYPE_SAWF:
-		pcf->fl_mdata.wifi_qos = PPE_DRV_SAWF_MSDUQ_GET(fc_metadata->type.sawf.sawf_mark);
-		pcf->fl_mdata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_SAWF;
-		pcf->fl_mdata.tree_id_data.info.sawf_metadata.service_class = fc_metadata->type.sawf.service_class;
-		pcf->fl_mdata.tree_id_data.info.sawf_metadata.peer_id = PPE_DRV_SAWF_PEER_ID_GET(fc_metadata->type.sawf.sawf_mark);
+		pcf->flow_metadata.wifi_qos = PPE_DRV_SAWF_MSDUQ_GET(fc_metadata->type.sawf.sawf_mark);
+		pcf->flow_metadata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_SAWF;
+		pcf->flow_metadata.tree_id_data.info.sawf_metadata.service_class = fc_metadata->type.sawf.service_class;
+		pcf->flow_metadata.tree_id_data.info.sawf_metadata.peer_id = PPE_DRV_SAWF_PEER_ID_GET(fc_metadata->type.sawf.sawf_mark);
 		return;
 
 	case PPE_DRV_TREE_ID_TYPE_SCS:
-		pcf->fl_mdata.wifi_qos = PPE_DRV_SAWF_MSDUQ_GET(fc_metadata->type.scs.scs_mark);
-                pcf->fl_mdata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_SCS;
+		pcf->flow_metadata.wifi_qos = PPE_DRV_SAWF_MSDUQ_GET(fc_metadata->type.scs.scs_mark);
+                pcf->flow_metadata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_SCS;
 		return;
 
 	case PPE_DRV_TREE_ID_TYPE_WIFI_TID:
-                pcf->fl_mdata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_WIFI_TID;
-		pcf->fl_mdata.wifi_qos = fc_metadata->type.mark;
+                pcf->flow_metadata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_WIFI_TID;
+		pcf->flow_metadata.wifi_qos = fc_metadata->type.mark;
 		return;
 
 	case PPE_DRV_TREE_ID_TYPE_MLO_ASSIST:
-		pcf->fl_mdata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_MLO_ASSIST;
-		pcf->fl_mdata.wifi_qos = PPE_DRV_MLO_MSDUQ_GET(fc_metadata->type.mark);
-		pcf->fl_mdata.tree_id_data.info.value = PPE_DRV_MLO_MARK_GET(fc_metadata->type.mark);
+		pcf->flow_metadata.tree_id_data.type = PPE_DRV_TREE_ID_TYPE_MLO_ASSIST;
+		pcf->flow_metadata.wifi_qos = PPE_DRV_MLO_MSDUQ_GET(fc_metadata->type.mark);
+		pcf->flow_metadata.tree_id_data.info.value = PPE_DRV_MLO_MARK_GET(fc_metadata->type.mark);
 		return;
 
 	default:
@@ -1707,7 +1675,7 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 {
 	struct ppe_drv *p = &ppe_drv_gbl;
 	struct ppe_drv_flow *flow = pcf->pf;
-	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->fl_mdata.tree_id_data);
+	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->flow_metadata.tree_id_data);
 	struct ppe_drv_fse_rule_info fse_info = {0};
 	uint8_t service_class;
 	struct ppe_drv_port *tx_port = NULL;
@@ -1804,7 +1772,7 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 	/*
 	 * Decrement flow count if SAWF service class is configured in tree_id.
 	 */
-	if (ppe_drv_tree_id_type_get(&pcf->fl_mdata) == PPE_DRV_TREE_ID_TYPE_SAWF) {
+	if (ppe_drv_tree_id_type_get(&pcf->flow_metadata) == PPE_DRV_TREE_ID_TYPE_SAWF) {
 		service_class = tree_id_data->info.sawf_metadata.service_class;
 		if (PPE_DRV_SERVICE_CLASS_IS_VALID(service_class)) {
 			ppe_drv_stats_dec(&p->stats.sawf_sc_stats[service_class].flow_count);
@@ -1868,6 +1836,7 @@ static struct ppe_drv_flow *ppe_drv_v6_flow_add(struct ppe_drv_v6_conn_flow *pcf
 	 * to be forwarded in PPE and is expected to be exceptioned to host.
 	 */
 	if (!(ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_BRIDGE_FLOW) ||
+		ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST) ||
 		ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST))) {
 		nh = ppe_drv_nexthop_v6_get_and_ref(pcf);
 		if (!nh) {
@@ -3151,7 +3120,8 @@ ppe_drv_ret_t ppe_drv_v6_assist_rule_create(struct ppe_drv_v6_rule_create *creat
 	 * PPE_DRV_ASSIST_FEATURE_PRIORITY flag must be set for flows which only require priority assist.
 	 * To configure priority for RFS flows qos_tag information must be updated for RFS rule.
 	 */
-	if (!ppe_drv_assist_feature_is_valid(feature)) {
+	if (!(ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS) ||
+			ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_PRIORITY))) {
 		ppe_drv_warn("%p:Invalid assist type configuration %d\n", p, feature);
 		return PPE_DRV_RET_FAILURE_INVALID_PARAM;
 	}
@@ -3171,21 +3141,11 @@ ppe_drv_ret_t ppe_drv_v6_assist_rule_create(struct ppe_drv_v6_rule_create *creat
 	 */
 	spin_lock_bh(&p->lock);
 
-	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS_ETH)) {
+	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS)) {
 		ppe_drv_stats_inc(&comm_stats->v6_create_rfs_req);
 		top_if.rx_if = create->top_rule.rx_if;
 		top_if.tx_if = create->top_rule.tx_if;
 		ret = ppe_drv_v6_rfs_conn_fill(create, &top_if, cn, PPE_DRV_CONN_TYPE_FLOW);
-		if (ret != PPE_DRV_RET_SUCCESS) {
-			ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_rfs_fail_conn);
-			ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
-			goto fail;
-		}
-	} else if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS_WLAN)) {
-		ppe_drv_stats_inc(&comm_stats->v6_create_rfs_req);
-		top_if.rx_if = create->top_rule.rx_if;
-		top_if.tx_if = create->top_rule.tx_if;
-		ret = ppe_drv_v6_rfs_conn_fill(create, &top_if, cn, PPE_DRV_CONN_TYPE_FLOW_WLAN);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			ppe_drv_stats_inc(&comm_stats->v6_assist_rule_create_rfs_fail_conn);
 			ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
@@ -3212,6 +3172,9 @@ ppe_drv_ret_t ppe_drv_v6_assist_rule_create(struct ppe_drv_v6_rule_create *creat
 	}
 
 	pcf = &cn->pcf;
+	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS)) {
+		ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST);
+	}
 
 	/*
 	 * Add flow direction flow entry
@@ -3238,8 +3201,7 @@ fail:
 		ppe_drv_iface_deref_internal(cn->pcf.in_l3_if);
 	}
 
-	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS_ETH) ||
-			ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS_WLAN)) {
+	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS)) {
 		ppe_drv_v6_conn_flow_flags_clear(&cn->pcf, PPE_DRV_V6_CONN_FLAG_FLOW_RFS_PPE_ASSIST);
 	} else if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_PRIORITY)) {
 		ppe_drv_v6_conn_flow_flags_clear(&cn->pcf, PPE_DRV_V6_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST);
@@ -3715,13 +3677,13 @@ ppe_drv_ret_t ppe_drv_v6_rule_sawf_mark_update(struct ppe_drv_v6_sawf_mark_updat
 	pcr = &cn->pcr;
 
 	if (update->valid_flags & PPE_DRV_SAWF_MARK_FLOW_UPDATE) {
-		pcf->fl_mdata.wifi_qos = update->sawf_rule.flow_mark;
-		pcf->fl_mdata.tree_id_data.info.sawf_metadata.service_class = update->sawf_rule.flow_service_class;
+		pcf->flow_metadata.wifi_qos = update->sawf_rule.flow_mark;
+		pcf->flow_metadata.tree_id_data.info.sawf_metadata.service_class = update->sawf_rule.flow_service_class;
 	}
 
 	if (update->valid_flags & PPE_DRV_SAWF_MARK_RETURN_UPDATE) {
-		pcr->fl_mdata.wifi_qos = update->sawf_rule.return_mark;
-		pcr->fl_mdata.tree_id_data.info.sawf_metadata.service_class = update->sawf_rule.return_service_class;
+		pcr->flow_metadata.wifi_qos = update->sawf_rule.return_mark;
+		pcr->flow_metadata.tree_id_data.info.sawf_metadata.service_class = update->sawf_rule.return_service_class;
 	}
 
 	spin_unlock_bh(&p->lock);

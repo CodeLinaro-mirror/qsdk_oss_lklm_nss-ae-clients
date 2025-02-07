@@ -15,6 +15,7 @@
  */
 
 #include <linux/version.h>
+#include <linux/debug_mem_usage.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <ppe_drv.h>
@@ -40,7 +41,7 @@ bool ppe_vp_rx_process_cb(struct ppe_vp_cb_info *info, void *cb_data)
 	 */
 	skb->fast_recycled = 0;
 	skb->recycled_for_ds = 0;
-
+	mem_debug_update_skb(skb);
 	netif_receive_skb(skb);
 	return true;
 }
@@ -155,6 +156,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			 */
 			atomic64_inc(&vp_base.base_stats.rx_dvp_inactive);
 			rcu_read_unlock();
+			mem_debug_update_skb(skb);
 			dev_kfree_skb_any(skb);
 			ppe_vp_info("%px: Destination VP:%d is not active anymore, dropping skb:%p\n", dvp, rxi->dvp, skb);
 			return;
@@ -174,6 +176,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			rx_stats->rx_dev_not_up++;
 			u64_stats_update_end(&rx_stats->syncp);
 
+			mem_debug_update_skb(skb);
 			dev_kfree_skb_any(skb);
 
 			return;
@@ -191,6 +194,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 				rx_stats->rx_drops++;
 				u64_stats_update_end(&rx_stats->syncp);
 
+				mem_debug_update_skb(skb);
 				dev_kfree_skb_any(skb);
 				ppe_vp_info("%px: Tx VP:%d skb pull failed dropping skb:%p\n", dvp, rxi->dvp, skb);
 				return;
@@ -200,7 +204,6 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			skb->protocol = ethh->h_proto;
 			skb_pull(skb, (sizeof(struct ethhdr)));
 		}
-
 		if (rxi->svp >= PPE_DRV_VIRTUAL_START) {
 			svp = rcu_dereference(vpa[PPE_VP_BASE_PORT_TO_IDX(rxi->svp)]);
 			if (likely(svp && svp->flags & PPE_VP_FLAG_VP_ACTIVE)) {
@@ -228,6 +231,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			struct ethhdr *ethh;
 
 			if (likely(flow_idx == PPE_VP_FLOW_IDX_FOR_NO_QDISC)) {
+				mem_debug_update_skb(skb);
 				if (unlikely(!dev_fast_xmit_vp(skb, dev))) {
 					atomic64_inc(&vp_base.base_stats.rx_fastxmit_fails);
 
@@ -239,6 +243,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 					skb_reset_mac_header(skb);
 					skb_set_network_header(skb, rxi->l3offset);
 
+					mem_debug_update_skb(skb);
 					dev_queue_xmit(skb);
 				}
 
@@ -264,6 +269,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 				qdisc_dev = ppe_drv_get_and_hold_qdisc_netdev(flow_idx);
 				if (likely(qdisc_dev)) {
 					skb->priority = ppe_drv_get_qos_tag(flow_idx);
+					mem_debug_update_skb(skb);
 					if (likely(dev_fast_xmit_qdisc(skb, qdisc_dev, dev))) {
 						dev_put(qdisc_dev);
 						rcu_read_unlock();
@@ -272,6 +278,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 				}
 
 				atomic64_inc(&vp_base.base_stats.rx_qdisc_fastxmit_fails);
+				mem_debug_update_skb(skb);
 				dev_queue_xmit(skb);
 				if (unlikely(qdisc_dev)) {
 					dev_put(qdisc_dev);
@@ -300,6 +307,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 					skb->priority = ppe_drv_get_qos_tag(flow_idx);
 				}
 
+				mem_debug_update_skb(skb);
 				dev_queue_xmit(skb);
 				if (likely(qdisc_dev)) {
 					dev_put(qdisc_dev);
@@ -313,6 +321,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 		/*
 		 * Destination VP user would consume the skb.
 		 */
+
 		if (unlikely(dvp->dst_cb)) {
 			client_cb_info.skb = skb;
 			client_cb_info.ip_summed = rxi->ip_summed;
@@ -330,6 +339,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			ethh = (struct ethhdr *)skb->data;
 			skb->protocol = ethh->h_proto;
 			skb_set_network_header(skb, rxi->l3offset);
+			mem_debug_update_skb(skb);
 			dev_queue_xmit(skb);
 		}
 
@@ -342,6 +352,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 	 */
 	if (unlikely(rxi->dvp > 0)) {
 		atomic64_inc(&vp_base.base_stats.rx_dvp_invalid);
+		mem_debug_update_skb(skb);
 		dev_kfree_skb_any(skb);
 		return;
 	}
@@ -362,6 +373,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			 */
 			atomic64_inc(&vp_base.base_stats.rx_svp_inactive);
 			rcu_read_unlock();
+			mem_debug_update_skb(skb);
 			dev_kfree_skb_any(skb);
 			ppe_vp_info("%px: Rx VP:%d is not active anymore, dropping skb:%p\n", svp, rxi->svp, skb);
 			return;
@@ -382,6 +394,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 				rx_stats->rx_drops++;
 				u64_stats_update_end(&rx_stats->syncp);
 
+				mem_debug_update_skb(skb);
 				dev_kfree_skb_any(skb);
 				ppe_vp_info("%px: Rx VP:%d skb pull failed dropping skb:%p\n", svp, rxi->svp, skb);
 				return;
@@ -409,6 +422,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 		/*
 		 * If not processed successfully VP receive handler would free the skb
 		 */
+		mem_debug_update_skb(skb);
 		if (unlikely(!svp->src_cb(&client_cb_info, svp->src_cb_data))) {
 			rcu_read_unlock();
 			ppe_vp_info("%px: Rx VP:%d Rx dev:%s skb:%p dropped by user\n", svp, rxi->svp, dev->name, skb);
@@ -426,6 +440,7 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 	 * Packet has neither source or destination VP set
 	 */
 	atomic64_inc(&vp_base.base_stats.rx_svp_invalid);
+	mem_debug_update_skb(skb);
 	dev_kfree_skb_any(skb);
 	return;
 }

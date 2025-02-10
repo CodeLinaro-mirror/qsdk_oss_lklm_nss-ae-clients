@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -98,6 +98,11 @@
  */
 #define PPE_DRV_SAWF_MARK_FLOW_UPDATE		0x0001
 #define PPE_DRV_SAWF_MARK_RETURN_UPDATE		0x0002
+
+#define PPE_DRV_LOOPBACK_FEATURE_TYPE_DISABLED		0x0	/* loopback feature is disabled */
+#define PPE_DRV_LOOPBACK_FEATURE_TYPE_DEFAULT		0x1	/* Read dts file to enable loopback feature */
+#define PPE_DRV_LOOPBACK_FEATURE_TYPE_EXT_DDR_UPSTREAM	0x2	/* PON extended DDR upstream loopback feature */
+#define PPE_DRV_LOOPBACK_FEATURE_TYPE_GRETAP_MAPT	0x4	/* GRETAP to MAPT loopback feature */
 
 /*
  * ppe_drv_ip_type
@@ -504,6 +509,8 @@ typedef enum ppe_drv_ret {
 #endif
 	PPE_DRV_RET_HOST_QDISC_CFG_FAIL,		/**< Host Qdisc configuration failed. */
 	PPE_DRV_RET_SAWF_MARK_UPDATE_FAIL,		/**< SAWF mark update failed. */
+	PPE_DRV_RET_GRETAP_TO_MAPT_FLOW_ADD,		/**< GRETAP to MAPT flow rule addition */
+	PPE_DRV_RET_GRETAP_TO_MAPT_FLOW_ADD_FAIL,	/**< GRETAP to MAPT flow rule addition failed. */
 } ppe_drv_ret_t;
 
 /**
@@ -531,11 +538,12 @@ int16_t ppe_drv_queue_from_core(uint8_t core);
  *	Configure loopback base queue
  *
  * @param[in] queue_id Loopback queue_id
+ * @param[in] loopback_feature_type loopback ring feature type
  *
  * @return
  * none.
  */
-void ppe_drv_loopback_base_queue(uint8_t queue_id);
+void ppe_drv_loopback_base_queue(uint8_t queue_id, uint32_t loopback_feature_type);
 
 /**
  * ppe_drv_core2queue_mapping

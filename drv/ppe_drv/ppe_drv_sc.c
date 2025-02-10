@@ -292,6 +292,21 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
        		sc_cfg.bypass_bitmap[1] = ~(1 << ACL_POST_ROUTING_CHECK_BYP);
 		break;
 
+	case PPE_DRV_SC_LOOPBACK_RING_GRETAP_MAPT:
+		sc_cfg.bypass_bitmap[2] = (1 << RX_COUNTER_BYP);
+		sc_cfg.direction = PPE_DRV_SC_IN_L2_DIR_SRC;
+		break;
+
+	case PPE_DRV_SC_LOOPBACK_RING_MAPT_GRETAP:
+		sc_cfg.bypass_bitmap[2] = (1 << RX_COUNTER_BYP) | (1 << TX_COUNTER_BYP);
+		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SRC_INFO_BYPASS);
+		break;
+
+	case PPE_DRV_SC_LOOPBACK_RING_NEXT_GRETAP_N_MAPT:
+		sc_cfg.bypass_bitmap[0] = (1 << FLOW_SERVICE_CODE_BYP) | (1 << FLOW_LOOKUP_BYP);
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
 	case PPE_DRV_SC_VP_RPS:
 		/*
 		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
@@ -687,8 +702,18 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, PPE_DRV_SC_DS_MLO_LINK_BR_NODE1, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE2, PPE_DRV_SC_DS_MLO_LINK_BR_NODE2, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_SC_DS_MLO_LINK_BR_NODE3, PPE_DRV_PORT_CPU);
+
+	/*
+	 * Initialize loopback ring service code
+	 */
 	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING, PPE_DRV_SC_LOOPBACK_RING_NEXT, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING_NEXT, PPE_DRV_SC_BYPASS_ALL, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING_NEXT_GRETAP_N_MAPT, PPE_DRV_SC_NONE, PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING_GRETAP_MAPT, PPE_DRV_SC_LOOPBACK_RING_NEXT_GRETAP_N_MAPT,
+				PPE_DRV_PORT_CPU);
+	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_RING_MAPT_GRETAP, PPE_DRV_SC_LOOPBACK_RING_NEXT_GRETAP_N_MAPT,
+				PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_VP_MPSK, PPE_DRV_SC_VP_MPSK, PPE_DRV_PORT_CPU);
+
 	return sc;
 }

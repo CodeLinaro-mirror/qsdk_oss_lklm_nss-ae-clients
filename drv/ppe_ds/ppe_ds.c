@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -597,11 +597,20 @@ bool ppe_ds_wlan_inst_register(ppe_ds_wlan_handle_t *wlan_handle, struct ppe_ds_
 		edma_handle->eth_txcomp_budget = txcmpl_budget;
 	}
 
+	if ((txcmpl_chunk_of_reap < PPE_DS_TXCMPL_MIN_BUDGET) ||
+			(txcmpl_chunk_of_reap > edma_handle->reo2ppe_num_desc)) {
+		edma_handle->eth_txcomp_chnk_of_reap = PPE_DS_TXCMPL_DEF_CHNK_OF_REAP;
+	} else {
+		edma_handle->eth_txcomp_chnk_of_reap = txcmpl_chunk_of_reap;
+	}
+
 	ppe_ds_info(" ppe2tcl num desc: %d, reo2ppe num desc: %d, txcmpl budget: %d"
-			" rxfill low threshold value: %d\n", edma_handle->ppe2tcl_num_desc,
+			" rxfill low threshold value: %d txcmp_chnk_of_reap:%d\n",
+				edma_handle->ppe2tcl_num_desc,
 				edma_handle->reo2ppe_num_desc,
 				edma_handle->eth_txcomp_budget,
-				edma_handle->eth_rxfill_low_thr);
+				edma_handle->eth_rxfill_low_thr,
+				edma_handle->eth_txcomp_chnk_of_reap);
 
 	ret = dp_ops->reg(edma_handle);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -81,7 +81,8 @@
 #define PPE_DS_TXCMPL_NUM_DESC_MIN	1024	/* PPE-DS node's Txcmpl minimum descriptor count */
 #define PPE_DS_TXCMPL_NUM_DESC_DEF	8192	/* PPE-DS node's Txcmpl default descriptor count */
 #define PPE_DS_TXCMPL_MIN_BUDGET	16	/* PPE-DS node's Txcmpl minimum budget */
-#define PPE_DS_TXCMPL_DEF_BUDGET	256	/* PPE-DS node's Txcmpl default budget */
+#define PPE_DS_TXCMPL_DEF_BUDGET	1024	/* PPE-DS node's Txcmpl default budget */
+#define PPE_DS_TXCMPL_DEF_CHNK_OF_REAP	256	/* PPE-DS node's Txcmpl default chunk of reap */
 
 extern unsigned int polling_for_idx_update;
 extern unsigned int idx_mgmt_freq;
@@ -94,6 +95,7 @@ extern unsigned int reo2ppe_txcmpl_num_desc;
 extern unsigned int rxfill_low_threshold;
 extern unsigned int txcmpl_budget;
 extern unsigned int rxfill_budget;
+extern unsigned int txcmpl_chunk_of_reap;
 
 /*
  * ppe_ds_node_state_t

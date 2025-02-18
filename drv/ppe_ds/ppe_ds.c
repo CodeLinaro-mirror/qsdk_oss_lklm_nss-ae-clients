@@ -569,6 +569,13 @@ bool ppe_ds_wlan_inst_register(ppe_ds_wlan_handle_t *wlan_handle, struct ppe_ds_
 		edma_handle->ppe2tcl_rxfill_num_desc = ppe2tcl_rxfill_num_desc;
 	}
 
+	if ((rxfill_budget < PPE_DS_RXFILL_BUDGET_MIN) ||
+			(rxfill_budget > PPE_DS_RXFILL_BUDGET_MAX)) {
+		edma_handle->eth_rxfill_budget = PPE_DS_RXFILL_BUDGET_DEF;
+	} else {
+		edma_handle->eth_rxfill_budget = rxfill_budget;
+	}
+
 	if ((reo2ppe_txcmpl_num_desc < PPE_DS_TXCMPL_NUM_DESC_MIN) ||
 			(reo2ppe_txcmpl_num_desc > PPE_DS_TXCMPL_NUM_DESC_MAX)) {
 		edma_handle->reo2ppe_txcmpl_num_desc = PPE_DS_TXCMPL_NUM_DESC_DEF;

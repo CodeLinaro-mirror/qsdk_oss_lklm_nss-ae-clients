@@ -80,6 +80,10 @@ unsigned int txcmpl_budget = 256;
 module_param(txcmpl_budget, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(txcmpl_budget, "PPE Tx complete budget");
 
+unsigned int rxfill_budget = 128;
+module_param(rxfill_budget, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(rxfill_budget, "PPE Rx fill budget");
+
 struct ppe_ds_node_config ppe_ds_node_cfg[PPE_DS_MAX_NODE];
 
 /*

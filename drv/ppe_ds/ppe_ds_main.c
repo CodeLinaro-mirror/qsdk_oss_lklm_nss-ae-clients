@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, 2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -76,13 +76,17 @@ unsigned int rxfill_low_threshold = 256;
 module_param(rxfill_low_threshold, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(rxfill_low_threshold, "RxFill low threshold value");
 
-unsigned int txcmpl_budget = 256;
+unsigned int txcmpl_budget = 1024;
 module_param(txcmpl_budget, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(txcmpl_budget, "PPE Tx complete budget");
 
 unsigned int rxfill_budget = 128;
 module_param(rxfill_budget, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(rxfill_budget, "PPE Rx fill budget");
+
+unsigned int txcmpl_chunk_of_reap = 256;
+module_param(txcmpl_chunk_of_reap, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(txcmpl_chunk_of_reap, "PPEDS Tx complete chunk of reap");
 
 struct ppe_ds_node_config ppe_ds_node_cfg[PPE_DS_MAX_NODE];
 

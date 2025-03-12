@@ -515,6 +515,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_SAWF_MARK_UPDATE_FAIL,		/**< SAWF mark update failed. */
 	PPE_DRV_RET_GRETAP_TO_MAPT_FLOW_ADD,		/**< GRETAP to MAPT flow rule addition */
 	PPE_DRV_RET_GRETAP_TO_MAPT_FLOW_ADD_FAIL,	/**< GRETAP to MAPT flow rule addition failed. */
+	PPE_DRV_RET_MAC_LEARN_EXCEPT_CFG_FAIL,		/**< Failed to configure MAC learn exception. */
 } ppe_drv_ret_t;
 
 /**

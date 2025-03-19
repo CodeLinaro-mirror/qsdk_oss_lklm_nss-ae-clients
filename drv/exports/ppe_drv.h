@@ -586,6 +586,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_PORT_MGMT_FID_GET_FAIL,		/**< Failed to get the vsi for the port. */
 	PPE_DRV_RET_PORT_MGMT_MAC_FILTER_CLR_FAIL,	/**< Failed to clear the mac filter table. */
 	PPE_DRV_RET_PORT_MGMT_MAC_FILTER_SET_FAIL,	/**< Failed to config the mac filter. */
+	PPE_DRV_RET_UCAST_PRIO_TBL_MAP_FAIL,		/**< Failed to set profile id for a port. */
 	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 
@@ -884,4 +885,19 @@ bool ppe_drv_l2vp_sc_add(uint32_t dest_port_id);
  * Success or error code.
  */
 bool ppe_drv_l2vp_sc_rmv(uint32_t dest_port_id);
+
+#ifdef NSS_PPE_PON_SUPPORT
+/**
+ * ppe_drv_pon_get_pq_config
+ *	Provides pq to enq_vp and int_pri mapping.
+ *
+ * @param[in] pq	priority queue.
+ * @param[in] enq_vp	enqueue vp.
+ * @param[in] int_pri	int_pri.
+ *
+ * @return
+ * true or false
+ */
+bool ppe_drv_pon_get_pq_config(uint8_t pq, uint8_t *enq_vp, uint8_t *int_pri);
+#endif
 #endif /* _PPE_DRV_H_ */

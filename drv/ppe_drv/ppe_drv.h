@@ -576,6 +576,10 @@ struct ppe_drv {
 #ifdef NSS_PPE_DRV_HW_GRO
 	struct ppe_drv_gro_ctx gro_ctx;		/* HW GRO specific context */
 #endif
+#ifdef NSS_PPE_PON_SUPPORT
+	int ppe_drv_pon_port_start_pq;		/* Start queue number mapped to pon port. */
+	int ppe_drv_pon_port_max_pq;		/* max pq to be used for pon port. */
+#endif
 };
 
 /*
@@ -704,4 +708,15 @@ extern bool ppe_drv_lpbk_port_info_ctx_fill(void);
 #endif
 #ifdef NSS_PPE_PON_SUPPORT
 extern uint32_t gem_port_bitmap;
+/**
+ * ppe_drv_pon_map_enqueue_vp_to_pq
+ *	Provides mapping of enqueue_vp to queue
+ *	for pon flows.
+ *
+ * @param[in] port	PON port structure.
+ *
+ * @return
+ * Success or error code.
+ */
+ppe_drv_ret_t ppe_drv_pon_map_enqueue_vp_to_pq(struct ppe_drv_port *port);
 #endif

@@ -20,6 +20,10 @@
 #include <fal/fal_servcode.h>
 #include <fal/fal_fdb.h>
 #include <fal/fal_portvlan.h>
+#ifdef NSS_PPE_PON_SUPPORT
+#include <fal/fal_pon.h>
+#endif
+#include <fal/fal_qos.h>
 #ifdef PPE_DRV_PKT_PADDING_STRIP
 #include <fal/fal_pktedit.h>
 #endif
@@ -87,11 +91,20 @@ MODULE_PARM_DESC(wlan_coremask, "Coremask for Ethernet to WLAN Flows");
 uint32_t if_bm_to_offload;
 #ifdef NSS_PPE_PON_SUPPORT
 uint32_t gem_port_bitmap;
+
+/*
+ * Module parameter to set max number of PQ needed for PON flows.
+ */
+int pon_max_pq = 110;
+module_param(pon_max_pq, int, 0644);
+MODULE_PARM_DESC(pon_max_pq, "Max number of PON PQs needed by OMCI");
 #endif
+
 int disable_port_mtu_check = true;
 uint32_t static_dbg_level = 0;
 static char static_dbg_level_str[PPE_DRV_STATIC_DBG_LEVEL_STR_LEN];
 uint8_t ppe_drv_redir_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+uint8_t ppe_drv_16_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 static int eth2eth_offload_if_bitmap;
 static char upstream_dev_str[PPE_DRV_UPSTREAM_DEV_LEVEL_STR_LEN];
 static char src2uni_map[PPE_DRV_SRC2UNI_LEVEL_STR_LEN];
@@ -716,6 +729,38 @@ static bool ppe_drv_enq_vp_queue_set(struct ppe_drv *p,
 }
 
 /*
+ * ppe_drv_confgiure_ucast_prio_map_tbl
+ *	Configure unicast priority map table for RFS/DS flows
+ */
+static bool ppe_drv_confgiure_ucast_prio_map_tbl(struct ppe_drv *p, uint8_t profile_id, uint8_t *prio_map)
+{
+	uint8_t pri_class;
+	uint8_t int_pri;
+	sw_error_t ret;
+
+	/*
+	 * Set the priority class value for every possible priority.
+	 */
+	for (int_pri = 0; int_pri < PPE_DRV_MAX_PRIORITY; int_pri++) {
+		pri_class = prio_map[int_pri];
+
+		/*
+		 * Configure priority class for Profile 9 used by RFS and DS.
+		 */
+		ret = fal_ucast_priority_class_set(PPE_DRV_SWITCH_ID, profile_id, int_pri, pri_class);
+		if (ret != SW_OK) {
+			ppe_drv_warn("%p Failed to configure ucast priority class for profile_id %d, int_pri: %d with err: %d\n",
+					p, profile_id, int_pri, ret);
+			return false;
+		}
+
+		ppe_drv_info("profile_id: %d, int_priority: %d, pri_class: %d\n", profile_id, int_pri, pri_class);
+	}
+
+	return true;
+}
+
+/*
  * ppe_drv_enq_vp_map_to_queue()
  *	Enqueue VP to queue mapping.
  */
@@ -838,6 +883,8 @@ ppe_drv_ret_t ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id)
 		return PPE_DRV_RET_ENQ_VP_ALLOC_FAIL;
 	}
 
+	p->port[enq_vp].evp.type = PPE_DRV_ENQ_VP_DEFAULT;
+
 	/*
 	 * Map enqueue VP to specific queue
 	 */
@@ -906,6 +953,159 @@ static ppe_drv_ret_t ppe_drv_gro_map_core_to_enqueue_vp(uint8_t core, uint8_t qu
 	return status;
 }
 #endif
+#ifdef NSS_PPE_PON_SUPPORT
+/*
+ * ppe_drv_pon_map_enqueue_vp_to_pq()
+ *	maps Pqs to a enqueue vp
+ *
+ */
+ppe_drv_ret_t ppe_drv_pon_map_enqueue_vp_to_pq(struct ppe_drv_port *port)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	fal_portscheduler_resource_t cfg = {0};
+	ppe_drv_ret_t ppe_ret;
+	int8_t enq_vp;
+	uint8_t cnt_enq_vp;
+	uint8_t queue_id;
+	uint8_t max_enq_vp;
+	int8_t allocated_enq_vps[PPE_DRV_PORT_ENQ_VP_MAX_NUM];
+	uint8_t allocated_count = 0;
+	int32_t pon_port_profile_id;
+
+	pon_port_profile_id = ppe_drv_port_ucast_queue_profile_get(port->port);
+
+	if (!ppe_drv_confgiure_ucast_prio_map_tbl(p, pon_port_profile_id, ppe_drv_16_prio_map)) {
+		ppe_drv_warn("%p: failed to configure ucast priority class setting\n", p);
+		return PPE_DRV_RET_UCAST_PRIO_TBL_MAP_FAIL;
+	}
+
+	if (fal_port_scheduler_resource_get(0, port->port, &cfg) != 0) {
+		ppe_drv_warn("%px:port resources info failed for port:%u", p, port->port);
+		return PPE_DRV_RET_FAILURE_NO_RESOURCE;
+	}
+
+	p->ppe_drv_pon_port_start_pq = cfg.ucastq_start;
+	p->ppe_drv_pon_port_max_pq = (pon_max_pq <= cfg.ucastq_num) ? pon_max_pq : cfg.ucastq_num;
+
+	max_enq_vp = (p->ppe_drv_pon_port_max_pq + PPE_DRV_PORT_PON_PQ_PER_ENQ_VP - 1) /
+								PPE_DRV_PORT_PON_PQ_PER_ENQ_VP;
+
+	for (cnt_enq_vp = 0; cnt_enq_vp < max_enq_vp; cnt_enq_vp++) {
+		enq_vp = ppe_drv_port_enq_vp_alloc();
+		if (enq_vp == PPE_DRV_PORT_ID_INVALID) {
+			ppe_drv_warn("%p: Unable to get the enqueue vport ", p);
+			ppe_ret = PPE_DRV_RET_ENQ_VP_ALLOC_FAIL;
+			goto cleanup_allocated_enq_vps;
+		}
+		p->port[enq_vp].evp.type = PPE_DRV_ENQ_VP_PON;
+
+		/*
+		 * Set queue_id for a given port on PPE.
+		 */
+		queue_id = p->ppe_drv_pon_port_start_pq + (PPE_DRV_PORT_PON_PQ_PER_ENQ_VP * cnt_enq_vp);
+		if (queue_id >= (p->ppe_drv_pon_port_start_pq + p->ppe_drv_pon_port_max_pq)) {
+			ppe_drv_port_enq_vp_free(enq_vp);
+			ppe_drv_warn("%p: Calculated queue_id %d exceeds available range", p, queue_id);
+			ppe_ret = PPE_DRV_RET_ENQ_VP_QID_SET_FAIL;
+			goto cleanup_allocated_enq_vps;
+		}
+
+		if (!ppe_drv_port_ucast_queue_profile_set(&p->port[enq_vp], PPE_DRV_PORT_SRC_PROFILE,
+						queue_id, pon_port_profile_id)) {
+			ppe_drv_port_enq_vp_free(enq_vp);
+			ppe_drv_warn("%p: Enqueue vp queue init failed for qid:%d", p, queue_id);
+			ppe_ret = PPE_DRV_RET_ENQ_VP_QID_SET_FAIL;
+			goto cleanup_allocated_enq_vps;
+		}
+
+		/*
+		 * Map enqueue VP to specific queue
+		 */
+		ppe_ret = ppe_drv_enq_vp_map_to_queue(queue_id, enq_vp);
+		if (ppe_ret != PPE_DRV_RET_SUCCESS) {
+			ppe_drv_port_enq_vp_free(enq_vp);
+			ppe_drv_warn("%p: Unable to map enq_vp:%u to queue:%u ", p, enq_vp, queue_id);
+			goto cleanup_allocated_enq_vps;
+		}
+		allocated_enq_vps[allocated_count++] = enq_vp;
+		ppe_drv_trace("%p: Enqueue vp node to priority queue map done qid:%d enq_vp:%d",
+					p, queue_id, enq_vp);
+	}
+
+	return PPE_DRV_RET_SUCCESS;
+
+cleanup_allocated_enq_vps:
+	/*
+	 * Cleanup all successfully allocated Enq VPs
+	 */
+	for (uint8_t i = 0; i < allocated_count; i++) {
+		ppe_drv_port_enq_vp_free(allocated_enq_vps[i]);
+	}
+	return ppe_ret;
+}
+
+/*
+ * ppe_drv_pon_get_pq_config()
+ *	map pq to enqueue vp and int_pri.
+ *
+ */
+bool ppe_drv_pon_get_pq_config(uint8_t pq, uint8_t *enq_vp, uint8_t *int_pri)
+{
+	int internal_pq, q_offset;
+	struct ppe_drv *p = ppe_drv_gbl;
+	struct ppe_drv_port *pp = NULL;
+	uint16_t i;
+	fal_ucast_queue_dest_t q_dst = {0};
+	uint32_t queue_id = 0;
+	sw_error_t err;
+	uint8_t profile = 0;
+	int enqueue_vp;
+
+	spin_lock_bh(&p->lock);
+	if (pq >= p->ppe_drv_pon_port_max_pq) {
+		ppe_drv_warn("pq %d is more than the max supported priority queue %d", pq, p->ppe_drv_pon_port_max_pq);
+		spin_unlock_bh(&p->lock);
+		return false;
+	}
+
+	internal_pq = p->ppe_drv_pon_port_start_pq + pq;
+	q_offset = pq % PPE_DRV_PORT_PON_PQ_PER_ENQ_VP;
+	*int_pri = q_offset;
+
+	for (i = PPE_DRV_PORT_ENQ_VP_START; i <=PPE_DRV_PORT_ENQ_VP_END; i++) {
+		pp = &p->port[i];
+
+		if (!kref_read(&pp->ref_cnt)) {
+			continue;
+		}
+
+		if (pp->evp.type == PPE_DRV_ENQ_VP_PON) {
+			enqueue_vp = pp->port;
+			q_dst.src_profile = 0;
+			q_dst.dst_port = enqueue_vp;
+
+			err = fal_ucast_queue_base_profile_get(PPE_DRV_SWITCH_ID, &q_dst, &queue_id, &profile);
+			if (err != SW_OK) {
+				spin_unlock_bh(&p->lock);
+				ppe_drv_warn("unable to get base queue id for enq_vp port %d", enqueue_vp);
+				return false;
+			}
+
+			if ((internal_pq >= queue_id) && (internal_pq < (queue_id + PPE_DRV_PORT_PON_PQ_PER_ENQ_VP))) {
+				*enq_vp = enqueue_vp;
+				spin_unlock_bh(&p->lock);
+				ppe_drv_info("enq_vp =%d int_pri =%d\n", *enq_vp, *int_pri);
+				return true;
+			}
+		}
+	}
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_info("No matching enqueue VP found for pq %d", pq);
+	return false;
+}
+EXPORT_SYMBOL(ppe_drv_pon_get_pq_config);
+#endif
 
 /*
  * ppe_drv_rfs_map_core_to_enqueue_vp()
@@ -937,6 +1137,8 @@ static ppe_drv_ret_t ppe_drv_rfs_map_core_to_enqueue_vp(uint8_t core, uint8_t qu
 		ppe_drv_warn("%p: Unable to get the enqueue vport ", p);
 		return PPE_DRV_RET_ENQ_VP_ALLOC_FAIL;
 	}
+
+	p->port[enq_vp].evp.type = PPE_DRV_ENQ_VP_DEFAULT;
 
 	/*
 	 * Maps enqueue with given queue
@@ -1192,38 +1394,6 @@ static const struct of_device_id ppe_drv_dt_ids[] = {
 	{},
 };
 MODULE_DEVICE_TABLE(of, ppe_drv_dt_ids);
-
-/*
- * ppe_drv_confgiure_ucast_prio_map_tbl
- *	Configure unicast priority map table for RFS/DS flows
- */
-static bool ppe_drv_confgiure_ucast_prio_map_tbl(struct ppe_drv *p, uint8_t profile_id, uint8_t *prio_map)
-{
-	uint8_t pri_class;
-	uint8_t int_pri;
-	sw_error_t ret;
-
-	/*
-	 * Set the priority class value for every possible priority.
-	 */
-	for (int_pri = 0; int_pri < PPE_DRV_MAX_PRIORITY; int_pri++) {
-		pri_class = prio_map[int_pri];
-
-		/*
-		 * Configure priority class for Profile 9 used by RFS and DS.
-		 */
-		ret = fal_ucast_priority_class_set(PPE_DRV_SWITCH_ID, profile_id, int_pri, pri_class);
-		if (ret != SW_OK) {
-			ppe_drv_warn("%p Failed to configure ucast priority class for profile_id %d, int_pri: %d with err: %d\n",
-					p, profile_id, int_pri, ret);
-			return false;
-		}
-
-		ppe_drv_info("profile_id: %d, int_priority: %d, pri_class: %d\n", profile_id, int_pri, pri_class);
-	}
-
-	return true;
-}
 
 /*
  * ppe_drv_wlan_rfs_enable_set()

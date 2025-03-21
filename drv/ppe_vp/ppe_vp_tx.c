@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,6 +16,7 @@
 
 #include <linux/types.h>
 #include <linux/inetdevice.h>
+#include <linux/debug_mem_usage.h>
 #include <linux/etherdevice.h>
 #include <nss_dp_vp.h>
 #include <ppe_drv_port.h>
@@ -51,6 +52,7 @@ bool ppe_vp_tx_to_ppe(int32_t vp_num, struct sk_buff *skb)
 		atomic64_inc(&vp_base.base_stats.tx_vp_inactive);
 		rcu_read_unlock();
 		ppe_vp_info("%px: VP inactive for VP num %d, returning skb %px", svp, vp_num, skb);
+		mem_debug_update_skb(skb);
 		return false;
 	}
 
@@ -81,12 +83,14 @@ bool ppe_vp_tx_to_ppe(int32_t vp_num, struct sk_buff *skb)
 	 * this could cause out of order packets. Hence returning
 	 * status as true to the user.
 	 */
+	mem_debug_update_skb(skb);
 	if (NETDEV_TX_OK != nss_dp_vp_xmit(vp_base.edma_vp_dev, &dptxi, skb)) {
 		ppe_vp_info("Dropping skb %pxd, edma failed to enqueue to PPE, VP %d", skb, vp_num);
 		u64_stats_update_begin(&tx_stats->syncp);
 		tx_stats->tx_drops++;
 		u64_stats_update_end(&tx_stats->syncp);
 		skb->fast_xmit = 0;
+		mem_debug_update_skb(skb);
 		dev_kfree_skb_any(skb);
 		return true;
 	}
@@ -127,6 +131,7 @@ bool ppe_vp_tx_to_vp(int32_t vp_num, struct sk_buff *skb)
 
 		ppe_vp_info("%px: Dest VP %d inactive, dropping skb %px", dvp, vp_num, skb);
 		skb->fast_xmit = 0;
+		mem_debug_update_skb(skb);
 		dev_kfree_skb_any(skb);
 		return false;
 	}
@@ -150,12 +155,14 @@ bool ppe_vp_tx_to_vp(int32_t vp_num, struct sk_buff *skb)
 	/*
 	 * If enqueue to PPE fails, drop the packet.
 	 */
+	mem_debug_update_skb(skb);
 	if (NETDEV_TX_OK != nss_dp_vp_xmit(vp_base.edma_vp_dev, &dptxi, skb)) {
 		ppe_vp_info("Dropping skb %pxd, edma failed to enqueue to VP %d", skb, vp_num);
 		u64_stats_update_begin(&rx_stats->syncp);
 		rx_stats->rx_drops++;
 		u64_stats_update_end(&rx_stats->syncp);
 		skb->fast_xmit = 0;
+		mem_debug_update_skb(skb);
 		dev_kfree_skb_any(skb);
 		return false;
 	}
@@ -191,6 +198,7 @@ bool ppe_vp_tx_to_ppe_by_dev(struct net_device *dev, struct sk_buff *skb)
 		return false;
 	}
 
+	mem_debug_update_skb(skb);
 	return ppe_vp_tx_to_ppe(vp_num, skb);
 }
 EXPORT_SYMBOL(ppe_vp_tx_to_ppe_by_dev);

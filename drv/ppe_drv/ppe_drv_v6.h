@@ -74,6 +74,8 @@
 					/* Flow is pushed from SFE */
 #define PPE_DRV_V6_CONN_FLAG_VP_HOST_QDISC_INFO_VALID	0x00200000
 					/* Flow has the host Qdisc related information */
+#define PPE_DRV_V6_CONN_FLAG_PASSIVE_WLAN_FLOW		0x00400000
+					/* Flow is wlan downlink RFS flow */
 
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 /*
@@ -159,7 +161,7 @@ struct ppe_drv_v6_conn_flow {
 	/*
 	 * Flow metadata information
 	 */
-	struct ppe_drv_flow_metadata flow_metadata;	/* Information about the flow metadata */
+	struct ppe_drv_flow_metadata fl_mdata;	/* Information about the flow metadata */
 
 	/*
 	 * Igress information

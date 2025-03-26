@@ -84,6 +84,8 @@ struct ppe_drv_flow_tree_id_data {
  *	Structure for flow metadata.
  */
 struct ppe_drv_flow_metadata {
+	uint8_t *coremask;				/* Pointer to the global coremask value for the flow. */
+	uint8_t *shadow_coremask;			/* Pointer to the global shadow coremask value for the flow. */
 	uint32_t wifi_qos;				/* WiFi-QoS to be configured. */
 	struct ppe_drv_flow_tree_id_data tree_id_data;	/* Tree-ID to be configured. */
 };
@@ -125,6 +127,7 @@ struct ppe_drv_flow {
 	uint16_t flags;			/* Connection flags */
 	uint8_t entry_type;		/* Flow type - 5 tuple or 3 tuple */
 	uint8_t service_code;		/* Service code used by this entry */
+	uint8_t pri_profile;		/* Pri_profile for flow entry */
 	struct ppe_drv_flow_mapt_info mapt_info; /* MAP-T specific entries used for stats */
 };
 

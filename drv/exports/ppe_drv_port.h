@@ -82,6 +82,7 @@ enum ppe_drv_port_type {
 	PPE_DRV_PORT_EIP,		/* EIP inline Port */
 	PPE_DRV_PORT_VIRTUAL_PO,	/* Virtual point offload port */
 	PPE_DRV_PORT_ENQ_VP,		/* Enqueue VPort */
+	PPE_DRV_PORT_CPU_TYPE,		/* CPU Port */
 };
 
 /*
@@ -253,4 +254,26 @@ int16_t ppe_drv_port_metadata_to_pri_prof(uint8_t port_metadata);
  * Enqueue vp.
  */
 int16_t ppe_drv_port_metadata_to_enq_vp(uint8_t port_metadata);
+
+/**
+ * ppe_drv_port_phy_rfs_clear
+ *	Clears RFS enable flag for physical ports.
+ *
+ * @param[in]	none.
+ *
+ * @return
+ * none.
+ */
+void ppe_drv_port_phy_rfs_clear(void);
+
+/**
+ * ppe_drv_port_phy_rfs_set
+ *	Sets RFS enable flag for physical ports.
+ *
+ * @param[in]	none.
+ *
+ * @return
+ * none.
+ */
+void ppe_drv_port_phy_rfs_set(void);
 #endif /* _PPE_DRV_PORT_H_ */

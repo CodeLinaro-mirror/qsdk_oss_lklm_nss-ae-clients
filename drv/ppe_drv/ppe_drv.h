@@ -262,6 +262,36 @@ enum ppe_drv_static_dbg_level {
 #define PPE_DRV_ENQ_VP_QID_NONE			0
 
 /*
+ * ppe_drv_rfs_interface_type
+ *	PPE interfaces for which RFS coremask is stored
+ */
+typedef enum ppe_drv_rfs_interface_type {
+	PPE_DRV_RFS_INTERFACE_TYPE_NONE = 0,	/* Interface type is invalid type. */
+	PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL,	/* Interface type is for physical ports i.e. eth0, eth1, etc. */
+	PPE_DRV_RFS_INTERFACE_TYPE_WLAN,	/* Interface type is for wlan devs. */
+	PPE_DRV_RFS_INTERFACE_TYPE_MAX,		/* Maximun number of interface types. */
+} ppe_drv_rfs_interface_t;
+
+/*
+ * Default coremask value. This value means that flows created,
+ * can be mapped to 3 cores i.e. 0, 1 and 2.
+ */
+#define PPE_DRV_RFS_COREMASK_DEFAULT		0x7
+
+/*
+ * ppe_drv_rfs_ctx
+ *	PPE RFS specific global context in ppe_drv
+ */
+struct ppe_drv_rfs_ctx {
+	bool passive_vp_enable;						/* Enable/Disable Passive VP creation for SFE Flows, can be changed through module params. */
+	bool wlan_rfs_enable;						/* Enable/Disable RFS for wlan flows based on this. */
+	uint8_t core2enq_vp[NR_CPUS];					/* Storing the enqueue VP number corresponding to each core. */
+	uint8_t coremask[PPE_DRV_RFS_INTERFACE_TYPE_MAX];		/* Global access value of the coremasks of different interfaces. */
+	uint8_t shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_MAX];	/* Global access value of the coremasks of different interfaces. */
+	struct ppe_drv_iface *cpu_iface;				/* Storing iface allocated to CPU over here. */
+};
+
+/*
  * ppe_drv_entry_valid
  *	PPE entry validity
  */
@@ -403,15 +433,16 @@ struct ppe_drv {
 	bool disable_port_mtu_check;			/* Flag to disable MTU check for all the ports */
 	bool eth2eth_offload_if_bitmap;		/* Flag to enable if bitmap check for eth to eth flows */
 	struct ppe_drv_tun_gbl tun_gbl;		/* ppe tunnel global context */
+	struct ppe_drv_rfs_ctx rfs;		/* PPE RFS global context */
 };
 
 /*
  * ppe_drv_tree_id_type_get()
  *	Returns the tree_id type.
  */
-static inline ppe_drv_tree_id_type_t ppe_drv_tree_id_type_get(struct ppe_drv_flow_metadata *flow_metadata)
+static inline ppe_drv_tree_id_type_t ppe_drv_tree_id_type_get(struct ppe_drv_flow_metadata *fl_mdata)
 {
-	return flow_metadata->tree_id_data.type;
+	return fl_mdata->tree_id_data.type;
 }
 
 /*
@@ -431,6 +462,15 @@ static inline bool ppe_drv_tun_gretap_to_mapt_loopback_enabled(struct ppe_drv *p
 {
 	return !!(p->loopback_ring_info.enabled &&
 		(p->loopback_ring_info.ft_type & PPE_DRV_LOOPBACK_FEATURE_TYPE_GRETAP_MAPT));
+}
+
+/*
+ * ppe_drv_assist_feature_is_valid()
+ *	Checks if the feature type is one of the assist features.
+ */
+static inline bool ppe_drv_assist_feature_is_valid(uint32_t feature)
+{
+	return !!(feature & (PPE_DRV_ASSIST_FEATURE_RFS_ETH | PPE_DRV_ASSIST_FEATURE_RFS_WLAN | PPE_DRV_ASSIST_FEATURE_PRIORITY));
 }
 
 /*

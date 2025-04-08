@@ -35,7 +35,7 @@ struct ppe_rfs gbl_ppe_rfs;
 /*
  * Module parameter to enable/disable PPE RFS for eth-to-eth flows.
  */
-static bool eth_rfs_enable = true;
+static bool eth_rfs_enable = false;
 MODULE_PARM_DESC(eth_rfs_enable, "PPE RFS enable/disable for ethernet flows");
 
 /*

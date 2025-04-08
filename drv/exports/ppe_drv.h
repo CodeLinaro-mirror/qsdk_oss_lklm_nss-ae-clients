@@ -49,8 +49,9 @@
 /*
  * PPE Assist feature flags
  */
-#define PPE_DRV_ASSIST_FEATURE_RFS      0x00000001      /* PPE Assist feature to configure RFS */
-#define PPE_DRV_ASSIST_FEATURE_PRIORITY 0x00000002      /* PPE Assist feature to configure Priority */
+#define PPE_DRV_ASSIST_FEATURE_RFS_ETH	0x00000001      /* PPE Assist feature to configure RFS */
+#define PPE_DRV_ASSIST_FEATURE_RFS_WLAN	0x00000002      /* PPE Assist feature to configure RFS for WLAN flows */
+#define PPE_DRV_ASSIST_FEATURE_PRIORITY	0x00000004      /* PPE Assist feature to configure Priority */
 
 #define PPE_DRV_SERVICE_CLASS_IS_VALID(sc)	((sc >= PPE_DRV_SAWF_SC_START) && (sc <= PPE_DRV_SAWF_SC_END))
 
@@ -729,4 +730,15 @@ struct net_device *ppe_drv_get_and_hold_qdisc_netdev(int32_t flow_index);
  * Qdisc rule flag
  */
 int8_t ppe_drv_get_qdisc_rule_flag(int32_t flow_index);
+
+/**
+ * ppe_drv_wlan_rfs_enable_set
+ *	Set global wlan rfs enable variable.
+ *
+ * @param[in] enable		W-LAN rfs flows are enabled
+ *
+ * @return
+ * none.
+ */
+void ppe_drv_wlan_rfs_enable_set(bool enable);
 #endif /* _PPE_DRV_H_ */

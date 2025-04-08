@@ -85,7 +85,6 @@ struct ppe_rfs_ipv4_connection_rule {
  *	IPv4 5-tuple structure.
  */
 struct ppe_rfs_ipv4_rule_create_msg {
-	u16 valid_flags;				/**< Bit flags associated with paramater validity. */
 	u16 rule_flags;					/**< Bit flags associated with the rule. */
 	struct ppe_rfs_ipv4_5tuple tuple;		/**< Holds values of 5-tuple. */
 	struct ppe_rfs_ipv4_connection_rule conn_rule;  /**< Basic connection-specific data. */
@@ -133,7 +132,6 @@ struct ppe_rfs_ipv6_connection_rule {
  *	IPv6 rule create message structure.
  */
 struct ppe_rfs_ipv6_rule_create_msg {
-	u16 valid_flags;				/**< Bit flags associated with parameter validity. */
 	u16 rule_flags;					/**< Bit flags associated with the rule. */
 	struct ppe_rfs_ipv6_5tuple tuple;		/**< Holds values of the ppe_ipv6_5tuple tuple. */
 	struct ppe_rfs_ipv6_connection_rule conn_rule;	/**< Basic connection-specific data. */
@@ -206,4 +204,20 @@ enum ppe_rfs_ret ppe_rfs_ipv6_rule_create(struct ppe_rfs_ipv6_rule_create_msg *m
  * status of ipv6 rule destroy
  */
 enum ppe_rfs_ret ppe_rfs_ipv6_rule_destroy(struct ppe_rfs_ipv6_rule_destroy_msg *msg);
+
+/**
+ * ppe_rfs_rule_eligible_get
+ *	Checks if the flow is eligible for RFS rule push.
+ *
+ * @datatypes
+ * struct net_device
+ *
+ * @param[in] src_interface_num		Interface number for source net device of flow.
+ * @param[in] dst_interface_num		Interface number for the destination net device of flow.
+ * @param[in] mcast_flow		True is flow is multicast flow.
+ *
+ * @return
+ * True if RFS rule is valid in this direction
+ */
+bool ppe_rfs_rule_eligible_get(int src_interface_num, int dst_interface_num, bool mcast_flow);
 #endif /* _PPE_DRV_RFS_H_ */

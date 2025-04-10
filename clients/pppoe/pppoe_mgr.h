@@ -14,6 +14,10 @@
 
 #include <nss_client_mgr.h>
 
+#ifdef CONFIG_QCA_MINIDUMP
+#include <soc/qcom/ctx-save.h>
+#endif
+
 /*
  * Debug macros
  */
@@ -100,4 +104,27 @@ struct pppoe_mgr_session_entry {
 
 bool pppoe_mgr_get_session(struct net_device *dev, struct pppoe_opt *opt);
 void pppoe_mgr_init_session(struct net_device *dev, struct pppoe_opt *opt, struct pppoe_mgr_session_entry *entry);
+
+/*
+ * pppoe_mgr_minidump_log()
+ *	To log data structures into minidump output
+ */
+static inline void pppoe_mgr_minidump_log(void *start_addr, uint64_t size, const char *name) {
+#ifdef CONFIG_QCA_MINIDUMP
+	if (minidump_add_segments((uint64_t)(uintptr_t)(start_addr), size, QCA_WDT_LOG_DUMP_TYPE_MOD, name, MINIDUMP_CRASH_TYPE_NSS, "qca_nss_ppe_pppoe_mgr") != 0)
+		pr_warn("minidump_log failed for structure type %s at address %p\n", name, start_addr);
+#endif
+}
+
+/*
+ * pppoe_mgr_minidump_free()
+ *	To unregister data structures from minidump tlv
+ */
+static inline void pppoe_mgr_minidump_free(void *start_addr, const char *name) {
+#ifdef CONFIG_QCA_MINIDUMP
+	if (minidump_remove_segments((uint64_t)(uintptr_t)(start_addr)) != 0)
+		pr_warn("minidump_free failed for structure %s at address %p\n", name, start_addr);
+#endif
+}
+
 #endif

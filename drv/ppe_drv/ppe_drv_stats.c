@@ -467,7 +467,7 @@ static const char *ppe_drv_stats_policer_str[] = {
  */
 static int ppe_drv_stats_acl_show(struct seq_file *m, void __attribute__((unused))*ptr)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	uint64_t *stats_shadow, *acl_stats;
 	int i;
 
@@ -497,7 +497,7 @@ static int ppe_drv_stats_acl_show(struct seq_file *m, void __attribute__((unused
  */
 static int ppe_drv_stats_policer_show(struct seq_file *m, void __attribute__((unused))*ptr)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	uint64_t *stats_shadow, *policer_stats;
 	int i;
 
@@ -537,7 +537,7 @@ static const char *ppe_drv_stats_sawf_sc_str[] = {
  */
 static int ppe_drv_conn_stats_sawf_sc_show(struct seq_file *m, void __attribute__((unused))*ptr)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_stats_sawf_sc *sawf_sc_stats;
 	uint64_t *stats_shadow;
 	int i;
@@ -584,7 +584,7 @@ static const char *ppe_drv_stats_sc_str[] = {
  */
 static int ppe_drv_conn_stats_sc_show(struct seq_file *m, void __attribute__((unused))*ptr)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_stats_sc *sc_stats;
 	uint64_t *stats_shadow;
 	int i;
@@ -621,7 +621,7 @@ static int ppe_drv_conn_stats_sc_show(struct seq_file *m, void __attribute__((un
  */
 static int ppe_drv_conn_stats_show(struct seq_file *m, void __attribute__((unused))*ptr)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	uint64_t *stats, *stats_shadow;
 	struct ppe_drv_comm_stats *comm_stats;
 	uint32_t stats_size;
@@ -774,7 +774,7 @@ const struct file_operations ppe_drv_conn_stats_general_file_ops = {
  */
 int ppe_drv_stats_debugfs_init(void)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	p->dentry = debugfs_create_dir("qca-nss-ppe", NULL);
 	if (!p->dentry) {
 		ppe_drv_warn("%p: Unable to create debugfs stats directory in debugfs\n", p);
@@ -837,7 +837,7 @@ debugfs_dir_failed:
  */
 void ppe_drv_stats_debugfs_exit(void)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	if (p->dentry) {
 		debugfs_remove_recursive(p->dentry);
 		p->dentry = NULL;

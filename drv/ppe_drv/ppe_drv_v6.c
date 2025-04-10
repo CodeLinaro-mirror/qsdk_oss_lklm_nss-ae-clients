@@ -28,7 +28,7 @@
 static bool ppe_drv_v6_bind_acl_policer(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn *cn)
 {
 	struct ppe_drv_acl_policer_rule *ap_rule = &create->ap_rule;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_acl *acl = p->acl;
 	struct ppe_drv_acl_flow_bind info = {0};
 	struct ppe_drv_comm_stats *comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
@@ -143,7 +143,7 @@ static bool ppe_drv_v6_bind_acl_policer(struct ppe_drv_v6_rule_create *create, s
  */
 static bool ppe_drv_v6_unbind_acl_policer(struct ppe_drv_v6_conn *cn)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_acl *acl = p->acl;
 	struct ppe_drv_acl_flow_bind info = {0};
 	struct ppe_drv_comm_stats *comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
@@ -245,7 +245,7 @@ void ppe_drv_fill_fse_v6_tuple_info(struct ppe_drv_v6_conn_flow *conn, struct pp
  */
 bool ppe_drv_v6_fse_interface_check(struct ppe_drv_v6_conn_flow *pcf)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_port *rx_port = ppe_drv_v6_conn_flow_rx_port_get(pcf);
 	struct ppe_drv_port *tx_port = ppe_drv_v6_conn_flow_tx_port_get(pcf);
 	bool is_tx_ds = (tx_port->user_type == PPE_DRV_PORT_USER_TYPE_DS);
@@ -356,7 +356,7 @@ ppe_drv_ret_t ppe_drv_v6_rfs_conn_fill(struct ppe_drv_v6_rule_create *create,  s
 	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_port *pp_rx, *pp_tx;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	uint32_t rule_flags = create->rule_flags;
 	uint16_t valid_flags = create->valid_flags;
 
@@ -511,7 +511,7 @@ ppe_drv_ret_t ppe_drv_v6_priority_conn_fill(struct ppe_drv_v6_rule_create *creat
 	struct ppe_drv_v6_5tuple *tuple = &create->tuple;
 	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
 	struct ppe_drv_comm_stats *comm_stats;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	comm_stats = &p->stats.comm_stats[flow_type];
 
@@ -681,7 +681,7 @@ ppe_drv_ret_t ppe_drv_v6_policer_conn_fill(struct ppe_drv_v6_rule_create *create
 	uint32_t rule_flags = create->rule_flags;
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_port *pp_rx, *pp_tx;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	comm_stats = &p->stats.comm_stats[flow_type];
 
@@ -1356,7 +1356,7 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 	struct ppe_drv_flow_cookie_metadata fc_metadata = {0};
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_port *pp_rx, *pp_tx;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 	ppe_drv_ret_t ret;
 #endif
@@ -2054,7 +2054,7 @@ void ppe_drv_v6_if_walk_release(struct ppe_drv_v6_conn_flow *pcf)
  */
 bool ppe_drv_v6_if_walk(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_top_if_rule *top_if, ppe_drv_iface_t tx_if, ppe_drv_iface_t rx_if)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_iface *eg_vsi_if = NULL;
 	struct ppe_drv_iface *eg_l3_if = NULL;
 	struct ppe_drv_iface *iface, *top_iface = NULL, *top_rx_iface = NULL, *top_tx_iface = NULL;
@@ -2279,7 +2279,7 @@ static bool ppe_drv_v6_flow_check(struct ppe_drv_v6_conn_flow *pcf)
  */
 static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_flow *flow = pcf->pf;
 	struct ppe_drv_flow_tree_id_data *tree_id_data = &(pcf->fl_mdata.tree_id_data);
 	struct ppe_drv_fse_rule_info fse_info = {0};
@@ -2422,7 +2422,7 @@ static bool ppe_drv_v6_flow_del(struct ppe_drv_v6_conn_flow *pcf)
  */
 static struct ppe_drv_flow *ppe_drv_v6_flow_add(struct ppe_drv_v6_conn_flow *pcf, bool is_hairpin_nat)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_nexthop *nh = NULL;
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_host *host = NULL;
@@ -2608,7 +2608,7 @@ flow_add_fail:
  *	check if the flow is for a Passive VP
  */
 static bool ppe_drv_v6_passive_vp_flow(struct ppe_drv_v6_rule_create *create) {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_port *tx_pp = NULL;
 	struct ppe_drv_port *rx_pp = NULL;
 	struct ppe_drv_iface *if_rx, *if_tx;
@@ -2855,7 +2855,7 @@ void ppe_drv_v6_conn_sync_one(struct ppe_drv_v6_conn *cn, struct ppe_drv_v6_conn
  */
 ppe_drv_ret_t ppe_drv_v6_get_conn_stats(struct ppe_drv_v6_flow_conn_stats *conn_stats)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_v6_conn *cn;
 	struct ppe_drv_v6_conn_flow *pcf;
@@ -2901,7 +2901,7 @@ void ppe_drv_v6_conn_sync_many(struct ppe_drv_v6_conn_sync_many *cn_syn, uint8_t
 {
 	uint8_t count = 0;
 	bool return_flow_valid;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn *cn;
 	enum ppe_drv_stats_sync_reason reason = PPE_DRV_STATS_SYNC_REASON_STATS;
 	uint16_t max_flow_conn_count = num_conn - PPE_DRV_TUN_PORT_STATS_RESERVED_COUNT;
@@ -3022,7 +3022,7 @@ EXPORT_SYMBOL(ppe_drv_v6_conn_sync_many);
  */
 void ppe_drv_v6_conn_stats_sync_invoke_cb(struct ppe_drv_v6_conn_sync *cns)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	ppe_drv_v6_sync_callback_t sync_cb;
 	void *sync_data;
 
@@ -3045,7 +3045,7 @@ void ppe_drv_v6_conn_stats_sync_invoke_cb(struct ppe_drv_v6_conn_sync *cns)
  */
 void ppe_drv_v6_stats_callback_unregister(void)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	/*
 	 * Unregister our sync callback.
@@ -3067,7 +3067,7 @@ EXPORT_SYMBOL(ppe_drv_v6_stats_callback_unregister);
  */
 bool ppe_drv_v6_stats_callback_register(ppe_drv_v6_sync_callback_t cb, void *app_data)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
 	p->ipv6_stats_sync_cb = cb;
@@ -3113,7 +3113,7 @@ ppe_drv_ret_t ppe_drv_v6_mc_create(struct ppe_drv_v6_rule_create *create)
  */
 ppe_drv_ret_t ppe_drv_v6_flush_hairpin_flow(struct ppe_drv_v6_conn *cn)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
 	struct ppe_drv_v6_conn_flow *pcr = &cn->pcr;
 	struct ppe_drv_v6_conn_flow *pcf_hp = &cn->pcf_hp;
@@ -3242,7 +3242,7 @@ ppe_drv_ret_t ppe_drv_v6_flush_hairpin_flow(struct ppe_drv_v6_conn *cn)
  */
 ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
 	struct ppe_drv_v6_conn_flow *pcr = &cn->pcr;
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
@@ -3347,7 +3347,7 @@ ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
 ppe_drv_ret_t ppe_drv_v6_rfs_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 {
 	struct ppe_drv_comm_stats *comm_stats;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_v6_conn_flow *pcf;
 	struct ppe_drv_v6_conn *cn;
@@ -3408,7 +3408,7 @@ EXPORT_SYMBOL(ppe_drv_v6_rfs_destroy);
 ppe_drv_ret_t ppe_drv_v6_assist_rule_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 {
 	struct ppe_drv_comm_stats *comm_stats;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_v6_conn_flow *pcf;
 	struct ppe_drv_v6_conn *cn;
@@ -3475,7 +3475,7 @@ EXPORT_SYMBOL(ppe_drv_v6_assist_rule_destroy);
 ppe_drv_ret_t ppe_drv_v6_policer_flow_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 {
 	struct ppe_drv_comm_stats *comm_stats;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_v6_conn_flow *pcf;
 	struct ppe_drv_v6_conn_flow *pcr;
@@ -3571,7 +3571,7 @@ EXPORT_SYMBOL(ppe_drv_v6_policer_flow_destroy);
  */
 ppe_drv_ret_t ppe_drv_v6_policer_flow_create(struct ppe_drv_v6_rule_create *create)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = NULL;
 	struct ppe_drv_v6_conn_flow *pcr = NULL;
 	struct ppe_drv_comm_stats *comm_stats;
@@ -3701,7 +3701,7 @@ EXPORT_SYMBOL(ppe_drv_v6_policer_flow_create);
 ppe_drv_ret_t ppe_drv_v6_delete_hairpin_flow(struct ppe_drv_v6_conn *cn, struct ppe_drv_v6_conn_flow *pcf)
 {
 	struct ppe_drv_comm_stats *comm_stats;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcr = &cn->pcr;
 	struct ppe_drv_v6_conn_flow *pcf_hp = &cn->pcf_hp;
 	struct ppe_drv_v6_conn_flow *pcr_hp = &cn->pcr_hp;
@@ -3825,7 +3825,7 @@ ppe_drv_ret_t ppe_drv_v6_delete_hairpin_flow(struct ppe_drv_v6_conn *cn, struct 
 ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 {
 	struct ppe_drv_comm_stats *comm_stats;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_flow *flow = NULL;
 	struct ppe_drv_v6_conn_flow *pcf;
 	struct ppe_drv_v6_conn_flow *pcr;
@@ -3996,7 +3996,7 @@ EXPORT_SYMBOL(ppe_drv_v6_destroy);
  */
 ppe_drv_ret_t ppe_drv_v6_rfs_create(struct ppe_drv_v6_rule_create *create)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = NULL;
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_v6_conn *cn = NULL;
@@ -4086,7 +4086,7 @@ EXPORT_SYMBOL(ppe_drv_v6_rfs_create);
  */
 ppe_drv_ret_t ppe_drv_v6_assist_rule_create(struct ppe_drv_v6_rule_create *create, uint32_t feature)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = NULL;
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_v6_conn *cn = NULL;
@@ -4211,7 +4211,7 @@ EXPORT_SYMBOL(ppe_drv_v6_assist_rule_create);
 bool ppe_drv_v6_fse_flow_configure(struct ppe_drv_v6_rule_create *create, struct ppe_drv_v6_conn_flow *pcf,
 					struct ppe_drv_v6_conn_flow *pcr)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
         struct ppe_drv_fse_rule_info fse_info = {0};
 	struct ppe_drv_fse_rule_info fse_info_return = {0};
         struct ppe_drv_v6_conn_flow *fse_cn = NULL;
@@ -4345,7 +4345,7 @@ bool ppe_drv_v6_fse_flow_configure(struct ppe_drv_v6_rule_create *create, struct
  */
 static ppe_drv_ret_t ppe_drv_v6_create_hairpin(struct ppe_drv_v6_conn *cn, struct ppe_drv_v6_rule_create *create)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = NULL;
 	struct ppe_drv_v6_conn_flow *pcr = NULL;
 	struct ppe_drv_v6_conn_flow *pcf_hp = NULL;
@@ -4732,7 +4732,7 @@ fail:
  */
 ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf = NULL;
 	struct ppe_drv_v6_conn_flow *pcr = NULL;
 	struct ppe_drv_comm_stats *comm_stats;
@@ -5056,7 +5056,7 @@ EXPORT_SYMBOL(ppe_drv_v6_create);
 ppe_drv_ret_t ppe_drv_v6_rule_sawf_mark_update(struct ppe_drv_v6_sawf_mark_update *update)
 {
 	struct ppe_drv_flow *flow;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v6_conn_flow *pcf, *pcr;
 	struct ppe_drv_v6_conn *cn;
 
@@ -5113,7 +5113,7 @@ EXPORT_SYMBOL(ppe_drv_v6_rule_sawf_mark_update);
 bool ppe_drv_v6_nsm_stats_update(struct ppe_drv_nsm_stats *nsm_stats, struct ppe_drv_v6_5tuple *tuple)
 {
 	struct ppe_drv_flow *flow;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
 	flow = ppe_drv_flow_v6_get(tuple);

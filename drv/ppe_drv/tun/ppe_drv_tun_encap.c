@@ -30,7 +30,7 @@
  */
 void ppe_drv_tun_encap_hdr_ctrl_entry_free(struct kref *kref)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_tun_encap_hdr_ctrl *hdr_ctrl = p->ecap_hdr_ctrl;
 
 	/*
@@ -51,7 +51,7 @@ void ppe_drv_tun_encap_hdr_ctrl_entry_free(struct kref *kref)
  */
 bool ppe_drv_tun_encap_hdr_ctrl_deref(struct kref *kref)
 {
-	struct ppe_drv *p __maybe_unused = &ppe_drv_gbl;
+	struct ppe_drv *p __maybe_unused = ppe_drv_gbl;
 	ppe_drv_assert(kref_read(kref), "%p: ref count under run for encap header ctrl", p);
 
 	if (kref_put(kref, ppe_drv_tun_encap_hdr_ctrl_entry_free)) {
@@ -69,7 +69,7 @@ bool ppe_drv_tun_encap_hdr_ctrl_deref(struct kref *kref)
 bool ppe_drv_tun_encap_hdr_ctrl_ref(struct kref *kref)
 {
 	kref_get(kref);
-	ppe_drv_assert(kref_read(kref), "%p: ref count rollover for encap header ctrl", &ppe_drv_gbl);
+	ppe_drv_assert(kref_read(kref), "%p: ref count rollover for encap header ctrl", ppe_drv_gbl);
 
 	return true;
 }
@@ -81,7 +81,7 @@ bool ppe_drv_tun_encap_hdr_ctrl_ref(struct kref *kref)
 bool ppe_drv_tun_encap_hdr_ctrl_reset(uint8_t flags)
 {
 	fal_tunnel_encap_header_ctrl_t header_ctrl = {0};
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_tun_encap_hdr_ctrl *hdr_ctrl_orig_cfg = p->ecap_hdr_ctrl;
 	uint8_t hdr_ctrl_flag = 0;
 	sw_error_t err;
@@ -156,7 +156,7 @@ bool ppe_drv_tun_encap_hdr_ctrl_reset(uint8_t flags)
 bool ppe_drv_tun_encap_hdr_ctrl_set(struct ppe_drv_tun_encap_header_ctrl hdr_ctrl)
 {
 	fal_tunnel_encap_header_ctrl_t header_ctrl = {0};
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_tun_encap_hdr_ctrl *hdr_ctrl_orig_cfg = p->ecap_hdr_ctrl;
 	bool ipv4_addr_ref = false, ipv4_proto_ref = false,  ipv6_addr_ref = false, ipv6_proto_ref = false;
 	bool udp_sport_base_ref = false, udp_sport_mask_ref = false;
@@ -593,7 +593,7 @@ void ppe_drv_tun_encap_set_rule_id(struct ppe_drv_tun_encap *ptec, uint8_t rule_
 static struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_rule_entry_get(struct ppe_drv_tun *ptun, struct ppe_drv_tun_encap_xlate_data *data)
 {
 	sw_error_t err;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_tun_encap_xlate_rule *encap_rule = NULL;
 	fal_tunnel_encap_rule_t rule = {0};
 	uint8_t rule_id, idx;
@@ -675,7 +675,7 @@ static struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_rule_entry_get(str
  */
 static bool ppe_drv_tun_encap_header_rule_configure(enum ppe_drv_tun_cmn_ctx_type type, struct ppe_drv_tun_encap *ptec, uint8_t tun_offset)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_tun *ptun = ppe_drv_port_tun_get(ptec->port);
 	struct ppe_drv_tun_encap_xlate_data rule_data = {0};
 
@@ -1198,7 +1198,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 	 */
 	} else if (th->type == PPE_DRV_TUN_CMN_CTX_TYPE_VXLAN) {
 		struct ppe_drv_tun *ptun = ppe_drv_port_tun_get(ptec->port);
-		struct ppe_drv *p = &ppe_drv_gbl;
+		struct ppe_drv *p = ppe_drv_gbl;
 
 		encap_cfg.l4_proto = FAL_TUNNEL_ENCAP_L4_PROTO_UDP; /* 0:Non;1:TCP;2:UDP;3:UDP-Lite;4:Reserved (ICMP);5:GRE; */
 		encap_cfg.sport_entry_en = 1;  /* TODO: FAL API should be entropy */
@@ -1399,7 +1399,8 @@ struct ppe_drv_tun_encap *ppe_drv_tun_encap_alloc(struct ppe_drv *p)
  */
 void ppe_drv_tun_encap_entries_free(struct ppe_drv_tun_encap *ptun_ec)
 {
-	vfree(ptun_ec);
+	nss_ppe_drv_minidump_free(ptun_ec, "ppe_drv_tun_encap");
+	kfree(ptun_ec);
 }
 
 /*
@@ -1411,11 +1412,13 @@ struct ppe_drv_tun_encap *ppe_drv_tun_encap_entries_alloc(struct ppe_drv *p)
 	uint16_t index;
 	struct ppe_drv_tun_encap *ptun_ec;
 
-	ptun_ec = vzalloc(sizeof(struct ppe_drv_tun_encap) * PPE_DRV_TUN_ENCAP_ENTRIES);
+	ptun_ec = kzalloc(sizeof(struct ppe_drv_tun_encap) * PPE_DRV_TUN_ENCAP_ENTRIES, GFP_KERNEL);
 	if (!ptun_ec) {
 		ppe_drv_warn("%p: failed to allocate ptun encap entries", p);
 		return NULL;
 	}
+
+	nss_ppe_drv_minidump_log(ptun_ec, sizeof(struct ppe_drv_tun_encap) * PPE_DRV_TUN_ENCAP_ENTRIES, "ppe_drv_tun_encap");
 
 	for (index = 0; index < PPE_DRV_TUN_ENCAP_ENTRIES; index++) {
 		ptun_ec[index].tun_idx = index;

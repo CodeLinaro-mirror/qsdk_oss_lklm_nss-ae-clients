@@ -451,7 +451,7 @@ static void ppe_drv_exception_configure_internal(fal_l3_excep_ctrl_t *except_ctr
  */
 void ppe_drv_exception_init(void)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	const uint8_t exception_max = ppe_drv_exception_max();
 	const uint8_t l4_except_max = ppe_drv_exception_tcpflag_max();
 	fal_l4_excep_parser_ctrl tcp_except_ctrl = {0};
@@ -551,7 +551,7 @@ void ppe_drv_exception_init(void)
  */
 ppe_drv_cc_usr_ret_t ppe_drv_cc_exception_configure(struct ppe_drv_cc_usr_exception_info *info)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_cc *pcc;
 	fal_l4_excep_parser_ctrl tcp_except_ctrl = {0};
 	fal_l3_excep_ctrl_t except_ctrl = {0};

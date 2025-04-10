@@ -219,6 +219,7 @@ static void ppe_tun_ctx_free(struct kref *kref)
 	vp_num = tun->vp_num;
 	ppe_vp_free(vp_num);
 
+	nss_ppe_tun_minidump_free(tun, "ppe_tun");
 	kfree(tun);
 	atomic_inc(&ptp->total_free);
 	atomic_dec(&ptp->free_pending);
@@ -1063,6 +1064,8 @@ bool ppe_tun_alloc(struct net_device *dev, enum ppe_drv_tun_cmn_ctx_type type)
 			return false;
 		}
 	}
+
+	nss_ppe_tun_minidump_log(tun, sizeof(struct ppe_tun), "ppe_tun");
 
 	kref_init(&tun->ref);
 
@@ -1962,6 +1965,8 @@ static int __init ppe_tun_module_init(void)
 		return -ENOMEM;
 	}
 
+	nss_ppe_tun_minidump_log(ptp, sizeof(struct ppe_tun_priv), "ppe_tun_priv");
+
 	/*
 	 * Initialize base lock.
 	 */
@@ -2097,6 +2102,7 @@ static int __init ppe_tun_module_init(void)
 fail:
 	debugfs_remove_recursive(ptp->dentry);
 
+	nss_ppe_tun_minidump_free(ptp, "ppe_tun_priv");
 	kfree(ptp);
 	ptp = NULL;
 
@@ -2120,6 +2126,7 @@ static void __exit ppe_tun_module_exit(void)
 
 	ppe_acl_rule_destroy(ptp->ppe_tun_l2_tunnel_rule_id);
 
+	nss_ppe_tun_minidump_free(ptp, "ppe_tun_priv");
 	kfree(ptp);
 }
 module_exit(ppe_tun_module_exit);

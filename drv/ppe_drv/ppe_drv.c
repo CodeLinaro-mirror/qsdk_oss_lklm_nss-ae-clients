@@ -87,7 +87,7 @@ int mac_lrn_exception_en = true;
 /*
  * Define the filename to be used for assertions.
  */
-struct ppe_drv ppe_drv_gbl;
+struct ppe_drv *ppe_drv_gbl = NULL;
 
 /*
  * ppe_drv_get_vxlan_dport()
@@ -95,7 +95,7 @@ struct ppe_drv ppe_drv_gbl;
  */
 int ppe_drv_get_vxlan_dport(void)
 {
-	return ppe_drv_gbl.vxlan_dport;
+	return ppe_drv_gbl->vxlan_dport;
 }
 
 /*
@@ -104,7 +104,7 @@ int ppe_drv_get_vxlan_dport(void)
  */
 int ppe_drv_get_vxlan_gpe_dport(void)
 {
-	return ppe_drv_gbl.vxlan_gpe_dport;
+	return ppe_drv_gbl->vxlan_gpe_dport;
 }
 
 /*
@@ -113,7 +113,7 @@ int ppe_drv_get_vxlan_gpe_dport(void)
  */
 bool ppe_drv_is_mht_dev(struct net_device *dev)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_iface *iface = NULL;
 
 	spin_lock_bh(&p->lock);
@@ -142,7 +142,7 @@ EXPORT_SYMBOL(ppe_drv_is_mht_dev);
  */
 static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_v4_conn *cn_v4;
 	struct ppe_drv_v6_conn *cn_v6;
 #ifdef PPE_TUNNEL_ENABLE
@@ -264,7 +264,7 @@ EXPORT_SYMBOL(ppe_drv_nsm_queue_stats_update);
 bool ppe_drv_nsm_sawf_sc_stats_read(struct ppe_drv_nsm_stats *nsm_stats, uint8_t service_class)
 {
 	struct ppe_drv_stats_sawf_sc *sawf_sc_stats;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	if (!PPE_DRV_SERVICE_CLASS_IS_VALID(service_class)) {
 		ppe_drv_warn("%u Invalid SAWF service class", service_class);
@@ -273,7 +273,7 @@ bool ppe_drv_nsm_sawf_sc_stats_read(struct ppe_drv_nsm_stats *nsm_stats, uint8_t
 
 	spin_lock_bh(&p->lock);
 
-	sawf_sc_stats = &ppe_drv_gbl.stats.sawf_sc_stats[service_class];
+	sawf_sc_stats = &ppe_drv_gbl->stats.sawf_sc_stats[service_class];
 
 	nsm_stats->sawf_sc_stats.rx_packets = atomic64_read(&sawf_sc_stats->rx_packets);
 	nsm_stats->sawf_sc_stats.rx_bytes = atomic64_read(&sawf_sc_stats->rx_bytes);
@@ -413,7 +413,7 @@ static bool ppe_drv_pkt_edit_init(void)
  */
 void ppe_drv_fse_feature_enable()
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
 	p->fse_enable = true;
@@ -427,7 +427,7 @@ EXPORT_SYMBOL(ppe_drv_fse_feature_enable);
  */
 void ppe_drv_fse_feature_disable()
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
 	p->fse_enable = false;
@@ -440,7 +440,7 @@ EXPORT_SYMBOL(ppe_drv_fse_feature_disable);
  */
 void ppe_drv_loopback_base_queue(uint8_t queue_id, uint32_t ft_type)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
 
@@ -508,7 +508,7 @@ static bool ppe_drv_loopback_sc2queue_mapping(struct ppe_drv *p, uint8_t src_pro
  */
 int16_t ppe_drv_queue_from_core(uint8_t core)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	if (core >= NR_CPUS) {
 		ppe_drv_warn("%p: invalid core-id: %d", p, core);
@@ -576,7 +576,7 @@ static bool ppe_drv_enq_vp_queue_set(struct ppe_drv *p,
  */
 ppe_drv_ret_t ppe_drv_enq_vp_map_to_queue(uint8_t queue_id, int8_t enq_vp)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	fal_enqueue_cfg_t enqueue_cfg = {0};
         sw_error_t ret;
 	int8_t pri_profile;
@@ -618,7 +618,7 @@ ppe_drv_ret_t ppe_drv_enq_vp_map_to_queue(uint8_t queue_id, int8_t enq_vp)
  */
 ppe_drv_ret_t ppe_drv_ds_map_free(uint8_t node_id)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	fal_enqueue_cfg_t enqueue_cfg = {0};
         sw_error_t ret;
 	int8_t pri_profile;
@@ -676,7 +676,7 @@ EXPORT_SYMBOL(ppe_drv_ds_map_free);
  */
 ppe_drv_ret_t ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	uint8_t enq_vp;
 	ppe_drv_ret_t status;
 
@@ -720,7 +720,7 @@ EXPORT_SYMBOL(ppe_drv_ds_map_node_to_queue);
  */
 static ppe_drv_ret_t ppe_drv_rfs_map_core_to_enqueue_vp(uint8_t core, uint8_t queue_id)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	uint8_t enq_vp;
 	ppe_drv_ret_t status;
 
@@ -772,7 +772,7 @@ static ppe_drv_ret_t ppe_drv_rfs_map_core_to_enqueue_vp(uint8_t core, uint8_t qu
  */
 void ppe_drv_core2queue_mapping(uint8_t core, uint8_t queue_id)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	ppe_drv_ret_t status;
 
 	if (core >= NR_CPUS) {
@@ -889,7 +889,7 @@ void ppe_drv_fse_ops_free(struct kref *kref)
  */
 void ppe_drv_fse_ops_unregister(void)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
 	if (!p->fse_ops || !p->is_wifi_fse_up) {
@@ -909,7 +909,7 @@ EXPORT_SYMBOL(ppe_drv_fse_ops_unregister);
  */
 bool ppe_drv_fse_ops_register(struct ppe_drv_fse_ops *ops)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_fse_ops *ops_internal;
 
 	if (!ops->create_fse_rule || !ops->destroy_fse_rule) {
@@ -949,7 +949,7 @@ EXPORT_SYMBOL(ppe_drv_fse_ops_register);
  */
 struct dentry *ppe_drv_get_dentry()
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	return p->dentry;
 }
 EXPORT_SYMBOL(ppe_drv_get_dentry);
@@ -998,7 +998,7 @@ static bool ppe_drv_confgiure_ucast_prio_map_tbl(struct ppe_drv *p, uint8_t prof
  */
 void ppe_drv_wlan_rfs_enable_set(bool enable)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
 	p->rfs.wlan_rfs_enable = enable;
@@ -1014,7 +1014,7 @@ EXPORT_SYMBOL(ppe_drv_wlan_rfs_enable_set);
  */
 ppe_drv_ret_t ppe_drv_cpu_port_init(void)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_iface *iface;
 	struct ppe_drv_l3_if *l3_if;
 	struct ppe_drv_port *port;
@@ -1094,7 +1094,7 @@ iface_fail:
  */
 static int ppe_drv_probe(struct platform_device *pdev)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct device_node *np;
 	fal_ppe_tbl_caps_t cap;
 	int i = 0;
@@ -1370,6 +1370,8 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	 * Initialize the enqueue vports.
 	 */
 	ppe_drv_port_enq_vp_init();
+
+	nss_ppe_drv_minidump_log(p, sizeof(struct ppe_drv), "ppe_drv");
 
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
 
@@ -1668,7 +1670,7 @@ static int ppe_drv_remove(struct platform_device *pdev)
 static void ppe_drv_notify_change_upper_handler(void *ptr, int event)
 {
 	struct ppe_drv_notifier_ops *iterator;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct netdev_notifier_info *info = (struct netdev_notifier_info *)ptr;
 	struct netdev_notifier_changeupper_info *cu_info = (struct netdev_notifier_changeupper_info *)info;
 
@@ -1743,7 +1745,7 @@ void ppe_drv_notifier_ops_register(struct ppe_drv_notifier_ops *notifier_ops)
 {
 	struct list_head *ptr;
 	struct ppe_drv_notifier_ops *entry_pnb;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	ppe_drv_trace("%px: Add notifier callback with priority: %d\n", notifier_ops, notifier_ops->priority);
 
@@ -1768,7 +1770,7 @@ EXPORT_SYMBOL(ppe_drv_notifier_ops_register);
  */
 void ppe_drv_notifier_ops_unregister(struct ppe_drv_notifier_ops *notifier_ops)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->notifier_lock);
 	list_del(&notifier_ops->entry);
@@ -1783,7 +1785,7 @@ EXPORT_SYMBOL(ppe_drv_notifier_ops_unregister);
 static void ppe_drv_set_ppe_if_bm_to_port(void)
 {
 	struct ppe_drv_port *drv_port = NULL;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	unsigned int if_bit_count = __builtin_popcount(PPE_DRV_PORT_OFFLOAD_MAX_VAL);
 	uint32_t i;
 
@@ -1847,7 +1849,7 @@ static int ppe_drv_disable_port_mtu_check_handler(struct ctl_table *table,
 						size_t *lenp, loff_t *ppos)
 {
 	int ret;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	ret = proc_dointvec(table, write, buffer, lenp, ppos);
 
@@ -1926,7 +1928,7 @@ static int ppe_drv_eth2eth_offload_if_bitmap_handler(struct ctl_table *table,
 						size_t *lenp, loff_t *ppos)
 {
 	int ret;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 
 	ret = proc_dointvec(table, write, buffer, lenp, ppos);
 
@@ -2089,7 +2091,7 @@ static int ppe_drv_upstream_dev_handler(struct ctl_table *table,
 {
 	int ret;
 	char *dev_name;
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_port *pp = NULL;
 	struct net_device *dev;
 
@@ -2176,7 +2178,7 @@ static int ppe_drv_src2uni_handler(struct ctl_table *table,
 		int write, void __user *buffer,
 		size_t *lenp, loff_t *ppos)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_port *pp_local;
 	fal_ucast_queue_dest_t q_dst = {0};
 	struct ppe_drv_port *pp;
@@ -2529,7 +2531,7 @@ EXPORT_SYMBOL(ppe_drv_mht_port_from_fdb);
  */
 static int ppe_drv_eth_coremask_set_handler(const char *val, const struct kernel_param *kp)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	int res = param_set_int(val, kp);
 
 	if ((eth_coremask < PPE_DRV_RFS_COREMASK_MIN) || (eth_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
@@ -2562,7 +2564,7 @@ module_param_cb(eth_coremask, &eth_coremask_ops, &eth_coremask, 0644);
  */
 static int ppe_drv_wlan_coremask_set_handler(const char *val, const struct kernel_param *kp)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	int res = param_set_int(val, kp);
 
 	if ((wlan_coremask < PPE_DRV_RFS_COREMASK_MIN) || (wlan_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
@@ -2602,8 +2604,18 @@ static int __init ppe_drv_module_init(void)
 		return -EINVAL;
 	}
 
+	/*
+	* Allocate ppe_drv_gbl
+	*/
+	ppe_drv_gbl = kzalloc(sizeof(struct ppe_drv), GFP_KERNEL);
+	if(!ppe_drv_gbl) {
+		ppe_drv_warn("Failed to allocate global ppe_drv structure\n");
+		return -EINVAL;
+	}
+
 	if (platform_driver_register(&ppe_drv_platform)) {
 		ppe_drv_warn("unable to register the driver\n");
+		kfree(ppe_drv_gbl);
 		return -EIO;
 	}
 
@@ -2611,6 +2623,7 @@ static int __init ppe_drv_module_init(void)
 	if (ret) {
 		ppe_drv_warn("Failed to register NETDEV notifier, error=%d\n", ret);
 		platform_driver_unregister(&ppe_drv_platform);
+		kfree(ppe_drv_gbl);
 		return -EINVAL;
 	}
 
@@ -2619,11 +2632,12 @@ static int __init ppe_drv_module_init(void)
 	/*
 	 * Register sysctl framework for PPE DRV
 	 */
-	ppe_drv_gbl.ppe_drv_header = register_sysctl("ppe/ppe_drv", ppe_drv_sub);
-	if (!ppe_drv_gbl.ppe_drv_header) {
+	ppe_drv_gbl->ppe_drv_header = register_sysctl("ppe/ppe_drv", ppe_drv_sub);
+	if (!ppe_drv_gbl->ppe_drv_header) {
 		ppe_drv_warn("sysctl table configuration failed");
 		unregister_netdevice_notifier(&nss_ppe_netdevice);
 		platform_driver_unregister(&ppe_drv_platform);
+		kfree(ppe_drv_gbl);
 		return -EINVAL;
 	}
 
@@ -2637,10 +2651,12 @@ module_init(ppe_drv_module_init);
  */
 static void __exit ppe_drv_module_exit(void)
 {
-	unregister_sysctl_table(ppe_drv_gbl.ppe_drv_header);
-	ppe_drv_gbl.ppe_drv_header = NULL;
+	unregister_sysctl_table(ppe_drv_gbl->ppe_drv_header);
+	ppe_drv_gbl->ppe_drv_header = NULL;
 	unregister_netdevice_notifier(&nss_ppe_netdevice);
 	platform_driver_unregister(&ppe_drv_platform);
+	nss_ppe_drv_minidump_free(ppe_drv_gbl, "ppe_drv");
+	kfree(ppe_drv_gbl);
 }
 module_exit(ppe_drv_module_exit);
 

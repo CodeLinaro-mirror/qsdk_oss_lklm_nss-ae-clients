@@ -110,6 +110,7 @@ static int ppe_pppoe_mgr_disconnect(struct net_device *dev)
 
 	ppe_drv_iface_deref(iface);
 	ppe_pppoe_mgr_remove_session(ppe_entry);
+	pppoe_mgr_minidump_free(ppe_entry, "ppe_pppoe_mgr_session_entry");
 	kfree(ppe_entry);
 	return NOTIFY_DONE;
 }
@@ -153,6 +154,8 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 		pppoe_mgr_warn("%px: failed to allocate PPE PPPoE session entry\n", dev);
 		return NOTIFY_DONE;
 	}
+
+	pppoe_mgr_minidump_log(ppe_entry, sizeof(struct ppe_pppoe_mgr_session_entry), "ppe_pppoe_mgr_session_entry");
 
 	pppoe_mgr_init_session(dev, &opt, &ppe_entry->pppoe_pvt);
 	ppe_entry->iface = iface;

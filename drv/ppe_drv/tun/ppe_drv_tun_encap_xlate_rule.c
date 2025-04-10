@@ -274,7 +274,7 @@ static bool ppe_drv_tun_encap_xlate_rule_entry_equal(struct ppe_drv_tun_encap_xl
  */
 struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_exists(enum ppe_drv_tun_cmn_ctx_type type, struct ppe_drv_tun_encap_xlate_data *data)
 {
-	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv *p = ppe_drv_gbl;
 	uint16_t index = 0;
 	struct ppe_drv_tun_encap_xlate_rule *ptecxr = NULL;
 	struct ppe_drv_tun_encap_xlate_data *exrdata = NULL;
@@ -331,7 +331,8 @@ struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_alloc(struct p
  */
 void ppe_drv_tun_encap_xlate_rule_entries_free(struct ppe_drv_tun_encap_xlate_rule *encap_xlate_rules)
 {
-	vfree(encap_xlate_rules);
+	nss_ppe_drv_minidump_free(encap_xlate_rules, "ppe_drv_tun_encap_xlate_rule");
+	kfree(encap_xlate_rules);
 }
 
 /*
@@ -345,11 +346,14 @@ struct ppe_drv_tun_encap_xlate_rule *ppe_drv_tun_encap_xlate_rule_entries_alloc(
 
 	ppe_drv_assert(!p->encap_xlate_rules, "%p: Encap xlate rules already allocated", p);
 
-	encap_xlate_rules = vzalloc(sizeof(struct ppe_drv_tun_encap_xlate_rule) * PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES);
+	encap_xlate_rules = kzalloc(sizeof(struct ppe_drv_tun_encap_xlate_rule) * PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES, GFP_KERNEL);
 	if (!encap_xlate_rules) {
 		ppe_drv_warn("%p: failed to allocate encap_xlate_rules entries", p);
 		return NULL;
 	}
+
+	nss_ppe_drv_minidump_log(encap_xlate_rules, sizeof(struct ppe_drv_tun_encap_xlate_rule) * PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES,
+							"ppe_drv_tun_encap_xlate_rule");
 
 	for (index = 0; index < PPE_DRV_TUN_ENCAP_XLATE_RULE_MAX_RULES; index++) {
 		encap_xlate_rules[index].rule_index = index;

@@ -3377,6 +3377,13 @@ ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
 	}
 #endif
 
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+	}
+#endif
+
 	/*
 	 * Get flow table entry.
 	 */
@@ -3410,6 +3417,13 @@ ppe_drv_ret_t ppe_drv_v6_flush(struct ppe_drv_v6_conn *cn)
 		ppe_drv_stats_inc(&p->stats.gen_stats.v6_flush_fail);
 		ppe_drv_warn("%p: deletion of prefix entry failed", p);
 		return PPE_DRV_RET_FAILURE_DESTROY_FAIL;
+	}
+#endif
+
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v6_conn_flow_flags_check(pcr, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
 	}
 #endif
 
@@ -3996,6 +4010,13 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 	}
 #endif
 
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+	}
+#endif
+
 	if (!ppe_drv_v6_flow_del(pcf)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_stats_inc(&comm_stats->v6_destroy_fail);
@@ -4025,6 +4046,13 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy)
 		ppe_drv_stats_inc(&comm_stats->v6_destroy_fail);
 		ppe_drv_warn("%p: deletion of prefix entry failed", p);
 		return PPE_DRV_RET_FAILURE_DESTROY_FAIL;
+	}
+#endif
+
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v6_conn_flow_flags_check(pcr, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
 	}
 #endif
 

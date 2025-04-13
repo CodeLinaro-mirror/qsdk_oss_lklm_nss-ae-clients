@@ -38,6 +38,11 @@
 #define PPE_DRV_RFS_COREMASK_MAX	((1 << NR_CPUS) - 1)
 #define PPE_DRV_FLOOD_VSI_EN_STR_LEN	40
 
+#ifdef NSS_PPE_DRV_HW_GRO
+#define PPE_DRV_GRO_COREMASK_MIN	1
+#define PPE_DRV_GRO_COREMASK_MAX	((1 << NR_CPUS) - 1)
+#endif
+
 /*
  * Module parameter to enable/disable 2-tuple RSS hash for IP fragments.
  */
@@ -63,6 +68,14 @@ MODULE_PARM_DESC(passive_vp_enable, "Passive VP creation enable/disable");
  */
 static unsigned int eth_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
 MODULE_PARM_DESC(eth_coremask, "Coremask for Ethernet to Ethernet Flows");
+
+#ifdef NSS_PPE_DRV_HW_GRO
+/*
+ * Module parameter to set eth coremask.
+ */
+static unsigned int eth_gro_coremask = PPE_DRV_GRO_COREMASK_DEFAULT;
+MODULE_PARM_DESC(eth_gro_coremask, "Coremask for Ethernet GRO Flows");
+#endif
 
 /*
  * Module parameter to set wlan common coremask.
@@ -728,6 +741,11 @@ ppe_drv_ret_t ppe_drv_enq_vp_map_to_queue(uint8_t queue_id, int8_t enq_vp)
 
 	/*
 	 * Configure the allocated enqueue vp number on PORT_VSI_ENQUEUE table.
+	 *
+	 * NOTE: The flow_pri_profile is set directly to pri_profile without adding
+	 * PPE_DRV_PORT_ENQVP_VSI_TBL_START_IDX offset. This change was made as part
+	 * of HW GRO support to align with hardware requirements for both RFS and GRO
+	 * enqueue VP configurations.
 	 */
 	enqueue_cfg.rule_entry.enqueue_type = FAL_ENQUEUE_FLOW;
 	enqueue_cfg.rule_entry.flow_pri_profile = pri_profile;
@@ -843,6 +861,51 @@ ppe_drv_ret_t ppe_drv_ds_map_node_to_queue(uint8_t node_id, uint8_t queue_id)
 }
 EXPORT_SYMBOL(ppe_drv_ds_map_node_to_queue);
 
+#ifdef NSS_PPE_DRV_HW_GRO
+/*
+ * ppe_drv_gro_map_core_to_enqueue_vp()
+ *	Core to queue mapping
+ *
+ * This API will be invoked at dp-init time to map each core to enq_vp
+ */
+static ppe_drv_ret_t ppe_drv_gro_map_core_to_enqueue_vp(uint8_t core, uint8_t queue_id)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	uint8_t enq_vp;
+	ppe_drv_ret_t status;
+
+	/*
+	 * Default coremask for the physical interface is set.
+	 */
+	p->gro_ctx.gro_info.coremask = eth_gro_coremask;
+	p->gro_ctx.gro_info.shadow_coremask = eth_gro_coremask;
+
+	enq_vp = ppe_drv_port_enq_vp_alloc();
+	if (enq_vp == PPE_DRV_PORT_ID_INVALID) {
+		ppe_drv_warn("%p: Unable to get the enqueue vport ", p);
+		return PPE_DRV_RET_ENQ_VP_ALLOC_FAIL;
+	}
+
+	/*
+	 * Maps enqueue with given queue
+	 */
+	status = ppe_drv_enq_vp_map_to_queue(queue_id, enq_vp);
+	if (status != PPE_DRV_RET_SUCCESS) {
+		ppe_drv_warn("%p: Unable to map enq_vp:%u to queue:%u ", p, enq_vp, queue_id);
+		ppe_drv_port_enq_vp_free(enq_vp);
+		return status;
+	}
+
+	ppe_drv_trace("%p: GRO core mappped to enqueue VP. qid:%d enq_vp:%d core:%d", p, queue_id, enq_vp, core);
+
+	/*
+	 * Core id will be used as key to find the corresponding enqueue vp during PPE flow addition.
+	 */
+	p->gro_ctx.gro_info.core2enq_vp[core] = enq_vp;
+	return status;
+}
+#endif
+
 /*
  * ppe_drv_rfs_map_core_to_enqueue_vp()
  *	Core to queue mapping
@@ -892,6 +955,44 @@ static ppe_drv_ret_t ppe_drv_rfs_map_core_to_enqueue_vp(uint8_t core, uint8_t qu
 	p->rfs.core2enq_vp[core] = enq_vp;
 	return status;
 }
+
+#ifdef NSS_PPE_DRV_HW_GRO
+/*
+ * ppe_drv_gro_core2queue_mapping()
+ *	Core to queue mapping
+ *
+ * This API will be invoked by DP driver to provide core to queue
+ * mapping. This internally will be used to configure service code
+ * to queue mapping for GRO feature.
+ */
+void ppe_drv_gro_core2queue_mapping(uint8_t core, uint8_t queue_id)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	ppe_drv_ret_t status;
+
+	if (core >= NR_CPUS) {
+		ppe_drv_warn("%p: invalid core-id: %d", p, core);
+		return;
+	}
+
+	/*
+	 * This API is called to map a core to an enqueue_vp.
+	 */
+	spin_lock_bh(&p->lock);
+	status = ppe_drv_gro_map_core_to_enqueue_vp(core, queue_id);
+	if (status != PPE_DRV_RET_SUCCESS) {
+		ppe_drv_warn("%p: Core failed to allocate to an enqueue vp, core %u, fail status: %u", p, core, status);
+	}
+
+	ppe_drv_trace("%d: queue mapping called for core(%d)\n", queue_id, core);
+
+	spin_unlock_bh(&p->lock);
+
+	return;
+
+}
+EXPORT_SYMBOL(ppe_drv_gro_core2queue_mapping);
+#endif
 
 /*
  * ppe_drv_core2queue_mapping()
@@ -1389,6 +1490,10 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	p->fse_ops = NULL;
 	p->fse_enable = false;
         p->is_wifi_fse_up = false;
+
+#ifdef NSS_PPE_DRV_HW_GRO
+	atomic_set(&p->gro_ctx.num_hw_gro_flows, 0);
+#endif
 
 	p->tun_gbl.tun_l2tp.l2tp_dport = PPE_DRV_L2TP_DEFAULT_UDP_PORT;
 	p->tun_gbl.tun_l2tp.l2tp_sport = PPE_DRV_L2TP_DEFAULT_UDP_PORT;
@@ -3088,6 +3193,46 @@ static const struct kernel_param_ops eth_coremask_ops = {
 };
 
 module_param_cb(eth_coremask, &eth_coremask_ops, &eth_coremask, 0644);
+
+#ifdef NSS_PPE_DRV_HW_GRO
+/*
+ * ppe_drv_eth_gro_coremask_set_handler()
+ *	Handler function to set value of eth_gro_coremask.
+ */
+static int ppe_drv_eth_gro_coremask_set_handler(const char *val, const struct kernel_param *kp)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	int res = param_set_uint(val, kp);
+
+	if (!p) {
+		ppe_drv_warn("PPE driver not initialized\n");
+		return -EINVAL;
+	}
+
+	if ((eth_gro_coremask < PPE_DRV_GRO_COREMASK_MIN) || (eth_gro_coremask > PPE_DRV_GRO_COREMASK_MAX)) {
+		ppe_drv_warn("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
+						PPE_DRV_GRO_COREMASK_MIN, PPE_DRV_GRO_COREMASK_MAX, PPE_DRV_GRO_COREMASK_DEFAULT);
+		eth_gro_coremask = PPE_DRV_GRO_COREMASK_DEFAULT;
+		res = 0;
+	}
+
+	spin_lock_bh(&p->lock);
+	p->gro_ctx.gro_info.coremask = eth_gro_coremask;
+	p->gro_ctx.gro_info.shadow_coremask = eth_gro_coremask;
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_trace("Ethernet gro coremask value is set to : %u\n", eth_gro_coremask);
+
+	return res;
+}
+
+static const struct kernel_param_ops eth_gro_coremask_ops = {
+    .set = ppe_drv_eth_gro_coremask_set_handler,
+    .get = param_get_uint,
+};
+
+module_param_cb(eth_gro_coremask, &eth_gro_coremask_ops, &eth_gro_coremask, 0644);
+#endif
 
 /*
  * ppe_drv_wlan_coremask_set_handler()

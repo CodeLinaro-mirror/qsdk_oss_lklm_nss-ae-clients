@@ -854,8 +854,14 @@ bool ppe_drv_flow_v6_pri_profile_get(struct ppe_drv_v6_conn_flow *pcf, struct pp
 	if (ppe_drv_is_wlan_vp_port_type(pp->user_type)) {
 		if (pp->core_mask) {
 			next_core = __builtin_ffs(pp->shadow_core_mask) - 1;
+			BUG_ON(next_core >= NR_CPUS);
 			pp->shadow_core_mask &= ~(1 << next_core);
-			enq_vp = p->rfs.core2enq_vp[next_core];
+#if defined(NSS_PPE_DRV_HW_GRO)
+        		if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO))
+				enq_vp = p->gro_ctx.gro_info.core2enq_vp[next_core];
+			else
+#endif
+				enq_vp = p->rfs.core2enq_vp[next_core];
 			evp_pri_profile = ppe_drv_port_enq_vp_to_pri_prof(enq_vp);
 			if (!pp->shadow_core_mask) {
 				pp->shadow_core_mask = pp->core_mask;
@@ -1270,6 +1276,21 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	flow_cfg.invalid = !entry_valid;
 	flow_cfg.sevice_code = PPE_DRV_SC_NONE;
 
+#if defined(NSS_PPE_DRV_HW_GRO)
+	/*
+	 * Enable HW GRO only if:
+	 * 1. Flow has valid SW metadata (PPE_DRV_V6_CONN_FLAG_FLOW_SW_MDATA_VALID)
+	 *    This ensures the flow has proper metadata tracking for GRO processing
+	 * 2. We haven't exceeded the maximum number of concurrent GRO flows
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_SW_MDATA_VALID)) {
+		if ((atomic_read(&p->gro_ctx.num_hw_gro_flows) < NSS_PPE_DRV_MAX_GRO_FLOWS)) {
+			ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO);
+			atomic_inc(&p->gro_ctx.num_hw_gro_flows);
+		}
+	}
+#endif
+
 	if (!ppe_drv_flow_v6_pri_profile_get(pcf, pp, &flow_cfg.pri_profile)) {
 		ppe_drv_warn("%p: failed to obtain a valid pri_profile value", pcf);
 		return NULL;
@@ -1308,6 +1329,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		return NULL;
 	}
 #endif
+
 	/*
 	 * Get the VPN ID corresponding to flow.
 	 */
@@ -1556,6 +1578,23 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 		}
 		return NULL;
 	}
+
+#ifdef NSS_PPE_DRV_HW_GRO
+	/*
+	 * GRO enable
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO)) {
+		err = fal_flow_gro_en_set(PPE_DRV_SWITCH_ID, flow_cfg.entry_id, A_TRUE);
+		if (err != SW_OK) {
+			/*
+			 * If HW GRO failed, then expectation is to fall back to SW GRO
+			 */
+			ppe_drv_warn("%p: Setting of GRO failed, err=%d. Rolling back GRO state", pcf, err);
+			ppe_drv_v6_conn_flow_flags_clear(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_HW_GRO);
+			atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+		}
+	}
+#endif
 
 	/*
 	 * Get the sw instance of flow entry.
@@ -2019,8 +2058,14 @@ bool ppe_drv_flow_v4_pri_profile_get(struct ppe_drv_v4_conn_flow *pcf, struct pp
 	if (ppe_drv_is_wlan_vp_port_type(pp->user_type)) {
 		if (pp->core_mask) {
 			next_core = __builtin_ffs(pp->shadow_core_mask) - 1;
+			BUG_ON(next_core >= NR_CPUS);
 			pp->shadow_core_mask &= ~(1 << next_core);
-			enq_vp = p->rfs.core2enq_vp[next_core];
+#if defined(NSS_PPE_DRV_HW_GRO)
+        		if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO))
+				enq_vp = p->gro_ctx.gro_info.core2enq_vp[next_core];
+			else
+#endif
+				enq_vp = p->rfs.core2enq_vp[next_core];
 			evp_pri_profile = ppe_drv_port_enq_vp_to_pri_prof(enq_vp);
 			if (!pp->shadow_core_mask) {
 				pp->shadow_core_mask = pp->core_mask;
@@ -2481,6 +2526,21 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	flow_cfg.invalid = !entry_valid;
 	flow_cfg.sevice_code = PPE_DRV_SC_NONE;
 
+#if defined(NSS_PPE_DRV_HW_GRO)
+	/*
+	 * Enable HW GRO only if:
+	 * 1. Flow has valid SW metadata (PPE_DRV_V4_CONN_FLAG_FLOW_SW_MDATA_VALID)
+	 *    This ensures the flow has proper metadata tracking for GRO processing
+	 * 2. We haven't exceeded the maximum number of concurrent GRO flows
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_SW_MDATA_VALID)) {
+		if (atomic_read(&p->gro_ctx.num_hw_gro_flows) < NSS_PPE_DRV_MAX_GRO_FLOWS) {
+			ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO);
+			atomic_inc(&p->gro_ctx.num_hw_gro_flows);
+		}
+	}
+#endif
+
 	if (!ppe_drv_flow_v4_pri_profile_get(pcf, pp, &flow_cfg.pri_profile)) {
 		ppe_drv_warn("%p: failed to obtain a valid pri_profile value", pcf);
 		return NULL;
@@ -2783,6 +2843,23 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		return NULL;
 	}
 
+#ifdef NSS_PPE_DRV_HW_GRO
+	/*
+	 * Enable GRO
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO)) {
+		err = fal_flow_gro_en_set(PPE_DRV_SWITCH_ID, flow_cfg.entry_id, A_TRUE);
+		if (err != SW_OK) {
+			/*
+			 * If HW GRO failed, then expectation is to fall back to SW GRO
+			 */
+			ppe_drv_warn("%p: Setting of GRO failed, err=%d. Rolling back GRO state", pcf, err);
+			ppe_drv_v4_conn_flow_flags_clear(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO);
+			atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+		}
+	}
+#endif
+
 	/*
 	 * Get the sw instance of flow entry.
 	 */
@@ -2818,6 +2895,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	flow->entry_type = flow_cfg.entry_type;
 	flow->pri_profile = flow_cfg.pri_profile;
 	flow->pcf.v4 = pcf;
+
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_ACCEL_DISABLE)) {
 		flow->unidir_info.flow_cfg = unidir_flow_cfg;
 	}

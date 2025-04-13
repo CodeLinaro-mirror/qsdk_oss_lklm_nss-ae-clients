@@ -108,6 +108,10 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 {
 
 	struct ppe_vp **vpa = &vp_base.vp_table.vp_allocator[0];
+#ifdef NSS_PPE_DRV_HW_GRO
+	struct nss_vp_rx_custom_mdata *vp_rx_mdata = &rxi->vp_rx_mdata;
+	struct nss_vp_rx_custom_gro_mdata *gro_mdata = NULL;
+#endif
 	struct ppe_vp_cb_info client_cb_info = {0};
 	struct ppe_vp *svp, *dvp;
 	int32_t flow_idx = rxi->flow_idx;
@@ -300,6 +304,19 @@ void ppe_vp_rx_dp_cb(struct sk_buff *skb, struct nss_dp_vp_rx_info *rxi)
 			client_cb_info.napi = rxi->napi;
 			client_cb_info.fake_mac_present = rxi->fake_mac;
 			client_cb_info.flow_idx = rxi->flow_idx;
+
+			/* Initialize metadata to NONE by default */
+			client_cb_info.mdata_info.mdata_type = PPE_VP_CB_MDATA_TYPE_NONE;
+#ifdef NSS_PPE_DRV_HW_GRO
+			gro_mdata = &vp_rx_mdata->rx_mdata.gro_mdata;
+			if (unlikely(gro_mdata->hw_gro_en)) {
+				client_cb_info.mdata_info.mdata_type = PPE_VP_CB_MDATA_TYPE_HW_GRO;
+				client_cb_info.mdata_info.minfo.gro_info.hw_gro_en = gro_mdata->hw_gro_en;
+				client_cb_info.mdata_info.minfo.gro_info.hw_gro_more = gro_mdata->hw_gro_more;
+				client_cb_info.mdata_info.minfo.gro_info.hw_gro_psh = gro_mdata->hw_gro_psh;
+				client_cb_info.mdata_info.minfo.gro_info.hw_gro_fin = gro_mdata->hw_gro_fin;
+			}
+#endif
 			if (unlikely(!dvp->dst_cb(&client_cb_info, dvp->dst_cb_data))) {
 				ppe_vp_info("%px: Destination VP:%d  Tx dev:%s skb:%p \
 						dropped by user\n", dvp, rxi->dvp, dev->name, skb);

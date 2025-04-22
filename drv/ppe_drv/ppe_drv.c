@@ -1837,6 +1837,13 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 #endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+	p->gemport = ppe_drv_gem_port_entries_alloc();
+	if (!p->gemport) {
+		ppe_drv_warn("%p: failed to allocate GEMPORT entries", p);
+		goto fail;
+	}
+#endif
 
 	p->pol_ctx = ppe_drv_policer_entries_alloc();
 	if (!p->pol_ctx) {
@@ -2021,6 +2028,12 @@ fail:
 	if (p->dot1p_policer) {
 		ppe_drv_dot1p_policer_entries_free(p->dot1p_policer);
 		p->dot1p_policer = NULL;
+	}
+#endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+	if (p->gemport) {
+		ppe_drv_gem_port_entries_free(p->gemport);
+		p->gemport = NULL;
 	}
 #endif
 
@@ -2236,6 +2249,12 @@ static int ppe_drv_remove(struct platform_device *pdev)
 	if (p->dot1p_policer) {
 		ppe_drv_dot1p_policer_entries_free(p->dot1p_policer);
 		p->dot1p_policer = NULL;
+	}
+#endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+	if (p->gemport) {
+		ppe_drv_gem_port_entries_free(p->gemport);
+		p->gemport = NULL;
 	}
 #endif
 

@@ -31,6 +31,9 @@
 #ifdef NSS_PPE_FEATURE_DOT1P
 #include "ppe_dot1p/ppe_dot1p.h"
 #endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+#include "ppe_gemport/ppe_gemport.h"
+#endif
 
 struct dentry *d_rule;
 
@@ -76,6 +79,9 @@ static int __init ppe_rule_module_init(void)
 #ifdef NSS_PPE_FEATURE_DOT1P
 	ppe_dot1p_init(d_rule);
 #endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+	ppe_gem_port_init(d_rule);
+#endif
 
 	printk("PPE-RULE module loaded successfully\n");
 	return 0;
@@ -113,6 +119,9 @@ static void __exit ppe_rule_module_exit(void)
 #endif
 #ifdef NSS_PPE_FEATURE_DOT1P
 	ppe_dot1p_deinit();
+#endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+	ppe_gem_port_deinit();
 #endif
 	debugfs_remove_recursive(d_rule);
 	printk("PPE-RULE module unloaded");

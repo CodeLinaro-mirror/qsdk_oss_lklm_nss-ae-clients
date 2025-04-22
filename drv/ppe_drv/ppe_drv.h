@@ -49,6 +49,9 @@
 #ifdef NSS_PPE_FEATURE_DOT1P
 #include "ppe_drv_dot1p.h"
 #endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+#include "ppe_drv_gemport.h"
+#endif
 
 extern uint32_t static_dbg_level;
 extern bool flow_deacclr_dis;
@@ -512,6 +515,9 @@ struct ppe_drv {
 #ifdef NSS_PPE_FEATURE_DOT1P
 	struct ppe_drv_dot1p *dot1p;			/* Memory for PPE DOT1P entries */
 	struct ppe_drv_dot1p_policer *dot1p_policer;	/* Memory for PPE DOT1P policer entries */
+#endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+	struct ppe_drv_gem_port *gemport;		/* Memory for PPE GEMPORT entries */
 #endif
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 	struct ppe_drv_nptv6_prefix *pfx;		/* Memory for PPE prefix table */

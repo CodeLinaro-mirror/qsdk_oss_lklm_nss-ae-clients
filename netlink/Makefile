@@ -36,5 +36,9 @@ ifeq ($(SoC),$(filter $(SoC),ipq52xx))
 ccflags-y += -DNSS_PPE_FEATURE_DOT1P
 ccflags-y += -DCONFIG_NSS_PPENL_DOT1P=1
 qca-nss-ppe-netlink-objs += nss_ppenl_dot1p.o
+qca-nss-ppe-netlink-objs += nss_ppenl_gemport.o
+ccflags-y += -DNSS_PPE_FEATURE_GEMPORT
+ccflags-y += -DCONFIG_NSS_PPENL_GEM_PORT=1
 endif
+
 obj-m += qca-nss-ppe-netlink.o

@@ -101,6 +101,14 @@ ccflags-y += -DPPE_DOT1P_DEBUG_LEVEL=3
 ccflags-y += -DNSS_PPE_FEATURE_DOT1P
 ccflags-y += -DNSS_PPE_PON_SUPPORT
 endif
+
+ifeq ($(PPE_GEMPORT_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_gemport/ppe_gemport.o
+qca-nss-ppe-rule-objs += ppe_gemport/ppe_gemport_dump.o
+qca-nss-ppe-rule-objs += ppe_gemport/ppe_gemport_stats.o
+ccflags-y += -DPPE_GEM_PORT_DEBUG_LEVEL=3
+ccflags-y += -DNSS_PPE_FEATURE_GEMPORT
+endif
 endif
 
 ifndef PPE_LOWMEM_PROFILE_16M

@@ -594,7 +594,10 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_DOT1P_RULE_BIND_POLICER_ID_FAIL,	/**< Failed to bind DOT1P rule to policer id */
 	PPE_DRV_RET_DOT1P_GLOBAL_CFG_FAIL,		/**< DOT1P global config failed */
 	PPE_DRV_RET_DOT1P_DEFAULT_CFG_FAIL,		/**< DOT1P default config failed */
-	PPE_DRV_RET_MAX,				/**< Max limit. */
+	PPE_DRV_RET_GEMPORT_RULE_INVALID,		/**< Gemport rule invalid */
+	PPE_DRV_RET_GEMPORT_RULE_ADD_FAIL,		/**< Failed to add Gemport rule */
+	PPE_DRV_RET_GEMPORT_RULE_ENABLE_FAIL,		/**< Failed to enable gemport mapping */
+	PPE_DRV_RET_MAX,                                /**< Max limit. */
 } ppe_drv_ret_t;
 
 /**

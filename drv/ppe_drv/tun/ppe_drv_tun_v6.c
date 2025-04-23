@@ -300,9 +300,10 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 				 struct ppe_drv_tun_cmn_ctx_l2 *l2)
 {
 	struct ppe_drv_v6_connection_rule *rule = &create->conn_rule;
-	struct ppe_drv_v6_conn_flow *pcf = &cn->pcf;
+	struct ppe_drv_v6_conn_flow *conn_flow;
 	uint16_t xmit_port = PPE_DRV_PORTS_MAX;
 	struct ppe_drv_tun_cmn_ctx *pth;
+	bool rule_flow_dir = false;
 	struct ppe_drv_vlan *vlan;
 	uint8_t *pppoe_server_mac;
 	struct ppe_drv_port *pp;
@@ -311,32 +312,53 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 	uint8_t *src_mac_addr;
 	uint32_t *ip6_addr;
 
-	if (!ppe_drv_port_tun_get(pcf->tx_port)) {
-		pp = pcf->tx_port;
-		src_mac_addr = pp->mac_addr;
-		if (create->src_mac_rule.mac_valid_flags & PPE_DRV_VALID_TUN_SRC_MAC_RETURN) {
-			src_mac_addr = create->src_mac_rule.return_src_mac;
-		}
-		tun = ppe_drv_port_tun_get(pcf->rx_port);
-	} else {
-		pp = pcf->rx_port;
-		src_mac_addr = pp->mac_addr;
-		if (create->src_mac_rule.mac_valid_flags & PPE_DRV_VALID_TUN_SRC_MAC_FLOW) {
-			src_mac_addr = create->src_mac_rule.flow_src_mac;
-		}
-		tun = ppe_drv_port_tun_get(pcf->tx_port);
+	if (ppe_drv_port_tun_get(cn->pcf.rx_port)) {
+		rule_flow_dir =  true;
 	}
-
-	xmit_port = pp->port;
 
 	memset(l2, 0, sizeof(*l2));
 
-	l2->xmit_port = xmit_port;
+	if (rule_flow_dir) {
+		/*
+		 * Flow direction
+		 * 	pcf tx:ethX rx:tunnel
+		 * 	pcr tx:tunnel rx:ethX
+		 */
+		tun = ppe_drv_port_tun_get(cn->pcf.rx_port);
+		conn_flow = &cn->pcf;
+		memcpy(l2->dmac, rule->return_mac, sizeof(l2->dmac));
+	} else {
+		/*
+		 * Reverse direction
+		 * 	pcf tx:tunnel rx:ethX
+		 * 	pcr tx:ethX rx:tunnel
+		 */
+		tun = ppe_drv_port_tun_get(cn->pcr.rx_port);
+		conn_flow = &cn->pcr;
+		memcpy(l2->dmac, rule->flow_mac, sizeof(l2->dmac));
+	}
+
+	pp = conn_flow->tx_port;
+
+	/*
+	 * If the xmit port is in bridge then use bridge MAC address as smac.
+	 */
+	if (create->src_mac_rule.mac_valid_flags & PPE_DRV_VALID_TUN_SRC_MAC_RETURN) {
+		src_mac_addr = create->src_mac_rule.return_src_mac;
+	} else if (create->src_mac_rule.mac_valid_flags & PPE_DRV_VALID_TUN_SRC_MAC_FLOW) {
+		src_mac_addr = create->src_mac_rule.flow_src_mac;
+	} else {
+		src_mac_addr = pp->mac_addr;
+	}
+
 	memcpy(l2->smac, src_mac_addr, sizeof(l2->smac));
-	memcpy(l2->dmac, rule->return_mac, sizeof(l2->dmac));
+
+	xmit_port = pp->port;
+	ppe_drv_assert((xmit_port < PPE_DRV_PHYSICAL_MAX), "%p: Invalid physical xmit interface", create);
+
+	l2->xmit_port = xmit_port;
 
 	l2->eth_type = ETH_P_IPV6;
-
 	/*
 	 * for MAP-T we need to get the source and destintion
 	 * IP address at the time of outer rule push, since
@@ -344,7 +366,7 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 	 */
 	pth = &tun->th;
 	if (ipv6_addr_any((struct in6_addr *)pth->l3.saddr)) {
-		ip6_addr = pcf->match_src_ip;
+		ip6_addr = conn_flow->match_src_ip;
 		pth->l3.saddr[0] = htonl(ip6_addr[0]);
 		pth->l3.saddr[1] = htonl(ip6_addr[1]);
 		pth->l3.saddr[2] = htonl(ip6_addr[2]);
@@ -352,39 +374,39 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 	}
 
 	if (ipv6_addr_any((struct in6_addr *)pth->l3.daddr)) {
-		ip6_addr = pcf->match_dest_ip;
+		ip6_addr = conn_flow->match_dest_ip;
 		pth->l3.daddr[0] = htonl(ip6_addr[0]);
 		pth->l3.daddr[1] = htonl(ip6_addr[1]);
 		pth->l3.daddr[2] = htonl(ip6_addr[2]);
 		pth->l3.daddr[3] = htonl(ip6_addr[3]);
 	}
 
-	egress_vlan_cnt = ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf);
+	egress_vlan_cnt = ppe_drv_v6_conn_flow_egress_vlan_cnt_get(conn_flow);
 
 	if (egress_vlan_cnt == 2) {
-		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 0);
+		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(conn_flow, 0);
 		l2->vlan[0].tpid = vlan->tpid;
 		l2->vlan[0].tci = vlan->tci;
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_SVLAN_VALID;
 
-		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 1);
+		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(conn_flow, 1);
 		l2->vlan[1].tpid = vlan->tpid;
 		l2->vlan[1].tci = vlan->tci;
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID;
 	} else if (egress_vlan_cnt == 1) {
-		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 0);
+		vlan = ppe_drv_v6_conn_flow_egress_vlan_get(conn_flow, 0);
 		l2->vlan[0].tpid = vlan->tpid;
 		l2->vlan[0].tci = vlan->tci;
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_CVLAN_VALID;
 	}
 
-	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_PPPOE_FLOW)) {
+	if (ppe_drv_v6_conn_flow_flags_check(conn_flow, PPE_DRV_V6_CONN_FLOW_FLAG_PPPOE_FLOW)) {
 		l2->pppoe.ph.type = 1;
 		l2->pppoe.ph.ver = 1;
 		l2->pppoe.ph.code = 0;
-		l2->pppoe.ph.sid = htons(ppe_drv_v6_conn_flow_pppoe_session_id_get(pcf));
+		l2->pppoe.ph.sid = htons(ppe_drv_v6_conn_flow_pppoe_session_id_get(conn_flow));
 		l2->pppoe.ppp_proto = htons(PPP_IPV6);
-		pppoe_server_mac = ppe_drv_v6_conn_flow_pppoe_server_mac_get(pcf);
+		pppoe_server_mac = ppe_drv_v6_conn_flow_pppoe_server_mac_get(conn_flow);
 		memcpy(&l2->pppoe.server_mac, pppoe_server_mac, ETH_ALEN);
 
 		l2->flags |= PPE_DRV_TUN_CMN_CTX_L2_PPPOE_VALID;
@@ -395,6 +417,8 @@ void ppe_drv_tun_v6_parse_l2_hdr(struct ppe_drv_v6_rule_create *create, struct p
 		l2->eth_type = ETH_P_PPP_SES;
 
 	}
+
+	ppe_drv_trace("saddr %pI6 daddr %pI6 smac %pM dmac %pM xmit_port %u rule_flow_dir %u\n", pth->l3.saddr, pth->l3.daddr, l2->smac, l2->dmac, l2->xmit_port, rule_flow_dir);
 }
 
 /*

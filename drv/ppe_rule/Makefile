@@ -51,6 +51,12 @@ ifeq ($(PPE_QOS_ENABLED), y)
 qca-nss-ppe-rule-objs += ppe_qos/ppe_qos.o
 ccflags-y += -DPPE_QOS_DEBUG_LEVEL=3
 endif
+
+ifeq ($(PPE_DSCP_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_dscp/ppe_dscp.o
+ccflags-y += -DPPE_DSCP_DEBUG_LEVEL=3
+ccflags-y += -DNSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
+endif
 endif
 
 ifndef PPE_LOWMEM_PROFILE_16M

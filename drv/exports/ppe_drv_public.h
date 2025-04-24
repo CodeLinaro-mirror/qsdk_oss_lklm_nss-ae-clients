@@ -28,5 +28,8 @@
 #include "ppe_drv_vlan.h"
 #include "ppe_drv_vp.h"
 #include "ppe_drv_athtag.h"
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+#include "ppe_drv_pm.h"
+#endif
 
 #endif /* _PPE_DRV_PUBLIC_H_ */

@@ -59,6 +59,14 @@ qca-nss-ppe-rule-objs += ppe_dscp/ppe_dscp_dump.o
 ccflags-y += -DPPE_DSCP_DEBUG_LEVEL=3
 ccflags-y += -DNSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
 endif
+
+ifeq ($(PPE_PM_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_pm/ppe_pm.o
+qca-nss-ppe-rule-objs += ppe_pm/ppe_pm_stats.o
+qca-nss-ppe-rule-objs += ppe_pm/ppe_pm_dump.o
+ccflags-y += -DPPE_PM_DEBUG_LEVEL=3
+ccflags-y += -DNSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+endif
 endif
 
 ifndef PPE_LOWMEM_PROFILE_16M

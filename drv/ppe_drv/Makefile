@@ -24,6 +24,7 @@ endif
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
 ccflags-y += -DNSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
+ccflags-y += -DNSS_PPE_PM_COUNTER_FEATURE_SUPPORT
 endif
 
 obj-m += qca-nss-ppe.o
@@ -59,6 +60,7 @@ qca-nss-ppe-objs += ppe_drv_flow_dump.o
 qca-nss-ppe-objs += ppe_drv_if_map.o
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 qca-nss-ppe-objs += ppe_drv_dscp.o
+qca-nss-ppe-objs += ppe_drv_pm.o
 endif
 ifdef PPE_TUN_ENABLE
 ccflags-y += -DPPE_TUNNEL_ENABLE

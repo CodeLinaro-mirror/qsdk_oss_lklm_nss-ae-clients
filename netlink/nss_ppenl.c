@@ -26,6 +26,10 @@
 #include "nss_ppenl_dscp.h"
 #include "nss_ppenl_dscp_if.h"
 #endif
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+#include "nss_ppenl_pm.h"
+#include "nss_ppenl_pm_if.h"
+#endif
 
 /*
  * nss_ppenl.c
@@ -93,7 +97,17 @@ static struct nss_ppenl_family family_handlers[] = {
 		.valid = CONFIG_NSS_PPENL_DSCP		/* 1 or 0 */
 	},
 #endif
-
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	{
+		/*
+		 * NSS_PPENL_PM
+		 */
+		.name = NSS_PPENL_PM_FAMILY,		/* PM Family */
+		.entry = NSS_PPENL_PM_INIT,		/* Init */
+		.exit = NSS_PPENL_PM_EXIT,		/* exit */
+		.valid = CONFIG_NSS_PPENL_PM		/* 1 or 0 */
+	},
+#endif
 };
 
 #define NSS_PPENL_FAMILY_HANDLER_SZ ARRAY_SIZE(family_handlers)

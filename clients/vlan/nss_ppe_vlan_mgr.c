@@ -1,19 +1,8 @@
 /*
  **************************************************************************
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: ISC
  **************************************************************************
  */
 
@@ -37,6 +26,8 @@
 #include <nss_ppe_vlan_mgr.h>
 #include <ref/ref_vsi.h>
 #include "nss_ppe_vlan_mgr_priv.h"
+
+#define TPID_SIZE	4	/* TPID Array size */
 
 static bool vlan_as_vp_invert = false;
 module_param(vlan_as_vp_invert, bool, S_IRUGO);
@@ -196,21 +187,28 @@ static bool nss_ppe_vlan_mgr_dsa_interface_supported(struct net_device *dev)
 static int nss_ppe_vlan_mgr_update_ppe_tpid(void)
 {
 	ppe_drv_ret_t ret;
-	uint32_t mask = FAL_TPID_CTAG_EN | FAL_TPID_STAG_EN;
-	uint16_t ctpid = vlan_mgr_ctx.ctpid;
-	uint16_t stpid = vlan_mgr_ctx.stpid;
 	fal_qinq_port_role_t port_role = FAL_QINQ_EDGE_PORT;
+	uint32_t mask = FAL_TPID_CTAG_EN | FAL_TPID_STAG_EN | FAL_EXT_TPID_CTAG_EN | FAL_EXT_TPID_STAG_EN | FAL_TPID_CTAG_MAP_EN | FAL_TPID_STAG_MAP_EN;
+	uint16_t tpid_arr[TPID_SIZE] = {
+		vlan_mgr_ctx.ctpid,
+		vlan_mgr_ctx.stpid,
+#ifdef NSS_EXT_VLAN_FEATURE_SUPPORT
+		vlan_mgr_ctx.ctpid_ext,
+		vlan_mgr_ctx.stpid_ext
+#endif
+	};
 
 #ifdef NSS_VLAN_MGR_PPE_VP_TUN_SUPPORT
-	mask |= (FAL_TUNNEL_TPID_CTAG_EN | FAL_TUNNEL_TPID_STAG_EN);
+	mask |= (FAL_TUNNEL_TPID_CTAG_EN | FAL_TUNNEL_TPID_STAG_EN | FAL_EXT_TUNNEL_TPID_CTAG_EN | FAL_EXT_TUNNEL_TPID_STAG_EN);
 #endif
 
 #ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
 	port_role = FAL_QINQ_CORE_PORT;
 #endif
-	ret = ppe_drv_vlan_tpid_set(ctpid, stpid, mask, port_role);
+	ret = ppe_drv_vlan_tpid_set(tpid_arr, mask, port_role);
 	if (ret != PPE_DRV_RET_SUCCESS) {
-		nss_ppe_vlan_mgr_warn("failed to set ctpid %d stpid %d, error = %d\n", ctpid, stpid, ret);
+		nss_ppe_vlan_mgr_warn("failed to set TPIDs: [%d, %d, %d, %d], error = %d\n",
+				tpid_arr[0], tpid_arr[1], tpid_arr[2], tpid_arr[3], ret);
 		return -1;
 	}
 
@@ -2304,6 +2302,22 @@ static struct ctl_table nss_vlan_table[] = {
 		.mode		= 0644,
 		.proc_handler	= &nss_ppe_vlan_mgr_tpid_proc_handler,
 	},
+#ifdef NSS_EXT_VLAN_FEATURE_SUPPORT
+	{
+		.procname       = "ctpid_ext",
+		.data           = &vlan_mgr_ctx.ctpid_ext,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = &nss_ppe_vlan_mgr_tpid_proc_handler,
+	},
+	{
+		.procname       = "stpid_ext",
+		.data           = &vlan_mgr_ctx.stpid_ext,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = &nss_ppe_vlan_mgr_tpid_proc_handler,
+	},
+#endif
 	{ }
 };
 
@@ -3073,6 +3087,10 @@ int __init nss_ppe_vlan_mgr_init_module(void)
 #endif
 	vlan_mgr_ctx.ctpid = ETH_P_8021Q;
 	vlan_mgr_ctx.stpid = ETH_P_8021Q;
+#ifdef NSS_EXT_VLAN_FEATURE_SUPPORT
+	vlan_mgr_ctx.ctpid_ext = ETH_P_8021AD;
+	vlan_mgr_ctx.stpid_ext = ETH_P_8021AD;
+#endif
 
 	vlan_mgr_ctx.sys_hdr = register_sysctl("ppe/vlan_client", nss_vlan_table);
 	if (!vlan_mgr_ctx.sys_hdr) {

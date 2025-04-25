@@ -98,6 +98,8 @@ struct nss_ppe_vlan_mgr_wlanif_dst_xlate_ctx {
 struct nss_ppe_vlan_mgr_context {
 	int ctpid;				/* Customer TPID */
 	int stpid;				/* Service TPID */
+	int ctpid_ext;				/* Extra Customer TPID */
+	int stpid_ext;				/* Extra Service TPID */
 	int16_t port_role[NSS_PPE_VLAN_MGR_PORT_MAX];
 						/* Role of physical ports */
 	struct list_head list;			/* List of vlan private instance */

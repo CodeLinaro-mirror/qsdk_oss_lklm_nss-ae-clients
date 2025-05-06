@@ -1160,6 +1160,14 @@ int ppe_acl_dump_one(struct ppe_acl_dump_instance *adi, struct ppe_acl *acl)
 		}
 	}
 
+#ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
+	if (r_action->flags & PPE_ACL_RULE_ACTION_FLAG_EXCEPTION_EDIT_EN) {
+		if ((result = ppe_acl_dump_write(adi, "exception_edit_en", "%s", "true"))) {
+			goto error;
+		}
+	}
+#endif
+
 	/*
 	 * Remove the 'action' prefix for next interation
 	 */

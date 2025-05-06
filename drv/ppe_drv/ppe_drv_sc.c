@@ -405,6 +405,16 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
+#ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
+	case PPE_DRV_SC_PKT_EXCEPTION_EDIT_EN:
+		/*
+		 * Program the service code table with exception edit enable.
+		 */
+		sc_cfg.field_update_bitmap[0] = (uint64_t)(1ULL << FLD_UPDATE_CPU_EDIT_EN);
+		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+#endif
+
 	case PPE_DRV_SC_FLOW_ACL_FIRST ... PPE_DRV_SC_FLOW_ACL_LAST:
 		/*
 		 * These are primarily used for N-tuple lookup or flow+policer combintation.
@@ -715,5 +725,13 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_VP_MPSK, PPE_DRV_SC_VP_MPSK, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_NPT66_HAIRPIN_NAT, PPE_DRV_SC_NPT66_HAIRPIN_NAT_NEXT, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_NPT66_HAIRPIN_NAT_NEXT, PPE_DRV_SC_BYPASS_ALL, PPE_DRV_PORT_CPU);
+
+	/*
+	 * Configure the service code for packet exception edit enable.
+	 */
+#ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
+	ppe_drv_sc_config(PPE_DRV_SC_PKT_EXCEPTION_EDIT_EN, PPE_DRV_SC_PKT_EXCEPTION_EDIT_EN, PPE_DRV_PORT_CPU);
+#endif
+
 	return sc;
 }

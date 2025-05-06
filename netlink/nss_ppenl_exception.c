@@ -86,6 +86,23 @@ static struct genl_family nss_ppenl_exception_family = {
  */
 static void ppe_exception_config_dump_rule(struct ppe_drv_cc_usr_exception_info *rule)
 {
+#ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
+	nss_ppenl_info("%px rule dump from netlink\n"
+					"CPU code: %d\n"
+					"Flush: %d\n"
+					"Deaccel: %d\n"
+					"Flow type: %d\n"
+					"Action: %d\n"
+					"Tun profile: %d\n"
+					"Exception_edit_enable: %d\n",
+					rule, rule->code,
+					rule->flush_en,
+					rule->deaccel_en,
+					rule->flow_type,
+					rule->action,
+					rule->tun_profile,
+					rule->exception_edit_en);
+#else
 	nss_ppenl_info("%px rule dump from netlink\n"
 					"CPU code: %d\n"
 					"Flush: %d\n"
@@ -99,6 +116,7 @@ static void ppe_exception_config_dump_rule(struct ppe_drv_cc_usr_exception_info 
 					rule->flow_type,
 					rule->action,
 					rule->tun_profile);
+#endif
 }
 
 /*

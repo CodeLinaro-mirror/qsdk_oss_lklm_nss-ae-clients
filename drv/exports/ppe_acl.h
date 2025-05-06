@@ -219,7 +219,7 @@ typedef enum ppe_acl_rule_match_type {
 #define PPE_ACL_RULE_ACTION_FLAG_FW_CMD				0x00008000	/**< Rule action to enable special forwarding - forward/drop/copu/redirect. */
 #define PPE_ACL_RULE_ACTION_FLAG_POLICER_EN			0x00010000	/**< Rule action to enable police. */
 #define PPE_ACL_RULE_ACTION_FLAG_REDIR_EDIT_EN			0x00020000	/**< Rule action to enable redirect with packet editing enable. */
-
+#define PPE_ACL_RULE_ACTION_FLAG_EXCEPTION_EDIT_EN		0x00040000	/**< Rule action to enable commit for packet edits. */
 /**
  * ppe_acl_rule_vlan_fmt
  *	VLAN format

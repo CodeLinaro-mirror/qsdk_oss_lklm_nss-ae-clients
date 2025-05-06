@@ -45,6 +45,7 @@ typedef enum ppe_drv_cc_usr_ret {
 	PPE_DRV_CC_USR_RET_L4_CONFIGURE_FAILED,		/**< Failed to configure L4 Exception */
 	PPE_DRV_CC_USR_RET_MTU_CONFIGURE_FAILED,		/**< Failed to configure MTU Exception */
 	PPE_DRV_CC_USR_RET_MRU_CONFIGURE_FAILED,		/**< Failed to configure MRU Exception */
+	PPE_DRV_CC_USR_RET_EXCP_EDIT_CONFIGURE_FAILED,		/**< Failed to configure exception edit */
 } ppe_drv_cc_usr_ret_t;
 
 /*
@@ -264,6 +265,9 @@ struct ppe_drv_cc_usr_exception_info {
 	uint16_t flow_type;			/**< Exception flow type */
 	ppe_drv_cc_usr_action_t action;		/**< Exception rule action */
 	uint8_t tun_profile;			/**< Tunnel profiles */
+#ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
+	bool exception_edit_en;			/**< Packet edit even with PPE exception */
+#endif
 	/*
 	 * Response
 	 */

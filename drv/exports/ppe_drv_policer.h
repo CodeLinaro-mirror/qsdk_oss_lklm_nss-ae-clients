@@ -129,6 +129,28 @@ struct ppe_drv_policer_rule_create_action {
 };
 
 /*
+ * ppe_drv_policer_direction
+ *	Policer direction
+ */
+enum ppe_drv_policer_direction {
+	PPE_DRV_POLICER_DIRECTION_INVALID = 0,	/**< Invalid direction */
+	PPE_DRV_POLICER_DIRECTION_US,	/**< Upstream direction */
+	PPE_DRV_POLICER_DIRECTION_DS,	/**< Downstream direction */
+	PPE_DRV_POLICER_DIRECTION_MAX,	/**< Maximum direction */
+};
+typedef enum ppe_drv_policer_direction ppe_drv_policer_direction_t;
+
+/*
+ * ppe_drv_policer_rule_acl_dir_info
+ *	ACL policer direction information.
+ */
+struct ppe_drv_policer_rule_acl_dir_info {
+	bool acl_index_valid;	/**< ACL index valid. */
+	uint32_t acl_index;	/**< ACL index. */
+	ppe_drv_policer_direction_t dir;	/**< Policer direction. */
+};
+
+/*
  * ppe_drv_policer_rule_create_acl_info
  *	ACL  configuration information
  */
@@ -152,6 +174,7 @@ struct ppe_drv_policer_rule_create_acl_info {
 	uint16_t next_ptr;		/**< Next policer number */
 
 	struct ppe_drv_policer_rule_create_action action; /* Action for traffic */
+	struct ppe_drv_policer_rule_acl_dir_info dir_info; /**< Policer direction */
 };
 
 /*
@@ -354,12 +377,13 @@ struct ppe_drv_policer_port *ppe_drv_policer_port_create(struct ppe_drv_policer_
  * 	Get hw stats for port policer
  *
  * @param[IN] policer context
+ * @param[IN] acl context
+ * @param[IN] policer direction
  *
  * @return
  * none.
  */
-void ppe_drv_policer_acl_get_hw_stats(struct ppe_drv_policer_hw_stats *pol_ctx, struct ppe_drv_policer_acl *ctx);
-
+void ppe_drv_policer_acl_get_hw_stats(struct ppe_drv_policer_hw_stats *pol_ctx, struct ppe_drv_policer_acl *ctx, ppe_drv_policer_direction_t dir);
 
 /*
  * ppe_drv_policer_port_get_hw_stats

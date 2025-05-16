@@ -431,7 +431,8 @@ bool ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 
 	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: attaching l3_if to unused port:%d", pp, pp->port);
 
-	if ((pl3->type == PPE_DRV_L3_IF_TYPE_PORT) && pp->active_l3_if_attached) {
+	if (((pl3->type == PPE_DRV_L3_IF_TYPE_PORT) || (pl3->type == PPE_DRV_L3_IF_TYPE_CPU_PORT))
+			&& pp->active_l3_if_attached) {
 		ppe_drv_warn("%p: port(%d) is already attached to port type l3_if(%d): ", pp, pp->port, pl3->l3_if_index);
 		return false;
 	}
@@ -446,7 +447,7 @@ bool ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 	/*
 	 * Update L3_VP_PORT_TBL.
 	 */
-	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT) {
+	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT || pl3->type == PPE_DRV_L3_IF_TYPE_CPU_PORT) {
 		if (!pp->br_vsi) {
 			intf_ctrl.l3_if_valid = A_TRUE;
 			intf_ctrl.l3_if_index = pl3->l3_if_index;
@@ -485,7 +486,8 @@ void ppe_drv_port_l3_if_detach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 
 	ppe_drv_assert(kref_read(&pp->ref_cnt), "%p: attaching l3_if to unused port:%u", pp, pp->port);
 
-	if ((pl3->type == PPE_DRV_L3_IF_TYPE_PORT) && !pp->active_l3_if_attached) {
+	if (((pl3->type == PPE_DRV_L3_IF_TYPE_PORT) || (pl3->type == PPE_DRV_L3_IF_TYPE_CPU_PORT))
+				&& !pp->active_l3_if_attached) {
 		ppe_drv_warn("%p: port(%d) is already detached from port type l3_if(%d): ", pp, pp->port, pl3->l3_if_index);
 		return;
 	}
@@ -517,7 +519,7 @@ void ppe_drv_port_l3_if_detach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 	/*
 	 * Update L3_VP_PORT_TBL.
 	 */
-	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT) {
+	if (pl3->type == PPE_DRV_L3_IF_TYPE_PORT || pl3->type == PPE_DRV_L3_IF_TYPE_CPU_PORT) {
 		intf_ctrl.l3_if_valid = A_FALSE;
 		intf_ctrl.l3_if_index = pl3->l3_if_index;
 		err = fal_ip_port_intf_set(PPE_DRV_SWITCH_ID, pp->port, &intf_ctrl);

@@ -742,6 +742,7 @@ bool ppe_drv_tun_decap_xmitport_cfg_set(struct ppe_drv_tun *ptun, uint16_t xmit_
 		return false;
 	}
 
+	ptun->xmit_port_mtu = dp->mtu;
 	ppe_drv_trace("%p: port intf set successful for tl_l3_if valid = %d, index = %d,xmit port = %u", ptun, port_tnl_cfg.l3_if.l3_if_valid, tl_l3_if_idx, xmit_port);
 
 	return true;
@@ -1352,6 +1353,11 @@ disable_encap:
 		}
 	}
 
+	/*
+	 * Set tunnel state as inactive
+	 */
+	ptun->tun_state = PPE_DRV_TUN_STATE_INACTIVE;
+
 skip_tunnel_deactivation:
 	/*
 	 * Delete all the instances of tunnel stored in cn list
@@ -1836,6 +1842,11 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 		}
 	}
 
+	/*
+	 * Set tunnel state to active in ptun structure.
+	 */
+	ptun->tun_state = PPE_DRV_TUN_STATE_ACTIVE;
+
 skip_tunnel_activation:
 	/*
 	 * Take reference
@@ -2214,6 +2225,85 @@ void ppe_drv_tun_loopback_gretap_rx_stats_get(uint8_t port,  struct ppe_drv_port
 	vp_stats->rx_byte_cnt = decap_counter.matched_bytes;
 	spin_unlock_bh(&p->lock);
 }
+
+/*
+ * ppe_drv_tun_xmit_port_mtu_get
+ *	Get xmit port mtu from tunnel VP number
+ *	Note: PPE tunnel needs to be activated before calling this function
+ */
+bool ppe_drv_tun_xmit_port_mtu_get(uint16_t port_num, uint32_t *mtu)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *pp;
+	struct ppe_drv_tun *ptun;
+
+	pp = ppe_drv_port_from_port_num(port_num);
+	if (!pp) {
+		ppe_drv_warn("%p: invalid port number %d", p, port_num);
+		goto err_fail;
+	}
+
+	ptun = ppe_drv_port_tun_get(pp);
+	if (!ptun) {
+		ppe_drv_warn("%p: tunnel not found for port %d", p, port_num);
+		goto err_fail;
+	}
+
+	if (ptun->tun_state == PPE_DRV_TUN_STATE_INACTIVE) {
+		ppe_drv_warn("%p: tunnel is not in active state for port %d", p, port_num);
+		goto err_fail;
+	}
+
+	*mtu = ptun->xmit_port_mtu;
+	return true;
+
+err_fail:
+	*mtu = 0;
+	return false;
+}
+EXPORT_SYMBOL(ppe_drv_tun_xmit_port_mtu_get);
+
+/*
+ * ppe_drv_tun_header_length_get
+ *	Get encap header length for tunnel based on VP number
+ *	Note: PPE tunnel needs to be activated before calling this function
+ */
+bool ppe_drv_tun_header_length_get(uint16_t port_num, uint8_t *hdr_len)
+{
+	struct ppe_drv *p = &ppe_drv_gbl;
+	struct ppe_drv_port *pp;
+	struct ppe_drv_tun *ptun;
+
+	pp = ppe_drv_port_from_port_num(port_num);
+	if (!pp) {
+		ppe_drv_warn("%p: invalid port number %d", p, port_num);
+		goto err_fail;
+	}
+
+	ptun = ppe_drv_port_tun_get(pp);
+	if (!ptun) {
+		ppe_drv_warn("%p: tunnel not found for port %d", p, port_num);
+		goto err_fail;
+	}
+
+	if (ptun->tun_state == PPE_DRV_TUN_STATE_INACTIVE) {
+		ppe_drv_warn("%p: tunnel is not in active state for port %d", p, port_num);
+		goto err_fail;
+	}
+
+	if (!ptun->ptec) {
+		ppe_drv_warn("%p: encap entry not valid for port %d", p, port_num);
+		goto err_fail;
+	}
+
+	*hdr_len = ptun->ptec->tun_len;
+	return true;
+
+err_fail:
+	*hdr_len = 0;
+	return false;
+}
+EXPORT_SYMBOL(ppe_drv_tun_header_length_get);
 
 /*
  * ppe_drv_tun_global_init

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -47,3 +47,6 @@ struct ppe_tun_excp {
 	ppe_tun_stats_method_t stats_update_method;	/**< callback for updating tunnel statistics >**/
 	ppe_tun_data *tun_data;			/**< Tunnel specific data from client >**/
 };
+
+int16_t ppe_tun_hybrid_ol_ctx_get(struct net_device *dev);
+

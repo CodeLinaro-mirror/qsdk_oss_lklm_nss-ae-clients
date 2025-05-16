@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -76,6 +76,7 @@
 
 enum ppe_tun_state {
 	PPE_TUN_STATE_CONFIGURED	= (1 << 0),
+	PPE_TUN_STATE_ACTIVATED		= (1 << 1),
 };
 
 enum xcpn_mode {PPE_TUN_XCPN_MODE_0, PPE_TUN_XCPN_MODE_1};
@@ -107,6 +108,14 @@ struct ppe_tun_xcpn_mode {
 };
 
 /*
+ * ppe_tun_hybrid_offload
+ *	Enable / Disable hybrid offload support for tunnel in PPE
+ */
+struct ppe_tun_hybrid_offload {
+	bool en_gretap_hybrid_ol;	/* Controls gretap hyrid offload */
+};
+
+/*
  * ppe_tun
  *	Main ppe_tun structure to hold information about tunnel node.
  */
@@ -122,7 +131,11 @@ struct ppe_tun {
 	ppe_tun_exception_method_t dest_excp;	/* Callback for exception packets with dest VP */
 	atomic64_t exception_packet;		/* Number of exception packets seen by tunnel */
 	atomic64_t exception_bytes;		/* Total exception bytes total */
+	atomic64_t tun_hybrid_offload_tx_fail_cnt;	/* tunnel hybrid offload tx failure count*/
+	atomic64_t tun_hybrid_offload_tx_pkt_cnt;	/* tunnel hybrid offload tx offload count*/
 	ppe_tun_stats_method_t stats_excp;	/* Callback for updating tunnel statistics */
+	uint8_t tun_header_len;		/* Tunnel header length */
+	uint32_t tun_xmit_port_mtu;	/* Tunnel xmit port MTU */
 	ppe_tun_data *tun_data;		/* Tunnel specific data from client */
 };
 
@@ -136,6 +149,7 @@ struct ppe_tun_priv {
 	struct dentry *dentry;			/* Debugfs entry */
 	struct ppe_tun_accel tun_accel;		/* Enable or disable acceleration per tunnel type */
 	struct ppe_tun_xcpn_mode xcpn_mode;	/* Toggle exception mode */
+	struct ppe_tun_hybrid_offload tun_hb_info;	/* Tunnel hybrid offload control */
 	ppe_acl_rule_id_t ppe_tun_l2_tunnel_rule_id;	/* PPE ACL rule-id for L2 Tunnels */
 	atomic_t total_free;			/* Number of available tunnel instance*/
 	atomic_t free_pending;			/* Number of tunnel delete pending */

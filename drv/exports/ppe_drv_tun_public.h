@@ -155,4 +155,30 @@ bool ppe_drv_tun_l2tp_port_set(uint16_t sport, uint16_t dport);
  * Success or failure.
  */
 bool ppe_drv_tun_l2tp_port_get(uint16_t *sport, uint16_t *dport);
+
+/*
+ * ppe_drv_tun_header_length_get
+ *      Get encap header length for a tunnel.
+ *
+ * @param[in] port_num tunnel VP port number
+ * @param[out] tunnel header length
+ *
+ * @return
+ * Success or failure.
+ * Note: Tunnel needs to be in active state prior calling this function
+ */
+bool ppe_drv_tun_header_length_get(uint16_t port_num, uint8_t *hdr_len);
+
+/*
+ * ppe_drv_tun_xmit_port_mtu_get
+ *      Get Tunnel xmit port mtu.
+ *
+ * @param[in] port_num tunnel VP port number
+ * @param[out] mtu xmit port mtu value
+ *
+ * @return
+ * Success or failure.
+ * Note: Tunnel needs to be in active state prior calling this function
+ */
+bool ppe_drv_tun_xmit_port_mtu_get(uint16_t port_num, uint32_t *mtu);
 #endif /* _PPE_DRV_TUN_PUBLIC_H_ */

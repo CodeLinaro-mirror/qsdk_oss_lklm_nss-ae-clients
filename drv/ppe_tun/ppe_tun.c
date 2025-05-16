@@ -24,9 +24,39 @@
 #include <ppe_drv_tun_cmn_ctx.h>
 #include <ppe_drv_tun_public.h>
 #include <asm/cmpxchg.h>
+#include <ppe_vp_tx.h>
 #include "ppe_tun.h"
 
 struct ppe_tun_priv *ptp;
+static bool ppe_tun_tx_to_ppe(struct net_device *dev, struct sk_buff *skb);
+
+/*
+ * Offload ops for tunnels which supports encapsulation in hardware
+ */
+static struct netdev_hw_offload_ops ppe_tun_netdev_ops = {
+	.xmit = ppe_tun_tx_to_ppe,
+	.recv = NULL
+};
+
+/*
+ * ppe_tun_netdev_unregister_ol_ops()
+ *	register tunnel offload ops
+ */
+static inline void ppe_tun_netdev_unregister_ol_ops(struct ppe_tun *tun)
+{
+	if (tun->dev) {
+		netdev_hw_offload_ops_unregister(tun->dev, &ppe_tun_netdev_ops);
+	}
+}
+
+/*
+ * ppe_tun_netdev_register_ol_ops()
+ *	register tunnel offload ops
+ */
+static inline int ppe_tun_netdev_register_ol_ops(struct ppe_tun *tun)
+{
+	return netdev_hw_offload_ops_register(tun->dev, &ppe_tun_netdev_ops, "ppe_tun");
+}
 
 /*
  * ppe_tun_allow_accel()
@@ -104,6 +134,29 @@ static bool ppe_tun_allow_accel(enum ppe_drv_tun_cmn_ctx_type type)
 	}
 
 	ppe_tun_warn("%p: Accel type %u is invalid", ptp, type);
+	return false;
+}
+
+/*
+ * ppe_tun_hybrid_offload_status_enabled()
+ *	Check if tunnel type has hybrid offload support enabled.
+ */
+static bool ppe_tun_hybrid_offload_status_enabled(enum ppe_drv_tun_cmn_ctx_type type)
+{
+	switch (type) {
+	case PPE_DRV_TUN_CMN_CTX_TYPE_GRETAP:
+		if (ptp->tun_hb_info.en_gretap_hybrid_ol) {
+			return true;
+		}
+
+		ppe_tun_warn("%p: PPE gretap hybrid offload is not enabled", ptp);
+		break;
+
+	default:
+		break;
+	}
+
+	ppe_tun_warn("%p: Hybrid offload operation for tunnel type %u is invalid", ptp, type);
 	return false;
 }
 
@@ -250,6 +303,50 @@ done:
 }
 
 /*
+ * ppe_tun_tx_to_ppe()
+ *	Queue packets to destination tunnel VP
+ */
+static bool ppe_tun_tx_to_ppe(struct net_device *dev, struct sk_buff *skb)
+{
+       struct ppe_tun *tun;
+
+       tun = ppe_tun_get_tun_by_netdev_and_ref(dev);
+       if (!tun || !(tun->state & PPE_TUN_STATE_ACTIVATED)) {
+               ppe_tun_warn("%p: failed to queue packet to VP tunnel not found", tun);
+               goto err;
+       }
+
+       if ((skb->len + tun->tun_header_len) > tun->tun_xmit_port_mtu) {
+               ppe_tun_warn("%p: post encap packet length %d exceeds xmit port mtu %d", tun,
+                               (skb->data_len + tun->tun_header_len),  tun->tun_xmit_port_mtu );
+               goto err;
+       }
+
+       if (!ppe_vp_tx_to_vp(tun->vp_num,skb)) {
+		/*
+		 * skb is consumed in ppe_vp_tx_to_vp if tx fails.
+		 * Hence no need to free the same here. Just accounting
+		 * for failure count here.
+		 */
+	       atomic64_inc(&tun->tun_hybrid_offload_tx_fail_cnt);
+       }
+
+       atomic64_inc(&tun->tun_hybrid_offload_tx_pkt_cnt);
+
+       ppe_tun_deref(tun);
+       return true;
+
+err:
+       if (tun) {
+               ppe_tun_deref(tun);
+       }
+       atomic64_inc(&tun->tun_hybrid_offload_tx_fail_cnt);
+
+       return false;
+}
+
+
+/*
  * ppe_tun_get_tun_by_vp_num_and_ref()
  *	Get tunnel by vp_num
  */
@@ -292,6 +389,8 @@ static bool ppe_tun_deactivate_with_conn_entry(uint8_t vp_num, void *vdestroy_ru
 		return false;
 	}
 
+	tun->state &= ~PPE_TUN_STATE_ACTIVATED;
+	ppe_tun_netdev_unregister_ol_ops(tun);
 	ppe_tun_deref(tun);
 
 	/*
@@ -321,6 +420,21 @@ static bool ppe_tun_activate_with_conn_entry(uint8_t vp_num, void *create_rule)
 	}
 
 	tun->phys_dev = ppe_drv_port_get_vp_phys_dev(tun->dev);
+	tun->state |= PPE_TUN_STATE_ACTIVATED;
+
+	if (ppe_tun_hybrid_offload_status_enabled(tun->type)) {
+		if (ppe_tun_netdev_register_ol_ops(tun) < 0) {
+			ppe_tun_warn("%p: Could not attach offload ops to tunnel", tun);
+		}
+	}
+
+	if (ppe_drv_tun_header_length_get(tun->vp_num, &tun->tun_header_len)) {
+		ppe_tun_warn("%p: Could not get tunnel header length", tun);
+	}
+
+	if (ppe_drv_tun_xmit_port_mtu_get(tun->vp_num, &tun->tun_xmit_port_mtu)) {
+		ppe_tun_warn("%p: Could not get tunnel xmit port MTU", tun);
+	}
 
 	/*
 	 * We should not deref tun here. we should hold ref on tun till deactivate.
@@ -522,6 +636,9 @@ bool ppe_tun_deactivate(struct net_device *dev)
 		return false;
 	}
 
+	tun->state &= ~PPE_TUN_STATE_ACTIVATED;
+	ppe_tun_netdev_unregister_ol_ops(tun);
+
 	ppe_tun_deref(tun);
 
 	/*
@@ -554,7 +671,19 @@ bool ppe_tun_activate(struct net_device *dev)
 	}
 
 	tun->phys_dev = ppe_drv_port_get_vp_phys_dev(tun->dev);
+	tun->state |= PPE_TUN_STATE_ACTIVATED;
 
+	if (ppe_tun_hybrid_offload_status_enabled(tun->type)) {
+		ppe_tun_netdev_register_ol_ops(tun);
+	}
+
+	if (ppe_drv_tun_header_length_get(tun->vp_num, &tun->tun_header_len)) {
+		ppe_tun_warn("%p: Could not get tunnel header length", tun);
+	}
+
+	if (ppe_drv_tun_xmit_port_mtu_get(tun->vp_num, &tun->tun_xmit_port_mtu)) {
+		ppe_tun_warn("%p: Could not get tunnel xmit port MTU", tun);
+	}
 	ppe_tun_warn("%p: tunnel %p activated for dev %s", ptp, tun, dev->name);
 
 	/*
@@ -788,6 +917,34 @@ bool ppe_tun_configure(struct net_device *dev, struct ppe_drv_tun_cmn_ctx *tun_h
 	return true;
 }
 EXPORT_SYMBOL(ppe_tun_configure);
+
+/*
+ * ppe_tun_hybrid_ol_ctx_get
+ * 	return tunnel vp number if hybrid offload is enabled and tunnel is active else return -1
+ */
+int16_t ppe_tun_hybrid_ol_ctx_get(struct net_device *dev)
+{
+	int16_t vp = -1;
+	struct ppe_tun *tun = ppe_tun_get_tun_by_netdev_and_ref(dev);
+	if (!tun) {
+		goto exit;
+	}
+
+	if (!ppe_tun_hybrid_offload_status_enabled(tun->type)) {
+		ppe_tun_deref(tun);
+		goto exit;
+	}
+
+	if (tun->state & PPE_TUN_STATE_ACTIVATED) {
+		vp = tun->vp_num;
+	}
+
+	ppe_tun_deref(tun);
+
+exit:
+	return vp;
+}
+EXPORT_SYMBOL(ppe_tun_hybrid_ol_ctx_get);
 
 /*
  * ppe_tun_free()
@@ -1446,6 +1603,8 @@ static int ppe_tun_stats_show(struct seq_file *m, void __attribute__((unused))*p
 			seq_printf(m, "\t physical dev: %s\n", (tun->phys_dev) ? (tun->phys_dev->name) : (""));
 			seq_printf(m, "\t exception packet: %llu\n", atomic64_read(&tun->exception_packet));
 			seq_printf(m, "\t exception bytes: %llu\n", atomic64_read(&tun->exception_bytes));
+			seq_printf(m, "\t hybrid_offload_tx_fail_cnt: %llu\n", atomic64_read(&tun->tun_hybrid_offload_tx_fail_cnt));
+			seq_printf(m, "\t hybrid_offload_tx_pkt_cnt: %llu\n", atomic64_read(&tun->tun_hybrid_offload_tx_pkt_cnt));
 			seq_puts(m, "\n");
 		}
 	}
@@ -1672,6 +1831,54 @@ const struct file_operations ppe_tun_l2tp_xcpn_file_fops = {
 };
 
 /*
+ * ppe_tun_hybrid_ol_cfg_read()
+ *	gretap hybrid offload read handler
+ */
+static ssize_t ppe_tun_hybrid_ol_cfg_read(struct file *f, char *buf, size_t count, loff_t *offset)
+{
+	int len;
+	char lbuf[60];
+
+	len = snprintf(lbuf, sizeof(lbuf), "gretap hybrid offload status: %s \n",
+			(ptp->tun_hb_info.en_gretap_hybrid_ol) ? ("enabled") : ("disabled"));
+
+	return simple_read_from_buffer(buf, count, offset, lbuf, len);
+}
+
+/*
+ * ppe_tun_gretap_hb_offload_write()
+ *	gretap hybrid offload write handler
+ */
+static ssize_t ppe_tun_gretap_hb_offload_write(struct file *f, const char *buffer, size_t len, loff_t *offset)
+{
+	ssize_t size;
+	char data[16];
+	bool res;
+	int status;
+
+	size = simple_write_to_buffer(data, sizeof(data), offset, buffer, len);
+	if (size < 0) {
+		ppe_tun_warn("%p: Error reading the input for gretap hybrid offload configuration", ptp);
+		return size;
+	}
+
+	status = kstrtobool(data, &res);
+	if (status) {
+		ppe_tun_warn("%p: Error reading the input for gretap hybrid offload configuration", ptp);
+		return status;
+	}
+
+	ptp->tun_hb_info.en_gretap_hybrid_ol = (uint8_t)res;
+
+	return len;
+}
+const struct file_operations ppe_tun_gretap_hb_offload_file_fops = {
+	.owner = THIS_MODULE,
+	.write = ppe_tun_gretap_hb_offload_write,
+	.read = ppe_tun_hybrid_ol_cfg_read,
+};
+
+/*
  * ppe_tun_vxlan_gpe_read()
  *	vxlan-gpe read handler
  */
@@ -1719,6 +1926,26 @@ const struct file_operations ppe_tun_vxlan_gpe_file_fops = {
 	.read = ppe_tun_vxlan_gpe_read,
 };
 
+static void ppe_tun_unreg_netdev_ol_ops_all(void) {
+	struct ppe_tun *tun;
+	int i;
+	bool sync = false;
+
+	spin_lock_bh(&ptp->lock);
+	for (i = 0; i < PPE_TUN_MAX; i++) {
+		tun = ptp->tun[i];
+		if (tun) {
+			ppe_tun_netdev_unregister_ol_ops(tun);
+			sync = true;
+		}
+	}
+	spin_unlock_bh(&ptp->lock);
+
+	if (sync) {
+		synchronize_rcu();
+	}
+}
+
 /*
  * ppe_tun_module_init()
  *	module init for ppe tunnel driver
@@ -1754,6 +1981,11 @@ static int __init ppe_tun_module_init(void)
 	ptp->xcpn_mode.l2tp = PPE_TUN_XCPN_MODE_1;
 	ptp->xcpn_mode.gretun = PPE_TUN_XCPN_MODE_1;
 
+	/*
+	 * Tunnel hybrid offload operations.
+	 * Disabled by default
+	 */
+	ptp->tun_hb_info.en_gretap_hybrid_ol = false;
 
 	atomic_set(&ptp->total_free, PPE_TUN_MAX);
 
@@ -1832,6 +2064,19 @@ static int __init ppe_tun_module_init(void)
 		ppe_tun_warn("failed to create debugfs entry for gretun");
 	}
 
+	/*
+	 * Hybrid offload debug fs
+	 */
+	dir = debugfs_create_dir("hybrid_offload", ptp->dentry);
+	if (!dir) {
+		ppe_tun_warn("%p: Failed to create debugfs entry for hybrid_offload", ptp);
+		goto fail;
+	}
+
+	if (!debugfs_create_file("gretap", 0644, dir, NULL, &ppe_tun_gretap_hb_offload_file_fops)) {
+		ppe_tun_warn("failed to create hybrid offload debugfs ntry got gretap");
+	}
+
 	rule.cmn.cmn_flags = rule.cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_NO_RULEID;
 	rule.stype = PPE_ACL_RULE_SRC_TYPE_SC;
 	rule.action.fwd_cmd = PPE_ACL_FWD_CMD_REDIR;
@@ -1866,6 +2111,11 @@ module_init(ppe_tun_module_init);
  */
 static void __exit ppe_tun_module_exit(void)
 {
+	/*
+	 * unregister all the tunnels with netdev offload ops registered.
+	 */
+	ppe_tun_unreg_netdev_ol_ops_all();
+
 	debugfs_remove_recursive(ptp->dentry);
 
 	ppe_acl_rule_destroy(ptp->ppe_tun_l2_tunnel_rule_id);

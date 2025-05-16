@@ -143,6 +143,16 @@ enum ppe_drv_tun_decap_entry_type {
 	PPE_DRV_TUN_DECAP_REMOTE_ENTRY	/**< MAP-T remote IPV6 address decap entry >*/
 };
 
+/*
+ * ppe_drv_tun_state
+ * 	Tunnel state
+ */
+enum ppe_drv_tun_state {
+	PPE_DRV_TUN_STATE_INACTIVE,	/**< Tunnel state configured but inactive >*/
+	PPE_DRV_TUN_STATE_ACTIVE,	/**< Tunnel state is active >*/
+};
+
+
 /* ppe_drv_tun
  *	PPE driver tunnel context
  */
@@ -166,6 +176,8 @@ struct ppe_drv_tun {
 	uint8_t encap_hdr_bitmap;				/**< Bitmap of feilds enabled in encap header control >*/
 	bool xcpn_mode;						/**< exception mode type >*/
 	uint8_t mape_br_active_tun_count;			/**< Number of active tunnels >*/
+	uint32_t xmit_port_mtu;					/**< xmit ports MTU >*/
+	enum ppe_drv_tun_state tun_state;			/**< tunnel state >*/
 };
 
 /*

@@ -45,7 +45,7 @@ static void ppe_drv_sc_dump(ppe_drv_sc_t sc)
 	ppe_drv_trace("%p: bypass_bitmap[CNTRS]: 0x%x", p, sc_cfg.bypass_bitmap[2]);
 	ppe_drv_trace("%p: bypass_bitmap[TL_SERVICE_TBL]: 0x%x", p, sc_cfg.bypass_bitmap[3]);
 	ppe_drv_trace("%p: direction: %u", p, sc_cfg.direction);
-	ppe_drv_trace("%p: field_update_bitmap: 0x%x", p, sc_cfg.field_update_bitmap);
+	ppe_drv_trace("%p: field_update_bitmap: 0x%llx", p, sc_cfg.field_update_bitmap);
 	ppe_drv_trace("%p: next_service_code: %u", p, sc_cfg.next_service_code);
 	ppe_drv_trace("%p: hw_services: %u", p, sc_cfg.hw_services);
 	ppe_drv_trace("%p: offset_sel: %u", p, sc_cfg.offset_sel);

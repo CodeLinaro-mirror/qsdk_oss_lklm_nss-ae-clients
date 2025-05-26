@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -317,6 +317,8 @@ static bool nss_ppe_gre_ip4_dev_parse_param(struct net_device *netdev, struct pp
 
 	if (iphdr->frag_off & htons(IP_DF)) {
 		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_DF_BIT_SET;
+	} else {
+		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_COPY_FROM_INNER;
 	}
 
 	if (encap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {

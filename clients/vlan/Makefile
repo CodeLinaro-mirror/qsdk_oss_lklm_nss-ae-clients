@@ -9,6 +9,7 @@ ccflags-y += -Wall -Werror
 
 ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx ipq54xx))
 ccflags-y += -DNSS_VLAN_MGR_PPE_VP_TUN_SUPPORT
+ccflags-y += -DNSS_VLAN_MGR_DEFAULT_ROLE_CORE
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx ipq54xx))

@@ -139,6 +139,8 @@ ppe_drv_ret_t ppe_drv_vlan_tpid_set(uint16_t ctpid, uint16_t stpid, uint32_t mas
 		return PPE_DRV_RET_VLAN_TPID_FAIL;
 	}
 
+	p->gbl_stpid = stpid;
+	p->gbl_ctpid = ctpid;
 	spin_unlock_bh(&p->lock);
 
 	return PPE_DRV_RET_SUCCESS;

@@ -1800,7 +1800,7 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 
 	if (pth->type != PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 		ppe_drv_tun_decap_set_tl_l3_idx(ptun->ptdc, tl_l3_if_idx);
-		dc_cfg_status = ppe_drv_tun_decap_activate(ptun->ptdc, l2_hdr);
+		dc_cfg_status = ppe_drv_tun_decap_activate(ptun->ptdc, xmit_port, l2_hdr);
 	} else {
 		dc_cfg_status = ppe_drv_tun_activate_mapt(ptun, l2_hdr);
 	}

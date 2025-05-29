@@ -422,6 +422,13 @@ struct ppe_drv {
 	bool is_wifi_fse_up;			/* Wi-FI FSE ops registered with PPE */
 
 	struct ppe_drv_loopback_ring_info loopback_ring_info;	/* Loopback information */
+
+	/*
+	 * Switch TPIDs
+	 */
+	uint16_t gbl_ctpid;			/**< Switch C-TPID. */
+	uint16_t gbl_stpid;			/**< Switch S-TPID. */
+
 	bool toggled_v4;			/* Toggled bit for v4 sync during a particular iteration */
 	bool toggled_v6;			/* Toggled bit for v6 sync during a particular iteration */
 	bool tun_toggled_v4;		        /* Tunnel specific Toggled bit for v4 sync during a particular iteration*/

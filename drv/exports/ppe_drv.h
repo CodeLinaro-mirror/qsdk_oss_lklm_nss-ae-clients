@@ -597,7 +597,8 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_GEMPORT_RULE_INVALID,		/**< Gemport rule invalid */
 	PPE_DRV_RET_GEMPORT_RULE_ADD_FAIL,		/**< Failed to add Gemport rule */
 	PPE_DRV_RET_GEMPORT_RULE_ENABLE_FAIL,		/**< Failed to enable gemport mapping */
-	PPE_DRV_RET_MAX,                                /**< Max limit. */
+	PPE_DRV_RET_COS_MAP_CFG_FAIL,			/**< Failed to configure CoS mapping. */
+	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 
 /**

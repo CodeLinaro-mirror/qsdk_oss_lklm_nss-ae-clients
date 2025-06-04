@@ -5,6 +5,9 @@ ccflags-y += -Wall -Werror
 obj-m += qca-nss-ppe-pppoe-mgr.o
 qca-nss-ppe-pppoe-mgr-objs := nss_ppe_pppoe_mgr.o
 
+obj-m += qca-nss-pppoe-mgr.o
+qca-nss-pppoe-mgr-y := nss_ppe_pppoe_mgr.o
+
 ifneq (,$(filter $(CONFIG_BONDING),y m))
 ccflags-y += -DBONDING_SUPPORT
 endif

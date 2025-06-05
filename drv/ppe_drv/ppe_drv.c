@@ -1046,9 +1046,9 @@ ppe_drv_ret_t ppe_drv_cpu_port_init(void)
 		goto port_fail;
 	}
 
-	l3_if = ppe_drv_l3_if_alloc(PPE_DRV_L3_IF_TYPE_PORT);
+	l3_if = ppe_drv_l3_if_alloc(PPE_DRV_L3_IF_TYPE_CPU_PORT);
 	if (!l3_if) {
-		ppe_drv_warn("%p: unable to get a valid l3_if of type(%d), iface index: %u\n", iface, PPE_DRV_L3_IF_TYPE_PORT, iface->index);
+		ppe_drv_warn("%p: unable to get a valid l3_if of type(%d), iface index: %u\n", iface, PPE_DRV_L3_IF_TYPE_CPU_PORT, iface->index);
 		status = PPE_DRV_RET_L3_IF_ALLOC_FAIL;
 		goto l3_if_fail;
 	}

@@ -595,8 +595,6 @@ struct ppe_drv_l3_if *ppe_drv_l3_if_alloc(enum ppe_drv_l3_if_type type)
 	 * Set basic provisioning bits for L3 IF.
 	 */
 	in_l3_if_cfg.ttl_dec_bypass_en = A_FALSE;
-	in_l3_if_cfg.ipv4_uc_route_en = A_TRUE;
-	in_l3_if_cfg.ipv6_uc_route_en = A_TRUE;
 	in_l3_if_cfg.ttl_exceed_deacclr_en = A_TRUE;
 	in_l3_if_cfg.icmp_trigger_en = A_FALSE;
 	in_l3_if_cfg.ttl_exceed_action = FAL_MAC_RDT_TO_CPU;
@@ -604,6 +602,15 @@ struct ppe_drv_l3_if *ppe_drv_l3_if_alloc(enum ppe_drv_l3_if_type type)
 	in_l3_if_cfg.dmac_check_en = A_TRUE;
 	in_l3_if_cfg.udp_zero_csum_action = FAL_UDP_ZERO_CSUM_FRWRD;
 	in_l3_if_cfg.vpn_id = 0;
+
+	if (type != PPE_DRV_L3_IF_TYPE_CPU_PORT) {
+		/*
+		 * For CPU port ipv4/ipv6 uc_route_en is not set as this would cause failure with egress l3_if checks
+		 * for packets being Tx'ed from CPU port.
+		 */
+		in_l3_if_cfg.ipv4_uc_route_en = A_TRUE;
+		in_l3_if_cfg.ipv6_uc_route_en = A_TRUE;
+	}
 
 	if (fal_ip_intf_set(PPE_DRV_SWITCH_ID, l3_if->l3_if_index, &in_l3_if_cfg) != SW_OK) {
 		ppe_drv_warn("%p: L3_IF configuration failed(%d)", p, type);

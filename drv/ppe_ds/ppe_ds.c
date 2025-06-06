@@ -15,6 +15,37 @@
 #define IDX_MGMT_PERIOD max_t(u64, 10000, NSEC_PER_SEC / idx_mgmt_freq)
 
 /*
+ * Callback structure to call into plugin module
+ */
+static struct ppe_ds_wlan_ops_v2 wlan_ops_cbs;
+
+/*
+ * ppe_ds_wlan_plugins_cb_register()
+ * 	Callback for ppeds plugin registration
+ */
+int ppe_ds_wlan_plugins_cb_register(struct ppe_ds_wlan_ops_v2 *wlan_ops)
+{
+
+	if (!wlan_ops) {
+		return -1;
+	}
+
+	memcpy(&wlan_ops_cbs, wlan_ops, sizeof(struct ppe_ds_wlan_ops_v2));
+	return 0;
+}
+EXPORT_SYMBOL(ppe_ds_wlan_plugins_cb_register);
+
+/*
+ * ppe_ds_wlan_plugins_cb_unregister()
+ * 	Callback for ppeds plugin unregistration
+ */
+void ppe_ds_wlan_plugins_cb_unregister(void)
+{
+	memset(&wlan_ops_cbs, 0, sizeof(struct ppe_ds_wlan_ops_v2));
+}
+EXPORT_SYMBOL(ppe_ds_wlan_plugins_cb_unregister);
+
+/*
  * ppe_ds_ppe2tcl_rx()
  *	PPE-DS PPE2TCL Rx processing API
  */

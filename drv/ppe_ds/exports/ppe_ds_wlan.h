@@ -285,6 +285,15 @@ uint32_t ppe_ds_get_node_id(struct ppe_ds *node);
 int ppe_ds_ppe2tcl_wlan_handle_intr(void *ctxt);
 
 /**
+ * ppe_ds_ppe2tcl_wlan_handle_intr_v2
+ *	PPE-DS WLAN irq handling for ppe2tcl ring
+ *
+ * @param[in] ctxt IRQ context
+ *
+ */
+int ppe_ds_ppe2tcl_wlan_handle_intr_v2(void *ctxt);
+
+/**
  * ppe_ds_reo2ppe_wlan_handle_intr
  *	PPE-DS WLAN irq handling for reo2ppe ring
  *
@@ -292,6 +301,15 @@ int ppe_ds_ppe2tcl_wlan_handle_intr(void *ctxt);
  *
  */
 int ppe_ds_reo2ppe_wlan_handle_intr(void *ctxt);
+
+/**
+ * ppe_ds_reo2ppe_wlan_handle_intr_v2
+ *	PPE-DS WLAN irq handling for reo2ppe ring
+ *
+ * @param[in] ctxt IRQ context
+ *
+ */
+int ppe_ds_reo2ppe_wlan_handle_intr_v2(void *ctxt);
 
 /**
  * ppe_ds_wlan_get_intr_ctxt
@@ -338,4 +356,28 @@ void ppe_ds_wlan_service_status_update(ppe_ds_wlan_handle_t *wlan_handle, bool e
  * @param[in] enable        Enable/Disable service
  */
 void ppe_ds_wlan_service_status_update_v2(struct ppe_ds *node, bool enable);
+
+/**
+ * ppe_ds_wlan_plugins_cb_register
+ * 	Callback for ppeds plugin registration
+ *
+ * @datatypes
+ * ppe_ds_wlan_ops_v2
+ *
+ * @return
+ * status of registration
+ *
+ */
+int ppe_ds_wlan_plugins_cb_register(struct ppe_ds_wlan_ops_v2 *wlan_ops);
+
+/**
+ * ppe_ds_wlan_plugins_cb_unregister
+ * 	Callback for ppeds plugin unregistration
+ *
+ * @return
+ * none
+ *
+ */
+void ppe_ds_wlan_plugins_cb_unregister(void);
+
 #endif	/* _PPE_DS_WLAN_H_ */

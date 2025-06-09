@@ -507,6 +507,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_ATHTAG_MAP_ADD_FAIL,	/**< ATHTAG port mapping add failed. */
 	PPE_DRV_RET_ATHTAG_PORT_RX_CFG_FAIL,	/**< ATHTAG port RX config failed. */
 	PPE_DRV_RET_ATHTAG_PORT_TX_CFG_FAIL,	/**< ATHTAG port TX config failed. */
+	PPE_DRV_RET_FAILURE_V4_ASSIST_RULE,		/**< Failed to create RFS rule */
 } ppe_drv_ret_t;
 
 /**

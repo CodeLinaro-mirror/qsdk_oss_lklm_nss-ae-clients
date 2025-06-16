@@ -373,7 +373,7 @@ ppe_drv_ret_t ppe_drv_v4_rfs_conn_fill(struct ppe_drv_v4_rule_create *create, st
 	struct ppe_drv_port *pp_rx, *pp_tx;
 	struct ppe_drv *p = &ppe_drv_gbl;
 	uint16_t valid_flags = create->valid_flags;
-	uint16_t rule_flags = create->rule_flags;
+	uint32_t rule_flags = create->rule_flags;
 
 	comm_stats = &p->stats.comm_stats[flow_type];
 
@@ -527,7 +527,7 @@ ppe_drv_ret_t ppe_drv_v4_policer_conn_fill(struct ppe_drv_v4_rule_create *create
 	struct ppe_drv_iface *if_rx, *if_tx, *top_rx_iface;
 	struct ppe_drv_v4_conn_flow *pcf = &cn->pcf;
 	struct ppe_drv_v4_conn_flow *pcr = &cn->pcr;
-	uint16_t rule_flags = create->rule_flags;
+	uint32_t rule_flags = create->rule_flags;
 	struct ppe_drv_comm_stats *comm_stats;
 	struct ppe_drv_port *pp_rx, *pp_tx;
 	struct ppe_drv *p = &ppe_drv_gbl;

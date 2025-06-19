@@ -85,7 +85,7 @@ struct ppe_rfs_ipv4_connection_rule {
  *	IPv4 5-tuple structure.
  */
 struct ppe_rfs_ipv4_rule_create_msg {
-	u16 rule_flags;					/**< Bit flags associated with the rule. */
+	u32 rule_flags;					/**< Bit flags associated with the rule. */
 	struct ppe_rfs_ipv4_5tuple tuple;		/**< Holds values of 5-tuple. */
 	struct ppe_rfs_ipv4_connection_rule conn_rule;  /**< Basic connection-specific data. */
 	struct ppe_rfs_qos_rule qos_rule;			/**< Holds qos tag information */
@@ -132,7 +132,7 @@ struct ppe_rfs_ipv6_connection_rule {
  *	IPv6 rule create message structure.
  */
 struct ppe_rfs_ipv6_rule_create_msg {
-	u16 rule_flags;					/**< Bit flags associated with the rule. */
+	u32 rule_flags;					/**< Bit flags associated with the rule. */
 	struct ppe_rfs_ipv6_5tuple tuple;		/**< Holds values of the ppe_ipv6_5tuple tuple. */
 	struct ppe_rfs_ipv6_connection_rule conn_rule;	/**< Basic connection-specific data. */
 	struct ppe_rfs_qos_rule qos_rule;			/**< Holds qos tag information */

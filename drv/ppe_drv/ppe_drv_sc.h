@@ -70,3 +70,4 @@ sw_error_t ppe_drv_sc_in_service_tbl_dest_port(ppe_drv_sc_t sc, uint8_t redir_po
 void ppe_drv_sc_ucast_queue_set(ppe_drv_sc_t sc, uint8_t queue_id, uint8_t src_profile, uint8_t profile_id);
 void ppe_drv_sc_entries_free(struct ppe_drv_sc *sc);
 struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void);
+void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t redir_port);

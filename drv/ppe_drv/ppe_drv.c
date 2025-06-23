@@ -83,6 +83,10 @@ static char packet_padding[PPE_DRV_PACKET_PADDING_STR_LEN];
 int l4_checksum_exception_enable = false;
 int mac_lrn_exception_en = true;
 
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+static uint32_t loopback_port_ft_type;
+#endif
+
 /*
  * Define the filename to be used for assertions.
  */
@@ -452,6 +456,7 @@ EXPORT_SYMBOL(ppe_drv_fse_feature_disable);
 /*
  * ppe_drv_loopback_base_queue()
  */
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 void ppe_drv_loopback_base_queue(uint8_t queue_id, uint32_t ft_type)
 {
 	struct ppe_drv *p = ppe_drv_gbl;
@@ -480,6 +485,7 @@ void ppe_drv_loopback_base_queue(uint8_t queue_id, uint32_t ft_type)
 	ppe_drv_info("loopback ring enabled queue_id %u feature type %x\n", queue_id, p->loopback_ring_info.ft_type);
 }
 EXPORT_SYMBOL(ppe_drv_loopback_base_queue);
+#endif
 
 #ifdef NSS_PPE_L2_VP_SC_ENQ_BYPASS
 /*
@@ -488,9 +494,13 @@ EXPORT_SYMBOL(ppe_drv_loopback_base_queue);
  */
 static bool ppe_drv_loopback_sc2queue_mapping(struct ppe_drv *p, uint8_t src_profile)
 {
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	int base_queue = p->loopback_ring_info.base_queue;
 	ppe_drv_sc_ucast_queue_set(PPE_DRV_SC_LOOPBACK_RING, base_queue, src_profile, PPE_DRV_REDIR_PROFILE_ID);
 	return true;
+#else
+	return false;
+#endif
 }
 
 #else
@@ -1292,7 +1302,6 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	p->fse_ops = NULL;
 	p->fse_enable = false;
         p->is_wifi_fse_up = false;
-	p->loopback_ring_info.enabled = false;
 
 	p->tun_gbl.tun_l2tp.l2tp_dport = PPE_DRV_L2TP_DEFAULT_UDP_PORT;
 	p->tun_gbl.tun_l2tp.l2tp_sport = PPE_DRV_L2TP_DEFAULT_UDP_PORT;
@@ -1380,6 +1389,10 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	for (i = 0; i <  PPE_DRV_PORT_SRC_PROFILE_MAX; i++) {
 		p->prof2portmap[i] = -1;
 	}
+
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+	ppe_drv_port_loopback_port_get_info();
+#endif
 
 	/*
 	 * Take a reference
@@ -1953,6 +1966,55 @@ int ppe_drv_mac_lrn_exception_en(struct ctl_table *table, int write,
 	return 0;
 }
 
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+/*
+ * ppe_drv_loopback_port_feature_write_handler()
+ *	sysctl handler for loopback port write operation.
+ */
+static int ppe_drv_loopback_port_feature_write_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	int ret;
+
+	ret = proc_douintvec(table, write, buffer, lenp, ppos);
+
+	if (!write) {
+		return ret;
+	}
+
+	if (loopback_port_ft_type == PPE_DRV_LOOPBACK_PORT_FT_TYPE_NONE) {
+		/*
+		 * If needed add the code to disable the previously
+		 * enabled feature.
+		 */
+
+		p->loopback_port_info.ft_type = PPE_DRV_LOOPBACK_PORT_FT_TYPE_NONE;
+		memset(p->loopback_port_info.ctx, 0, sizeof(p->loopback_port_info.ctx));
+		return ret;
+	}
+
+	if (p->loopback_port_info.enabled == false) {
+		ppe_drv_warn("Loopback port is not enabled\n");
+		return ret;
+	}
+
+	switch (loopback_port_ft_type) {
+	/*
+	 * configure the direction speific information.
+	 * configure the service code.
+	 * configure the queue to service code mapping.
+	 * set p->loopback_port_info.ft_type.
+	 */
+	default:
+		ppe_drv_warn("invalid feature type %u\n", loopback_port_ft_type);
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 /*
  * ppe_drv_eth2eth_offload_if_bitmap_handler()
  * 	Set eth to eth offload with if bitmap config
@@ -2137,6 +2199,7 @@ static int ppe_drv_upstream_dev_handler(struct ctl_table *table,
 		return ret;
 	}
 
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	/*
 	 * Check if loopback ring is enabled
 	 */
@@ -2144,6 +2207,13 @@ static int ppe_drv_upstream_dev_handler(struct ctl_table *table,
 		ppe_drv_warn("Loopback ring is not enabled\n");
 		return -1;
 	}
+#else
+	/*
+	 * TO-DO: enable this support with loopback feature
+	 */
+	ppe_drv_warn("loopback feature support not enabled for upstream port\n");
+	return -1;
+#endif
 
 	dev_name = upstream_dev_str;
 
@@ -2237,6 +2307,7 @@ static int ppe_drv_src2uni_handler(struct ctl_table *table,
 		return ret;
 	}
 
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	/*
 	 * Check if loopback ring is enabled
 	 */
@@ -2244,6 +2315,13 @@ static int ppe_drv_src2uni_handler(struct ctl_table *table,
 		ppe_drv_warn("Loopback ring is not enabled\n");
 		return -1;
 	}
+#else
+	/*
+	 * TO-DO: enable this support with loopback feature
+	 */
+	ppe_drv_warn("loopback feature support not enabled for upstream port\n");
+	return -1;
+#endif
 
 	/*
 	 * This call expect upstream device to be set
@@ -2528,6 +2606,17 @@ static struct ctl_table ppe_drv_sub[] = {
 		.mode		=	0644,
 		.proc_handler	=	ppe_drv_mac_lrn_exception_en
 	},
+
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+	{
+		.procname	=	"loopback_port_ft_type",
+		.data		=	&loopback_port_ft_type,
+		.maxlen		=	sizeof(uint32_t),
+		.mode		=	0644,
+		.proc_handler   =	ppe_drv_loopback_port_feature_write_handler,
+	},
+#endif
+
 	{}
 };
 

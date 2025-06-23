@@ -6,6 +6,7 @@
 #include <linux/atomic.h>
 #include <linux/debugfs.h>
 #include "ppe_drv.h"
+#include "ppe_drv_stats.h"
 
 /*
  * ppe_drv_stats_sc_name_str
@@ -768,6 +769,69 @@ const struct file_operations ppe_drv_conn_stats_general_file_ops = {
 	.release = seq_release,
 };
 
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+/*
+ * ppe_drv_loopback_port_feature_show()
+ *	Read loopback port information
+ */
+static int ppe_drv_loopback_port_feature_show(struct seq_file *m, void __attribute__((unused))*ptr)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+
+	seq_puts(m, "*****Loopback Port info start******\n");
+	seq_printf(m, "\tEnable : %u \n", p->loopback_port_info.enabled);
+
+	if ( p->loopback_port_info.enabled == false) {
+		goto end;
+	}
+
+	seq_printf(m, "\tPort ID : %u\n", p->loopback_port_info.port_id);
+	seq_printf(m, "\tucastq_start : %u\n", p->loopback_port_info.ucastq_start);
+	seq_printf(m, "\tucastq_num: %u\n", p->loopback_port_info.ucastq_num);
+	seq_printf(m, "\tmcastq_start : %u\n", p->loopback_port_info.mcastq_start);
+	seq_printf(m, "\tmcastq_num: %u\n", p->loopback_port_info.mcastq_num);
+	seq_printf(m, "\tFeature Type %u\n", p->loopback_port_info.ft_type);
+	seq_puts(m, "Direction specific info\n");
+	seq_printf(m, "\t Flow sc %u feature type %u\n",
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_FLOW_SC].sc,
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_FLOW_SC].dir_ft_type);
+	seq_printf(m, "\t Flow next sc %u feature type %u\n",
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_FLOW_SC_NEXT].sc,
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_FLOW_SC_NEXT].dir_ft_type);
+	seq_printf(m, "\t Return sc %u feature type %u\n",
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC].sc,
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC].dir_ft_type);
+	seq_printf(m, "\t Return next sc %u feature type %u\n",
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC_NEXT].sc,
+			p->loopback_port_info.ctx[PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC_NEXT].dir_ft_type);
+
+end:
+	seq_puts(m, "*****Loopback Port info End******\n");
+
+	return 0;
+}
+
+/*
+ * ppe_drv_loopback_port_feature_open()
+ *	PPE loopback port info open callback API
+ */
+static int ppe_drv_loopback_port_feature_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ppe_drv_loopback_port_feature_show, inode->i_private);
+}
+
+/*
+ * ppe_drv_loopback_port_feature_file_ops
+ *	File operations for loopback port info
+ */
+static const struct file_operations ppe_drv_loopback_port_feature_file_ops = {
+	.open = ppe_drv_loopback_port_feature_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+
 /*
  * ppe_drv_stats_debugfs_init()
  *	Create PPE statistics debug entry.
@@ -821,6 +885,14 @@ int ppe_drv_stats_debugfs_init(void)
 		ppe_drv_warn("%p: Unable to create policer_stats file entry in debugfs\n", p);
 		goto debugfs_dir_failed;
 	}
+
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+	if (!debugfs_create_file("loopback_port_info", S_IRUGO, p->stats_dentry,
+			NULL, &ppe_drv_loopback_port_feature_file_ops)) {
+		ppe_drv_warn("%p: Unable to create loopback_port_info file entry in debugfs\n", p);
+		goto debugfs_dir_failed;
+	}
+#endif
 
 	return 0;
 

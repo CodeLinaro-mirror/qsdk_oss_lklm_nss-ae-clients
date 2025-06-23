@@ -200,6 +200,7 @@ int16_t ppe_drv_port_metadata_to_enq_vp_internal(uint8_t port_metadata);
 
 int ppe_drv_port_src_profile_get_byidx(uint8_t port_idx);
 bool ppe_drv_port_l2_vp_sc_config(struct ppe_drv_port *pp, ppe_drv_sc_t sc);
+bool ppe_drv_port_loopback_port_get_info(void);
 
 /*
  * ppe_drv_port_flags_check()

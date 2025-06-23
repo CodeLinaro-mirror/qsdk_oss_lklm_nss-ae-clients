@@ -94,6 +94,14 @@ ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx ipq54xx))
 ccflags-y += -DNSS_VLAN_BASED_DSA_SUPPORT
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq54xx ipq53xx))
+ccflags-y += -DPPE_LOOPBACK_RING_SUPPORT
+endif
+
+ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
+ccflags-y += -DPPE_LOOPBACK_PORT_SUPPORT
+endif
+
 ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq54xx))
 ccflags-y += -DNSS_ATH_HDR_BASED_DSA_SUPPORT
 qca-nss-ppe-objs += ppe_drv_athtag.o

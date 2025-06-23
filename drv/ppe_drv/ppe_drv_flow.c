@@ -1986,10 +1986,13 @@ bool ppe_drv_flow_v4_service_code_get(struct ppe_drv_v4_conn_flow *pcf, struct p
 	ppe_drv_sc_t service_code = *scp;
 	ppe_drv_sc_t sc = PPE_DRV_SC_NONE;
 #ifdef PPE_TUNNEL_ENABLE
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	ppe_drv_ret_t ret;
+#endif
 #endif
 
 #ifdef PPE_TUNNEL_ENABLE
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	ret = ppe_drv_tun_gretap_to_mapt_sc(ppe_drv_v4_conn_flow_tx_port_get(pcf), ppe_drv_v4_conn_flow_rx_port_get(pcf), &service_code);
 	if (ret == PPE_DRV_RET_GRETAP_TO_MAPT_FLOW_ADD) {
 		*scp = service_code;
@@ -1997,6 +2000,7 @@ bool ppe_drv_flow_v4_service_code_get(struct ppe_drv_v4_conn_flow *pcf, struct p
 	} else if (ret == PPE_DRV_RET_GRETAP_TO_MAPT_FLOW_ADD_FAIL) {
 		return false;
 	}
+#endif
 #endif
 	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {
 		/*

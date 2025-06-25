@@ -318,7 +318,7 @@ static bool nss_ppe_gre_ip4_dev_parse_param(struct net_device *netdev, struct pp
 	if (iphdr->frag_off & htons(IP_DF)) {
 		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_DF_BIT_SET;
 	} else {
-		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_COPY_FROM_INNER;
+		l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DF;
 	}
 
 	if (encap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_ENCAP_ECN_RFC4301_RFC6040_NORMAL_MODE) {

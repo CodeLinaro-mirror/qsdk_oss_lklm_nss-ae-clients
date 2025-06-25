@@ -1140,7 +1140,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 		encap_cfg.ipv4_df_mode_ext = FAL_TUNNEL_ENCAP_EXT_DF_MODE_FIX; /* Fixed value */
 		encap_cfg.ipv4_id_mode = 1; /* Random value */
 
-		if (th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_COPY_FROM_INNER) {
+		if (th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DF) {
 			encap_cfg.ipv4_df_mode = FAL_TUNNEL_ENCAP_DF_MODE_COPY; /* Copy from inner */
 		}
 

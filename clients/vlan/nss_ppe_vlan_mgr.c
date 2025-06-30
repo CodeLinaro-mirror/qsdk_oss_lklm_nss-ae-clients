@@ -478,35 +478,44 @@ static void nss_ppe_vlan_mgr_port_role_event(int32_t port, int portindex)
 static int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_add(struct ppe_drv_iface *slave_iface,
 								struct nss_vlan_pvt *v)
 {
-	int ret = 0;
-	struct net_device *lower_dev;
-	struct list_head *iter;
 	int32_t port_id;
+	bool update_port_role = false;
 
 	if (ppe_drv_vlan_over_bridge_add_ig_rule(slave_iface, v->iface) != PPE_DRV_RET_SUCCESS) {
-		ret = -1;
 		nss_ppe_vlan_mgr_warn("%p: Add ingress xlate rule failed for slave\n", slave_iface);
+		return -1;
 	}
 
-	nss_ppe_vlan_mgr_trace("Adding ingress rule success for vid %d port %d\n", v->vid, v->port[0]);
+#ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
+	update_port_role = true;
+#else
 	/*
-	 * Double VLAN case
+	 * Double VLAN case.
 	 */
-	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) {
-		netdev_for_each_lower_dev(v->br_net_dev, lower_dev, iter) {
-			port_id = nss_ppe_vlan_mgr_get_port_id(lower_dev);
-			if (port_id == NSS_PPE_VLAN_MGR_INVALID_PORT) {
-				nss_ppe_vlan_mgr_warn("Port Id is invalid for %s continue for next slave\n",
-						      lower_dev->name);
-				continue;
-			}
-			if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port_id, FAL_QINQ_CORE_PORT)) {
-				ret = -1;
-				nss_ppe_vlan_mgr_warn("failed to set (%s) %d as core port\n", lower_dev->name, port_id);
-			}
+	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE)
+		update_port_role = true;
+#endif
+
+	if (update_port_role) {
+		/*
+		 * Getting port id from iface.
+		 */
+		port_id = ppe_drv_iface_port_idx_get(slave_iface);
+		if (port_id == NSS_PPE_VLAN_MGR_INVALID_PORT) {
+			nss_ppe_vlan_mgr_warn("Port ID is invalid for %p slave iface\n", slave_iface);
+			return -1;
+		}
+
+		/*
+		 * Updating port role to CORE.
+		 */
+		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port_id, FAL_QINQ_CORE_PORT)) {
+			nss_ppe_vlan_mgr_warn("failed to set %d as core port\n", port_id);
+			return -1;
 		}
 	}
-	return ret;
+
+	return 0;
 }
 
 /*
@@ -516,35 +525,46 @@ static int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_add(struct ppe_drv_i
 static int nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_del(struct ppe_drv_iface *slave_iface,
 								struct nss_vlan_pvt *v)
 {
-	int ret = 0;
-	struct net_device *lower_dev;
-	struct list_head *iter;
 	int32_t port_id;
+	bool update_port_role = false;
 
 	if (ppe_drv_vlan_over_bridge_del_ig_rule(slave_iface, v->iface) != PPE_DRV_RET_SUCCESS) {
-		ret = -1;
 		nss_ppe_vlan_mgr_warn("%p: Delete ingress xlate rule failed for slave\n", slave_iface);
+		return -1;
 	}
 
 	nss_ppe_vlan_mgr_trace("Deleting ingress rule success for vid %d port %d\n", v->vid, v->port[0]);
+
+#ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
+	update_port_role = true;
+#else
 	/*
-	 * Double VLAN case
+	 * Double VLAN case.
 	 */
-	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) {
-		netdev_for_each_lower_dev(v->br_net_dev, lower_dev, iter) {
-			port_id = nss_ppe_vlan_mgr_get_port_id(lower_dev);
-			if (port_id == NSS_PPE_VLAN_MGR_INVALID_PORT) {
-				nss_ppe_vlan_mgr_warn("Port ID is invalid for %s continue for next slave\n",
-						lower_dev->name);
-				continue;
-			}
-			if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port_id, FAL_QINQ_EDGE_PORT)) {
-				ret = -1;
-				nss_ppe_vlan_mgr_warn("failed to set (%s) %d as edge port\n", lower_dev->name, port_id);
-			}
+	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE)
+		update_port_role = true;
+#endif
+
+	if (update_port_role) {
+		/*
+		 * Getting port id from iface.
+		 */
+		port_id = ppe_drv_iface_port_idx_get(slave_iface);
+		if (port_id == NSS_PPE_VLAN_MGR_INVALID_PORT) {
+			nss_ppe_vlan_mgr_warn("Port ID is invalid for %p slave iface\n", slave_iface);
+			return -1;
+		}
+
+		/*
+		 * Updating port role to EDGE.
+		 */
+		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port_id, FAL_QINQ_EDGE_PORT)) {
+			nss_ppe_vlan_mgr_warn("failed to set %d as core port\n", port_id);
+			return -1;
 		}
 	}
-	return ret;
+
+	return 0;
 }
 
 /*

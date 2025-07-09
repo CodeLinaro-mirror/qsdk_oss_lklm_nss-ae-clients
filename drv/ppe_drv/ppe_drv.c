@@ -1034,7 +1034,7 @@ ppe_drv_ret_t ppe_drv_cpu_port_init(void)
 	spin_lock_bh(&p->lock);
 	p->rfs.cpu_iface = iface;
 
-	port = ppe_drv_port_alloc(PPE_DRV_PORT_CPU_TYPE, NULL, false);
+	port = ppe_drv_port_alloc(PPE_DRV_PORT_CPU_TYPE, NULL, false, false);
 	if (!port) {
 		ppe_drv_warn("%p: unable to get a valid port of type(%d), iface index: %u\n", iface, PPE_DRV_PORT_CPU_TYPE, iface->index);
 		status = PPE_DRV_RET_PORT_ALLOC_FAIL;

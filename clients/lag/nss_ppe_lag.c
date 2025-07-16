@@ -398,6 +398,7 @@ static int nss_ppe_lag_register_event(struct netdev_notifier_info *info)
 		goto fail2;
 	}
 
+	gbl.entry = bond_entry;
 	nss_ppe_lag_info("%px: Bond interface (%s) is created=%d\n", bond_dev, bond_dev->name, bond_id);
 	nss_ppe_lag_stats_inc(&ctx->stats.ppe_lag_register_event_success);
 	return NOTIFY_DONE;
@@ -598,6 +599,7 @@ void __exit nss_ppe_lag_exit(void)
 	 */
 	nss_ppe_lag_stats_deinit(ctx);
 
+	nss_ppe_lag_dump_exit();
 	unregister_netdevice_notifier(&nss_ppe_lag_netdevice);
 	ppe_drv_notifier_ops_unregister(&ppe_drv_notifier_ops_lag);
 	nss_ppe_lag_info("LAG Manager Removed\n");
@@ -628,6 +630,7 @@ int __init nss_ppe_lag_init(void)
 	ppe_drv_notifier_ops_register(&ppe_drv_notifier_ops_lag);
 	nss_ppe_vlan_mgr_register_bond_dev_get_id_cb(nss_ppe_bond_dev_get_id);
 
+	nss_ppe_lag_dump_init(ctx);
 	nss_ppe_lag_info("LAG Manager Installed\n");
 	return ret;
 }

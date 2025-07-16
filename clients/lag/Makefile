@@ -8,5 +8,6 @@ ccflags-y += -Wall -Werror
 obj-m += qca-nss-ppe-lag.o
 qca-nss-ppe-lag-objs := nss_ppe_lag.o
 qca-nss-ppe-lag-objs += nss_ppe_lag_stats.o
+qca-nss-ppe-lag-objs += nss_ppe_lag_dump.o
 
 obj ?= .

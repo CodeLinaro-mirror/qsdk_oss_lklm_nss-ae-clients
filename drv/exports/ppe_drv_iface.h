@@ -344,5 +344,19 @@ bool ppe_drv_iface_check_flow_offload_enabled(ppe_drv_iface_t rx_if,
 bool ppe_drv_iface_udp_zero_csum_action_set(struct ppe_drv_iface *iface,
 				ppe_drv_iface_zero_csum_action_t action);
 
+/**
+ * ppe_drv_iface_get_index
+ * 	Return PPE interface index
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface   PPE interface.
+ *
+ * @return
+ * ppe_drv_iface_t
+ */
+ppe_drv_iface_t ppe_drv_iface_get_index(struct ppe_drv_iface *iface);
+
 /** @} */ /* end_addtogroup ppe_drv_iface_subsystem */
 #endif /* _PPE_DRV_IFACE_H_ */

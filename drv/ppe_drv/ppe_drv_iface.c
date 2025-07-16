@@ -1338,6 +1338,7 @@ ppe_drv_iface_t ppe_drv_iface_get_index(struct ppe_drv_iface *iface)
 
 	return index;
 }
+EXPORT_SYMBOL(ppe_drv_iface_get_index);
 
 /*
  * ppe_drv_iface_entries_free()

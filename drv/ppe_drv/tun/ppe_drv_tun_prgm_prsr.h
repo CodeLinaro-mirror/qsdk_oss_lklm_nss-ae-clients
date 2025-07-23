@@ -18,6 +18,9 @@
 
 #include <fal/fal_tunnel_program.h>
 #include "ppe_drv_tun_udf.h"
+#ifdef NSS_PPE_TUNNEL_TPR_ENABLE
+#include "ppe_drv_tun_tpr.h"
+#endif
 
 #ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
 #define PPE_DRV_TUN_PRGM_PRSR_MAX	16 /* Program Parser MAX value for chipsets supporting Enhanced Parsers like 96xx */
@@ -81,6 +84,7 @@ enum ppe_drv_tun_prgm_prsr_mode {
 	PPE_DRV_TUN_PROGRAM_MODE_NONE,	/* Program parser not configured*/
 	PPE_DRV_TUN_PROGRAM_MODE_GRE,	/* Program parser mode GRETAP/GRETUN */
 	PPE_DRV_TUN_PROGRAM_MODE_L2TP_V2,	/* Program parser mode L2TP */
+	PPE_DRV_TUN_PROGRAM_MODE_TPR_RPS,	/* Program parser mode for RPS */
 };
 
 /*
@@ -262,6 +266,9 @@ struct ppe_drv_tun_prgm_prsr_decap_cfg {
 	union {
 		struct ppe_drv_tun_prgm_prsr_l2tp l2tp;	/* L2TP specific data */
 		struct ppe_drv_tun_prgm_prsr_gre gre; /* GRE specific data */
+#ifdef NSS_PPE_TUNNEL_TPR_ENABLE
+		struct ppe_drv_tun_tpr *tpr;	/* TPR configurations used for RPS */
+#endif
 	} data;
 };
 

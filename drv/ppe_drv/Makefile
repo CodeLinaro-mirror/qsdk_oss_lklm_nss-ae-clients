@@ -72,6 +72,9 @@ qca-nss-ppe-objs += tun/ppe_drv_tun_udf.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v4.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_v6.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_gre.o
+ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
+ccflags-y += -DNSS_PPE_TUNNEL_ENHANCED_PARSER
+endif
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))

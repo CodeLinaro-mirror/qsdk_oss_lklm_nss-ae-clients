@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2026 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,6 +19,48 @@
 #include <ppe_drv/ppe_drv.h>
 #include "ppe_drv_tun_prgm_prsr.h"
 #include "ppe_drv_tun.h"
+
+/*
+ * Global Constant to convert program type to FAL tunnel type
+ */
+const fal_tunnel_type_t program_to_tunnel_type_map[PPE_DRV_TUN_PRGM_TYPE_MAP_SIZE] = {
+	FAL_TUNNEL_TYPE_PROGRAM0,
+	FAL_TUNNEL_TYPE_PROGRAM1,
+	FAL_TUNNEL_TYPE_PROGRAM2,
+	FAL_TUNNEL_TYPE_PROGRAM3,
+	FAL_TUNNEL_TYPE_PROGRAM4,
+	FAL_TUNNEL_TYPE_PROGRAM5,
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	FAL_TUNNEL_TYPE_PROGRAM6,
+	FAL_TUNNEL_TYPE_PROGRAM7,
+	FAL_TUNNEL_TYPE_PROGRAM8,
+	FAL_TUNNEL_TYPE_PROGRAM9,
+	FAL_TUNNEL_TYPE_PROGRAM10,
+	FAL_TUNNEL_TYPE_PROGRAM11,
+	FAL_TUNNEL_TYPE_PROGRAM12,
+	FAL_TUNNEL_TYPE_PROGRAM13,
+	FAL_TUNNEL_TYPE_PROGRAM14,
+	FAL_TUNNEL_TYPE_PROGRAM15,
+#endif
+	FAL_TUNNEL_TYPE_INVALID_TUNNEL	/* Sentinel value for invalid indices */
+};
+
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+/*
+ *  Get FAL protocol mode from Program Parser entry position mode
+ */
+static fal_tunnel_program_pos_mode_t ppe_drv_tun_get_proto_pos_modemode(enum ppe_drv_tun_prgm_prsr_proto_pos_mode mode)
+{
+    switch (mode) {
+        case PPE_DRV_TUN_PRGM_PRSR_PROTO_POS_MODE_END:
+            return FAL_TUNNEL_PROGRAM_POS_MODE_END;
+        case PPE_DRV_TUN_PRGM_PRSR_PROTO_POS_MODE_START:
+            return FAL_TUNNEL_PROGRAM_POS_MODE_START;
+        default:
+            return FAL_TUNNEL_PROGRAM_POS_MODE_END;
+    }
+}
+#endif
 
 /*
  * ppe_drv_tun_prgm_prsr_free
@@ -86,24 +128,42 @@ void ppe_drv_tun_prgm_prsr_ref(struct ppe_drv_tun_prgm_prsr *pgm)
  */
 bool ppe_drv_tun_prgm_prsr_deconfigure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cfg, uint8_t parser_idx)
 {
-	struct ppe_drv *p = ppe_drv_gbl;
 	fal_tunnel_decap_key_t ptdkcfg =  {0};
 	fal_tunnel_program_entry_t pgm = {0};
 	fal_tunnel_program_cfg_t cfg = {0};
+	struct ppe_drv *p = ppe_drv_gbl;
 	fal_tunnel_type_t tunnel_type;
 	sw_error_t err;
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	fal_tunnel_decap_miss_action_t dma = {0};
+#endif
 
 	/*
 	 * reset  decap key configuration as the same program can be used for other
 	 * tunnels after free
 	 */
-	tunnel_type = PPE_DRV_TUN_GET_TUNNEL_TYPE_FROM_PGM_TYPE(parser_idx);
+	tunnel_type = ppe_drv_tun_get_tunnel_type_from_pgm_type(parser_idx);
+	if (tunnel_type ==  FAL_TUNNEL_TYPE_INVALID_TUNNEL) {
+		ppe_drv_warn("%p: Invalid tunnel type for parser_idx %d", p, parser_idx);
+		return false;
+	}
+
 	err = fal_tunnel_decap_key_set(PPE_DRV_SWITCH_ID, tunnel_type, &ptdkcfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Tunnel Decap key reset failed for Program%d with error %d", p, parser_idx, err);
 		return false;
 	}
 
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	/*
+	 * Reset Decap miss action configurations
+	 */
+	err = fal_tunnel_decap_miss_action_set(PPE_DRV_SWITCH_ID, tunnel_type, &dma);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: decap miss action configuration reset failed for Program%d with error %d", p, parser_idx, err);
+		return false;
+	}
+#endif
 	/*
 	 * Delete program entry
 	 */
@@ -111,6 +171,13 @@ bool ppe_drv_tun_prgm_prsr_deconfigure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cf
 	pgm.outer_hdr_type = PPE_DRV_TUN_PRGM_PRSR_OUT_HDR_TO_FAL_OUT_HDR(prsr_cfg->outer_hdr);
 	pgm.protocol = prsr_cfg->protocol;
 	pgm.protocol_mask = prsr_cfg->protocol_mask;
+
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	pgm.protocol_pos_mode = ppe_drv_tun_get_proto_pos_modemode(prsr_cfg->proto_pos_mode);
+	pgm.protocol_pos_offset = prsr_cfg->protocol_pos_offset;
+	pgm.tuple_id_valid = prsr_cfg->tuple_id_valid;
+	pgm.tuple_id = prsr_cfg->tuple_id;
+#endif
 
 	err = fal_tunnel_program_entry_del(PPE_DRV_SWITCH_ID, parser_idx, &pgm);
 	if (err != SW_OK) {
@@ -136,12 +203,15 @@ bool ppe_drv_tun_prgm_prsr_deconfigure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cf
  */
 bool ppe_drv_tun_prgm_prsr_configure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cfg, struct ppe_drv_tun_prgm_prsr_decap_key *key, uint8_t parser_idx)
 {
-	struct ppe_drv *p = ppe_drv_gbl;
 	fal_tunnel_decap_key_t ptdkcfg =  {0};
 	fal_tunnel_program_entry_t pgm = {0};
 	fal_tunnel_program_cfg_t cfg = {0};
+	struct ppe_drv *p = ppe_drv_gbl;
 	fal_tunnel_type_t tunnel_type;
 	sw_error_t err;
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	fal_tunnel_decap_miss_action_t dma = {0};
+#endif
 
 	/*
 	 * Set decap key configurations
@@ -153,13 +223,39 @@ bool ppe_drv_tun_prgm_prsr_configure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cfg,
 	ptdkcfg.udf0_mask = key->udf0_mask;
 	ptdkcfg.udf1_mask = key->udf1_mask;
 
-	tunnel_type = PPE_DRV_TUN_GET_TUNNEL_TYPE_FROM_PGM_TYPE(parser_idx);
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	/*
+	 * Index used to match lower/upper 16 bits of tunnel_info
+	 */
+	ptdkcfg.tunnel_info_udf0_idx = key->tunnel_info_udf0_id;
+	ptdkcfg.tunnel_info_udf1_idx = key->tunnel_info_udf1_id;
+#endif
+
+	tunnel_type = ppe_drv_tun_get_tunnel_type_from_pgm_type(parser_idx);
+	if (tunnel_type == FAL_TUNNEL_TYPE_INVALID_TUNNEL) {
+		ppe_drv_warn("%p: Invalid tunnel type for parser_idx %d", p, parser_idx);
+		return false;
+	}
 
 	err = fal_tunnel_decap_key_set(PPE_DRV_SWITCH_ID, tunnel_type, &ptdkcfg);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: Tunnel Decap key set failed for Program%d with error %d", p, parser_idx, err);
 		return false;
 	}
+
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	/*
+	 * Set decap miss action for this tunnel type
+	 */
+	dma.decap_en = key->decap_en_action;
+	dma.service_code_en = key->service_code_en;
+	dma.service_code = key->service_code;
+	err = fal_tunnel_decap_miss_action_set(PPE_DRV_SWITCH_ID, tunnel_type, &dma);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: Tunnel Decap miss action set failed for Program%d with error %d", p, parser_idx, err);
+		return false;
+	}
+#endif
 
 	/*
 	 * Configure tunnel program entry
@@ -168,7 +264,13 @@ bool ppe_drv_tun_prgm_prsr_configure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cfg,
 	pgm.outer_hdr_type = PPE_DRV_TUN_PRGM_PRSR_OUT_HDR_TO_FAL_OUT_HDR(prsr_cfg->outer_hdr);
 	pgm.protocol = prsr_cfg->protocol;
 	pgm.protocol_mask = prsr_cfg->protocol_mask;
-
+#ifdef NSS_PPE_TUNNEL_ENHANCED_PARSER
+	pgm.protocol_pos_valid = prsr_cfg->protocol_pos_valid;
+	pgm.protocol_pos_mode = ppe_drv_tun_get_proto_pos_modemode(prsr_cfg->proto_pos_mode);
+	pgm.protocol_pos_offset = prsr_cfg->protocol_pos_offset;
+	pgm.tuple_id_valid = prsr_cfg-> tuple_id_valid;
+	pgm.tuple_id = prsr_cfg->tuple_id;
+#endif
 	err = fal_tunnel_program_entry_add(PPE_DRV_SWITCH_ID, parser_idx, &pgm);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: program entry add failed for Program%d with error %d", p, parser_idx, err);
@@ -181,7 +283,10 @@ bool ppe_drv_tun_prgm_prsr_configure(struct ppe_drv_tun_prgm_prsr_cfg *prsr_cfg,
 	cfg.inner_type_mode = prsr_cfg->inner_mode;
 	cfg.program_pos_mode = prsr_cfg->pos_mode;
 	if (prsr_cfg->inner_mode == PPE_DRV_TUN_PRGM_PRSR_INNER_MODE_FIX) {
-		cfg.inner_hdr_type = (fal_hdr_type_t)prsr_cfg->conf.inner_hdr;
+		 /*
+		  * Caller must ensure conf.fix is properly initialized
+		  */
+		cfg.inner_hdr_type = (fal_hdr_type_t)prsr_cfg->conf.fix.inner_hdr;
 	} else {
 		/*
 		 * UDF mode configurations.
@@ -352,7 +457,9 @@ struct ppe_drv_tun_prgm_prsr *ppe_drv_tun_prgm_prsr_entry_alloc(enum ppe_drv_tun
 	 */
 	kref_init(&pgm[free_index].ref);
 	pgm[free_index].ctx.mode = mode;
-	ppe_drv_trace("%p: mode: %u ref inc:%u", &pgm[free_index], pgm[free_index].ctx.mode, kref_read(&pgm[free_index].ref));
+	ppe_drv_trace("%p: Parser allocated index : %d  mode: %u ref inc:%u", &pgm[free_index], free_index,
+			pgm[free_index].ctx.mode, kref_read(&pgm[free_index].ref));
+
 	return &pgm[free_index];
 }
 

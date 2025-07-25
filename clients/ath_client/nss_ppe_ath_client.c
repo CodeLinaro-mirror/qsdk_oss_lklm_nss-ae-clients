@@ -11,6 +11,8 @@
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/if_vlan.h>
+#include <linux/nl80211.h>
+#include <net/cfg80211.h>
 #include <ppe_drv_public.h>
 #include <ppe_vp_public.h>
 #include <ppe_vp_tx.h>
@@ -130,6 +132,11 @@ static int nss_ppe_ath_client_netdevice_event(struct notifier_block *unused,
 	dev = is_vlan_dev(dev) ? vlan_dev_real_dev(dev) : dev;
 	if (!dev->ieee80211_ptr) {
 		nss_ppe_ath_client_info("Dev: %s not a WLAN dev\n", dev->name);
+		return NOTIFY_DONE;
+	}
+
+	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_MONITOR) {
+		nss_ppe_ath_client_info("Skipping allocation of VP for monitor interface: %s\n", dev->name);
 		return NOTIFY_DONE;
 	}
 

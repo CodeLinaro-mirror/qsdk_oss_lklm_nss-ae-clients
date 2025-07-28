@@ -143,7 +143,7 @@ struct ppe_ds_wlan_ops_v2 {
  * PPE-DS node id
  *
  */
-typedef int (*ds_inst_alloc_func_t)(struct ppe_ds_wlan_ops *ops, size_t priv_size);
+typedef int (*ds_inst_alloc_func_t)(struct ppe_ds_wlan_ops_v2 *ops, size_t priv_size);
 
 /*
  * ds_inst_start_func_t

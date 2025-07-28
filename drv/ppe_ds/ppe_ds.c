@@ -1719,7 +1719,7 @@ EXPORT_SYMBOL(ppe_ds_wlan_inst_alloc);
  * ppe_ds_wlan_inst_alloc_v2()
  * 	wlan inst alloc returning PPEDS node id
  */
-struct ppe_ds *ppe_ds_wlan_inst_alloc_v2(struct ppe_ds_wlan_ops *ops, size_t priv_size)
+struct ppe_ds *ppe_ds_wlan_inst_alloc_v2(struct ppe_ds_wlan_ops_v2 *ops, size_t priv_size)
 {
 	struct ppe_ds *node;
 	nss_dp_ppeds_handle_t *edma_handle;
@@ -1768,7 +1768,7 @@ struct ppe_ds *ppe_ds_wlan_inst_alloc_v2(struct ppe_ds_wlan_ops *ops, size_t pri
 	dp_ops->get_queues(edma_handle, &ppe_queue_start);
 
 	node = (struct ppe_ds *)nss_dp_ppeds_priv(edma_handle);
-	node->wlan_ops = ops;
+	node->wlan_ops_v2 = ops;
 	node->dp_ops = dp_ops;
 	node->edma_handle = edma_handle;
 	node->node_cfg_idx = i;

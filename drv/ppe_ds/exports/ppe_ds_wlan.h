@@ -259,7 +259,7 @@ ppe_ds_wlan_handle_t *ppe_ds_wlan_inst_alloc(struct ppe_ds_wlan_ops *ops, size_t
  * @return
  * PPE-DS node
  */
-struct ppe_ds *ppe_ds_wlan_inst_alloc_v2(struct ppe_ds_wlan_ops *ops, size_t priv_size);
+struct ppe_ds *ppe_ds_wlan_inst_alloc_v2(struct ppe_ds_wlan_ops_v2 *ops, size_t priv_size);
 
 /**
  * ppe_ds_get_node_id

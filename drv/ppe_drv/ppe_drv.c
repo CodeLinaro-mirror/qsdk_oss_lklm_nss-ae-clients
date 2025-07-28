@@ -54,19 +54,18 @@ MODULE_PARM_DESC(flow_deacclr_dis, "Disable Flow deacceleration & Flush on Excep
  * Module parameter to enable/disable passive VP creation for SFE flows.
  */
 static bool passive_vp_enable = false;
-module_param(passive_vp_enable, bool, 0644);
 MODULE_PARM_DESC(passive_vp_enable, "Passive VP creation enable/disable");
 
 /*
  * Module parameter to set eth coremask.
  */
-static uint8_t eth_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
+static unsigned int eth_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
 MODULE_PARM_DESC(eth_coremask, "Coremask for Ethernet to Ethernet Flows");
 
 /*
  * Module parameter to set wlan common coremask.
  */
-static uint8_t wlan_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
+static unsigned int wlan_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
 MODULE_PARM_DESC(wlan_coremask, "Coremask for Ethernet to WLAN Flows");
 
 uint32_t if_bm_to_offload;
@@ -2526,13 +2525,38 @@ int32_t ppe_drv_mht_port_from_fdb(uint8_t *dmac, uint16_t vid)
 EXPORT_SYMBOL(ppe_drv_mht_port_from_fdb);
 
 /*
+ * ppe_drv_passive_vp_enable_handler()
+ *	Handler function to set value of passive_vp_enable.
+ */
+static int ppe_drv_passive_vp_enable_handler(const char *val, const struct kernel_param *kp)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	int res = param_set_bool(val, kp);
+
+	spin_lock_bh(&p->lock);
+	p->rfs.passive_vp_enable = passive_vp_enable;
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_trace("Passive VP is %s.\n", (passive_vp_enable ? "enabled" : "disabled"));
+
+	return res;
+}
+
+static const struct kernel_param_ops passive_vp_enable_ops = {
+	.set = ppe_drv_passive_vp_enable_handler,
+	.get = param_get_bool,
+};
+
+module_param_cb(passive_vp_enable, &passive_vp_enable_ops, &passive_vp_enable, 0644);
+
+/*
  * ppe_drv_eth_coremask_set_handler()
  *	Handler function to set value of eth_coremask.
  */
 static int ppe_drv_eth_coremask_set_handler(const char *val, const struct kernel_param *kp)
 {
 	struct ppe_drv *p = ppe_drv_gbl;
-	int res = param_set_int(val, kp);
+	int res = param_set_uint(val, kp);
 
 	if ((eth_coremask < PPE_DRV_RFS_COREMASK_MIN) || (eth_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
 		ppe_drv_warn("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
@@ -2543,7 +2567,7 @@ static int ppe_drv_eth_coremask_set_handler(const char *val, const struct kernel
 
 	spin_lock_bh(&p->lock);
 	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = eth_coremask;
-	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = eth_coremask;
+	p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = eth_coremask;
 	spin_unlock_bh(&p->lock);
 
 	ppe_drv_trace("Ethernet coremask value is set to : %u\n", eth_coremask);
@@ -2553,7 +2577,7 @@ static int ppe_drv_eth_coremask_set_handler(const char *val, const struct kernel
 
 static const struct kernel_param_ops eth_coremask_ops = {
     .set = ppe_drv_eth_coremask_set_handler,
-    .get = param_get_int,
+    .get = param_get_uint,
 };
 
 module_param_cb(eth_coremask, &eth_coremask_ops, &eth_coremask, 0644);
@@ -2565,7 +2589,7 @@ module_param_cb(eth_coremask, &eth_coremask_ops, &eth_coremask, 0644);
 static int ppe_drv_wlan_coremask_set_handler(const char *val, const struct kernel_param *kp)
 {
 	struct ppe_drv *p = ppe_drv_gbl;
-	int res = param_set_int(val, kp);
+	int res = param_set_uint(val, kp);
 
 	if ((wlan_coremask < PPE_DRV_RFS_COREMASK_MIN) || (wlan_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
 		ppe_drv_warn("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
@@ -2576,7 +2600,7 @@ static int ppe_drv_wlan_coremask_set_handler(const char *val, const struct kerne
 
 	spin_lock_bh(&p->lock);
 	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_WLAN] = wlan_coremask;
-	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_WLAN] = wlan_coremask;
+	p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_WLAN] = wlan_coremask;
 	spin_unlock_bh(&p->lock);
 
 	ppe_drv_trace("WLAN coremask value is set to : %u\n", wlan_coremask);
@@ -2586,7 +2610,7 @@ static int ppe_drv_wlan_coremask_set_handler(const char *val, const struct kerne
 
 static const struct kernel_param_ops wlan_coremask_ops = {
     .set = ppe_drv_wlan_coremask_set_handler,
-    .get = param_get_int,
+    .get = param_get_uint,
 };
 
 module_param_cb(wlan_coremask, &wlan_coremask_ops, &wlan_coremask, 0644);

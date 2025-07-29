@@ -1076,6 +1076,17 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill_hairpin_flows(struct ppe_drv_v6_rule_create *
 			ppe_drv_v6_conn_flow_flags_set(pcf_hp, PPE_DRV_V6_CONN_FLOW_FLAG_INLINE_IPSEC);
 		}
 
+		/*
+		 * Check if destination vp is full inline EIP virtual port.
+		 */
+		if (ppe_drv_port_flags_check(ppe_drv_v6_conn_flow_tx_port_get(pcf_hp), PPE_DRV_PORT_FLAG_IPSEC_FULL_INLINE)) {
+			if (rule_flags & PPE_DRV_V6_RULE_FLAG_IPSEC_DECAP_FLOW) {
+				ppe_drv_v6_conn_flow_flags_set(pcf_hp, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_DECAP);
+			} else {
+				ppe_drv_v6_conn_flow_flags_set(pcf_hp, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_ENCAP);
+			}
+		}
+
 #ifdef PPE_DRV_SRC_INTERFACE_CHECK
 		/*
 		 * Check source interface based on rule flags.
@@ -1310,6 +1321,17 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill_hairpin_flows(struct ppe_drv_v6_rule_create *
 		 */
 		if (ppe_drv_port_flags_check(ppe_drv_v6_conn_flow_tx_port_get(pcr_hp), PPE_DRV_PORT_FLAG_IIPSEC)) {
 			ppe_drv_v6_conn_flow_flags_set(pcr_hp, PPE_DRV_V6_CONN_FLOW_FLAG_INLINE_IPSEC);
+		}
+
+		/*
+		 * Check if destination vp is full inline EIP virtual port.
+		 */
+		if (ppe_drv_port_flags_check(ppe_drv_v6_conn_flow_tx_port_get(pcr_hp), PPE_DRV_PORT_FLAG_IPSEC_FULL_INLINE)) {
+			if (rule_flags & PPE_DRV_V6_RULE_FLAG_IPSEC_DECAP_FLOW) {
+				ppe_drv_v6_conn_flow_flags_set(pcr_hp, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_DECAP);
+			} else {
+				ppe_drv_v6_conn_flow_flags_set(pcr_hp, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_ENCAP);
+			}
 		}
 
 #ifdef PPE_DRV_SRC_INTERFACE_CHECK
@@ -1710,6 +1732,17 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 			ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_INLINE_IPSEC);
 		}
 
+		/*
+		 * Check if destination vp is full inline EIP virtual port.
+		 */
+		if (ppe_drv_port_flags_check(ppe_drv_v6_conn_flow_tx_port_get(pcf), PPE_DRV_PORT_FLAG_IPSEC_FULL_INLINE)) {
+			if (rule_flags & PPE_DRV_V6_RULE_FLAG_IPSEC_DECAP_FLOW) {
+				ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_DECAP);
+			} else {
+				ppe_drv_v6_conn_flow_flags_set(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_ENCAP);
+			}
+		}
+
 #ifdef PPE_DRV_SRC_INTERFACE_CHECK
 		/*
 		 * Check source interface based on rule flags.
@@ -1964,6 +1997,17 @@ ppe_drv_ret_t ppe_drv_v6_conn_fill(struct ppe_drv_v6_rule_create *create, struct
 		 */
 		if (ppe_drv_port_flags_check(ppe_drv_v6_conn_flow_tx_port_get(pcr), PPE_DRV_PORT_FLAG_IIPSEC)) {
 			ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLOW_FLAG_INLINE_IPSEC);
+		}
+
+		/*
+		 * Check if destination vp is full inline EIP virtual port.
+		 */
+		if (ppe_drv_port_flags_check(ppe_drv_v6_conn_flow_tx_port_get(pcr), PPE_DRV_PORT_FLAG_IPSEC_FULL_INLINE)) {
+			if (rule_flags & PPE_DRV_V6_RULE_FLAG_IPSEC_DECAP_FLOW) {
+				ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_DECAP);
+			} else {
+				ppe_drv_v6_conn_flow_flags_set(pcr, PPE_DRV_V6_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_ENCAP);
+			}
 		}
 
 #ifdef PPE_DRV_SRC_INTERFACE_CHECK

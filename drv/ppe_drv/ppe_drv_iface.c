@@ -658,6 +658,11 @@ ppe_drv_ret_t ppe_drv_iface_eip_set(struct ppe_drv_iface *iface, ppe_drv_eip_ser
 		break;
 	case PPE_DRV_EIP_SERVICE_NONINLINE:
 		break;
+
+	case PPE_DRV_EIP_SERVICE_FULL_INLINE:
+		ppe_drv_port_flags_set(vp, PPE_DRV_PORT_FLAG_IPSEC_FULL_INLINE);
+		break;
+
 	default:
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: unsupported EIP service type: %u", iface, type);

@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2016-2017, 2020, The Linux Foundation. All rights reserved.
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  * SPDX-License-Identifier: ISC
  */

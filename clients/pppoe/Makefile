@@ -12,11 +12,6 @@ ccflags-y += -Wall -Werror
 ccflags-y += -DPPPOE_MGR_DEBUG_LEVEL=0
 ccflags-y += -I$(obj)/../include
 
-# The below 3 lines will be removed once all the gerrits of name change is merged
-obj-m += qca-nss-pppoe-mgr.o
-qca-nss-pppoe-mgr-y := pppoe_mgr.o
-qca-nss-pppoe-mgr-y += frontends/ppe/ppe_pppoe_mgr.o
-
 ifneq (,$(filter $(CONFIG_BONDING),y m))
 ccflags-y += -DBONDING_SUPPORT
 endif

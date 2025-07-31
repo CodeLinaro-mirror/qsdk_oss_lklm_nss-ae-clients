@@ -1,20 +1,7 @@
 /*
- **************************************************************************
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- **************************************************************************
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: ISC
  */
 
 /*
@@ -59,7 +46,7 @@ static int fdb_disabled = false;
  */
 static int fdb_del_notify = false;
 
-static struct nss_ppe_bridge_mgr_context br_mgr_ctx;
+struct nss_ppe_bridge_mgr_context br_mgr_ctx = {0};
 
 /*
  * nss_ppe_bridge_mgr_delete_instance()
@@ -80,6 +67,7 @@ static void nss_ppe_bridge_mgr_delete_instance(struct nss_ppe_bridge_mgr_pvt *b_
 	}
 
 	nss_ppe_bridge_mgr_minidump_free(b_pvt, "nss_ppe_bridge_mgr_pvt");
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_delete_instance_success);
 	kfree(b_pvt);
 }
 
@@ -93,6 +81,7 @@ static struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_create_instance(struct 
 
 #if !defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
 	if (!netif_is_bridge_master(dev)) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_dev_not_bridge_master);
 		return NULL;
 	}
 #else
@@ -101,6 +90,7 @@ static struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_create_instance(struct 
 	 * and OVS master.
 	 */
 	if (!netif_is_bridge_master(dev) && !ovsmgr_is_ovs_master(dev)) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_bridge_ovs_master);
 		return NULL;
 	}
 #endif
@@ -108,12 +98,14 @@ static struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_create_instance(struct 
 	br = kzalloc(sizeof(*br), GFP_KERNEL);
 	if (!br) {
 		nss_ppe_bridge_mgr_warn("%px: failed to allocate nss_ppe_bridge_mgr_pvt instance\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_instance_alloc_fail);
 		return NULL;
 	}
 
 	br->iface = ppe_drv_iface_alloc(PPE_DRV_IFACE_TYPE_BRIDGE, dev);
 	if (!br->iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to allocate PPE iface instance\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_ppe_iface_alloc_fail);
 		kfree(br);
 		return NULL;
 	}
@@ -121,6 +113,7 @@ static struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_create_instance(struct 
 	nss_ppe_bridge_mgr_minidump_log(br, sizeof(*br), "nss_ppe_bridge_mgr_pvt");
 
 	INIT_LIST_HEAD(&br->list);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_create_instance_success);
 	return br;
 }
 
@@ -134,15 +127,18 @@ static int nss_ppe_bridge_mgr_ppe_unregister_br(struct nss_ppe_bridge_mgr_pvt *b
 	ppe_drv_ret_t ret = ppe_drv_iface_mac_addr_clear(b_pvt->iface);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to clear MAC address, error = %d\n", b_pvt->dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_mac_clear_fail);
 		res = -EFAULT;
 	}
 
 	ret = ppe_drv_br_deinit(b_pvt->iface);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to de-initialize bridge, error = %d\n", b_pvt->dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_deinit_fail);
 		res = -EFAULT;
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_ppe_unregister_success);
 	return res;
 }
 
@@ -155,18 +151,21 @@ static bool nss_ppe_bridge_mgr_ppe_register_br(struct nss_ppe_bridge_mgr_pvt *b_
 	ppe_drv_ret_t ret = ppe_drv_br_init(b_pvt->iface);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to alloc bridge vsi, error = %d\n", b_pvt->dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_vsi_alloc_fail);
 		return false;
 	}
 
 	ret = ppe_drv_iface_mac_addr_set(b_pvt->iface, b_pvt->dev_addr);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to set mac_addr, error = %d \n", b_pvt->dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_mac_set_fail);
 		goto fail;
 	}
 
 	ret = ppe_drv_iface_mtu_set(b_pvt->iface, b_pvt->mtu);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to set mtu, error = %d \n", b_pvt->dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_mtu_set_fail);
 		goto fail2;
 	}
 
@@ -178,11 +177,13 @@ static bool nss_ppe_bridge_mgr_ppe_register_br(struct nss_ppe_bridge_mgr_pvt *b_
 	if (ovs_enabled || fdb_disabled) {
 		if (ppe_drv_br_fdb_lrn_ctrl(b_pvt->iface, false) != PPE_DRV_RET_SUCCESS) {
 			nss_ppe_bridge_mgr_warn("%px: Failed to disable FDB learning\n", b_pvt);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_disable_fdb_fail);
 		} else {
 			b_pvt->fdb_lrn_enabled = false;
 		}
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_ppe_register_br_success);
 	return true;
 
 fail2:
@@ -216,6 +217,7 @@ bool nss_ppe_bridge_mgr_vlan_over_bridge_notfication(struct net_device *bridge_d
 	b_pvt = nss_ppe_bridge_mgr_find_instance(bridge_dev);
 	if (!b_pvt) {
 		nss_ppe_bridge_mgr_warn("%px: b_pvt not found for bridge %s\n", b_pvt, bridge_dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		ret = false;
 		return ret;
 	}
@@ -227,10 +229,12 @@ bool nss_ppe_bridge_mgr_vlan_over_bridge_notfication(struct net_device *bridge_d
 	} else {
 		ret = false;
 		nss_ppe_bridge_mgr_warn("Invalid action %d in bridge %s\n", br_action, bridge_dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_action);
 	}
 
 	nss_ppe_bridge_mgr_trace("Bridge %s action %d bridge_vlan_iface_cnt %lld\n", bridge_dev->name, br_action,
 				 atomic64_read(&b_pvt->bridge_vlan_iface_cnt));
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_vlan_over_br_notify_success);
 	return ret;
 }
 
@@ -244,12 +248,14 @@ static int nss_ppe_bridge_mgr_ppe_leave_br(struct nss_ppe_bridge_mgr_pvt *b_pvt,
 	struct ppe_drv_iface *iface = ppe_drv_iface_get_by_dev(dev);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return -EPERM;
 	}
 
 	ret = ppe_drv_br_stp_state_set(b_pvt->iface, dev, FAL_STP_FORWARDING);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to set the STP state to forwarding\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_stp_state_set_fail);
 		return -EPERM;
 	}
 
@@ -258,16 +264,19 @@ static int nss_ppe_bridge_mgr_ppe_leave_br(struct nss_ppe_bridge_mgr_pvt *b_pvt,
 	 * The configuration will be done separely. No need to do any change here.
 	 */
 	if (is_wan) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_wan_in_bridge);
 		return 1;
 	}
 
 	ret = ppe_drv_br_leave(b_pvt->iface, dev);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: net_dev (%s) failed to leave bridge\n", dev, dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_ppe_leave_br_fail);
 		ppe_drv_br_stp_state_set(b_pvt->iface, dev, FAL_STP_DISABLED);
 		return -EPERM;
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_ppe_leave_br_success);
 	return 0;
 }
 
@@ -287,6 +296,7 @@ static int nss_ppe_bridge_mgr_del_bond_slave(struct net_device *bond_master,
 	iface = ppe_drv_iface_get_by_dev(slave);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: PPE interface cannot be found\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return -1;
 	}
 
@@ -298,9 +308,11 @@ static int nss_ppe_bridge_mgr_del_bond_slave(struct net_device *bond_master,
 	if (res) {
 		spin_unlock(&br_mgr_ctx.lock);
 		nss_ppe_bridge_mgr_warn("%px: Unable to leave bridge %s\n", b_pvt, slave->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_del_bond_slave_fail);
 		return -1;
 	}
 	spin_unlock(&br_mgr_ctx.lock);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_del_bond_slave_success);
 	return 0;
 }
 
@@ -320,6 +332,7 @@ static int nss_ppe_bridge_mgr_add_bond_slave(struct net_device *bond_master,
 	iface = ppe_drv_iface_get_by_dev(slave);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", slave);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return -EPERM;
 	}
 
@@ -337,9 +350,11 @@ static int nss_ppe_bridge_mgr_add_bond_slave(struct net_device *bond_master,
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		spin_unlock(&br_mgr_ctx.lock);
 		nss_ppe_bridge_mgr_warn("%px: Unable to join bridge %s\n", b_pvt, slave->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_add_bond_slave_fail);
 		return -1;
 	}
 	spin_unlock(&br_mgr_ctx.lock);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_add_bond_slave_success);
 	return 0;
 }
 
@@ -357,6 +372,7 @@ static bool nss_ppe_bridge_mgr_bond_fdb_join(struct nss_ppe_bridge_mgr_pvt *b_pv
 	if (b_pvt->bond_slave_num) {
 		b_pvt->bond_slave_num++;
 		spin_unlock(&br_mgr_ctx.lock);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_slave_exists);
 		return true;
 	}
 
@@ -370,9 +386,11 @@ static bool nss_ppe_bridge_mgr_bond_fdb_join(struct nss_ppe_bridge_mgr_pvt *b_pv
 	 */
 	if (ppe_drv_br_fdb_lrn_ctrl(b_pvt->iface, false) != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: Failed to disable FDB learning\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_disable_fdb_fail);
 		return false;
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_fdb_join_success);
 	return true;
 }
 
@@ -392,6 +410,7 @@ static bool nss_ppe_bridge_mgr_bond_fdb_leave(struct nss_ppe_bridge_mgr_pvt *b_p
 	if (b_pvt->bond_slave_num > 1) {
 		b_pvt->bond_slave_num--;
 		spin_unlock(&br_mgr_ctx.lock);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_slave_exists);
 		return true;
 	}
 
@@ -399,6 +418,7 @@ static bool nss_ppe_bridge_mgr_bond_fdb_leave(struct nss_ppe_bridge_mgr_pvt *b_p
 	spin_unlock(&br_mgr_ctx.lock);
 
 	if (ovs_enabled || fdb_disabled) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_fdb_leave_success);
 		return true;
 	}
 
@@ -408,9 +428,11 @@ static bool nss_ppe_bridge_mgr_bond_fdb_leave(struct nss_ppe_bridge_mgr_pvt *b_p
 	 */
 	if (ppe_drv_br_fdb_lrn_ctrl(b_pvt->iface, true) != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: Failed to enable FDB learning\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_enable_fdb_fail);
 		return false;
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_fdb_leave_success);
 	return true;
 }
 
@@ -429,12 +451,14 @@ static int nss_ppe_bridge_mgr_bond_slave_changeupper(struct netdev_notifier_chan
 	 */
 	master = netdev_master_upper_dev_get(cu_info->upper_dev);
 	if (!master) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_master_upper_dev);
 		return NOTIFY_DONE;
 	}
 
 	b_pvt = nss_ppe_bridge_mgr_find_instance(master);
 	if (!b_pvt) {
 		nss_ppe_bridge_mgr_warn("The bond master is not part of Bridge dev:%s\n", master->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_not_in_br);
 		return NOTIFY_DONE;
 	}
 
@@ -453,6 +477,7 @@ static int nss_ppe_bridge_mgr_bond_slave_changeupper(struct netdev_notifier_chan
 		}
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_slave_changeupper_success);
 	return NOTIFY_DONE;
 }
 
@@ -494,6 +519,7 @@ static int nss_ppe_bridge_mgr_bond_master_join(struct net_device *bond_master,
 	spin_unlock(&br_mgr_ctx.lock);
 
 	if (nss_ppe_bridge_mgr_bond_fdb_join(b_pvt)) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_join_success);
 		return NOTIFY_DONE;
 	}
 
@@ -504,6 +530,7 @@ cleanup:
 		}
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_join_fail);
 	return NOTIFY_DONE;
 }
 
@@ -529,12 +556,14 @@ static int nss_ppe_bridge_mgr_bond_master_leave(struct net_device *bond_master,
 	if (nss_ppe_bridge_mgr_bridge_vlan_interfaces_get(b_pvt)) {
 		nss_ppe_bridge_mgr_warn("Bond interface %s not allowed to be leave in VLAN over bridge case "
 					"%s", bond_master->name, b_pvt->dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_vlan_over_br_leave_fail);
 		return NOTIFY_DONE;
 	}
 
 	ret = ppe_drv_br_leave(b_pvt->iface, bond_master);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: net_dev (%s) failed to leave bridge\n", bond_master, bond_master->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_leave_fail);
 		return NOTIFY_DONE;
 	}
 
@@ -550,6 +579,7 @@ static int nss_ppe_bridge_mgr_bond_master_leave(struct net_device *bond_master,
 
 	if (nss_ppe_bridge_mgr_bond_fdb_leave(b_pvt)) {
 		b_pvt->fdb_lrn_enabled = true;
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_leave_success);
 		return NOTIFY_DONE;
 	}
 
@@ -563,8 +593,10 @@ cleanup:
 	ret = ppe_drv_br_join(b_pvt->iface, bond_master);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: Unable to join bridge %s\n", b_pvt, bond_master->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_join_fail);
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_bond_master_leave_fail);
 	return NOTIFY_DONE;
 }
 
@@ -579,12 +611,14 @@ static int nss_ppe_bridge_mgr_changemtu_event(struct netdev_notifier_info *info)
 	struct nss_ppe_bridge_mgr_pvt *b_pvt = nss_ppe_bridge_mgr_find_instance(dev);
 
 	if (!b_pvt) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return NOTIFY_DONE;
 	}
 
 	spin_lock(&br_mgr_ctx.lock);
 	if (b_pvt->mtu == dev->mtu) {
 		spin_unlock(&br_mgr_ctx.lock);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_changemtu_success);
 		return NOTIFY_DONE;
 	}
 	spin_unlock(&br_mgr_ctx.lock);
@@ -593,12 +627,14 @@ static int nss_ppe_bridge_mgr_changemtu_event(struct netdev_notifier_info *info)
 	ret = ppe_drv_iface_mtu_set(b_pvt->iface, dev->mtu);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to set mtu, error = %d \n", dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_mtu_set_fail);
 		return NOTIFY_BAD;
 	}
 
 	spin_lock(&br_mgr_ctx.lock);
 	b_pvt->mtu = dev->mtu;
 	spin_unlock(&br_mgr_ctx.lock);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_changemtu_success);
 	return NOTIFY_DONE;
 }
 
@@ -613,6 +649,7 @@ static int nss_ppe_bridge_mgr_changeaddr_event(struct netdev_notifier_info *info
 	struct nss_ppe_bridge_mgr_pvt *b_pvt = nss_ppe_bridge_mgr_find_instance(dev);
 
 	if (!b_pvt) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return NOTIFY_DONE;
 	}
 
@@ -620,6 +657,7 @@ static int nss_ppe_bridge_mgr_changeaddr_event(struct netdev_notifier_info *info
 	if (!memcmp(b_pvt->dev_addr, dev->dev_addr, ETH_ALEN)) {
 		spin_unlock(&br_mgr_ctx.lock);
 		nss_ppe_bridge_mgr_trace("%px: MAC are the same..skip processing it\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_identical_mac);
 		return NOTIFY_DONE;
 	}
 
@@ -630,18 +668,21 @@ static int nss_ppe_bridge_mgr_changeaddr_event(struct netdev_notifier_info *info
 	ret = ppe_drv_iface_mac_addr_clear(b_pvt->iface);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to clear MAC address, error = %d\n", b_pvt->dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_mac_clear_fail);
 		return NOTIFY_DONE;
 	}
 
 	ret = ppe_drv_iface_mac_addr_set(b_pvt->iface, (uint8_t *)dev->dev_addr);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: failed to set mac_addr, error = %d \n", dev, ret);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_mac_set_fail);
 		return NOTIFY_DONE;
 	}
 
 	spin_lock(&br_mgr_ctx.lock);
 	ether_addr_copy(b_pvt->dev_addr, dev->dev_addr);
 	spin_unlock(&br_mgr_ctx.lock);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_changeaddr_success);
 	return NOTIFY_DONE;
 }
 
@@ -662,6 +703,7 @@ static int nss_ppe_bridge_mgr_changeupper_event(struct netdev_notifier_info *inf
 	 * Check if the master pointer is valid
 	 */
 	if (!cu_info->master) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_master_upper_dev);
 		return NOTIFY_DONE;
 	}
 
@@ -669,6 +711,7 @@ static int nss_ppe_bridge_mgr_changeupper_event(struct netdev_notifier_info *inf
 	 * The master is a bond that we don't need to process, but the bond might be part of a bridge.
 	 */
 	if (netif_is_bond_slave(dev)) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_dev_bond_slave);
 		return nss_ppe_bridge_mgr_bond_slave_changeupper(cu_info, dev);
 	}
 
@@ -678,8 +721,10 @@ static int nss_ppe_bridge_mgr_changeupper_event(struct netdev_notifier_info *inf
 	 * Check if upper_dev is a known bridge.
 	 */
 	b_pvt = nss_ppe_bridge_mgr_find_instance(master_dev);
-	if (!b_pvt)
+	if (!b_pvt) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return NOTIFY_DONE;
+	}
 
 	/*
 	 * Slave device is bond master and it is added/removed to/from bridge
@@ -696,6 +741,7 @@ static int nss_ppe_bridge_mgr_changeupper_event(struct netdev_notifier_info *inf
 		nss_ppe_bridge_mgr_trace("%px: Interface %s joining bridge %s\n", dev, dev->name, master_dev->name);
 		if (nss_ppe_bridge_mgr_join_bridge(dev, master_dev)) {
 			nss_ppe_bridge_mgr_warn("%px: Interface %s failed to join bridge %s\n", dev, dev->name, master_dev->name);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_changeupper_event_fail);
 		}
 
 		return NOTIFY_DONE;
@@ -704,6 +750,7 @@ static int nss_ppe_bridge_mgr_changeupper_event(struct netdev_notifier_info *inf
 	nss_ppe_bridge_mgr_trace("%px: Interface %s leaving bridge %s\n", dev, dev->name, master_dev->name);
 	if (nss_ppe_bridge_mgr_leave_bridge(dev, master_dev)) {
 		nss_ppe_bridge_mgr_warn("%px: Interface %s failed to leave bridge %s\n", dev, dev->name, master_dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_changeupper_event_fail);
 	}
 
 	return NOTIFY_DONE;
@@ -792,12 +839,14 @@ static bool nss_ppe_bridge_mgr_is_physical(struct net_device *dev)
 {
 	struct ppe_drv_iface *iface;
 	if (!dev) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_dev);
 		return false;
 	}
 
 	iface = ppe_drv_iface_get_by_dev(dev);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return false;
 	}
 
@@ -813,6 +862,7 @@ static bool nss_ppe_bridge_mgr_is_ppe(struct net_device *dev)
 	struct net_device *real_dev = dev;
 	struct ppe_drv_iface *iface;
 	if (!dev) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_dev);
 		return false;
 	}
 
@@ -838,6 +888,7 @@ static bool nss_ppe_bridge_mgr_is_ppe(struct net_device *dev)
 	 * Don't consider bond interface because FDB learning is disabled.
 	 */
 	if (netif_is_bond_master(real_dev)) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_real_dev_bond_master);
 		return false;
 	}
 
@@ -847,13 +898,16 @@ static bool nss_ppe_bridge_mgr_is_ppe(struct net_device *dev)
 	iface = ppe_drv_iface_get_by_dev(dev);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return false;
 	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_is_ppe_success);
 	return true;
 
 error:
 	nss_ppe_bridge_mgr_warn("%px: cannot find the real device for VLAN %s\n", dev, dev->name);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_vlan_real_dev);
 	return false;
 }
 
@@ -869,12 +923,15 @@ static int nss_ppe_bridge_mgr_fdb_update_callback(struct notifier_block *notifie
 	struct net_device *br_dev = NULL;
 	ppe_drv_ret_t ret;
 
-	if (!event->br)
+	if (!event->br) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_br_fdb_event);
 		return NOTIFY_DONE;
+	}
 
 	br_dev = br_fdb_bridge_dev_get_and_hold(event->br);
 	if (!br_dev) {
 		nss_ppe_bridge_mgr_warn("%px: bridge device not found\n", event->br);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_br_dev);
 		return NOTIFY_DONE;
 	}
 
@@ -888,12 +945,14 @@ static int nss_ppe_bridge_mgr_fdb_update_callback(struct notifier_block *notifie
 	if (!nss_ppe_bridge_mgr_is_ppe(event->orig_dev)) {
 		nss_ppe_bridge_mgr_trace("%px: original source is not a physical interface\n", event->orig_dev);
 		dev_put(br_dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_org_src_not_phy_intf);
 		return NOTIFY_DONE;
 	}
 
 	if (nss_ppe_bridge_mgr_is_ppe(event->dev) && nss_ppe_bridge_mgr_is_physical(event->dev)) {
 		nss_ppe_bridge_mgr_trace("%px: new source is a PPE physical interface\n", event->dev);
 		dev_put(br_dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_new_src_ppe_phy_intf);
 		return NOTIFY_DONE;
 	}
 
@@ -901,6 +960,7 @@ static int nss_ppe_bridge_mgr_fdb_update_callback(struct notifier_block *notifie
 	dev_put(br_dev);
 	if (!b_pvt) {
 		nss_ppe_bridge_mgr_warn("%px: bridge instance not found\n", event->br);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return NOTIFY_DONE;
 	}
 
@@ -908,6 +968,7 @@ static int nss_ppe_bridge_mgr_fdb_update_callback(struct notifier_block *notifie
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: FDB entry delete failed with MAC %pM\n",
 				    b_pvt, event->addr);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_delete_fdb_fail);
 	}
 
 	return NOTIFY_OK;
@@ -930,6 +991,7 @@ static int nss_ppe_bridge_mgr_fdb_delete_event(struct notifier_block *nb,
 				"event MAC: %pM val: %lu dev: %s, ignore\n",
 				event, event->addr, val,
 				event->dev ? event->dev->name : NULL);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_fdb_del_invalid);
 		return NOTIFY_DONE;
 	}
 
@@ -937,15 +999,19 @@ static int nss_ppe_bridge_mgr_fdb_delete_event(struct notifier_block *nb,
 
 	if (!fdb_del_notify) {
 		nss_ppe_bridge_mgr_trace("FDB delete notify disabled\n");
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_fdb_del_notify_disable);
 		return NOTIFY_DONE;
 	}
 
-	if (!event->br)
+	if (!event->br) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_br_fdb_event);
 		return NOTIFY_DONE;
+	}
 
 	br_dev = br_fdb_bridge_dev_get_and_hold(event->br);
 	if (!br_dev) {
 		nss_ppe_bridge_mgr_warn("%px: bridge device not found\n", event->br);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_br_dev);
 		return NOTIFY_DONE;
 	}
 
@@ -960,6 +1026,7 @@ static int nss_ppe_bridge_mgr_fdb_delete_event(struct notifier_block *nb,
 	if (!nss_ppe_bridge_mgr_is_ppe(event->dev)) {
 		nss_ppe_bridge_mgr_trace("%px: dev is not a PPE interface\n", event->dev);
 		dev_put(br_dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_dev_not_ppe);
 		return NOTIFY_DONE;
 	}
 
@@ -967,6 +1034,7 @@ static int nss_ppe_bridge_mgr_fdb_delete_event(struct notifier_block *nb,
 	dev_put(br_dev);
 	if (!b_pvt) {
 		nss_ppe_bridge_mgr_warn("%px: bridge instance not found\n", event->br);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return NOTIFY_DONE;
 	}
 
@@ -974,6 +1042,7 @@ static int nss_ppe_bridge_mgr_fdb_delete_event(struct notifier_block *nb,
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_bridge_mgr_warn("%px: FDB entry delete failed with MAC %pM\n",
 				b_pvt, event->addr);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_delete_fdb_fail);
 	}
 
 	return NOTIFY_DONE;
@@ -1012,6 +1081,7 @@ static int nss_ppe_bridge_mgr_wan_intf_add_handler(struct ctl_table *table,
 	 */
 	ret = proc_dostring(table, write, buffer, lenp, ppos);
 	if (ret || !write) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_procfs_write_fail);
 		return ret;
 	}
 
@@ -1020,24 +1090,28 @@ static int nss_ppe_bridge_mgr_wan_intf_add_handler(struct ctl_table *table,
 	dev = dev_get_by_name(&init_net, dev_name);
 	if (!dev) {
 		nss_ppe_bridge_mgr_warn("Cannot find the net device associated with %s\n", dev_name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_dev);
 		return -ENODEV;
 	}
 
 	iface = ppe_drv_iface_get_by_dev(dev);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return -EPERM;
 	}
 
 	if (br_mgr_ctx.wan_netdev) {
 		dev_put(dev);
 		nss_ppe_bridge_mgr_warn("Cannot overwrite a pre-existing wan interface\n");
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_wan_overwrite);
 		return -ENOMSG;
 	}
 
 	br_mgr_ctx.wan_netdev = dev;
 	dev_put(dev);
 	nss_ppe_bridge_mgr_always("For adding netdev: %s as WAN interface, do a network restart\n", dev_name);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_wan_intf_add_success);
 	return ret;
 }
 
@@ -1056,17 +1130,22 @@ static int nss_ppe_bridge_mgr_wan_intf_del_handler(struct ctl_table *table,
 	struct ppe_drv_iface *iface;
 
 	ret = proc_dostring(table, write, buffer, lenp, ppos);
-	if (ret)
+	if (ret) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_procfs_write_fail);
 		return ret;
+	}
 
-	if (!write)
+	if (!write) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_procfs_write_fail);
 		return ret;
+	}
 
 	if_name = br_mgr_ctx.wan_ifname;
 	dev_name = strsep(&if_name, " ");
 	dev = dev_get_by_name(&init_net, dev_name);
 	if (!dev) {
 		nss_ppe_bridge_mgr_warn("Cannot find the net device associated with %s\n", dev_name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_dev);
 		return -ENODEV;
 	}
 
@@ -1077,18 +1156,21 @@ static int nss_ppe_bridge_mgr_wan_intf_del_handler(struct ctl_table *table,
 	iface = ppe_drv_iface_get_by_dev(dev);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return -EPERM;
 	}
 
 	if (br_mgr_ctx.wan_netdev != dev) {
 		dev_put(dev);
 		nss_ppe_bridge_mgr_warn("This interface is not marked as a WAN interface\n");
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_intf_not_wan);
 		return -ENOMSG;
 	}
 
 	br_mgr_ctx.wan_netdev = NULL;
 	dev_put(dev);
 	nss_ppe_bridge_mgr_always("For deleting netdev: %s as WAN interface, do a network restart\n", dev_name);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_wan_intf_del_success);
 	return ret;
 }
 
@@ -1103,12 +1185,17 @@ static int nss_ppe_bridge_mgr_fdb_handler(struct ctl_table *table,
 	int ret = 0;
 
 	ret = proc_dointvec(table, write, buffer, lenp, ppos);
-	if (ret)
+	if (ret) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_procfs_write_fail);
 		return ret;
+	}
 
-	if (!write)
+	if (!write) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_procfs_write_fail);
 		return ret;
+	}
 
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_fdb_handler_success);
 	return ret;
 }
 
@@ -1123,13 +1210,18 @@ static int nss_ppe_bridge_mgr_fdb_del_notify_handler(struct ctl_table *table,
 	int ret = 0;
 
 	ret = proc_dointvec(table, write, buffer, lenp, ppos);
-	if (ret)
+	if (ret) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_procfs_write_fail);
 		return ret;
+	}
 
-	if (!write)
+	if (!write) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_procfs_write_fail);
 		return ret;
+	}
 
 	nss_ppe_bridge_mgr_trace("Update fdb delete notify: %d\n", fdb_del_notify);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_fdb_del_notify_success);
 	return ret;
 }
 
@@ -1175,6 +1267,7 @@ struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_find_instance(struct net_devic
 
 #if !defined(NSS_PPE_BRIDGE_MGR_OVS_ENABLE)
 	if (!netif_is_bridge_master(dev)) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_dev_not_bridge_master);
 		return NULL;
 	}
 #else
@@ -1183,6 +1276,7 @@ struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_find_instance(struct net_devic
 	 * and OVS master.
 	 */
 	if (!netif_is_bridge_master(dev) && !ovsmgr_is_ovs_master(dev)) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_bridge_ovs_master);
 		return NULL;
 	}
 #endif
@@ -1194,11 +1288,13 @@ struct nss_ppe_bridge_mgr_pvt *nss_ppe_bridge_mgr_find_instance(struct net_devic
 	list_for_each_entry(br, &br_mgr_ctx.list, list) {
 		if (br->dev == dev) {
 			spin_unlock(&br_mgr_ctx.lock);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_find_instance_success);
 			return br;
 		}
 	}
 
 	spin_unlock(&br_mgr_ctx.lock);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 	return NULL;
 }
 
@@ -1219,6 +1315,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 	b_pvt = nss_ppe_bridge_mgr_find_instance(bridge_dev);
 	if (!b_pvt) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find bridge instance\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return -ENOENT;
 	}
 
@@ -1227,12 +1324,14 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 		iface = ppe_drv_iface_get_by_dev(dev);
 		if (!iface) {
 			nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", dev);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 			return -EPERM;
 		}
 
 		if (nss_ppe_bridge_mgr_bridge_vlan_interfaces_get(b_pvt)) {
 			if (nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule(iface, b_pvt->dev, rule_action)) {
 				nss_ppe_bridge_mgr_warn("Ingress xlate rule delete failed for %s\n", dev->name);
+				nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_in_xlate_rule_del_fail);
 			}
 		}
 
@@ -1248,14 +1347,17 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 		res = nss_ppe_bridge_mgr_ppe_leave_br(b_pvt, dev, is_wan);
 		if (res < 0) {
 			nss_ppe_bridge_mgr_warn("%px: failed to leave bridge\n", b_pvt);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_leave_br_fail);
 			return res;
 		} else if (res == 1) {
 			b_pvt->wan_if_enabled = false;
 			b_pvt->wan_netdev = NULL;
 			nss_ppe_bridge_mgr_info("Netdev %px (%s) is added as WAN interface \n", dev, dev->name);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_wan_in_bridge);
 			return 0;
 		}
 
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_leave_br_success);
 		return 0;
 	}
 
@@ -1271,6 +1373,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 	if (nss_ppe_bridge_mgr_bridge_vlan_interfaces_get(b_pvt)) {
 		nss_ppe_bridge_mgr_warn("VLAN interface is created over bridge(%s) and so, removing VLAN interface(%s)"
 					"from bridge in PPE is not required", b_pvt->dev->name, dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_leave_br_fail);
 		return -EINVAL;
 	}
 	/*
@@ -1283,12 +1386,14 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 
 	if (real_dev == NULL) {
 		nss_ppe_bridge_mgr_warn("%px: real dev for the vlan: %s in NULL\n", b_pvt, dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_real_dev);
 		return -1;
 	}
 
 	iface = ppe_drv_iface_get_by_dev(real_dev);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", real_dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return -EPERM;
 	}
 
@@ -1297,6 +1402,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 	 */
 	if (nss_ppe_vlan_mgr_leave_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to leave bridge\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_vlan_leave_fail);
 		return -1;
 	}
 
@@ -1311,6 +1417,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 		if (!nss_ppe_bridge_mgr_bond_fdb_leave(b_pvt)) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s leave bridge failed\n", b_pvt, real_dev->name);
 			nss_ppe_vlan_mgr_join_bridge(dev, b_pvt->iface);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_slave_leave_fail);
 			return -1;
 		}
 	}
@@ -1321,6 +1428,7 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 	 */
 	ret = ppe_drv_br_leave(b_pvt->iface, dev);
 	if (ret == PPE_DRV_RET_SUCCESS) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_leave_br_success);
 		return 0;
 	}
 
@@ -1334,15 +1442,18 @@ int nss_ppe_bridge_mgr_leave_bridge(struct net_device *dev, struct net_device *b
 		 */
 		if (nss_ppe_bridge_mgr_bond_master_join(real_dev, b_pvt) != NOTIFY_DONE) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s join bridge failed\n", b_pvt, real_dev->name);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_slave_join_fail);
 		}
 	}
 
 	if (nss_ppe_vlan_mgr_join_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to join bridge\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_vlan_join_fail);
 	}
 
 	nss_ppe_bridge_mgr_warn("%px: net_dev (%s) failed to leave bridge\n", dev, dev->name);
 	ppe_drv_br_stp_state_set(b_pvt->iface, dev, FAL_STP_DISABLED);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_leave_br_fail);
 	return -1;
 }
 EXPORT_SYMBOL(nss_ppe_bridge_mgr_leave_bridge);
@@ -1362,6 +1473,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 	b_pvt = nss_ppe_bridge_mgr_find_instance(bridge_dev);
 	if (!b_pvt) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find bridge instance\n", dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return -ENOENT;
 	}
 
@@ -1374,12 +1486,14 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 		iface = ppe_drv_iface_get_by_dev(dev);
 		if (!iface) {
 			nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", dev);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 			return -EPERM;
 		}
 
 		if (nss_ppe_bridge_mgr_bridge_vlan_interfaces_get(b_pvt)) {
 			if (nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule(iface, b_pvt->dev, rule_action)) {
 				nss_ppe_bridge_mgr_warn("Ingress xlate rule add failed for %s\n", dev->name);
+				nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_in_xlate_rule_add_fail);
 			}
 		}
 
@@ -1393,15 +1507,18 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 			b_pvt->wan_netdev = dev;
 			ppe_drv_br_wanif_set(dev);
 			nss_ppe_bridge_mgr_info("Netdev %px (%s) is added as WAN interface \n", dev, dev->name);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_wan_in_bridge);
 			return 0;
 		}
 
 		ret = ppe_drv_br_join(b_pvt->iface, dev);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			nss_ppe_bridge_mgr_warn("%px: failed to join bridge\n", b_pvt);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_join_br_fail);
 			return -EIO;
 		}
 
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_join_success);
 		return 0;
 	}
 
@@ -1413,6 +1530,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 	if (nss_ppe_bridge_mgr_bridge_vlan_interfaces_get(b_pvt)) {
 		nss_ppe_bridge_mgr_warn("VLAN interface is created over bridge(%s) and so, adding VLAN interface(%s)"
 					"in the bridge is not supported", b_pvt->dev->name, dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_join_br_fail);
 		return -EINVAL;
 	}
 	/*
@@ -1425,12 +1543,14 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 
 	if (real_dev == NULL) {
 		nss_ppe_bridge_mgr_warn("%px: real dev for the vlan: %s in NULL\n", b_pvt, dev->name);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_real_dev);
 		return -EINVAL;
 	}
 
 	iface = ppe_drv_iface_get_by_dev(real_dev);
 	if (!iface) {
 		nss_ppe_bridge_mgr_warn("%px: failed to find PPE interface\n", real_dev);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_no_ppe_iface);
 		return -EPERM;
 	}
 
@@ -1440,6 +1560,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 	 */
 	if (nss_ppe_vlan_mgr_join_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to join bridge\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_vlan_join_fail);
 		return -ENODEV;
 	}
 
@@ -1454,12 +1575,14 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 		if (!nss_ppe_bridge_mgr_bond_fdb_join(b_pvt)) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s join bridge failed\n", b_pvt, real_dev->name);
 			nss_ppe_vlan_mgr_leave_bridge(dev, b_pvt->iface);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_slave_join_fail);
 			return -EINVAL;
 		}
 	}
 
 	ret = ppe_drv_br_join(b_pvt->iface, dev);
 	if (ret == PPE_DRV_RET_SUCCESS) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_join_success);
 		return 0;
 	}
 
@@ -1473,6 +1596,7 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 		 */
 		if (nss_ppe_bridge_mgr_bond_master_leave(real_dev, b_pvt) != NOTIFY_DONE) {
 			nss_ppe_bridge_mgr_warn("%px: Slaves of bond interface %s leave bridge failed\n", b_pvt, real_dev->name);
+			nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_slave_leave_fail);
 		}
 	}
 
@@ -1481,10 +1605,12 @@ int nss_ppe_bridge_mgr_join_bridge(struct net_device *dev, struct net_device *br
 	 */
 	if (nss_ppe_vlan_mgr_leave_bridge(dev, b_pvt->iface)) {
 		nss_ppe_bridge_mgr_warn("%px: vlan device failed to leave bridge\n", b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_vlan_leave_fail);
 	}
 
 
 	nss_ppe_bridge_mgr_warn("%px: failed to join bridge\n", b_pvt);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_join_br_fail);
 	return -EIO;
 }
 EXPORT_SYMBOL(nss_ppe_bridge_mgr_join_bridge);
@@ -1503,6 +1629,7 @@ int nss_ppe_bridge_mgr_unregister_br(struct net_device *dev)
 	 */
 	b_pvt = nss_ppe_bridge_mgr_find_instance(dev);
 	if (!b_pvt) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return res;
 	}
 
@@ -1510,6 +1637,7 @@ int nss_ppe_bridge_mgr_unregister_br(struct net_device *dev)
 
 	nss_ppe_bridge_mgr_trace("%px: Bridge %s unregistered. Freeing bridge\n", b_pvt, dev->name);
 	nss_ppe_bridge_mgr_delete_instance(b_pvt);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_unregister_success);
 	return res;
 }
 
@@ -1521,6 +1649,7 @@ int nss_ppe_bridge_mgr_register_br(struct net_device *dev)
 {
 	struct nss_ppe_bridge_mgr_pvt *b_pvt = nss_ppe_bridge_mgr_create_instance(dev);
 	if (!b_pvt) {
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_invalid_instance);
 		return -EINVAL;
 	}
 
@@ -1533,6 +1662,7 @@ int nss_ppe_bridge_mgr_register_br(struct net_device *dev)
 	if (!nss_ppe_bridge_mgr_ppe_register_br(b_pvt)) {
 		nss_ppe_bridge_mgr_warn("%px: PPE registeration failed for net_dev %s\n", b_pvt, dev->name);
 		nss_ppe_bridge_mgr_delete_instance(b_pvt);
+		nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_ppe_registeration_fail);
 		return -EFAULT;
 	}
 
@@ -1546,6 +1676,7 @@ int nss_ppe_bridge_mgr_register_br(struct net_device *dev)
 	spin_lock(&br_mgr_ctx.lock);
 	list_add(&b_pvt->list, &br_mgr_ctx.list);
 	spin_unlock(&br_mgr_ctx.lock);
+	nss_ppe_bridge_mgr_stats_inc(&br_mgr_ctx.stats.ppe_bridge_mgr_register_br_success);
 	return 0;
 }
 
@@ -1555,6 +1686,7 @@ int nss_ppe_bridge_mgr_register_br(struct net_device *dev)
  */
 static void __exit nss_ppe_bridge_mgr_exit_module(void)
 {
+	nss_ppe_bridge_mgr_stats_deinit(&br_mgr_ctx);
 	unregister_netdevice_notifier(&nss_ppe_bridge_mgr_netdevice_nb);
 	ppe_drv_notifier_ops_unregister(&ppe_drv_notifier_ops_bridge_mgr);
 	nss_ppe_bridge_mgr_info("Module unloaded\n");
@@ -1589,6 +1721,14 @@ static int __init nss_ppe_bridge_mgr_init_module(void)
 			&& !of_machine_is_compatible("qcom,ipq5424")
 			&& !of_machine_is_compatible("qcom,devsoc")) {
 		return -EINVAL;
+	}
+
+	/*
+	 * Create the debugfs directory for Bridge.
+	 */
+	if (!nss_ppe_bridge_mgr_stats_init(&br_mgr_ctx)) {
+		nss_ppe_bridge_mgr_trace("Failed to initialize debugfs\n");
+		return -1;
 	}
 
 	INIT_LIST_HEAD(&br_mgr_ctx.list);

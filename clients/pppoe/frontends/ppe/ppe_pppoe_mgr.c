@@ -12,6 +12,7 @@
 #include <ppe_drv.h>
 #include <ppe_drv_pppoe_session.h>
 #include "pppoe_mgr.h"
+#include "pppoe_stats.h"
 #include "ppe_pppoe_mgr.h"
 
 #define HASH_BUCKET_SIZE 2  /* ( 2^ HASH_BUCKET_SIZE ) == 4 */
@@ -37,6 +38,8 @@ struct ppe_pppoe_mgr_session_entry {
  */
 static void ppe_pppoe_mgr_add_session(struct ppe_pppoe_mgr_session_entry *ppe_entry, struct net_device *dev)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
+
 	/*
 	 * There is no need for protecting simultaneous addition &
 	 * deletion of PPPoE sesion entry as the PPP notifier chain
@@ -45,6 +48,8 @@ static void ppe_pppoe_mgr_add_session(struct ppe_pppoe_mgr_session_entry *ppe_en
 	hash_add_rcu(ppe_pppoe_session_table,
 		&ppe_entry->session_list,
 		dev->ifindex);
+
+	pppoe_stats_inc(&ctx->stats.pppoe_session_add_success);
 }
 
 /*
@@ -53,11 +58,14 @@ static void ppe_pppoe_mgr_add_session(struct ppe_pppoe_mgr_session_entry *ppe_en
  */
 static void ppe_pppoe_mgr_remove_session(struct ppe_pppoe_mgr_session_entry *ppe_entry)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
 	struct pppoe_mgr_session_entry *entry = &ppe_entry->pppoe_pvt;
 	struct pppoe_mgr_session_info *info = &entry->info;
 
 	pppoe_mgr_info("%px: Remove PPPoE session with session_id=%u server_mac=%pM local_mac %pM\n",
 				   entry, info->session_id, info->server_mac, info->local_mac);
+
+	pppoe_stats_inc(&ctx->stats.pppoe_session_remove_success);
 
 	hash_del_rcu(&ppe_entry->session_list);
 	synchronize_rcu();
@@ -69,6 +77,7 @@ static void ppe_pppoe_mgr_remove_session(struct ppe_pppoe_mgr_session_entry *ppe
  */
 static int ppe_pppoe_mgr_disconnect(struct net_device *dev)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
 	struct ppe_pppoe_mgr_session_entry *ppe_entry;
 	bool found = false;
 	struct pppoe_mgr_session_entry *entry;
@@ -99,6 +108,7 @@ static int ppe_pppoe_mgr_disconnect(struct net_device *dev)
 
 	if (!found) {
 		pppoe_mgr_warn("%px: PPPoE session is not found for device: %s\n", dev, dev->name);
+		pppoe_stats_inc(&ctx->stats.pppoe_session_not_found);
 		return NOTIFY_DONE;
 	}
 
@@ -106,12 +116,14 @@ static int ppe_pppoe_mgr_disconnect(struct net_device *dev)
 	ret = ppe_drv_pppoe_session_deinit(iface);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		pppoe_mgr_warn("%px: Unable to deinitialize PPPoE session in PPE\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_session_deinit_failure);
 	}
 
 	ppe_drv_iface_deref(iface);
 	ppe_pppoe_mgr_remove_session(ppe_entry);
 	pppoe_mgr_minidump_free(ppe_entry, "ppe_pppoe_mgr_session_entry");
 	kfree(ppe_entry);
+	pppoe_stats_inc(&ctx->stats.pppoe_disconnect_event_success);
 	return NOTIFY_DONE;
 }
 
@@ -121,6 +133,7 @@ static int ppe_pppoe_mgr_disconnect(struct net_device *dev)
  */
 static int ppe_pppoe_mgr_connect(struct net_device *dev)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
 	struct pppoe_opt opt;
 	struct pppoe_mgr_session_entry *entry = NULL;
 	struct ppe_pppoe_mgr_session_entry *ppe_entry = NULL;
@@ -138,12 +151,14 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 
 	if (!pppoe_mgr_get_session(dev, &opt)) {
 		pppoe_mgr_warn("%px: Unable to get PPPoE session from the netdev\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_get_session_failure);
 		return NOTIFY_DONE;
 	}
 
 	iface = ppe_drv_iface_alloc(PPE_DRV_IFACE_TYPE_PPPOE, dev);
 	if (!iface) {
 		pppoe_mgr_warn("%px: PPPoE PPE iface alloc failed\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_iface_alloc_failure);
 		return NOTIFY_DONE;
 	}
 
@@ -152,6 +167,7 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 	if (!ppe_entry) {
 		ppe_drv_iface_deref(iface);
 		pppoe_mgr_warn("%px: failed to allocate PPE PPPoE session entry\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_add_session_failure);
 		return NOTIFY_DONE;
 	}
 
@@ -176,6 +192,7 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 #endif
 		if (bondid < 0) {
 			pppoe_mgr_warn("%px: Invalid LAG group id 0x%x\n", dev, bondid);
+			pppoe_stats_inc(&ctx->stats.pppoe_invalid_lag_group_id);
 			goto fail;
 		}
 	}
@@ -183,12 +200,14 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 	ret = ppe_drv_pppoe_session_init(ppe_entry->iface, actual_dev, info->session_id, info->server_mac, info->local_mac);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		pppoe_mgr_warn("%px: Unable to initialize PPPoE session in PPE\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_session_init_failure);
 		goto fail;
 	}
 
 	ret = ppe_drv_iface_mtu_set(ppe_entry->iface, actual_dev->mtu - PPPOE_SES_HLEN);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		pppoe_mgr_warn("%px: failed to set mtu, error = %d \n", dev, ret);
+		pppoe_stats_inc(&ctx->stats.pppoe_iface_mtu_set_failure);
 		goto fail2;
 	}
 
@@ -198,12 +217,14 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 			       dev, info->session_id,
 			       info->server_mac, info->local_mac, opt.dev->name);
 
+	pppoe_stats_inc(&ctx->stats.pppoe_connect_event_success);
 	return NOTIFY_DONE;
 
 fail2:
 	ret = ppe_drv_pppoe_session_deinit(ppe_entry->iface);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		pppoe_mgr_warn("%px: Unable to deinitialize PPPoE session in PPE\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_session_deinit_failure);
 	}
 
 fail:
@@ -219,6 +240,7 @@ fail:
  */
 static int ppe_pppoe_mgr_changemtu_event(struct net_device *dev)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
 	bool found = false;
 	struct ppe_pppoe_mgr_session_entry *ppe_entry;
 	struct pppoe_mgr_session_entry *entry;
@@ -248,6 +270,7 @@ static int ppe_pppoe_mgr_changemtu_event(struct net_device *dev)
 
 	if (!found) {
 		pppoe_mgr_warn("%px: PPPoE session is not found for device: %s\n", dev, dev->name);
+		pppoe_stats_inc(&ctx->stats.pppoe_session_not_found);
 		return NOTIFY_DONE;
 	}
 
@@ -260,6 +283,7 @@ static int ppe_pppoe_mgr_changemtu_event(struct net_device *dev)
 	ret = ppe_drv_iface_mtu_set(ppe_entry->iface, dev->mtu);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		pppoe_mgr_warn("%px: failed to set mtu, error = %d \n", dev, ret);
+		pppoe_stats_inc(&ctx->stats.pppoe_iface_mtu_set_failure);
 		return NOTIFY_BAD;
 	}
 
@@ -280,9 +304,9 @@ void ppe_pppoe_mgr_exit(struct pppoe_mgr_cmn_ctx *pppoe_ctx)
  * ppe_pppoe_mgr_ctx_init()
  *	Prepare for PPPoE module load
  */
-void ppe_pppoe_mgr_init(struct pppoe_mgr_cmn_ctx *ctx)
+void ppe_pppoe_mgr_init(struct pppoe_mgr_cmn_ctx *pppoe_ctx)
 {
-	ctx->pppoe_connect = ppe_pppoe_mgr_connect;
-	ctx->pppoe_disconnect = ppe_pppoe_mgr_disconnect;
-	ctx->pppoe_changemtu = ppe_pppoe_mgr_changemtu_event;
+	pppoe_ctx->pppoe_connect = ppe_pppoe_mgr_connect;
+	pppoe_ctx->pppoe_disconnect = ppe_pppoe_mgr_disconnect;
+	pppoe_ctx->pppoe_changemtu = ppe_pppoe_mgr_changemtu_event;
 }

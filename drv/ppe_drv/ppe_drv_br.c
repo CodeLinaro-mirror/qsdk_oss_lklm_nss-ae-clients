@@ -433,11 +433,6 @@ ppe_drv_ret_t ppe_drv_br_leave(struct ppe_drv_iface *br_iface, struct net_device
 	ppe_drv_iface_parent_clear(member_iface);
 
 	/*
-	 * Release the ref taken during br_join.
-	 */
-	ppe_drv_iface_deref_internal(member_iface);
-
-	/*
 	 * No need to update vsi and l3 for interfaces which do not have
 	 * equivalent port handle in PPE e.g. vlan.
 	 */
@@ -453,7 +448,6 @@ ppe_drv_ret_t ppe_drv_br_leave(struct ppe_drv_iface *br_iface, struct net_device
 	vsi = ppe_drv_iface_vsi_get(br_iface);
 	if (!vsi) {
 		ppe_drv_iface_parent_set(member_iface, br_iface);
-		ppe_drv_iface_ref(member_iface);
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: VSI not assinged to bridge %p", br_iface, member);
 		return PPE_DRV_RET_VSI_NOT_FOUND;
@@ -462,7 +456,6 @@ ppe_drv_ret_t ppe_drv_br_leave(struct ppe_drv_iface *br_iface, struct net_device
 	pp = ppe_drv_iface_port_get(member_iface);
 	if (!pp) {
 		ppe_drv_iface_parent_set(member_iface, br_iface);
-		ppe_drv_iface_ref(member_iface);
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: slave interface %p does not have a port in PPE",
 				br_iface, member);
@@ -472,7 +465,6 @@ ppe_drv_ret_t ppe_drv_br_leave(struct ppe_drv_iface *br_iface, struct net_device
 	l3_if = ppe_drv_iface_l3_if_get(br_iface);
 	if (!l3_if) {
 		ppe_drv_iface_parent_set(member_iface, br_iface);
-		ppe_drv_iface_ref(member_iface);
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: bridge vsi: %p should have an l3_if", br_iface, vsi);
 		return PPE_DRV_RET_IFACE_L3_IF_FAIL;
@@ -522,11 +514,6 @@ ppe_drv_ret_t ppe_drv_br_join(struct ppe_drv_iface *br_iface, struct net_device 
 	ppe_drv_iface_parent_set(member_iface, br_iface);
 
 	/*
-	 * Take a ref on member port - leave is mandatory with this.
-	 */
-	ppe_drv_iface_ref(member_iface);
-
-	/*
 	 * No need to update vsi and l3 for interfaces which do not have
 	 * equivalent port handle in PPE e.g. vlan.
 	 */
@@ -542,7 +529,6 @@ ppe_drv_ret_t ppe_drv_br_join(struct ppe_drv_iface *br_iface, struct net_device 
 	vsi = ppe_drv_iface_vsi_get(br_iface);
 	if (!vsi) {
 		ppe_drv_iface_parent_clear(member_iface);
-		ppe_drv_iface_deref_internal(member_iface);
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: VSI not assinged to bridge %p", br_iface, member);
 		return PPE_DRV_RET_VSI_NOT_FOUND;
@@ -551,7 +537,6 @@ ppe_drv_ret_t ppe_drv_br_join(struct ppe_drv_iface *br_iface, struct net_device 
 	pp = ppe_drv_iface_port_get(member_iface);
 	if (!pp) {
 		ppe_drv_iface_parent_clear(member_iface);
-		ppe_drv_iface_deref_internal(member_iface);
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: slave interface %p does not have a port in PPE",
 				br_iface, member);
@@ -561,7 +546,6 @@ ppe_drv_ret_t ppe_drv_br_join(struct ppe_drv_iface *br_iface, struct net_device 
 	l3_if = ppe_drv_iface_l3_if_get(br_iface);
 	if (!l3_if) {
 		ppe_drv_iface_parent_clear(member_iface);
-		ppe_drv_iface_deref_internal(member_iface);
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("%p: bridge vsi: %p should have an l3_if", br_iface, vsi);
 		return PPE_DRV_RET_IFACE_L3_IF_FAIL;

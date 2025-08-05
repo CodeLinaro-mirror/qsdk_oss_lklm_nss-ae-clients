@@ -426,7 +426,7 @@ static int ppe_rfs_eth_rfs_enable_handler(const char *val, const struct kernel_p
 
 static const struct kernel_param_ops eth_rfs_enable_ops = {
 	.set = ppe_rfs_eth_rfs_enable_handler,
-	.get = param_get_int,
+	.get = param_get_bool,
 };
 
 module_param_cb(eth_rfs_enable, &eth_rfs_enable_ops, &eth_rfs_enable, 0644);
@@ -447,7 +447,7 @@ static int ppe_rfs_wlan_rfs_enable_set_handler(const char *val, const struct ker
 
 static const struct kernel_param_ops wlan_rfs_enable_ops = {
 	.set = ppe_rfs_wlan_rfs_enable_set_handler,
-	.get = param_get_int,
+	.get = param_get_bool,
 };
 
 module_param_cb(wlan_rfs_enable, &wlan_rfs_enable_ops, &wlan_rfs_enable, 0644);

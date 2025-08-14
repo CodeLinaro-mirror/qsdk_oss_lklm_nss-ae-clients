@@ -89,6 +89,7 @@ module_param(txcmpl_chunk_of_reap, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(txcmpl_chunk_of_reap, "PPEDS Tx complete chunk of reap");
 
 struct ppe_ds_node_config ppe_ds_node_cfg[PPE_DS_MAX_NODE];
+struct ppe_ds_intr_ts prev_wlan_intr_ts[PPE_DS_MAX_NODE];
 
 /*
  * ppe_ds_module_init()

@@ -276,6 +276,152 @@ static enum hrtimer_restart ppe_ds_timer_v2(struct hrtimer *hrtimer)
 }
 
 /*
+ * ppe_ds_ppe2tcl_idx_stats_set()
+ * 	Populate statistics for timestamps
+ * 	associated with PPE-to-TCL interrupts
+ */
+void ppe_ds_ppe2tcl_ts_stats_set(int wintr, int node_idx)
+{
+	int cnt;
+	u_int64_t cur_ts, ts_bt_intr;
+
+	cur_ts = ktime_to_us(ktime_get_real());
+	ts_bt_intr = cur_ts - atomic_read(&prev_wlan_intr_ts[node_idx].ppe2tcl.prev_intr_ts);
+	atomic_set(&prev_wlan_intr_ts[node_idx].ppe2tcl.prev_intr_ts, cur_ts);
+
+	for (cnt = 0; cnt < PPE_DS_TS_HYS_MAX; cnt++)
+		if (ts_bt_intr >= ppe_ds_ts_hys_range.ppe_ds_ts_hys_range[cnt].start &&
+				ts_bt_intr < ppe_ds_ts_hys_range.ppe_ds_ts_hys_range[cnt].end) {
+			atomic64_inc(&ppe_ds_ts_hyst[node_idx].ppe2tcl.ts_bt_intr[cnt]);
+			atomic64_add(wintr, &ppe_ds_ts_hyst[node_idx].ppe2tcl.waste_intr[cnt]);
+			break;
+		}
+}
+
+/*
+ * ppe_ds_ppe2tcl_move_idx_stats_set()
+ * 	Populate statistics on the number of
+ * 	valid PPE-to-TCL ring entry buffers.
+ */
+void ppe_ds_ppe2tcl_move_idx_stats_set(int move, int node_idx)
+{
+	int cnt;
+
+	for (cnt = 0; cnt < PPE_DS_VLD_RING_ENTR_HYS_MAX; cnt++)
+		if (move >= ppe_ds_idx_hys_range.vld_ring_entr_range[cnt].start &&
+				move < ppe_ds_idx_hys_range.vld_ring_entr_range[cnt].end) {
+			atomic_inc(&ppe_ds_idx_hyst[node_idx].ppe2tcl.vld_ring_entr[cnt]);
+			break;
+		}
+}
+
+/*
+ * ppe_ds_ppe2tcl_cached_idx_stats_set()
+ * 	Populate statistics for cached index
+ * 	movements related to PPE-to-TCL interrupts.
+ */
+void ppe_ds_ppe2tcl_cached_idx_stats_set(int prod_move, int cons_move, int node_idx)
+{
+	int cnt;
+
+	for (cnt = 0; cnt < PPE_DS_IDX_MV_HYS_MAX; cnt++)
+		if (cons_move >= ppe_ds_idx_hys_range.idx_mv_range[cnt].start &&
+				cons_move < ppe_ds_idx_hys_range.idx_mv_range[cnt].end) {
+			atomic_inc(&ppe_ds_idx_hyst[node_idx].ppe2tcl.cons_idx_mv[cnt]);
+			break;
+		}
+
+	for (cnt = 0; cnt < PPE_DS_IDX_MV_HYS_MAX; cnt++)
+		if (prod_move >= ppe_ds_idx_hys_range.idx_mv_range[cnt].start &&
+				prod_move < ppe_ds_idx_hys_range.idx_mv_range[cnt].end) {
+			atomic_inc(&ppe_ds_idx_hyst[node_idx].ppe2tcl.prod_idx_mv[cnt]);
+			break;
+		}
+}
+
+/*
+ * ppe_ds_reo2ppe_idx_stats_set()
+ * 	Populate statistics for timestamps
+ * 	associated with REO-to-PPE interrupts.
+ */
+void ppe_ds_reo2ppe_ts_stats_set(int wintr, int node_idx)
+{
+	int cnt;
+
+	u_int64_t cur_ts, ts_bt_intr;
+
+	cur_ts = ktime_to_us(ktime_get_real());
+	ts_bt_intr = cur_ts - atomic_read(&prev_wlan_intr_ts[node_idx].reo2ppe.prev_intr_ts);
+	atomic_set(&prev_wlan_intr_ts[node_idx].reo2ppe.prev_intr_ts, cur_ts);
+
+	for (cnt = 0; cnt < PPE_DS_TS_HYS_MAX; cnt++)
+		if (ts_bt_intr >= ppe_ds_ts_hys_range.ppe_ds_ts_hys_range[cnt].start &&
+				ts_bt_intr < ppe_ds_ts_hys_range.ppe_ds_ts_hys_range[cnt].end) {
+			atomic64_inc(&ppe_ds_ts_hyst[node_idx].reo2ppe.ts_bt_intr[cnt]);
+			atomic64_add(wintr, &ppe_ds_ts_hyst[node_idx].reo2ppe.waste_intr[cnt]);
+			break;
+		}
+}
+
+/*
+ * ppe_ds_reo2ppe_move_idx_stats_set()
+ * 	Populate statistics on the number
+ * 	of valid REO-to-PPE ring entry buffers
+ */
+void ppe_ds_reo2ppe_move_idx_stats_set(int move, int node_idx)
+{
+	int cnt;
+
+	for (cnt = 0; cnt < PPE_DS_VLD_RING_ENTR_HYS_MAX; cnt++)
+		if (move >= ppe_ds_idx_hys_range.vld_ring_entr_range[cnt].start &&
+				move < ppe_ds_idx_hys_range.vld_ring_entr_range[cnt].end) {
+			atomic_inc(&ppe_ds_idx_hyst[node_idx].reo2ppe.vld_ring_entr[cnt]);
+			break;
+		}
+}
+
+/*
+ * ppe_ds_reo2ppe_cached_idx_stats_set()
+ * 	Populate statistics for cached index
+ * 	movements related to REO-to-PPE interrupts.
+ */
+void ppe_ds_reo2ppe_cached_idx_stats_set(int cons_move, int prod_move, int node_idx)
+{
+	int cnt;
+
+	for (cnt = 0; cnt < PPE_DS_IDX_MV_HYS_MAX; cnt++)
+		if (cons_move >= ppe_ds_idx_hys_range.idx_mv_range[cnt].start &&
+				cons_move < ppe_ds_idx_hys_range.idx_mv_range[cnt].end) {
+			atomic_inc(&ppe_ds_idx_hyst[node_idx].reo2ppe.cons_idx_mv[cnt]);
+			break;
+		}
+	for (cnt = 0; cnt < PPE_DS_IDX_MV_HYS_MAX; cnt++)
+		if (prod_move >= ppe_ds_idx_hys_range.idx_mv_range[cnt].start &&
+				prod_move < ppe_ds_idx_hys_range.idx_mv_range[cnt].end) {
+			atomic_inc(&ppe_ds_idx_hyst[node_idx].reo2ppe.prod_idx_mv[cnt]);
+			break;
+		}
+
+}
+
+/*
+ * ppe_ds_edma_cached_idx_stats_set()
+ * 	Populate statistics for cached index
+ *      movements related to EDMA interrupts.
+ */
+void ppe_ds_edma_cached_idx_stats_set(int prod_move, int node_idx)
+{
+	int cnt;
+
+	for (cnt = 0; cnt < PPE_DS_IDX_MV_HYS_MAX; cnt++)
+		if (prod_move >= ppe_ds_idx_hys_range.idx_mv_range[cnt].start &&
+				prod_move < ppe_ds_idx_hys_range.idx_mv_range[cnt].end) {
+			atomic_inc(&ppe_ds_idx_hyst[node_idx].edma_prod_mv[cnt]);
+			break;
+		}
+}
+
+/*
  * ppe_ds_ppe2tcl_ds_wlan_handle_intr()
  *	PPE-DS PPE2TCL IRQ Tx processing API
  *
@@ -285,12 +431,13 @@ static enum hrtimer_restart ppe_ds_timer_v2(struct hrtimer *hrtimer)
  */
 int ppe_ds_ppe2tcl_wlan_handle_intr(void *ctxt)
 {
-	uint32_t cons_idx, prod_idx, prev_cons_idx;
-	uint32_t cons_move = 0;
+	uint32_t cons_idx, prod_idx, prev_cons_idx, prev_prod_idx;
+	uint64_t cons_move = 0, prod_move = 0, move = 0;
 	struct ppe_ds *node = (struct ppe_ds *)ctxt;
 	ppe_ds_wlan_handle_t *wlan_handle = &node->wlan_handle;
 	nss_dp_ppeds_handle_t *edma_handle = node->edma_handle;
 	struct nss_dp_ppeds_ops *dp_ops = node->dp_ops;
+	uint32_t wintr = 0;
 	uint32_t ppe2tcl_ring_size = edma_handle->ppe2tcl_num_desc;
 
 	if (!node->en_process_irq) {
@@ -307,9 +454,11 @@ int ppe_ds_ppe2tcl_wlan_handle_intr(void *ctxt)
 	cons_idx = node->wlan_ops->get_tcl_cons_idx(wlan_handle);
 
 	/*
-	 * Get cached cons idx
+	 * Get cached prod and cons idx
 	 */
 	prev_cons_idx = node->last_ppe2tcl_cons_idx;
+	prev_prod_idx = node->last_ppe2tcl_prod_idx;
+	atomic64_inc(&ppe_ds_node_stats[node->node_cfg_idx].wlan_ppe2tcl_intr_cnt);
 
 	/*
 	 * Move Consumer Index
@@ -321,16 +470,48 @@ int ppe_ds_ppe2tcl_wlan_handle_intr(void *ctxt)
 		node->last_ppe2tcl_cons_idx = cons_idx;
 	}
 
+	if (unlikely(prev_prod_idx != prod_idx)) {
+		prod_move = (prod_idx - prev_prod_idx  + ppe2tcl_ring_size) & (ppe2tcl_ring_size - 1);
+		node->last_ppe2tcl_prod_idx = prod_idx;
+	}
+
 	if (unlikely(prod_idx == cons_idx)) {
 		/* Disable the wlan interrupt */
 		node->wlan_ops->enable_tx_consume_intr(wlan_handle, false);
 		/* Enable the edma interrupt */
 		dp_ops->enable_rx_reap_intr(edma_handle);
+		atomic64_inc(&ppe_ds_node_stats[node->node_cfg_idx].prod_n_con_same);
 	} else {
 		/*
 		 * Move Producer Idx
 		 */
 		node->wlan_ops->set_tcl_prod_idx(wlan_handle, prod_idx);
+
+		if (prev_cons_idx != cons_idx) {
+			move = (prod_idx - cons_idx  + ppe2tcl_ring_size) &
+				(ppe2tcl_ring_size - 1);
+		}
+
+		if (prev_prod_idx == prod_idx) {
+			atomic64_inc(&ppe_ds_node_stats[node->node_cfg_idx].ppe2tcl_still_prod);
+		}
+
+		if (prev_cons_idx == cons_idx) {
+			atomic64_inc(&ppe_ds_node_stats[node->node_cfg_idx].ppe2tcl_still_cons);
+			wintr = 1;
+		}
+
+		if (unlikely(enable_ring_hyst_stats)) {
+			/* Hysteresis for the timestamp of interrupt. */
+			ppe_ds_ppe2tcl_ts_stats_set(wintr, node->node_cfg_idx);
+			/* Hysteresis for the index movement of interrupt. */
+			ppe_ds_ppe2tcl_move_idx_stats_set(move, node->node_cfg_idx);
+		}
+	}
+
+	if (unlikely(enable_ring_hyst_stats)) {
+		/* Hysteresis for the prod and cons index movement of interrupt. */
+		ppe_ds_ppe2tcl_cached_idx_stats_set(cons_move, prod_move, node->node_cfg_idx);
 	}
 
 	return 0;
@@ -410,25 +591,39 @@ EXPORT_SYMBOL(ppe_ds_ppe2tcl_wlan_handle_intr_v2);
  */
 int ppe_ds_reo2ppe_wlan_handle_intr(void *ctxt)
 {
-	uint16_t cons_idx, prod_idx, move, count;
+	uint16_t cons_idx, prod_idx, prev_cons_idx, prev_prod_idx, count;
+	uint16_t move = 0, cons_move = 0, prod_move = 0;
 	struct ppe_ds *node = (struct ppe_ds *)ctxt;
 	ppe_ds_wlan_handle_t *wlan_handle = &node->wlan_handle;
 	nss_dp_ppeds_handle_t *edma_handle = node->edma_handle;
 	uint32_t reo2ppe_size = edma_handle->reo2ppe_num_desc;
 	struct nss_dp_ppeds_ops *dp_ops = node->dp_ops;
+	uint32_t wintr = 0;
 
 	if (!node->en_process_irq) {
 		return 0;
 	}
 
+	atomic64_inc(&ppe_ds_node_stats[node->node_cfg_idx].wlan_reo2ppe_intr_cnt);
+
 	/*
-	 * Move producer index for UL
+	 * Get prod and cons idx
 	 */
 	prod_idx = node->wlan_ops->get_reo_prod_idx(wlan_handle);
 	cons_idx = dp_ops->get_tx_cons_idx(edma_handle);
+	/*
+	 * Get cached prod and cons idx.
+	 */
+	prev_cons_idx = node->last_reo2ppe_cons_idx;
+	prev_prod_idx = node->last_reo2ppe_prod_idx;
+
+	/*
+	 * Move producer index for UL
+	 */
 	move = (prod_idx - cons_idx  + reo2ppe_size) & (reo2ppe_size - 1);
 	if (move > 0) {
 		dp_ops->set_tx_prod_idx(edma_handle, prod_idx);
+		atomic64_add(move, &ppe_ds_node_stats[node->node_cfg_idx].rx_pkts);
 	}
 
 	/*
@@ -440,12 +635,32 @@ int ppe_ds_reo2ppe_wlan_handle_intr(void *ctxt)
 	/*
 	 * Move consumer index for UL
 	 */
-	if (cons_idx != node->last_reo2ppe_cons_idx) {
+	if (cons_idx != prev_cons_idx) {
 		node->wlan_ops->set_reo_cons_idx(wlan_handle, cons_idx);
+		cons_move = (cons_idx - prev_cons_idx  + reo2ppe_size) & (reo2ppe_size - 1);
 		node->last_reo2ppe_cons_idx = cons_idx;
 	}
 
 	atomic64_add(count, &ppe_ds_node_stats[node->node_cfg_idx].rx_pkts);
+
+	if (prod_idx != prev_prod_idx) {
+		prod_move = (prod_idx - prev_prod_idx  + reo2ppe_size) & (reo2ppe_size - 1);
+		node->last_reo2ppe_prod_idx = prod_idx;
+	}
+
+	if (prev_cons_idx == cons_idx) {
+		atomic64_inc(&ppe_ds_node_stats[node->node_cfg_idx].reo2ppe_still_cons);
+		wintr = 1;
+	}
+
+	if (unlikely(enable_ring_hyst_stats)) {
+		/* Hysteresis for the timestamp of interrupt. */
+		ppe_ds_reo2ppe_ts_stats_set(wintr, node->node_cfg_idx);
+		/* Hysteresis for the index movement of interrupt. */
+		ppe_ds_reo2ppe_move_idx_stats_set(move, node->node_cfg_idx);
+		/* Hysteresis for the cons index movement of interrupt. */
+		ppe_ds_reo2ppe_cached_idx_stats_set(cons_move, prod_move, node->node_cfg_idx);
+	}
 
 	return 0;
 }
@@ -509,14 +724,26 @@ static void ppe_ds_enable_wlan_intr(nss_dp_ppeds_handle_t *edma_handle,
 	ppe_ds_wlan_handle_t *wlan_handle = &node->wlan_handle;
 	struct nss_dp_ppeds_ops *dp_ops = node->dp_ops;
 	uint32_t prod_idx;
+	uint32_t ppe2tcl_ring_size = edma_handle->ppe2tcl_num_desc;
+	uint32_t prev_prod_idx, prod_move = 0;
 
+	prod_idx = dp_ops->get_rx_prod_idx(edma_handle);
+	prev_prod_idx = node->last_edma_rx_prod_idx;
 	/*
 	 * Update tcl producer index before enabling wlan interrupt.
 	 */
-	prod_idx = dp_ops->get_rx_prod_idx(edma_handle);
 	node->wlan_ops->set_tcl_prod_idx(wlan_handle, prod_idx);
-
 	node->wlan_ops->enable_tx_consume_intr(wlan_handle, true);
+
+	if (prev_prod_idx != prod_idx) {
+		prod_move = (prod_idx - prev_prod_idx  + ppe2tcl_ring_size) & (ppe2tcl_ring_size - 1);
+		node->last_edma_rx_prod_idx = prod_idx;
+	}
+
+	if (unlikely(enable_ring_hyst_stats)) {
+		/* Hysteresis for the prod index movement of interrupt. */
+		ppe_ds_edma_cached_idx_stats_set(prod_move, node->node_cfg_idx);
+	}
 }
 
 static void ppe_ds_enable_wlan_intr_v2(nss_dp_ppeds_handle_t *edma_handle,

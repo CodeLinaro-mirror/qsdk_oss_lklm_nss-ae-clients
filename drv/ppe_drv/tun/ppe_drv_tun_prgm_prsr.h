@@ -85,6 +85,8 @@ enum ppe_drv_tun_prgm_prsr_mode {
 	PPE_DRV_TUN_PROGRAM_MODE_GRE,	/* Program parser mode GRETAP/GRETUN */
 	PPE_DRV_TUN_PROGRAM_MODE_L2TP_V2,	/* Program parser mode L2TP */
 	PPE_DRV_TUN_PROGRAM_MODE_TPR_RPS,	/* Program parser mode for RPS */
+	PPE_DRV_TUN_PROGRAM_MODE_CUSTOM_L2,	/* Program parser mode User defined tunnel L2 */
+	PPE_DRV_TUN_PROGRAM_MODE_CUSTOM_L3,	/* Program parser mode User defined tunnel L3 */
 };
 
 /*
@@ -358,7 +360,7 @@ static inline fal_tunnel_type_t ppe_drv_tun_get_tunnel_type_from_pgm_type(uint8_
  */
 void ppe_drv_tun_prgm_prsr_free(struct ppe_drv_tun_prgm_prsr *program_parser);
 struct ppe_drv_tun_prgm_prsr *ppe_drv_tun_prgm_prsr_alloc(struct ppe_drv *p);
-struct ppe_drv_tun_prgm_prsr *ppe_drv_tun_prgm_prsr_entry_alloc(enum ppe_drv_tun_prgm_prsr_mode mode);
+struct ppe_drv_tun_prgm_prsr *ppe_drv_tun_prgm_prsr_entry_alloc(enum ppe_drv_tun_prgm_prsr_mode mode, struct ppe_drv_tun_prgm_prsr_decap_cfg *dcap_cfg);
 bool ppe_drv_tun_prgm_prsr_configured(struct ppe_drv_tun_prgm_prsr *program_parser);
 bool ppe_drv_tun_prgm_prsr_deref(struct ppe_drv_tun_prgm_prsr *pgm);
 void ppe_drv_tun_prgm_prsr_ref(struct ppe_drv_tun_prgm_prsr *pgm);

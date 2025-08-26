@@ -10,6 +10,7 @@
 #include <linux/etherdevice.h>
 #include <linux/if_pppox.h>
 #include "pppoe_mgr.h"
+#include "pppoe_stats.h"
 #ifdef PPPOE_MGR_FE_PPE_ENABLE
 #include "ppe_pppoe_mgr.h"
 #endif
@@ -24,18 +25,22 @@ nss_client_mgr_fe_type_t front_end_selected = NSS_CLIENT_MGR_FE_TYPE_IPA;
 nss_client_mgr_fe_type_t front_end_selected = NSS_CLIENT_MGR_FE_TYPE_MAX;
 #endif
 
+struct pppoe_stats_ctx ctx_gbl = {0};
+
 /*
  * pppoe_mgr_get_session()
  *	Retrieve PPPoE session associated with this netdevice if any
  */
 bool pppoe_mgr_get_session(struct net_device *dev, struct pppoe_opt *opt)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
 	struct ppp_channel *channel[1] = {NULL};
 	int px_proto;
 	int ppp_ch_count;
 
 	if (ppp_is_multilink(dev)) {
 		pppoe_mgr_warn("%px: channel is multilink PPP\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_get_session_multilink_ppp);
 		return false;
 	}
 
@@ -43,18 +48,21 @@ bool pppoe_mgr_get_session(struct net_device *dev, struct pppoe_opt *opt)
 	pppoe_mgr_info("%px: PPP hold channel ret %d\n", dev, ppp_ch_count);
 	if (ppp_ch_count != 1) {
 		pppoe_mgr_warn("%px: hold channel for netdevice failed\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_get_session_hold_channel_failed);
 		return false;
 	}
 
 	px_proto = ppp_channel_get_protocol(channel[0]);
 	if (px_proto != PX_PROTO_OE) {
 		pppoe_mgr_warn("%px: session socket is not of type PX_PROTO_OE\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_get_session_proto_get_failed);
 		ppp_release_channels(channel, 1);
 		return false;
 	}
 
 	if (pppoe_channel_addressing_get(channel[0], opt)) {
 		pppoe_mgr_warn("%px: failed to get addressing information\n", dev);
+		pppoe_stats_inc(&ctx->stats.pppoe_get_session_addres_get_failed);
 		ppp_release_channels(channel, 1);
 		return false;
 	}
@@ -158,6 +166,8 @@ struct notifier_block pppoe_mgr_channel_notifier_nb = {
  */
 static void __exit pppoe_mgr_exit_module(void)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
+
 	/*
 	 * Unregister the module from the PPP channel events.
 	 */
@@ -182,6 +192,11 @@ static void __exit pppoe_mgr_exit_module(void)
 		break;
 	}
 
+	/*
+	 * De-initialize debugfs.
+	 */
+	pppoe_stats_deinit(ctx);
+
 	kfree(global);
 }
 
@@ -191,9 +206,19 @@ static void __exit pppoe_mgr_exit_module(void)
  */
 static int __init pppoe_mgr_init_module(void)
 {
+	struct pppoe_stats_ctx *ctx = &ctx_gbl;
+
 	global = (struct pppoe_mgr_cmn_ctx *)kzalloc(sizeof(struct pppoe_mgr_cmn_ctx), GFP_ATOMIC);
 	if (!global) {
 		printk(KERN_WARNING "%s Unable to allocate PPPoE ctx\n", __func__);
+		return -1;
+	}
+
+	/*
+	 * Create the debugfs directory for statistics.
+	 */
+	if (!pppoe_stats_init(ctx)) {
+		pppoe_mgr_trace("Failed to initialize debugfs");
 		return -1;
 	}
 

@@ -1848,17 +1848,17 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 	ptun->tun_state = PPE_DRV_TUN_STATE_ACTIVE;
 
 skip_tunnel_activation:
-	/*
-	 * Take reference
-	 */
-	ppe_drv_tun_ref(ptun);
-
-	/*
-	 * Increment flow count as connection is added to the list
-	 */
-	atomic_inc(&ptun->flow_count);
 
 	if (cn_v6) {
+		/*
+		 * Take reference
+		 */
+		ppe_drv_tun_ref(ptun);
+
+		/*
+		 * Increment flow count as connection is added to the list
+		 */
+		atomic_inc(&ptun->flow_count);
 		list_add(&cn_v6->list, &p->conn_tun_v6);
 		if (pth->type == PPE_DRV_TUN_CMN_CTX_TYPE_MAPT) {
 			ppe_drv_v6_conn_flags_set(cn_v6, PPE_DRV_V6_CONN_FLAG_TYPE_MAPT);
@@ -1868,6 +1868,15 @@ skip_tunnel_activation:
 			}
 		}
 	} else if (cn_v4) {
+		/*
+		 * Take reference
+		 */
+		ppe_drv_tun_ref(ptun);
+
+		/*
+		 * Increment flow count as connection is added to the list
+		 */
+		atomic_inc(&ptun->flow_count);
 		list_add(&cn_v4->list, &p->conn_tun_v4);
 	}
 

@@ -77,6 +77,7 @@ static int nss_ppe_ath_client_register_event(struct net_device *dev)
 	vpai.usr_type = PPE_VP_USER_TYPE_NONE;
 	vpai.type = PPE_VP_TYPE_SW_L2;
 	vpai.net_dev_type = PPE_VP_NET_DEV_TYPE_WIFI;
+	vpai.core_mask = 7;
 
 	dev_hold(dev);
 	vp_num = ppe_vp_alloc(dev, &vpai);

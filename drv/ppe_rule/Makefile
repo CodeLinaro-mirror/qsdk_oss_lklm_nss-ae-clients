@@ -146,5 +146,12 @@ qca-nss-ppe-rule-objs += ppe_priority/ppe_priority.o
 qca-nss-ppe-rule-objs += ppe_priority/ppe_priority_stats.o
 ccflags-y += -DPPE_PRIORITY_DEBUG_LEVEL=3
 endif
+
+ifeq ($(PPE_TUN_RPS_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_tun_rps/ppe_tun_rps.o
+qca-nss-ppe-rule-objs += ppe_tun_rps/ppe_tun_rps_stats.o
+ccflags-y += -DPPE_TUN_RPS_ENABLED
+ccflags-y += -DPPE_TUN_RPS_DEBUG_LEVEL=3
+endif #PPE_TUN_RPS_ENABLED
 endif
 endif

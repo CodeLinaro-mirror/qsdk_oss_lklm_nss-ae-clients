@@ -142,4 +142,32 @@ struct ppe_drv_tun_rps_rule_create {
 struct ppe_drv_tun_rps_rule_destroy {
 	struct ppe_drv_tun_rps_rule_common cmn;		/**< Common rule fields */
 };
+
+/**
+ * ppe_drv_tun_rps_rule_create
+ *	Create PPE Tunnel RPS rule.
+ *
+ * @datatype
+ * ppe_drv_tun_rps_rule_create
+ *
+ * @param[in] rule_create pointer to Rule create structure.
+ *
+ * @return
+ * status of tunnel RPS rule create
+ */
+ppe_drv_ret_t ppe_drv_tun_rps_rule_create(struct ppe_drv_tun_rps_rule_create *rule_create);
+
+/**
+ * ppe_drv_tun_rps_rule_destroy
+ *	Destroy PPE Tunnel RPS rule.
+ *
+ * @datatype
+ * ppe_drv_tun_rps_rule_destroy
+ *
+ * @param[in] rule_destroy pointer to Rule destroy structure.
+ *
+ * @return
+ * status of tunnel RPS rule destroy
+ */
+ppe_drv_ret_t ppe_drv_tun_rps_rule_destroy(struct ppe_drv_tun_rps_rule_destroy *rule_destroy);
 #endif /* _PPE_DRV_TUN_RPS_H_ */

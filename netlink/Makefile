@@ -48,4 +48,9 @@ ccflags-y += -DCONFIG_NSS_PPENL_MCAST=1
 ccflags-y += -DNSS_PPE_MCAST_FEATURE_SUPPORT
 endif
 
+ifeq ($(PPE_TUN_RPS_ENABLED), y)
+ccflags-y += -DCONFIG_NSS_PPENL_TUN_RPS=1
+qca-nss-ppe-netlink-objs += nss_ppenl_tun_rps.o
+endif
+
 obj-m += qca-nss-ppe-netlink.o

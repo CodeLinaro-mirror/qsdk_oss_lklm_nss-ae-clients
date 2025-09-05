@@ -56,6 +56,11 @@
 #include "nss_ppenl_mcast.h"
 #include "nss_ppenl_mcast_if.h"
 #endif
+#if defined(CONFIG_NSS_PPENL_TUN_RPS)
+#include "nss_ppenl_tun_rps.h"
+#include "nss_ppenl_tun_rps_if.h"
+#endif
+
 /*
  * nss_ppenl.c
  *	NSS PPE Netlink manager
@@ -195,6 +200,17 @@ static struct nss_ppenl_family family_handlers[] = {
 		.entry = NSS_PPENL_EDMA_DDRQ_INIT,	/* Init */
 		.exit = NSS_PPENL_EDMA_DDRQ_EXIT,	/* exit */
 		.valid = CONFIG_NSS_PPENL_EDMA_DDRQ	/* 1 or 0 */
+	},
+#endif
+#if defined(CONFIG_NSS_PPENL_TUN_RPS)
+	{
+		/*
+		 * NSS_PPENL_TUN_RPS
+		 */
+		.name = NSS_PPENL_TUN_RPS_FAMILY,		/* Tunnel RPS Family */
+		.entry = NSS_PPENL_TUN_RPS_INIT,		/* Init */
+		.exit = NSS_PPENL_TUN_RPS_EXIT,			/* exit */
+		.valid = CONFIG_NSS_PPENL_TUN_RPS		/* 1 or 0 */
 	},
 #endif
 #ifdef NSS_PPE_MCAST_FEATURE_SUPPORT

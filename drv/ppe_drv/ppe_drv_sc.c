@@ -272,7 +272,6 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.dest_port_id = redir_port;
 		sc_cfg.next_service_code = next_sc;
 		sc_cfg.dest_port_valid = A_FALSE;
-
         	sc_cfg.bypass_bitmap[0] = ~((1 << FAKE_MAC_HEADER_BYP)
                                         | (1 << SERVICE_CODE_BYP)
                                         | (1 << FAKE_L2_PROTO_BYP)
@@ -280,6 +279,10 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
        		sc_cfg.bypass_bitmap[0] |= (1 << FLOW_SERVICE_CODE_BYP);
 
        		sc_cfg.bypass_bitmap[1] = ~(1 << ACL_POST_ROUTING_CHECK_BYP);
+
+#ifdef NSS_PPE_L2_VP_SC_ENQ_BYPASS
+		sc_cfg.bypass_bitmap[1] |= (1 << L2_VP_SERVICE_CODE_ENQ_BYP);
+#endif
 		break;
 
 	case PPE_DRV_SC_LOOPBACK_RING_GRETAP_MAPT:

@@ -66,6 +66,10 @@ qca-nss-ppe-objs += tun/ppe_drv_tun_v6.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_gre.o
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
+ccflags-y += -DPPE_DRV_RPS_HASH_SELECT
+endif
+
 ifeq ($(SoC),$(filter $(SoC),ipq54xx))
 ccflags-y += -DPPE_DRV_NPTV6_HW_SUPPORT
 ccflags-y += -DPPE_DRV_RPS_HASH_SELECT

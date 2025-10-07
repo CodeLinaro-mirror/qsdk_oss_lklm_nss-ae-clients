@@ -153,7 +153,7 @@ struct ppe_ds {
  */
 struct ppe_ds_intr_ts {
 	struct {
-		atomic_t prev_intr_ts;
+		atomic64_t prev_intr_ts;
 	} reo2ppe, ppe2tcl;
 };
 

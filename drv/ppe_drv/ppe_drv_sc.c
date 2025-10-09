@@ -29,12 +29,13 @@ static void ppe_drv_sc_dump(ppe_drv_sc_t sc)
 
 	ppe_drv_trace("%p: dest_port_valid: %u", p, sc_cfg.dest_port_valid);
 	ppe_drv_trace("%p: dest_port_id: %u", p, sc_cfg.dest_port_id);
-	ppe_drv_trace("%p: bypass_bitmap[IN_SERVICE_TBL]: 0x%x", p, sc_cfg.bypass_bitmap[0]);
-	ppe_drv_trace("%p: bypass_bitmap[L2_SERVICE_TBL]: 0x%x", p, sc_cfg.bypass_bitmap[1]);
-	ppe_drv_trace("%p: bypass_bitmap[CNTRS]: 0x%x", p, sc_cfg.bypass_bitmap[2]);
-	ppe_drv_trace("%p: bypass_bitmap[TL_SERVICE_TBL]: 0x%x", p, sc_cfg.bypass_bitmap[3]);
+	ppe_drv_trace("%p: bypass_bitmap[IN_SERVICE_TBL]: 0x%llx", p, sc_cfg.bypass_bitmap[0]);
+	ppe_drv_trace("%p: bypass_bitmap[L2_SERVICE_TBL]: 0x%llx", p, sc_cfg.bypass_bitmap[1]);
+	ppe_drv_trace("%p: bypass_bitmap[CNTRS]: 0x%llx", p, sc_cfg.bypass_bitmap[2]);
+	ppe_drv_trace("%p: bypass_bitmap[TL_SERVICE_TBL]: 0x%llx", p, sc_cfg.bypass_bitmap[3]);
 	ppe_drv_trace("%p: direction: %u", p, sc_cfg.direction);
-	ppe_drv_trace("%p: field_update_bitmap: 0x%llx", p, sc_cfg.field_update_bitmap);
+	ppe_drv_trace("%p: field_update_bitmap: 0x%llx-%llx",
+			p, sc_cfg.field_update_bitmap[1], sc_cfg.field_update_bitmap[0]);
 	ppe_drv_trace("%p: next_service_code: %u", p, sc_cfg.next_service_code);
 	ppe_drv_trace("%p: hw_services: %u", p, sc_cfg.hw_services);
 	ppe_drv_trace("%p: offset_sel: %u", p, sc_cfg.offset_sel);
@@ -130,7 +131,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		break;
 
 	case PPE_DRV_SC_LOOPBACK_QOS:
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SRC_INFO)
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_SRC_INFO)
 					| (1 << FLD_UPDATE_HASH_FLOW_INDEX);
 		break;
 
@@ -138,7 +139,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.offset_sel = PPE_DRV_SC_IN_L2_OFF_L3;
 		sc_cfg.bypass_bitmap[1] = (1 << L3_PKT_EDIT_BYP);
 		sc_cfg.hw_services = PPE_DRV_EIP_HWSERVICE_IPSEC;
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_DEST_INFO)
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_DEST_INFO)
 					| (1 << FLD_UPDATE_HASH_FLOW_INDEX)
 					| (1 << FLD_UPDATE_FAKE_L2_PROT_EN);
 		break;
@@ -167,7 +168,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		sc_cfg.bypass_bitmap[1] = ((1 << EG_VLAN_MEMBER_CHECK_BYP)
 						| (1 << SOURCE_FLTR_BYP)
 						| (1 << L2_SOURCE_SEC_BYP));
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_SERVICE_CODE);
 		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 
@@ -211,7 +212,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		/*
 		 * Don't update destination information and service code in EDMA
 		 */
-		sc_cfg.field_update_bitmap = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE) | (1 << FLD_UPDATE_MAC_HDR_BYPASS));
+		sc_cfg.field_update_bitmap[0] = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE) | (1 << FLD_UPDATE_MAC_HDR_BYPASS));
 
 		/*
 		 * Avoid packet drop due to source port filtering for no edit service codes, in this
@@ -256,7 +257,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		/*
 		 * Don't update service code in EDMA
 		 */
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_SERVICE_CODE);
 		break;
 
 	case PPE_DRV_SC_LOOPBACK_RING:
@@ -294,7 +295,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 	case PPE_DRV_SC_LOOPBACK_RING_MAPT_GRETAP:
 		sc_cfg.bypass_bitmap[1] = (1 << L2_SOURCE_SEC_BYP);
 		sc_cfg.bypass_bitmap[2] = (1 << RX_COUNTER_BYP) | (1 << TX_COUNTER_BYP);
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SRC_INFO_BYPASS);
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_SRC_INFO_BYPASS);
 		break;
 
 	case PPE_DRV_SC_LOOPBACK_RING_NEXT_GRETAP_N_MAPT:
@@ -324,14 +325,14 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		/*
 		 * Don't update service code in EDMA
 		 */
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_SERVICE_CODE);
 		break;
 
 	case PPE_DRV_SC_NOEDIT_ACL_POLICER:
 		/*
 		 * Don't update destination information and service code in EDMA
 		 */
-		sc_cfg.field_update_bitmap = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
+		sc_cfg.field_update_bitmap[0] = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
 
 		/*
 		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
@@ -349,7 +350,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		break;
 
 	case PPE_DRV_SC_L2_TUNNEL_EXCEPTION:
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_SERVICE_CODE);
 		sc_cfg.bypass_bitmap[1] = ((1 << BRIDGING_FWD_BYP) | (1 << L2_SOURCE_SEC_BYP));
 		sc_cfg.dest_port_valid = A_FALSE;
 		break;
@@ -358,7 +359,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		/*
 		 * Don't update destination information and service code in EDMA
 		 */
-		sc_cfg.field_update_bitmap = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
+		sc_cfg.field_update_bitmap[0] = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE));
 
 		/*
 		 * Avoid packet drop due to source port filtering and avoid FDB based forwarding for
@@ -409,7 +410,7 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 		 * These are primarily used for N-tuple lookup or flow+policer combintation.
 		 * Don't update service code in EDMA and there is no redirection needed with these SCs.
 		 */
-		sc_cfg.field_update_bitmap = (1 << FLD_UPDATE_SERVICE_CODE);
+		sc_cfg.field_update_bitmap[0] = (1 << FLD_UPDATE_SERVICE_CODE);
 		sc_cfg.dest_port_valid = A_FALSE;
 		break;
 

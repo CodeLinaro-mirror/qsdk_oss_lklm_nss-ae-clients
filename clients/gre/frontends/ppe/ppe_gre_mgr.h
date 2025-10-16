@@ -43,7 +43,7 @@ struct ppe_gre_mgr_ctx {
 static inline void ppe_gre_mgr_minidump_log(void *start_addr, uint64_t size, const char *name)
 {
 #ifdef CONFIG_QCA_MINIDUMP
-	if (minidump_add_segments((uint64_t)(uintptr_t)(start_addr), size, QCA_WDT_LOG_DUMP_TYPE_MOD, name, MINIDUMP_CRASH_TYPE_NSS, "qca_nss_gre_mgr") != 0)
+	if (minidump_add_segments((uint64_t)(uintptr_t)(start_addr), size, QCA_WDT_LOG_DUMP_TYPE_MOD, name, MINIDUMP_CRASH_TYPE_NSS, "qca_nss_ppe_gre") != 0)
 		pr_warn("minidump_log failed for structure type %s at address %p\n", name, start_addr);
 #endif
 }

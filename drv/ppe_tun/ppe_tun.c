@@ -1988,9 +1988,9 @@ static int __init ppe_tun_module_init(void)
 
 	/*
 	 * Tunnel hybrid offload operations.
-	 * Disabled by default
+	 * Enabled by default
 	 */
-	ptp->tun_hb_info.en_gretap_hybrid_ol = false;
+	ptp->tun_hb_info.en_gretap_hybrid_ol = true;
 
 	atomic_set(&ptp->total_free, PPE_TUN_MAX);
 

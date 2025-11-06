@@ -206,7 +206,14 @@ static bool nss_ppe_bridge_mgr_dump_one(struct nss_ppe_bridge_mgr_dump_instance 
 	}
 
 	/*
-	 * Remove the 'bond' prefix for next interation
+	 * Remove the 'bridge' prefix for next interation
+	 */
+	if ((status = nss_ppe_bridge_mgr_dump_prefix_remove(bdi))) {
+		goto error;
+	}
+
+	/*
+	 * Remove the 'index' prefix for next interation
 	 */
 	if ((status = nss_ppe_bridge_mgr_dump_prefix_remove(bdi))) {
 		goto error;

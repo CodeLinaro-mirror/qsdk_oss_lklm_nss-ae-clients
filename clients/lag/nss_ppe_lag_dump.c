@@ -217,6 +217,13 @@ static bool nss_ppe_lag_dump_one(struct nss_ppe_lag_dump_instance *ldi, struct n
 		goto error;
 	}
 
+	/*
+	 * Remove the 'index' prefix for next interation
+	 */
+	if ((status = nss_ppe_lag_dump_prefix_remove(ldi))) {
+		goto error;
+	}
+
 error:
 	return status;
 }

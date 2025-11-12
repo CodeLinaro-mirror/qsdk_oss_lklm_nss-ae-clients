@@ -64,6 +64,8 @@ typedef enum ppe_drv_sc_type {
 			/* Next Service code to dequeue packets from loopback ring and queue to GRETAP or MAPT ring */
 	PPE_DRV_SC_NPT66_HAIRPIN_NAT = 35,	/* Service code for EDMA LOOPBACK ring for Hairpin NAT */
 	PPE_DRV_SC_NPT66_HAIRPIN_NAT_NEXT = 36,	/* Next Service code for EDMA LOOPBACK ring for Hairpin NAT */
+	PPE_DRV_SC_PKT_EXCEPTION_EDIT_EN = 37,
+			/* Service code to edit/commit packet when exceptioned */
 	PPE_DRV_SC_FLOW_ACL_FIRST = PPE_DRV_SC_FLOW_ACL_START,
 					/* First service code for combining flow and ACL rule */
 	PPE_DRV_SC_FLOW_ACL_LAST = PPE_DRV_SC_FLOW_ACL_END,

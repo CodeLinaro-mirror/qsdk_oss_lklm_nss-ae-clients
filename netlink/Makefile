@@ -7,6 +7,10 @@ ccflags-y += -DCONFIG_NSS_PPENL_POLICER=1
 ccflags-y += -DCONFIG_NSS_PPENL_QOS=1
 ccflags-y += -DCONFIG_NSS_PPENL_EXCEPTION=1
 
+ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
+ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
+endif
+
 qca-nss-ppe-netlink-objs := nss_ppenl.o
 qca-nss-ppe-netlink-objs += nss_ppenl_acl.o
 qca-nss-ppe-netlink-objs += nss_ppenl_policer.o

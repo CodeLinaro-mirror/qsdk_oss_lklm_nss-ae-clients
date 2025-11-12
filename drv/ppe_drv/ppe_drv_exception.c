@@ -16,6 +16,9 @@
 
 #include <fal/fal_sec.h>
 #include <fal/fal_ctrlpkt.h>
+#ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
+#include <fal/fal_pktedit.h>
+#endif
 #include "ppe_drv.h"
 #include "ppe_drv_cc_usr.h"
 
@@ -579,6 +582,18 @@ ppe_drv_cc_usr_ret_t ppe_drv_cc_exception_configure(struct ppe_drv_cc_usr_except
 	if (info->flush_en) {
 		pcc->flush = true;
 	}
+
+	/*
+	 * Exception edit enable for PPE pkt edits with specific CPU code.
+	 */
+#ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
+	err = fal_pktedit_en_set(PPE_DRV_SWITCH_ID, info->code, info->exception_edit_en);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: failed to configure exception edit enable - cpu_code:%d", p, info->code);
+		ret = PPE_DRV_CC_USR_RET_EXCP_EDIT_CONFIGURE_FAILED;
+		return ret;
+	}
+#endif
 
 #ifdef PPE_TUNNEL_ENABLE
 	if ((info->flow_type & PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW) == PPE_DRV_EXCEPTION_FLOW_TYPE_TUNNEL_FLOW) {

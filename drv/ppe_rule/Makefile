@@ -20,6 +20,10 @@ ifeq ($(PPE_LOWMEM_PROFILE_256M), y)
 ccflags-y += -DNSS_PPE_LOWMEM_PROFILE_256M
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
+ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
+endif
+
 obj-m += qca-nss-ppe-rule.o
 qca-nss-ppe-rule-objs := ppe_rule.o
 

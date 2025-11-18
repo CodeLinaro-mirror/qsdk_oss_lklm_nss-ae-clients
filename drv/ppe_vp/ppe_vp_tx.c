@@ -207,6 +207,14 @@ bool ppe_vp_tx_to_ppe_by_dev(struct net_device *dev, struct sk_buff *skb)
 		return false;
 	}
 
+	/*
+	 * skb->mark contains egress_macid.
+	 * Amend skb->mark with valid macid tag.
+	 * Note: Presently ppe_vp_tx_to_ppe_by_dev is called from wifi only.
+	 * If this api is called for any other vp type in future, then
+	 * vp type check is required to set macid tag for wifi type vp only.
+	 */
+	skb->mark = ppe_vp_tx_set_macid_tag(skb->mark);
 	mem_debug_update_skb(skb);
 	return ppe_vp_tx_to_ppe(vp_num, skb);
 }

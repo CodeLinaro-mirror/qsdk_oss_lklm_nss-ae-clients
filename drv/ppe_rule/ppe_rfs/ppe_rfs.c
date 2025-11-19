@@ -35,7 +35,7 @@ struct ppe_rfs gbl_ppe_rfs;
 /*
  * Module parameter to enable/disable PPE RFS for eth-to-eth flows.
  */
-static bool eth_rfs_enable = false;
+static bool eth_rfs_enable = true;
 MODULE_PARM_DESC(eth_rfs_enable, "PPE RFS enable/disable for ethernet flows");
 
 /*
@@ -63,7 +63,7 @@ bool ppe_rfs_rule_eligible_get(int src_interface_num, int dst_interface_num, boo
 
 	dst_dev = dev_get_by_index(&init_net, dst_interface_num);
 	if (!dst_dev) {
-		ppe_rfs_warn("dev not found during ppe dummy config for flow iface: %d\n", src_interface_num);
+		ppe_rfs_warn("dev not found during ppe dummy config for flow iface: %d\n", dst_interface_num);
 		if (!mcast_flow)
 			goto ret_status;
 	};
@@ -83,8 +83,12 @@ bool ppe_rfs_rule_eligible_get(int src_interface_num, int dst_interface_num, boo
 	status = dst_rfs_enabled;
 
 ret_status:
-	dev_put(src_dev);
-	dev_put(dst_dev);
+	if (src_dev) {
+		dev_put(src_dev);
+	}
+	if (dst_dev) {
+		dev_put(dst_dev);
+	}
 	return status;
 }
 EXPORT_SYMBOL(ppe_rfs_rule_eligible_get);

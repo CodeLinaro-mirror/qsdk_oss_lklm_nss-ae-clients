@@ -60,7 +60,7 @@ static void ppe_pppoe_mgr_remove_session(struct ppe_pppoe_mgr_session_entry *ppe
 {
 	struct pppoe_stats_ctx *ctx = &ctx_gbl;
 	struct pppoe_mgr_session_entry *entry = &ppe_entry->pppoe_pvt;
-	struct pppoe_mgr_session_info *info = &entry->info;
+	struct pppoe_mgr_session_info *info __maybe_unused = &entry->info;
 
 	pppoe_mgr_info("%px: Remove PPPoE session with session_id=%u server_mac=%pM local_mac %pM\n",
 				   entry, info->session_id, info->server_mac, info->local_mac);

@@ -6,6 +6,7 @@
 #ifndef __GRE_MGR_PRIV_H_
 #define __GRE_MGR_PRIV_H_
 
+#include <linux/netdevice.h>
 #include <nss_client_mgr.h>
 
 /*

@@ -449,7 +449,7 @@ static int nss_ppe_dsa_mgr_dsa_vp_destroy(struct net_device *dev)
  */
 static int nss_ppe_dsa_mgr_changeaddr_event(struct netdev_notifier_info *info, struct dsa_port *dp)
 {
-	struct net_device *slave = dp->slave;
+	struct net_device *slave __maybe_unused = dp->slave;
 
 	nss_ppe_dsa_mgr_trace("slave:%s, proto: %d, MAC Addr change requested.\n", slave->name,
 		dp->cpu_dp->tag_ops->proto);
@@ -472,7 +472,7 @@ static int nss_ppe_dsa_mgr_changeaddr_event(struct netdev_notifier_info *info, s
  */
 static int nss_ppe_dsa_mgr_changemtu_event(struct netdev_notifier_info *info, struct dsa_port *dp)
 {
-	struct net_device *slave = dp->slave;
+	struct net_device *slave __maybe_unused = dp->slave;
 
 	nss_ppe_dsa_mgr_trace("slave:%s, idx:%u, proto:%d. \n", slave->name,
 		dp->index, dp->cpu_dp->tag_ops->proto);

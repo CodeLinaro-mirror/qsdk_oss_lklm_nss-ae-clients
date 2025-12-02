@@ -234,7 +234,7 @@ static bool ppe_drv_tun_activate_mapt(struct ppe_drv_tun *ptun, struct ppe_drv_t
 ppe_drv_ret_t ppe_drv_tun_gretap_to_mapt_sc(struct ppe_drv_port *tx_port, struct ppe_drv_port *rx_port,
 						ppe_drv_sc_t *service_code)
 {
-	struct net_device *tx_dev, *rx_dev;
+	struct net_device *tx_dev __maybe_unused, *rx_dev __maybe_unused;
 	struct ppe_drv *p = ppe_drv_gbl;
 	uint32_t serv_code;
 

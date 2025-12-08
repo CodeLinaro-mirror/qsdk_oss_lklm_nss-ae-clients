@@ -97,6 +97,16 @@ enum ppe_drv_tun_cmn_ctx_type {
 };
 
 /*
+ * ppe_drv_tun_cmn_ctx_flowlabel
+ *	PPE flow label modes
+ */
+enum ppe_drv_tun_cmn_ctx_flowlabel {
+	PPE_DRV_TUN_CMN_CTX_FLOW_LABEL_FIX = 0,	/**< PPE Tunnel flow label Fix mode >*/
+	PPE_DRV_TUN_CMN_CTX_FLOW_LABEL_HASH,	/**< PPE Tunnel flow label Hash mode >*/
+	PPE_DRV_TUN_CMN_CTX_FLOW_LABEL_COPY,	/**< PPE Tunnel flow label copy mode >*/
+};
+
+/*
  * ppe_drv_tun_cmn_ctx_l3
  *	Layer 3 header parameters
  */
@@ -107,8 +117,10 @@ struct ppe_drv_tun_cmn_ctx_l3 {
 	uint16_t proto;		/**< IP protocol >*/
 	uint8_t dscp;		/**< Static DSCP value for outer header >*/
 	uint8_t ttl;		/**< Static TTL value for outer header >*/
+	uint32_t flow_label_val;	/**< flow label fixed value >*/
 	enum ppe_drv_tun_cmn_ctx_encap_ecn encap_ecn_mode;	/**< RFC for ECN in encap direction >*/
 	enum ppe_drv_tun_cmn_ctx_decap_ecn decap_ecn_mode;	/**< RFC for ECN in decap direction >*/
+	enum ppe_drv_tun_cmn_ctx_flowlabel flow_label;	/**< Flow label mode >*/
 };
 
 /*

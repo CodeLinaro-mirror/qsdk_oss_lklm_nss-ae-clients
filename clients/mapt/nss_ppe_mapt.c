@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -27,6 +27,7 @@
 #include <nss_ppe_tun_drv.h>
 #include <ppe_drv_port.h>
 #include "nss_ppe_mapt.h"
+#include <linux/string.h>
 
 /*
  * (IPv6 hdr - IPv4 hdr) + PPPoE hdr + CVLAN + SVLAN
@@ -54,6 +55,132 @@ MODULE_PARM_DESC(inherit_dscp, "DSCP 0:Dont Inherit inner, 1:Inherit inner");
 static bool inherit_ttl = true;
 module_param(inherit_ttl, bool, 0644);
 MODULE_PARM_DESC(inherit_ttl, "TTL 0:Dont Inherit inner, 1:Inherit inner");
+
+struct nss_ppe_mapt_ipv6_flow_label fl_cfg = {
+	.mode = NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_FIX,
+	.fix_value = 0,
+};
+
+/*
+ * nss_ppe_mapt_param_set_ipv6_flow_label
+ *      mapt ipv6 flow label module param set function
+ */
+static int nss_ppe_mapt_param_set_ipv6_flow_label(const char *val, const struct kernel_param *kp)
+{
+	struct nss_ppe_mapt_ipv6_flow_label *cfg = kp->arg;
+	char buf[64];
+	char *sep = NULL, *arg = NULL;
+	unsigned int mode, fv = 0;
+
+	if (!val) {
+		return -1;
+	}
+
+	strscpy(buf, val, sizeof(buf));
+
+	/*
+	 * Split on first ':', '=' or ','
+	 */
+	sep = strpbrk(buf, ":,=");
+	if (sep) {
+		*sep = '\0';
+		arg = sep + 1;
+	}
+
+	/*
+	 * Parse the mode (fix/hash/copy)
+	 */
+	if (kstrtouint(buf, 0, &mode)) {
+		nss_ppe_mapt_warning("Unable to parse mapt ipv6_flow_label param\n");
+		return -1;
+	}
+
+	if (mode > NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_COPY) {
+		nss_ppe_mapt_warning("Invalid ipv6_flow_label mode = %d\n", mode);
+		return -1;
+	}
+
+	/*
+	 * Check if a value/separator was provided with modes that don't accept values
+	 */
+	if (arg && (mode > NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_FIX)) {
+		nss_ppe_mapt_warning("ipv6_flow_label can accept value only in mode 0(fix)\n");
+		return -1;
+	}
+
+	/*
+	 * Handle mode 0 (FIX) - parse the optional value
+	 */
+	if (mode == NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_FIX) {
+		if (arg) {
+			/*
+			 * Separator found - parse value (empty string after separator is valid, defaults to 0)
+			 */
+			if (*arg) {
+				if (kstrtouint(arg, 0, &fv)) {
+					nss_ppe_mapt_warning("ipv6_flow_label: unable to parse value\n");
+					return -1;
+				}
+
+				if (fv > 0xFFFFF) {
+					nss_ppe_mapt_warning("ipv6_flow_label: value 0x%x exceeds 20-bit (max 0xFFFFF)\n", fv);
+					return -1;
+				}
+				cfg->fix_value = fv;
+			} else {
+				/*
+				 * Empty value after separator (e.g., "0:") - use default 0
+				 */
+				cfg->fix_value = 0;
+			}
+		} else {
+			/*
+			 * No separator provided - use default 0
+			 */
+			cfg->fix_value = 0;
+		}
+	}
+
+
+	cfg->mode = (uint8_t)mode;
+	return 0;
+}
+
+/*
+ * nss_ppe_mapt_param_get_ipv6_flow_label
+ *      MAPT IPv6 Flow label get
+ */
+static int nss_ppe_mapt_param_get_ipv6_flow_label(char *buffer,
+                                                  const struct kernel_param *kp)
+{
+        const struct nss_ppe_mapt_ipv6_flow_label *cfg = kp->arg;
+
+        switch (cfg->mode) {
+        case NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_FIX:
+                /* Return the number of chars written (excluding '\0') */
+                return scnprintf(buffer, PAGE_SIZE, "fix(0):0x%x\n", cfg->fix_value);
+
+        case NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_HASH:
+                return scnprintf(buffer, PAGE_SIZE, "hash(1)\n");
+
+        case NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_COPY:
+                return scnprintf(buffer, PAGE_SIZE, "copy from inner(2)\n");
+
+        default:
+                return scnprintf(buffer, PAGE_SIZE, "unknown\n");
+        }
+}
+
+/*
+ * ipv6 flow label module param ops
+ */
+static const struct kernel_param_ops nss_ppe_mapt_ipv6_flow_label_ops = {
+    .set = nss_ppe_mapt_param_set_ipv6_flow_label,
+    .get = nss_ppe_mapt_param_get_ipv6_flow_label,
+};
+module_param_cb(ipv6_flow_label, &nss_ppe_mapt_ipv6_flow_label_ops, &fl_cfg, 0644);
+MODULE_PARM_DESC(ipv6_flow_label, "IPv6 flow label: 0:fixed value (usage: 0:<20 bit fixed value>) | 1 (hash) | 2 (copy from inner)");
+__MODULE_PARM_TYPE(ipv6_flow_label, "charp");
 
 /*
  * nss_ppe_mapt_dev_stats_update()
@@ -357,6 +484,23 @@ static bool nss_ppe_mapt_dev_parse_param(struct net_device *dev, struct ppe_drv_
 	if (decap_ecn_mode <= PPE_DRV_TUN_CMN_CTX_DECAP_ECN_RFC6040_MODE) {
 		l3->decap_ecn_mode = decap_ecn_mode;
 	}
+
+	switch (fl_cfg.mode) {
+		case NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_FIX:
+			l3->flow_label = PPE_DRV_TUN_CMN_CTX_FLOW_LABEL_FIX;
+			l3->flow_label_val = fl_cfg.fix_value;
+			break;
+		case NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_HASH:
+			l3->flow_label = PPE_DRV_TUN_CMN_CTX_FLOW_LABEL_HASH;
+			break;
+		case NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_COPY:
+			l3->flow_label = PPE_DRV_TUN_CMN_CTX_FLOW_LABEL_COPY;
+			break;
+		default:
+			nss_ppe_mapt_warning("Invalid Flowlabel mode\n");
+			break;
+	}
+
 	l3->proto = tunnel->parms.proto;
 	l3->flags |= PPE_DRV_TUN_CMN_CTX_L3_IPV6;
 	tun_hdr->type = PPE_DRV_TUN_CMN_CTX_TYPE_MAPT;

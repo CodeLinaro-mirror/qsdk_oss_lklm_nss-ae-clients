@@ -901,6 +901,7 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 	} else {
 		struct ipv6hdr ip6h = {0};
 		uint8_t tclass = 0;
+		uint32_t flow_label = 0;
 
 		memset((void *)&ip6h, 0, sizeof(ip6h));
 
@@ -917,8 +918,12 @@ static void ppe_drv_tun_encap_hdr_set(struct ppe_drv_tun_encap *ptec,
 			tclass = th->l3.dscp;
 		}
 
-		ip6_flow_hdr(&ip6h, tclass, 0);
+		if (th->l3.flow_label == PPE_DRV_TUN_CMN_CTX_FLOW_LABEL_FIX) {
+			flow_label = htonl(th->l3.flow_label_val);
+			ppe_drv_trace("%p: fix flow label enabled %x\n", ptec, flow_label);
+		}
 
+		ip6_flow_hdr(&ip6h, tclass, flow_label);
 		ip6h.payload_len = htons(sizeof(struct ipv6hdr));
 		memcpy((void *)tun_hdr, (void *)&ip6h, sizeof(struct ipv6hdr));
 
@@ -1146,11 +1151,7 @@ bool ppe_drv_tun_encap_configure(struct ppe_drv_tun_encap *ptec,
 
 	} else {
 		encap_cfg.ip_ver = FAL_TUNNEL_IP_VER_6; /* IPV6 ; 0 is for IPV4 */
-
-		/*
-		 * TODO: Should we have configuration for below flags
-		 */
-		encap_cfg.ipv6_flowlable_mode = FAL_TUNNEL_ENCAP_FLOWLABLE_MODE_COPY; /* Copy from inner */
+		encap_cfg.ipv6_flowlable_mode = (uint8_t)th->l3.flow_label;
 	}
 
 	if (th->l3.flags & PPE_DRV_TUN_CMN_CTX_L3_INHERIT_DSCP) {

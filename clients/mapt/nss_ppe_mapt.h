@@ -57,4 +57,16 @@
 #endif
 #endif /* CONFIG_DYNAMIC_DEBUG */
 
+#define NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_FIX	0
+#define NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_HASH	1
+#define NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_COPY	2
+
+/*
+ * nss_ppe_mapt_ipv6_flow_label
+ *      MAPT Outer IPv6 flow label
+ */
+struct nss_ppe_mapt_ipv6_flow_label {
+	uint8_t  mode;
+	uint32_t fix_value;
+};
 #endif /* _NSS_PPE_MAPT_H_ */

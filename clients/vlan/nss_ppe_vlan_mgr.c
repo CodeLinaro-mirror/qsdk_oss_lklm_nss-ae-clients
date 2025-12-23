@@ -1404,15 +1404,20 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 	struct nss_vlan_pvt *v = container_of(kref, struct nss_vlan_pvt, ref);
 
 	if (v->is_vlan_over_bridge) {
+		if (!v->iface) {
+			nss_ppe_vlan_mgr_minidump_free(v, "nss_vlan_pvt");
+			kfree(v);
+			return;
+		}
 		netdev_for_each_lower_dev(v->br_net_dev, lower_dev, iter) {
 			slave_iface = ppe_drv_iface_get_by_dev(lower_dev);
 			if (slave_iface) {
 				nss_ppe_vlan_mgr_trace("Deleting ingress rule for slave %s master %s\n",
-						       lower_dev->name, v->br_net_dev->name);
+						lower_dev->name, v->br_net_dev->name);
 				if (!netif_is_bond_master(lower_dev)) {
 					if (nss_ppe_vlan_mgr_config_bridge_vlan_ingress_rule_del(slave_iface, v)) {
 						nss_ppe_vlan_mgr_warn("Deleting ingress xlate rule failed for "
-								      "slave %s\n", lower_dev->name);
+								"slave %s\n", lower_dev->name);
 					}
 				}
 			} else {

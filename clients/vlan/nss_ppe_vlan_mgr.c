@@ -199,12 +199,16 @@ static int nss_ppe_vlan_mgr_update_ppe_tpid(void)
 	uint32_t mask = FAL_TPID_CTAG_EN | FAL_TPID_STAG_EN;
 	uint16_t ctpid = vlan_mgr_ctx.ctpid;
 	uint16_t stpid = vlan_mgr_ctx.stpid;
+	fal_qinq_port_role_t port_role = FAL_QINQ_EDGE_PORT;
 
 #ifdef NSS_VLAN_MGR_PPE_VP_TUN_SUPPORT
 	mask |= (FAL_TUNNEL_TPID_CTAG_EN | FAL_TUNNEL_TPID_STAG_EN);
 #endif
 
-	ret = ppe_drv_vlan_tpid_set(ctpid, stpid, mask);
+#ifdef NSS_VLAN_MGR_DEFAULT_ROLE_CORE
+	port_role = FAL_QINQ_CORE_PORT;
+#endif
+	ret = ppe_drv_vlan_tpid_set(ctpid, stpid, mask, port_role);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_vlan_mgr_warn("failed to set ctpid %d stpid %d, error = %d\n", ctpid, stpid, ret);
 		return -1;

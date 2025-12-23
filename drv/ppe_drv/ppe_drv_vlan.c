@@ -120,7 +120,7 @@ bool ppe_drv_vlan_add_untag_ingress_rule(struct ppe_drv_port *port, struct ppe_d
  * ppe_drv_vlan_tpid_set()
  *	Set PPE vlan TPID
  */
-ppe_drv_ret_t ppe_drv_vlan_tpid_set(uint16_t ctpid, uint16_t stpid, uint32_t mask)
+ppe_drv_ret_t ppe_drv_vlan_tpid_set(uint16_t ctpid, uint16_t stpid, uint32_t mask, fal_qinq_port_role_t port_role)
 {
 	struct ppe_drv *p = ppe_drv_gbl;
 
@@ -133,6 +133,19 @@ ppe_drv_ret_t ppe_drv_vlan_tpid_set(uint16_t ctpid, uint16_t stpid, uint32_t mas
 	tpid.tunnel_stpid = stpid;
 
 	spin_lock_bh(&p->lock);
+	if (port_role == FAL_QINQ_CORE_PORT) {
+		fal_global_qinq_mode_t mode = {0};
+
+		fal_global_qinq_mode_get(PPE_DRV_SWITCH_ID, &mode);
+		mode.mask = FAL_GLOBAL_QINQ_MODE_INGRESS_EN | FAL_GLOBAL_QINQ_MODE_EGRESS_EN;
+		mode.ingress_mode = mode.egress_mode = (ctpid == stpid) ? FAL_QINQ_STAG_MODE : FAL_QINQ_CTAG_MODE;
+		if (fal_global_qinq_mode_set(PPE_DRV_SWITCH_ID, &mode) != SW_OK) {
+			spin_unlock_bh(&p->lock);
+			ppe_drv_warn("failed to set vlan mode with ctpid: %d stpid: %d\n", ctpid, stpid);
+			return PPE_DRV_RET_PORT_ROLE_FAIL;
+		}
+	}
+
 	if ((fal_ingress_tpid_set(PPE_DRV_SWITCH_ID, &tpid) != SW_OK) || (fal_egress_tpid_set(PPE_DRV_SWITCH_ID, &tpid) != SW_OK)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_warn("failed to set ctpid %d stpid %d\n", tpid.ctpid, tpid.stpid);

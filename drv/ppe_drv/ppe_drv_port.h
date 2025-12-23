@@ -161,6 +161,9 @@ bool ppe_drv_port_l3_if_attach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *l3
 void ppe_drv_port_vsi_detach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi);
 void ppe_drv_port_vsi_attach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi);
 
+void ppe_drv_port_flood_vsi_override_en(uint32_t vsi_id);
+void ppe_drv_port_flood_vsi_override_default(uint32_t vsi_id);
+
 bool ppe_drv_port_deref(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_ref(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_device *dev, uint8_t tunnel_vp_cfg, bool fdb_learn_enabled);

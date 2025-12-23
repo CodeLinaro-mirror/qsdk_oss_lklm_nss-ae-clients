@@ -532,6 +532,67 @@ void ppe_drv_port_l3_if_detach(struct ppe_drv_port *pp, struct ppe_drv_l3_if *pl
 }
 
 /*
+ * ppe_drv_port_flood_vsi_override_en
+ * 	Enable UUC, UMC and BC flooding for all the ports.
+ */
+void ppe_drv_port_flood_vsi_override_en(uint32_t vsi_id)
+{
+	fal_vsi_member_t vsi_member;
+	sw_error_t rv;
+
+	rv = fal_vsi_member_get(PPE_DRV_SWITCH_ID, vsi_id, &vsi_member);
+	if( rv != SW_OK ) {
+		ppe_drv_warn("Invalid VSI member for a given VSI index: %d\n", vsi_id);
+		return;
+	}
+
+	/*
+	 * Set the flooding membership as port membership.
+	 */
+	vsi_member.uuc_ports = vsi_member.member_ports;
+	vsi_member.umc_ports = vsi_member.member_ports;
+	vsi_member.bc_ports = vsi_member.member_ports;
+
+	rv = fal_vsi_member_set(PPE_DRV_SWITCH_ID, vsi_id, &vsi_member);
+	if (rv != SW_OK) {
+		ppe_drv_warn("Flood membership override failed: vsi_num: %u", vsi_id);
+		return;
+	}
+
+	ppe_drv_trace("Flood membership enabled for UUC, UMC and BC: vsi_num: %u", vsi_id);
+}
+
+/*
+ * ppe_drv_port_flood_vsi_override_default
+ * 	Disable flooding for UUC, UMC and BC on all ports, except the PORT CPU.
+ */
+void ppe_drv_port_flood_vsi_override_default(uint32_t vsi_id)
+{
+	fal_vsi_member_t vsi_member;
+	sw_error_t rv;
+	rv = fal_vsi_member_get(PPE_DRV_SWITCH_ID, vsi_id, &vsi_member);
+	if( rv != SW_OK ) {
+		ppe_drv_warn("Invalid VSI member for a given VSI index: %d\n", vsi_id);
+		return;
+	}
+
+	/*
+	 * Reset the flooding membership to CPU port only.
+	 */
+	vsi_member.uuc_ports = 0x1;
+	vsi_member.umc_ports = 0x1;
+	vsi_member.bc_ports = 0x1;
+
+	rv = fal_vsi_member_set(PPE_DRV_SWITCH_ID, vsi_id, &vsi_member);
+	if (rv != SW_OK) {
+		ppe_drv_warn("Flood membership disable failed: vsi_num: %u", vsi_id);
+		return;
+	}
+
+	ppe_drv_trace("Flood membership disabled for UUC, UMC and BC: vsi_num: %u", vsi_id);
+}
+
+/*
  * ppe_drv_port_vsi_attach()
  *	Attaches port to given vsi
  */
@@ -660,6 +721,9 @@ void ppe_drv_port_vsi_attach(struct ppe_drv_port *pp, struct ppe_drv_vsi *vsi)
 		goto fail;
 	}
 
+	if (active_vsi->flood_vsi_en) {
+		ppe_drv_port_flood_vsi_override_en(active_vsi->index);
+	}
 	ppe_drv_trace("%p: attaching vsi %u to port %u", pp, active_vsi->index, fal_port);
 
 	ppe_drv_port_dump(pp);

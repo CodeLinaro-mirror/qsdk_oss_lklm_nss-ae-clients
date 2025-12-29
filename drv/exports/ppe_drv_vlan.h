@@ -60,11 +60,12 @@ struct ppe_drv_vlan_xlate_info {
  * @param[in] ctpid   C-tag TPID.
  * @param[in] stpid   S-tag TPID.
  * @param[in] mask    Mask for Egress and Ingress vlan enable.
+ * @param[in] port_role Vlan port role.
  *
  * @return
  * Status of the operation.
  */
-ppe_drv_ret_t ppe_drv_vlan_tpid_set(uint16_t ctpid, uint16_t stpid, uint32_t mask);
+ppe_drv_ret_t ppe_drv_vlan_tpid_set(uint16_t ctpid, uint16_t stpid, uint32_t mask, fal_qinq_port_role_t port_role);
 
 /**
  * ppe_drv_vlan_port_role_set

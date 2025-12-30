@@ -945,6 +945,55 @@ int32_t ppe_drv_port_ucast_queue_get_by_port(int port)
 }
 EXPORT_SYMBOL(ppe_drv_port_ucast_queue_get_by_port);
 
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+/*
+ * ppe_drv_port_loopback_port_get_info()
+ *	Get the loopback port related information.
+ */
+bool ppe_drv_port_loopback_port_get_info(void)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	fal_loopback_config_t loopback_cfg;
+	fal_portscheduler_resource_t sched;
+	fal_port_t port_id;
+	sw_error_t err;
+	bool enabled;
+
+	err = fal_switch_loopback_port_get(PPE_DRV_SWITCH_ID, &port_id);
+	if (err != SW_OK) {
+		ppe_drv_warn("loopback port is not supported\n");
+		return false;
+	}
+
+	err = fal_switch_port_loopback_get(PPE_DRV_SWITCH_ID, port_id, &loopback_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("failed to get loopback port configuration\n");
+		return false;
+	}
+
+	enabled = loopback_cfg.enable;
+	if (!enabled) {
+		ppe_drv_warn("loopback port %d is not enabled\n", port_id);
+		return false;
+	}
+
+	err = fal_port_scheduler_resource_get(PPE_DRV_SWITCH_ID, port_id, &sched);
+	if (err != SW_OK) {
+		ppe_drv_warn("failed to get loopback port sched info\n");
+		return false;
+	}
+
+	p->loopback_port_info.enabled = enabled;
+	p->loopback_port_info.port_id = port_id;
+	p->loopback_port_info.ucastq_start = sched.ucastq_start;
+	p->loopback_port_info.ucastq_num = sched.ucastq_num;
+	p->loopback_port_info.mcastq_start = sched.mcastq_start;
+	p->loopback_port_info.mcastq_num = sched.mcastq_num;
+
+	return true;
+}
+#endif
+
 /*
  * ppe_drv_port_get_vp_phys_dev()
  * 	Get the net device corresponding to physical port
@@ -980,7 +1029,9 @@ EXPORT_SYMBOL(ppe_drv_port_get_vp_phys_dev);
 bool ppe_drv_port_get_vp_stats(int16_t port, struct ppe_drv_port_hw_stats *vp_stats)
 {
 #ifdef PPE_TUNNEL_ENABLE
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	struct ppe_drv *p = ppe_drv_gbl;
+#endif
 #endif
 	fal_port_cnt_t hw_stats;
 	uint32_t v_port;
@@ -1015,6 +1066,7 @@ bool ppe_drv_port_get_vp_stats(int16_t port, struct ppe_drv_port_hw_stats *vp_st
 	vp_stats->tx_drop_byte_cnt = hw_stats.tx_drop_byte_cnt;
 
 #ifdef PPE_TUNNEL_ENABLE
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	/*
 	 * for gretap to map-t loopback, post gretap decap packet
 	 * direction is changed in service code hence PPE does not
@@ -1026,6 +1078,7 @@ bool ppe_drv_port_get_vp_stats(int16_t port, struct ppe_drv_port_hw_stats *vp_st
 	if (ppe_drv_tun_gretap_to_mapt_loopback_enabled(p)) {
 		ppe_drv_tun_loopback_gretap_rx_stats_get(port, vp_stats);
 	}
+#endif
 #endif
 
 	return true;

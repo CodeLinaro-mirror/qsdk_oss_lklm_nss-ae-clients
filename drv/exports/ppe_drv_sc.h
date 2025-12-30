@@ -66,6 +66,11 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_NPT66_HAIRPIN_NAT_NEXT = 36,	/* Next Service code for EDMA LOOPBACK ring for Hairpin NAT */
 	PPE_DRV_SC_PKT_EXCEPTION_EDIT_EN = 37,
 			/* Service code to edit/commit packet when exceptioned */
+	PPE_DRV_SC_LOOPBACK_PORT_FEATURE_FLOW_SC  = 38,		/* Service code for loopback port first pass */
+	PPE_DRV_SC_LOOPBACK_PORT_FEATURE_FLOW_SC_NEXT = 39,		/* Service code for loopback port second pass */
+	PPE_DRV_SC_LOOPBACK_PORT_FEATURE_RETURN_SC  = 40,		/* Service code for loopback port first pass */
+	PPE_DRV_SC_LOOPBACK_PORT_FEATURE_RETURN_SC_NEXT = 41,	/* Service code for loopback port second pass */
+
 	PPE_DRV_SC_FLOW_ACL_FIRST = PPE_DRV_SC_FLOW_ACL_START,
 					/* First service code for combining flow and ACL rule */
 	PPE_DRV_SC_FLOW_ACL_LAST = PPE_DRV_SC_FLOW_ACL_END,

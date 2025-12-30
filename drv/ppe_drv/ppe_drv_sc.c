@@ -103,7 +103,7 @@ void ppe_drv_sc_ucast_queue_set(ppe_drv_sc_t sc, uint8_t queue_id, uint8_t src_p
  * ppe_drv_sc_config()
  *	Configured service code related tables based on input information.
  */
-static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t redir_port)
+void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t redir_port)
 {
 	struct ppe_drv *p = ppe_drv_gbl;
 	fal_servcode_config_t sc_cfg = {0};
@@ -301,6 +301,16 @@ static void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t red
 	case PPE_DRV_SC_LOOPBACK_RING_NEXT_GRETAP_N_MAPT:
 		sc_cfg.bypass_bitmap[0] = (1 << FLOW_SERVICE_CODE_BYP) | (1 << FLOW_LOOKUP_BYP);
 		sc_cfg.dest_port_valid = A_FALSE;
+		break;
+
+	/*
+	 * Based on the type of loopback port feature enabled, configure
+	 * the service code.
+	 */
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_FLOW_SC:
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_FLOW_SC_NEXT:
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_RETURN_SC:
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_RETURN_SC_NEXT:
 		break;
 
 	case PPE_DRV_SC_NPT66_HAIRPIN_NAT:

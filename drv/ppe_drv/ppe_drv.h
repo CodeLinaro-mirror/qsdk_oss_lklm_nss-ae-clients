@@ -315,6 +315,47 @@ struct ppe_drv_tun_gbl {
 	struct ppe_drv_tun_gre_acl *gre;				/* GREtap ACL rules for checksum handling */
 };
 
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+/*
+ * ppe_drv_loopback_port_feature_type
+ *	loopback port feature type
+ */
+enum ppe_drv_loopback_port_feature_type  {
+	PPE_DRV_LOOPBACK_PORT_FT_TYPE_NONE = 0x00,			/* Loopback port feature is disabled */
+};
+
+/*
+ * ppe_drv_loopback_port_ctx_dir
+ *	Types of loopback port context direction.
+ */
+enum ppe_drv_loopback_port_ctx_dir {
+	PPE_DRV_LOOPBACK_PORT_CTX_FLOW_SC,			/* Context for flow direction first service code */
+	PPE_DRV_LOOPBACK_PORT_CTX_FLOW_SC_NEXT,		/* Context for flow direction next service code */
+	PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC,		/* Context for return direction first service code */
+	PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC_NEXT,	/* Context for return direction next service code */
+	PPE_DRV_LOOPBACK_PORT_CTX_MAX,
+};
+
+
+/* ppe_drv_loopback_ring_info
+ *	loopback base structure
+ */
+struct ppe_drv_loopback_port_info {
+	bool enabled;						/* Indicates if loopback port is enabled */
+	uint16_t port_id;					/* Loopback port number */
+	enum ppe_drv_loopback_port_feature_type ft_type;	/* Feature type */
+	uint16_t ucastq_start;					/* Unicast base queue */
+	uint16_t ucastq_num;					/* Number of unicast queue */
+	uint16_t mcastq_start;					/* multicast base queue */
+	uint16_t mcastq_num;					/* Number of multicast queue */
+	struct {
+		enum ppe_drv_loopback_port_feature_type dir_ft_type;	/* Feature type for loopback port of this direction context */
+		ppe_drv_sc_t sc;					/* first service code */
+	} ctx[PPE_DRV_LOOPBACK_PORT_CTX_MAX];
+};
+#endif
+
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 /* ppe_drv_loopback_ring_info
  *	loopback base structure
  */
@@ -323,6 +364,7 @@ struct ppe_drv_loopback_ring_info {
 	bool enabled;		/* Indicates if loopback ring is enabled */
 	uint32_t ft_type;	/* Feature type for loopback ring. only one loopback feature can be enabled at a time */
 };
+#endif
 
 /*
  * ppe_drv
@@ -413,7 +455,13 @@ struct ppe_drv {
 	bool fse_enable;			/* FSE enabled */
 	bool is_wifi_fse_up;			/* Wi-FI FSE ops registered with PPE */
 
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 	struct ppe_drv_loopback_ring_info loopback_ring_info;	/* Loopback information */
+#endif
+
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+	struct ppe_drv_loopback_port_info loopback_port_info;		/* Loopback port information */
+#endif
 
 	/*
 	 * Switch TPIDs
@@ -453,6 +501,7 @@ static inline bool ppe_drv_assist_feature_type_check(uint32_t feature, uint32_t 
 	return !!(feature & flag);
 }
 
+#if defined(PPE_LOOPBACK_RING_SUPPORT)
 /*
  * ppe_drv_tun_gretap_to_mapt_loopback_enabled()
  *	Check gretap to mapt loopback ring enabled.
@@ -462,6 +511,7 @@ static inline bool ppe_drv_tun_gretap_to_mapt_loopback_enabled(struct ppe_drv *p
 	return !!(p->loopback_ring_info.enabled &&
 		(p->loopback_ring_info.ft_type & PPE_DRV_LOOPBACK_FEATURE_TYPE_GRETAP_MAPT));
 }
+#endif
 
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 /*

@@ -13,16 +13,8 @@ ifeq ($(SoC),$(filter $(SoC),ipq95xx))
 ccflags-y += -DNSS_PPE_IPQ95XX
 endif
 
-ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
-ccflags-y += -DNSS_PPE_L2_VP_SC_ENQ_BYPASS
-endif
-
 ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx))
 ccflags-y += -DPPE_DRV_FLOW_IG_MAC_WAR
-endif
-
-ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
-ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
 endif
 
 obj-m += qca-nss-ppe.o
@@ -75,7 +67,13 @@ qca-nss-ppe-objs += tun/ppe_drv_tun_gre.o
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
+ccflags-y += -DNSS_PPE_L2_VP_SC_ENQ_BYPASS
+ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
 ccflags-y += -DPPE_DRV_RPS_HASH_SELECT
+ccflags-y += -DPPE_DRV_PKT_PADDING_STRIP
+ccflags-y += -DPPE_DRV_BRIDGE_NEXT_HOP
+ccflags-y += -DPPE_DRV_SRC_INTERFACE_CHECK
+ccflags-y += -DPPE_DRV_FLOW_TBL_POLICER
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq54xx))

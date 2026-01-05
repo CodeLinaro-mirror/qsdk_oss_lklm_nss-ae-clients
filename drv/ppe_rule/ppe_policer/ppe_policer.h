@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2026 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +16,11 @@
 
 #include "ppe_policer_stats.h"
 
+#ifdef NSS_PPE_IPQ53XX
 #define PPE_ACL_POLICER_FLOW_RULE_MAX 128
+#else
+#define PPE_ACL_POLICER_FLOW_RULE_MAX 512
+#endif
 #define PPE_POLICER_PORT_RULE_MAX 8
 
 /*

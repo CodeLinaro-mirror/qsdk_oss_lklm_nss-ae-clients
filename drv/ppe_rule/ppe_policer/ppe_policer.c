@@ -455,6 +455,12 @@ static bool ppe_policer_create_acl(struct ppe_policer_create_info *info)
 		return false;
 	}
 
+	if (info->rule_id >= PPE_ACL_POLICER_FLOW_RULE_MAX) {
+		ppe_policer_stats_inc(&g_policer->stats.acl_rule_id_invalid);
+		ppe_policer_warn("%p: Invalid rule ID: %d", g_policer, info->rule_id);
+		return false;
+	}
+
 	pol = ppe_policer_rule_acl_find_by_id(info->rule_id);
 	if (pol) {
 		ppe_policer_stats_inc(&g_policer->stats.policer_acl_already_exists);

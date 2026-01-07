@@ -4747,6 +4747,7 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	struct ppe_drv_v6_conn_npt6 *npt6 = NULL;
 #endif
 	ppe_drv_ret_t ret;
+	bool is_wifi_flow = false;
 
 	comm_stats = &p->stats.comm_stats[PPE_DRV_CONN_TYPE_FLOW];
 
@@ -4764,14 +4765,26 @@ ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create)
 	}
 	spin_unlock_bh(&p->lock);
 
+	is_wifi_flow = ppe_drv_iface_check_wifi_flow(create->conn_rule.rx_if, create->conn_rule.tx_if);
+
 	/*
 	 * Check if the PPE offload is enabled on the rule's Tx/Rx ports or not
+	 * for non wifi flows
 	 */
-	if (!ppe_drv_iface_check_flow_offload_enabled(create->conn_rule.rx_if,
+	if (!is_wifi_flow && !ppe_drv_iface_check_flow_offload_enabled(create->conn_rule.rx_if,
 				create->conn_rule.tx_if)) {
 		ppe_drv_stats_inc(&comm_stats->v6_create_fail_offload_disabled);
 		ppe_drv_warn("%p: v6 Flow is configured to not offload: %p", p, create);
 		return PPE_DRV_RET_PORT_NO_OFFLOAD;
+	}
+
+	/*
+	 * Check if the PPE-DS offload is enabled for wifi flows
+	 */
+	if (is_wifi_flow && !ppe_drv_iface_check_wifi_flow_offload_ds_enabled(create->conn_rule.rx_if,
+				create->conn_rule.tx_if)) {
+		ppe_drv_warn("%p: v6 Flow is configured to not offload to PPE-DS: %p", p, create);
+		create->rule_flags |= PPE_DRV_V6_RULE_FLAG_VP_FLOW;
 	}
 
 #ifdef PPE_TUNNEL_ENABLE

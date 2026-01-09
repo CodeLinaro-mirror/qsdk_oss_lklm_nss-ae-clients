@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2026 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -74,23 +74,23 @@
 /*
  * v6 valid flags
  */
-#define PPE_DRV_V6_VALID_FLAG_PPPOE_FLOW	0x0001  /**< PPPoE fields are valid for flow direction. */
-#define PPE_DRV_V6_VALID_FLAG_PPPOE_RETURN	0x0002  /**< PPPoE fields are valid for return direction. */
-#define PPE_DRV_V6_VALID_FLAG_VLAN		0x0004  /**< VLAN fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_QOS		0x0008  /**< QoS fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_DSCP_MARKING	0x0010  /**< DSCP fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_SAWF		0x0020  /**< SAWF fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_ACL_POLICER	0x0040  /**< ACL/Policer fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_WIFI_TID		0x0080	/**< HLOS TID fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_SCS		0x0100	/**< SCS fields are valid. */
-#define PPE_DRV_V6_VALID_FLAG_FLOW_WIFI_MDATA	0x0200  /**< Wi-Fi flow metadata is valid. */
-#define PPE_DRV_V6_VALID_FLAG_RETURN_WIFI_MDATA	0x0400  /**< Wi-Fi return metadata is valid. */
-#define PPE_DRV_V6_VALID_FLAG_FLOW_WIFI_DS	0x0800  /**< Wi-Fi DS flow field is valid. */
-#define PPE_DRV_V6_VALID_FLAG_RETURN_WIFI_DS	0x1000  /**< Wi-Fi DS return field is valid. */
-#define PPE_DRV_V6_VALID_FLAG_WIFI_TAG		0x2000  /**< Wi-Fi valid flag. */
-#define PPE_DRV_V6_VALID_FLAG_FLOW_HOST_QDISC_VALID	0x4000  /**< Qdisc info is valid in flow direction. */
-#define PPE_DRV_V6_VALID_FLAG_RETURN_HOST_QDISC_VALID	0x8000  /**< Qdisc info is valid in return direction. */
-
+#define PPE_DRV_V6_VALID_FLAG_PPPOE_FLOW	0x00000001	/**< PPPoE fields are valid for flow direction. */
+#define PPE_DRV_V6_VALID_FLAG_PPPOE_RETURN	0x00000002	/**< PPPoE fields are valid for return direction. */
+#define PPE_DRV_V6_VALID_FLAG_VLAN		0x00000004	/**< VLAN fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_QOS		0x00000008	/**< QoS fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_DSCP_MARKING	0x00000010	/**< DSCP fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_SAWF		0x00000020	/**< SAWF fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_ACL_POLICER	0x00000040	/**< ACL/Policer fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_WIFI_TID		0x00000080	/**< HLOS TID fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_SCS		0x00000100	/**< SCS fields are valid. */
+#define PPE_DRV_V6_VALID_FLAG_FLOW_WIFI_MDATA	0x00000200	/**< Wi-Fi flow metadata is valid. */
+#define PPE_DRV_V6_VALID_FLAG_RETURN_WIFI_MDATA	0x00000400	/**< Wi-Fi return metadata is valid. */
+#define PPE_DRV_V6_VALID_FLAG_FLOW_WIFI_DS	0x00000800	/**< Wi-Fi DS flow field is valid. */
+#define PPE_DRV_V6_VALID_FLAG_RETURN_WIFI_DS	0x00001000	/**< Wi-Fi DS return field is valid. */
+#define PPE_DRV_V6_VALID_FLAG_WIFI_TAG		0x00002000	/**< Wi-Fi valid flag. */
+#define PPE_DRV_V6_VALID_FLAG_FLOW_HOST_QDISC_VALID	0x00004000  /**< Qdisc info is valid in flow direction. */
+#define PPE_DRV_V6_VALID_FLAG_RETURN_HOST_QDISC_VALID	0x00008000  /**< Qdisc info is valid in return direction. */
+#define PPE_DRV_V6_VALID_FLAG_FLOW_LABEL		0x00010000	/** < IPv6 header flow label valid. */
 #define PPE_DRV_V6_MAX_CONN_COUNT               1024
 
 /**
@@ -128,6 +128,7 @@ struct ppe_drv_v6_connection_rule {
 	uint32_t return_ip_xlate[4];		/**< Translated return IP address. */
 	uint32_t flow_ident_xlate;		/**< Translated flow identifier (e.g., port). */
 	uint32_t return_ident_xlate;		/**< Translated return identifier (e.g., port). */
+	uint32_t flow_label;			/**< flow label value. */
 	ppe_drv_iface_t rx_if;			/**< From PPE interface number */
 	ppe_drv_iface_t tx_if;			/**< To PPE interface number */
 };
@@ -152,7 +153,7 @@ struct ppe_drv_v6_rule_create {
 	/*
 	 * Request
 	 */
-	uint16_t valid_flags;				/**< Bit flags associated with the validity of parameters. */
+	uint32_t valid_flags;				/**< Bit flags associated with the validity of parameters. */
 	uint32_t rule_flags;				/**< Bit flags associated with the rule. */
 	struct ppe_drv_v6_5tuple tuple;			/**< Holds values of the 5 tuple. */
 	struct ppe_drv_v6_connection_rule conn_rule;	/**< Basic connection-specific data. */

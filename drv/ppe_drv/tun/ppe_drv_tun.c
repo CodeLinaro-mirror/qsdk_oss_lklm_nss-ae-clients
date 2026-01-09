@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2026 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1681,6 +1681,12 @@ bool ppe_drv_tun_activate(uint16_t port_num, void *vcreate_rule)
 		 * Extract the L2 HDR from ECM rule
 		 */
 		ppe_drv_tun_v6_parse_l2_hdr(vcreate_rule, cn_v6, l2_hdr);
+
+		struct ppe_drv_v6_rule_create *create = (struct ppe_drv_v6_rule_create *)vcreate_rule;
+		if (create->valid_flags & PPE_DRV_V6_VALID_FLAG_FLOW_LABEL) {
+			pth->l3.flow_label_val = ntohl(create->conn_rule.flow_label);
+			ppe_drv_trace("flowlabel %x set from create rule", pth->l3.flow_label_val);
+		}
 
 		if (ppe_drv_v6_conn_flow_flags_check(&cn_v6->pcf, PPE_DRV_V6_CONN_FLAG_FLOW_WIFI_DS)) {
 			enq_vp = ppe_drv_port_metadata_to_enq_vp_internal(cn_v6->pcf.wifi_rule_ds_metadata);

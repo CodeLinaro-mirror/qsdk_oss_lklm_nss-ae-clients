@@ -239,6 +239,24 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 		}
 	}
 
+	/*
+	 * Update h/w stats counter if policer is in use.
+	 */
+	for (id = 0; id < PPE_DRV_PORT_POLICER_MAX; id++) {
+		if (p->pol_ctx->port_pol[id].in_use) {
+			ppe_drv_port_policer_stats_update(&p->pol_ctx->port_pol[id]);
+		}
+	}
+
+	/*
+	 * Update h/w stats counter if acl-policer is in use.
+	 */
+	for (id = 0; id < PPE_DRV_ACL_POLICER_MAX; id++) {
+		if (p->pol_ctx->acl_pol[id].in_use) {
+			ppe_drv_acl_policer_stats_update(&p->pol_ctx->acl_pol[id]);
+		}
+	}
+
 	spin_unlock_bh(&p->lock);
 
 	/*

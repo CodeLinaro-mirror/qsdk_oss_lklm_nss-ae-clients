@@ -148,6 +148,11 @@ enum ppe_drv_static_dbg_level {
 #define PPE_DRV_HASH_DIPV6_MIX_3		0xb
 
 /*
+ * MACID macros
+ */
+#define PPE_DRV_INVALID_MACID		0
+
+/*
  * DSCP macros
  */
 #define PPE_DRV_DSCP_SHIFT 2

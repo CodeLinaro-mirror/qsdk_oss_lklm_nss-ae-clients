@@ -102,6 +102,13 @@
 #define PPE_DRV_JUMBO_MAX				9216	/* Maximum MRU value */
 
 /*
+ * Update rule type
+ */
+#define PPE_DRV_UPDATE_RULE_TYPE_QOS	0x01
+#define PPE_DRV_UPDATE_RULE_TYPE_DSCP	0x02
+#define PPE_DRV_UPDATE_RULE_TYPE_SAWF	0x04
+
+/*
  * ppe_drv_ip_type
  *	Types of IP addresses handled
  */
@@ -265,6 +272,15 @@ struct ppe_drv_vp_dl_qdisc_rule {
 };
 
 /**
+ * ppe_drv_accel_rule_dir
+ *	Information about direction to accelerate.
+ */
+struct ppe_drv_accel_rule_dir {
+	bool flow_accel;	/**< Set if acceleration enabled in flow direction. */
+	bool return_accel;	/**< Set if acceleration enabled in return direction. */
+};
+
+/**
  * ppe_drv_top_if_rule
  *	Information for top interface in hierarchy.
  */
@@ -282,6 +298,7 @@ struct ppe_drv_service_class_rule {
 	uint32_t return_mark;		/**< SAWF metadata information in return direction. */
 	uint8_t flow_service_class;	/**< Service class id in flow direction. */
 	uint8_t return_service_class;	/**< Service class id in return direction. */
+	uint16_t valid_flags;		/**< Flags associated with SAWF mark update. */
 };
 
 /**
@@ -416,6 +433,26 @@ struct ppe_drv_notifier_ops {
 	struct list_head entry;				/* List head */
 };
 
+/*
+ * ppe_drv_flow_rule_dir
+ *	Identifies the direction of flow entry
+ */
+typedef enum ppe_drv_flow_rule_dir {
+	PPE_DRV_FLOW_RULE_DIR_FLOW = 0,		/* Rule is of flow direction */
+	PPE_DRV_FLOW_RULE_DIR_RETURN = 1,	/* Rule is of return direction */
+} ppe_drv_flow_rule_dir_t;
+
+/*
+ * ppe_drv_unidir_update_info
+ *	Unidirection rule update
+ */
+struct ppe_drv_unidir_update_info {
+	struct ppe_drv_qos_rule qos;	/**< QoS information to update. */
+	struct ppe_drv_dscp_rule dscp; /**< DSCP information to update. */
+	ppe_drv_flow_rule_dir_t dir;	/**< Flow rule direction to update. */
+	uint16_t valid_flags;		/**< Flags associated with QoS/DSCP update. */
+};
+
 /**
  * enum ppe_drv_ret
  *	PPE return status
@@ -537,6 +574,10 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_IN_PM_COUNTER_GEN_CREATE_FAIL,	/**< Failed to create the PM counter gen rule in PRE_IPO_PM_COUNTER_TBL. */
 	PPE_DRV_RET_EG_PM_COUNTER_GEN_CREATE_FAIL,	/**< Failed to create the PM counter gen rule in EG_PM_COUNTER_TBL. */
 	PPE_DRV_RET_PM_COUNTER_GET_FAIL,		/**< Failed to get the PM counter stats. */
+	PPE_DRV_RET_WLAN_METADATA_UPDATE_FAIL,		/**< Failure to update wlan qos entry which includes fields such as wifi_qos, tree_id, flow_cookie, etc. */
+	PPE_DRV_RET_QOS_UPDATE_FAIL,			/**< Failure to update generic qos entry which includes fields such as int_pri, dscp, pcp values. */
+	PPE_DRV_RET_FLOW_ENTRY_UPDATE_FAIL,		/**< Failure to update flow entry in hardware */
+	PPE_DRV_RET_UNIDIR_CONN_MATCH_FAIL,		/**< Failure to find connection object at the time of unidirection update */
 	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 

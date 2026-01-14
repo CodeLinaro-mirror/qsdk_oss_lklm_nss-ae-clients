@@ -216,8 +216,10 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 			pcf_v4 = &cn_v4->pcf;
 			pcr_v4 = &cn_v4->pcr;
 
-			ppe_drv_flow_v4_stats_update(pcf_v4);
-			if (pcr_v4) {
+			if (!pcf_v4->no_stats_update) {
+				ppe_drv_flow_v4_stats_update(pcf_v4);
+			}
+			if (pcr_v4 && !pcr_v4->no_stats_update) {
 				ppe_drv_flow_v4_stats_update(pcr_v4);
 			}
 		}
@@ -231,8 +233,10 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 			pcf_v6 = &cn_v6->pcf;
 			pcr_v6 = &cn_v6->pcr;
 
-			ppe_drv_flow_v6_stats_update(pcf_v6);
-			if (pcr_v6) {
+			if (!pcf_v6->no_stats_update) {
+				ppe_drv_flow_v6_stats_update(pcf_v6);
+			}
+			if (pcr_v6 && !pcr_v6->no_stats_update) {
 				ppe_drv_flow_v6_stats_update(pcr_v6);
 			}
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT

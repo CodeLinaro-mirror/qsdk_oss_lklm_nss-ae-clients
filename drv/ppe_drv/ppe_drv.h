@@ -486,6 +486,9 @@ struct ppe_drv {
 	bool eth2eth_offload_if_bitmap;		/* Flag to enable if bitmap check for eth to eth flows */
 	struct ppe_drv_tun_gbl tun_gbl;		/* ppe tunnel global context */
 	struct ppe_drv_rfs_ctx rfs;		/* PPE RFS global context */
+#ifdef NSS_PPE_TUNNEL_TPR_ENABLE
+	struct ppe_drv_tun_tpr *tun_tpr;	/* Tunnel TPR entries list */
+#endif
 };
 
 /*

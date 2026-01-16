@@ -70,6 +70,8 @@ qca-nss-ppe-objs += tun/ppe_drv_tun_v6.o
 qca-nss-ppe-objs += tun/ppe_drv_tun_gre.o
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DNSS_PPE_TUNNEL_ENHANCED_PARSER
+ccflags-y += -DNSS_PPE_TUNNEL_TPR_ENABLE
+qca-nss-ppe-objs += tun/ppe_drv_tun_tpr.o
 endif
 endif
 

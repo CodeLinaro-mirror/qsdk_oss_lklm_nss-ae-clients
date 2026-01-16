@@ -27,6 +27,9 @@
 #include "ppe_drv_tun_gre.h"
 #include "ppe_drv_tun_prgm_prsr_gre.h"
 #include "ppe_drv_tun_l2tp.h"
+#ifdef NSS_PPE_TUNNEL_TPR_ENABLE
+#include "ppe_drv_tun_tpr.h"
+#endif
 
 #define PPE_DRV_TUN_BIT(x)	(1UL << x)
 #define PPE_DRV_TUN_MAX_CTX	128

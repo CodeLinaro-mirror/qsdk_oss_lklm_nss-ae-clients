@@ -115,6 +115,7 @@ static bool ppe_drv_tun_decap_gre_check_n_set(struct ppe_drv_tun_decap *ptdc,
 				struct ppe_drv_tun_cmn_ctx *pth, fal_tunnel_rule_t *decap_entry)
 {
 	struct ppe_drv_tun_prgm_prsr *pgm = NULL;
+	struct ppe_drv_tun_prgm_prsr_decap_cfg *parser_decap_cfg = NULL;
 
 	decap_entry->l4_proto = IPPROTO_GRE;
 
@@ -135,7 +136,7 @@ static bool ppe_drv_tun_decap_gre_check_n_set(struct ppe_drv_tun_decap *ptdc,
 		 * Configure PPE in Programable parser mode for GRETAP without key acceleration.
 		 * Lock is accquired for every succesful program parser entry allocated.
 		 */
-		pgm = ppe_drv_tun_prgm_prsr_entry_alloc(PPE_DRV_TUN_PROGRAM_MODE_GRE);
+		pgm = ppe_drv_tun_prgm_prsr_entry_alloc(PPE_DRV_TUN_PROGRAM_MODE_GRE, parser_decap_cfg);
 		if (!pgm) {
 			ppe_drv_warn("%p: Error getting programable parser for L2 GRETAP\n", pth);
 			return false;
@@ -179,11 +180,12 @@ static bool ppe_drv_tun_decap_l2tp_check_n_set(struct ppe_drv_tun_decap *ptdc,
 				struct ppe_drv_tun_cmn_ctx *pth, fal_tunnel_rule_t *decap_entry)
 {
 	struct ppe_drv_tun_prgm_prsr *pgm;
+	struct ppe_drv_tun_prgm_prsr_decap_cfg *parser_decap_cfg = NULL;
 
 	/*
 	 * Configure PPE in Programable parser mode for L2TP acceleration
 	 */
-	pgm = ppe_drv_tun_prgm_prsr_entry_alloc(PPE_DRV_TUN_PROGRAM_MODE_L2TP_V2);
+	pgm = ppe_drv_tun_prgm_prsr_entry_alloc(PPE_DRV_TUN_PROGRAM_MODE_L2TP_V2, parser_decap_cfg);
 	if (!pgm) {
 		ppe_drv_warn("%p: Error getting programable parser for L2TP tunnel\n", pth);
 		return false;
@@ -432,6 +434,7 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 	/*
 	 * Add IP header parameters
 	 */
+	struct ppe_drv_tun_prgm_prsr_decap_cfg *parser_decap_cfg = NULL;
 	fal_tunnel_decap_entry_t ftde = {0};
 	struct ppe_drv *p = ppe_drv_gbl;
 	uint8_t vp_num = 0;
@@ -513,7 +516,7 @@ uint16_t ppe_drv_tun_decap_configure(struct ppe_drv_tun_decap *ptdc, struct ppe_
 		 * Configure PPE in Programable parser mode for GRETUN without key acceleration.
 		 * Lock is accquired for every succesful program parser entry allocated.
 		 */
-		pgm = ppe_drv_tun_prgm_prsr_entry_alloc(PPE_DRV_TUN_PROGRAM_MODE_GRE);
+		pgm = ppe_drv_tun_prgm_prsr_entry_alloc(PPE_DRV_TUN_PROGRAM_MODE_GRE, parser_decap_cfg);
 		if (!pgm) {
 			ppe_drv_warn("%p: Error getting programable parser for L3 GRETUN\n", pth);
 			return  PPE_DRV_TUN_DECAP_INVALID_IDX;

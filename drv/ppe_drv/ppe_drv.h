@@ -30,6 +30,10 @@
 #include "ppe_drv_v6.h"
 #include "ppe_drv_flow_dump.h"
 #include "ppe_drv_if_map.h"
+#ifdef NSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
+#include "ppe_drv_dscp.h"
+#endif
+#include <fal/fal_portvlan.h>
 
 #ifdef CONFIG_QCA_MINIDUMP
 #include <soc/qcom/ctx-save.h>

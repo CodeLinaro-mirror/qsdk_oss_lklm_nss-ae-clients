@@ -55,6 +55,7 @@ endif
 
 ifeq ($(PPE_DSCP_ENABLED), y)
 qca-nss-ppe-rule-objs += ppe_dscp/ppe_dscp.o
+qca-nss-ppe-rule-objs += ppe_dscp/ppe_dscp_dump.o
 ccflags-y += -DPPE_DSCP_DEBUG_LEVEL=3
 ccflags-y += -DNSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
 endif

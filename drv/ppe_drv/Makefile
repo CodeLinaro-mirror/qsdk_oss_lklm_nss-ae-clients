@@ -130,6 +130,7 @@ endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DPPE_LOOPBACK_PORT_SUPPORT
+ccflags-y += -DPPE_ACL_DEST_BIND_SUPPORT
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq54xx))

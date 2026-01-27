@@ -1874,73 +1874,123 @@ static bool ppe_acl_action_fill(struct ppe_acl *acl, struct ppe_acl_rule_action 
 }
 
 /*
- * ppe_acl_rule_src_fill()
- *	Extract source information
+ * ppe_acl_get_port_num_by_name()
+ * 	Returns the port number for the port name
  */
-static bool ppe_acl_rule_src_fill(struct ppe_acl *acl, struct ppe_acl_rule *rule)
-{
-	struct ppe_drv_acl_rule *info = &acl->info;
+static int32_t ppe_acl_get_port_num_by_name(struct ppe_acl_rule *rule) {
 	struct net_device *dev;
 	struct ppe_drv_iface *iface;
 	int32_t port_num;
+
+	dev = dev_get_by_name(&init_net, rule->dev.dev_name);
+	if (!dev) {
+		ppe_acl_warn("%p: failed to find valid src for dev %s\n",
+				rule, rule->dev.dev_name);
+		return -1;
+	}
+
+	iface = ppe_drv_iface_get_by_dev(dev);
+	if (!iface) {
+		ppe_acl_warn("%p: failed to find PPE interface for dev: %p(%s)\n",
+				rule, dev, rule->dev.dev_name);
+		dev_put(dev);
+		return -1;
+	}
+
+	port_num = ppe_drv_iface_port_idx_get(iface);
+	if (port_num < 0) {
+		ppe_acl_warn("%p: failed to find PPE port for iface: %p\n",
+				rule, iface);
+		dev_put(dev);
+		return -1;
+	}
+
+	dev_put(dev);
+	return port_num;
+}
+
+/*
+ * ppe_acl_rule_dev_fill()
+ *	Extract net device information
+ */
+static bool ppe_acl_rule_dev_fill(struct ppe_acl *acl, struct ppe_acl_rule *rule)
+{
+	struct ppe_drv_acl_rule *info = &acl->info;
+	int8_t port_num;
 	uint8_t sc;
 
-	switch (rule->stype) {
-	case PPE_ACL_RULE_SRC_TYPE_DEV:
-		dev = dev_get_by_name(&init_net, rule->src.dev_name);
-		if (!dev) {
-			ppe_acl_warn("%p: failed to find valid src for dev %s\n",
-					rule, rule->src.dev_name);
+	switch (rule->dev_type) {
+		case PPE_ACL_RULE_DEV_TYPE_SRC_DEV:
+			port_num = ppe_acl_get_port_num_by_name(rule);
+			if (port_num < 0) {
+				ppe_acl_warn("%p: Invalid dev name \n", rule);
+				return false;
+			}
+
+			info->dev_type = PPE_DRV_ACL_DEV_TYPE_PORT_NUM;
+			info->dev = port_num;
+			ppe_acl_info("%p: Binding ACL rule to port number: %d\n", rule, info->dev);
+			break;
+
+		case PPE_ACL_RULE_DEV_TYPE_SC:
+			info->dev_type = PPE_DRV_ACL_DEV_TYPE_SC;
+			info->dev = rule->dev.sc;
+			acl->sc = info->dev;
+
+			ppe_acl_info("%p: Binding ACL rule to servcie code number: %d\n", rule, info->dev);
+			break;
+
+		case PPE_ACL_RULE_DEV_TYPE_FLOW:
+
+			/*
+			 * Get a free service code for this ACL rule.
+			 */
+			sc = ppe_drv_acl_sc_get();
+			if (!sc) {
+				ppe_acl_warn("%p: not able to find a free service code\n", rule);
+				return false;
+			}
+
+			info->dev_type = PPE_DRV_ACL_DEV_TYPE_SC;
+			info->dev = sc;
+			acl->sc = info->dev;
+
+			ppe_acl_info("%p: FLOW + ACL rule servcie code number: %d\n", rule, info->dev);
+			break;
+
+#ifdef PPE_ACL_DEST_BIND_SUPPORT
+		case PPE_ACL_RULE_DEV_TYPE_DEST_L3_PORT:
+			port_num = ppe_acl_get_port_num_by_name(rule);
+			if (port_num < 0) {
+				ppe_acl_warn("%p: Invalid dev name \n", rule);
+				return false;
+			}
+
+			info->dev_type = PPE_DRV_ACL_DEV_TYPE_DEST_L3_PORT;
+			info->dev = port_num;
+			ppe_acl_info("%p: Binding ACL rule to port number: %d\n", rule, info->dev);
+			break;
+
+		case PPE_ACL_RULE_DEV_TYPE_DEST_L2_PORT:
+			port_num = ppe_acl_get_port_num_by_name(rule);
+			if (port_num < 0) {
+				ppe_acl_warn("%p: Invalid dev name \n", rule);
+				return false;
+			}
+
+			info->dev_type = PPE_DRV_ACL_DEV_TYPE_DEST_L2_PORT;
+			info->dev = port_num;
+			ppe_acl_info("%p: Binding ACL rule to port number: %d\n", rule, info->dev);
+			break;
+#else
+		case PPE_ACL_RULE_DEV_TYPE_DEST_L3_PORT:
+		case PPE_ACL_RULE_DEV_TYPE_DEST_L2_PORT:
+			ppe_acl_warn("%p: Feature not supported: %d", rule, rule->dev_type);
 			return false;
-		}
-
-		iface = ppe_drv_iface_get_by_dev(dev);
-		if (!iface) {
-			ppe_acl_warn("%p: failed to find PPE interface for dev: %p(%s)\n",
-					rule, dev, rule->src.dev_name);
-			dev_put(dev);
+#endif
+		default:
+			ppe_acl_warn("%p: Invalid device type: %d", rule, rule->dev_type);
 			return false;
-		}
-
-		port_num = ppe_drv_iface_port_idx_get(iface);
-		if (port_num < 0) {
-			ppe_acl_warn("%p: failed to find PPE port for iface: %p\n",
-					rule, iface);
-			dev_put(dev);
-			return false;
-		}
-
-		info->stype = PPE_DRV_ACL_SRC_TYPE_PORT_NUM;
-		info->src = port_num;
-		dev_put(dev);
-		ppe_acl_info("%p: Binding ACL rule to port number: %d\n", rule, info->src);
-		break;
-
-	case PPE_ACL_RULE_SRC_TYPE_SC:
-		info->stype = PPE_DRV_ACL_SRC_TYPE_SC;
-		info->src = rule->src.sc;
-		acl->sc = info->src;
-
-		ppe_acl_info("%p: Binding ACL rule to servcie code number: %d\n", rule, info->src);
-		break;
-
-	case PPE_ACL_RULE_SRC_TYPE_FLOW:
-
-		/*
-		 * Get a free service code for this ACL rule.
-		 */
-		sc = ppe_drv_acl_sc_get();
-		if (!sc) {
-			ppe_acl_warn("%p: not able to find a free service code", rule);
-			return false;
-		}
-
-		info->stype = PPE_DRV_ACL_SRC_TYPE_SC;
-		info->src = sc;
-		acl->sc = info->src;
-
-		ppe_acl_info("%p: FLOW + ACL rule servcie code number: %d\n", rule, info->src);
-		break;
 	}
 
 	return true;
@@ -2055,7 +2105,7 @@ static bool ppe_acl_rule_exist(struct ppe_acl *acl)
 		/*
 		 * If source is different this is a new rule.
 		 */
-		if ((ae->info.stype != acl->info.stype) || ae->info.src != acl->info.src) {
+		if ((ae->info.dev_type != acl->info.dev_type) || ae->info.dev != acl->info.dev) {
 			/*
 			 * Go to next rule.
 			 */
@@ -2645,11 +2695,11 @@ ppe_acl_ret_t ppe_acl_rule_flow_policer_create(struct ppe_acl_rule_flow_policer 
 		goto fail;
 	}
 
-	acl->info.stype = PPE_DRV_ACL_SRC_TYPE_SC;
-	acl->info.src = sc;
+	acl->info.dev_type = PPE_DRV_ACL_DEV_TYPE_SC;
+	acl->info.dev = sc;
 	acl->sc = sc;
 
-	ppe_acl_info("%p: FLOW + ACL rule servcie code number: %d\n", rule, acl->info.src);
+	ppe_acl_info("%p: FLOW + ACL rule servcie code number: %d\n", rule, acl->info.dev);
 
 	/*
 	 * Allocate empty rule slices in driver.
@@ -2887,9 +2937,9 @@ ppe_acl_ret_t ppe_acl_rule_create(struct ppe_acl_rule *rule)
 	}
 
 	/*
-	 * Fill the source to which this ACL rule need to be binded.
+	 * Fill the device info to which this ACL rule need to be binded.
 	 */
-	if (!ppe_acl_rule_src_fill(acl, rule)) {
+	if (!ppe_acl_rule_dev_fill(acl, rule)) {
 		ppe_acl_stats_inc(&acl_g->stats.cmn.acl_create_fail_invalid_src);
 		ppe_acl_warn("%p: failed to find valid src for rule %p\n", acl_g, rule);
 		ret = PPE_ACL_RET_CREATE_FAIL_INVALID_SRC;

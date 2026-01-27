@@ -289,14 +289,16 @@ typedef enum ppe_acl_fwd_cmd {
 } ppe_acl_fwd_cmd_t;
 
 /**
- * ppe_acl_rule_src_type
- *	PPE ACL rule source tyoe
+ * ppe_acl_rule_dev_type
+ *	PPE ACL rule device tyoe
  */
-typedef enum ppe_acl_rule_src_type {
-	PPE_ACL_RULE_SRC_TYPE_DEV = 1,		/**< Rule source is a net-device. */
-	PPE_ACL_RULE_SRC_TYPE_SC,		/**< Rule source is a service code. */
-	PPE_ACL_RULE_SRC_TYPE_FLOW		/**< Rule source is flow. */
-} ppe_acl_rule_src_type_t;
+typedef enum ppe_acl_rule_dev_type {
+	PPE_ACL_RULE_DEV_TYPE_SRC_DEV = 1,	/**< Rule device is a net-device. */
+	PPE_ACL_RULE_DEV_TYPE_SC,		/**< Rule device is a service code. */
+	PPE_ACL_RULE_DEV_TYPE_FLOW,		/**< Rule device is flow. */
+	PPE_ACL_RULE_DEV_TYPE_DEST_L2_PORT,	/**< Rule device is dest port. */
+	PPE_ACL_RULE_DEV_TYPE_DEST_L3_PORT,	/**< Rule device is L3 dest port. */
+} ppe_acl_rule_dev_type_t;
 
 /*
  * ppe_acl_rule_dhcp_type
@@ -765,11 +767,11 @@ struct ppe_acl_rule {
 	struct ppe_acl_rule_match_one rules[PPE_ACL_RULE_MATCH_TYPE_MAX];
 							/**< Multiple single rule. */
 	struct ppe_acl_rule_action action;		/**< ACL action object. */
-	ppe_acl_rule_src_type_t stype;			/**< ACL source type. */
+	ppe_acl_rule_dev_type_t dev_type;		/**< ACL dev type. */
 	union {
-		uint8_t sc;				/**< ACL source a service code. */
-		char dev_name[IFNAMSIZ];		/**< ACL source dev name. */
-	} src;
+		uint8_t sc;				/**< ACL dev a service code. */
+		char dev_name[IFNAMSIZ];		/**< ACL dev dev name. */
+	} dev;
 
 	/*
 	 * Response
@@ -924,7 +926,7 @@ void ppe_acl_rule_callback_unregister(ppe_acl_rule_id_t acl_id);
  * @datatypes
  * ppe_acl_rule_id_t
  *
- * @param[IN] acl_id            ACL rule information.
+ * @param[IN] acl_id		ACL rule information.
  * @param[IN] priority		ACL rule priority.
  *
  * @return

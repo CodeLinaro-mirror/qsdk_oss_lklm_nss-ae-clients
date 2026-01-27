@@ -145,15 +145,17 @@ enum ppe_drv_acl_slice_type {
 };
 
 /*
- * ppe_drv_acl_src_type
- *	ACL source types.
+ * ppe_drv_acl_dev_type
+ *	ACL dev types.
  */
-typedef enum ppe_drv_acl_src_type {
-	PPE_DRV_ACL_SRC_TYPE_PORT_BITMAP,	/**< ACL source type bitmap. */
-	PPE_DRV_ACL_SRC_TYPE_PORT_NUM,		/**< ACL source type port number. */
-	PPE_DRV_ACL_SRC_TYPE_SC,		/**< ACL source type service code. */
-	PPE_DRV_ACL_SRC_TYPE_DEST_L3,		/**< ACL source type destination L3 interface. */
-} ppe_drv_acl_src_type_t;
+typedef enum ppe_drv_acl_dev_type {
+	PPE_DRV_ACL_DEV_TYPE_PORT_BITMAP,		/**< ACL dev type bitmap. */
+	PPE_DRV_ACL_DEV_TYPE_PORT_NUM,			/**< ACL dev type port number. */
+	PPE_DRV_ACL_DEV_TYPE_SC,			/**< ACL dev type service code. */
+	PPE_DRV_ACL_DEV_TYPE_DST_L3_IF,			/**< ACL dev type destination L3 interface. */
+	PPE_DRV_ACL_DEV_TYPE_DEST_L3_PORT,		/**< ACL dev type dst port/virtual port from L3. */
+	PPE_DRV_ACL_DEV_TYPE_DEST_L2_PORT,		/**< ACL dev type dst port/Virtual port from L2. */
+} ppe_drv_acl_dev_type_t;
 
 /*
  * ppe_drv_acl_dst_type
@@ -690,8 +692,8 @@ struct ppe_drv_acl_rule {
 	struct ppe_drv_acl_rule_match_cmn cmn;					/**< Common fields for slices. */
 	struct ppe_drv_acl_rule_match_one chain[PPE_DRV_ACL_SLICE_TYPE_MAX];	/**< Array of ACL slices. */
 	struct ppe_drv_acl_action action;					/**< ACL action information. */
-	ppe_drv_acl_src_type_t stype;						/**< Source type for ACL binding. */
-	uint8_t src;								/**< ACL source binding. */
+	ppe_drv_acl_dev_type_t dev_type;					/**< Device type for ACL binding. */
+	uint8_t dev;								/**< ACL dev binding. */
 };
 
 /*

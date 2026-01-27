@@ -80,7 +80,7 @@ static void ppe_acl_rule_dump_rule(struct ppe_acl_rule *rule) {
 			"valid_flag: %d"
 			"dev_name: %s\n"
 			"smac rule_flags: %d"
-			"stype: %d"
+			"dev_type: %d"
 			"smac.mac : %pM\n"
 			"smac.mac_mask : %pM\n"
 			"dmac rule_flags: %d"
@@ -101,8 +101,8 @@ static void ppe_acl_rule_dump_rule(struct ppe_acl_rule *rule) {
 			"SIP IPv4 : %pI4\n"
 			"SIP IPv6 : %pI6\n",
 			rule, rule->valid_flags,
-			rule->src.dev_name,
-			rule->rules[PPE_ACL_RULE_MATCH_TYPE_SMAC].rule_flags, rule->stype,
+			rule->dev.dev_name,
+			rule->rules[PPE_ACL_RULE_MATCH_TYPE_SMAC].rule_flags, rule->dev_type,
 			rule->rules[PPE_ACL_RULE_MATCH_TYPE_SMAC].rule.smac.mac,
 			rule->rules[PPE_ACL_RULE_MATCH_TYPE_SMAC].rule.smac.mac_mask,
 			rule->rules[PPE_ACL_RULE_MATCH_TYPE_DMAC].rule_flags,

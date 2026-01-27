@@ -249,7 +249,7 @@ int ppe_acl_dump_one(struct ppe_acl_dump_instance *adi, struct ppe_acl *acl)
 {
 	int result;
 	uint64_t pkts, bytes;
-	ppe_acl_rule_src_type_t stype;
+	ppe_acl_rule_dev_type_t dev_type;
 	struct ppe_acl_rule_match_one *r;
 	ppe_acl_rule_match_type_t rule_t;
 	enum ppe_drv_acl_slice_type slice_t;
@@ -301,28 +301,42 @@ int ppe_acl_dump_one(struct ppe_acl_dump_instance *adi, struct ppe_acl *acl)
 		goto error;
 	}
 
-	if ((result = ppe_acl_dump_write(adi, "src_type", "%s", ppe_acl_dump_src_type_str[acl->rule.stype]))) {
+	if ((result = ppe_acl_dump_write(adi, "src_type", "%s", ppe_acl_dump_src_type_str[acl->rule.dev_type]))) {
 		goto error;
 	}
 
-	stype = acl->rule.stype;
-	switch (stype) {
-	case PPE_ACL_RULE_SRC_TYPE_DEV:
-		if ((result = ppe_acl_dump_write(adi, "src_dev", "%s", acl->rule.src.dev_name))) {
+	dev_type = acl->rule.dev_type;
+	switch (dev_type) {
+	case PPE_ACL_RULE_DEV_TYPE_SRC_DEV:
+		if ((result = ppe_acl_dump_write(adi, "src_dev", "%s", acl->rule.dev.dev_name))) {
 			goto error;
 		}
 
 		break;
 
-	case PPE_ACL_RULE_SRC_TYPE_SC:
-		if ((result = ppe_acl_dump_write(adi, "src_sc", "%d", acl->rule.src.sc))) {
+	case PPE_ACL_RULE_DEV_TYPE_SC:
+		if ((result = ppe_acl_dump_write(adi, "dev_sc", "%d", acl->rule.dev.sc))) {
 			goto error;
 		}
 
 		break;
 
-	case PPE_ACL_RULE_SRC_TYPE_FLOW:
-		if ((result = ppe_acl_dump_write(adi, "src_flow", "%d", "true"))) {
+	case PPE_ACL_RULE_DEV_TYPE_FLOW:
+		if ((result = ppe_acl_dump_write(adi, "dev_flow", "%d", "true"))) {
+			goto error;
+		}
+
+		break;
+
+	case PPE_ACL_RULE_DEV_TYPE_DEST_L2_PORT:
+		if ((result = ppe_acl_dump_write(adi, "dst_dev", "%s", acl->rule.dev.dev_name))) {
+			goto error;
+		}
+
+		break;
+
+	case PPE_ACL_RULE_DEV_TYPE_DEST_L3_PORT:
+		if ((result = ppe_acl_dump_write(adi, "l3 dst_dev", "%s", acl->rule.dev.dev_name))) {
 			goto error;
 		}
 

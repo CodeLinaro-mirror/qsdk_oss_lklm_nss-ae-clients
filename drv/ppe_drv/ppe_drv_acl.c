@@ -1053,20 +1053,27 @@ static bool ppe_drv_acl_fill(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_acl_rul
 }
 
 /*
- * ppe_drv_acl_src_get()
- *	Map the source for ACL binding.
+ * ppe_drv_acl_dev_get()
+ *	Map the device for ACL binding.
  */
-static void ppe_drv_acl_src_get(struct ppe_drv_acl_rule *info, fal_acl_bind_obj_t *bind_obj)
+static void ppe_drv_acl_dev_get(struct ppe_drv_acl_rule *info, fal_acl_bind_obj_t *bind_obj)
 {
-	if (info->stype == PPE_DRV_ACL_SRC_TYPE_PORT_BITMAP) {
+	if (info->dev_type == PPE_DRV_ACL_DEV_TYPE_PORT_BITMAP) {
 		*bind_obj = FAL_ACL_BIND_PORTBITMAP;
-	} else if (info->stype == PPE_DRV_ACL_SRC_TYPE_PORT_NUM) {
+	} else if (info->dev_type == PPE_DRV_ACL_DEV_TYPE_PORT_NUM) {
 		*bind_obj = FAL_ACL_BIND_PORT;
-	} else if (info->stype == PPE_DRV_ACL_SRC_TYPE_SC) {
+	} else if (info->dev_type == PPE_DRV_ACL_DEV_TYPE_SC) {
 		*bind_obj = FAL_ACL_BIND_SERVICE_CODE;
-	} else if (info->stype == PPE_DRV_ACL_SRC_TYPE_DEST_L3) {
+	} else if (info->dev_type == PPE_DRV_ACL_DEV_TYPE_DST_L3_IF) {
 		*bind_obj = FAL_ACL_BIND_L3_IF;
 	}
+#ifdef PPE_ACL_DEST_BIND_SUPPORT
+	else if (info->dev_type == PPE_DRV_ACL_DEV_TYPE_DEST_L3_PORT) {
+		*bind_obj = FAL_ACL_BIND_L3_DST_PORT;
+	} else if (info->dev_type == PPE_DRV_ACL_DEV_TYPE_DEST_L2_PORT) {
+		*bind_obj = FAL_ACL_BIND_DST_PORT;
+	}
+#endif
 }
 
 /*
@@ -1217,6 +1224,7 @@ ppe_drv_ret_t ppe_drv_acl_configure(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_
 {
 	sw_error_t error;
 	fal_acl_bind_obj_t bind_obj;
+	fal_acl_direc_t dir = FAL_ACL_DIREC_IN;
 	struct ppe_drv *p = ppe_drv_gbl;
 
 	spin_lock_bh(&p->lock);
@@ -1236,10 +1244,17 @@ ppe_drv_ret_t ppe_drv_acl_configure(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_
 	}
 
 	/*
-	 * Bind ACL list with source
+	 * Bind ACL list with devices.
 	 */
-	ppe_drv_acl_src_get(info, &bind_obj);
-	error = fal_acl_list_bind(PPE_DRV_SWITCH_ID, ctx->list_id, FAL_ACL_DIREC_IN, bind_obj, info->src);
+	ppe_drv_acl_dev_get(info, &bind_obj);
+
+	/*
+	 * ACL direction: ingress at Pre-IPO, else egress
+	 */
+#ifdef PPE_ACL_DEST_BIND_SUPPORT
+	dir = (ctx->type == PPE_DRV_ACL_PREIPO) ? FAL_ACL_DIREC_IN : FAL_ACL_DIREC_EG;
+#endif
+	error = fal_acl_list_bind(PPE_DRV_SWITCH_ID, ctx->list_id, dir, bind_obj, info->dev);
 	if (error != SW_OK) {
 		ppe_drv_stats_inc(&p->stats.acl_stats.rule_bind_fail);
 		ppe_drv_warn("%p: Could not bind ACL list, error = %d, list_id: %d\n", ctx, error, ctx->list_id);

@@ -284,6 +284,7 @@ struct ppe_drv_stats_acl {
 	atomic64_t rule_bind_fail;	/* ACL rule bind failures */
 	atomic64_t rule_delete_fail;	/* ACL rule delete failures */
 	atomic64_t list_delete_fail;	/* ACL list delete failures */
+	atomic64_t rule_prio_upd_fail;	/* ACL rule priority update failed */
 };
 
 /*

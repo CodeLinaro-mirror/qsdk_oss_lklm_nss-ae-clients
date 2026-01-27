@@ -154,6 +154,31 @@ void ppe_drv_acl_destroy(struct ppe_drv_acl_ctx *ctx)
 EXPORT_SYMBOL(ppe_drv_acl_destroy);
 
 /*
+ * ppe_drv_acl_rule_prio_upd()
+ *      Update the priority of acl rule.
+ */
+ppe_drv_ret_t ppe_drv_acl_rule_prio_upd(struct ppe_drv_acl_ctx *ctx, uint16_t priority)
+{
+	sw_error_t error;
+	struct ppe_drv *p = ppe_drv_gbl;
+
+	spin_lock_bh(&p->lock);
+	if (ctx->rule_valid) {
+		error = fal_acl_rule_priority_set(PPE_DRV_SWITCH_ID, ctx->list_id, PPE_DRV_ACL_RULE_ID, priority);
+		if (error != SW_OK) {
+			ppe_drv_stats_inc(&p->stats.acl_stats.rule_prio_upd_fail);
+			ppe_drv_warn("%p: Rule priority update failed for list_id: %d error: %d\n", ctx, ctx->list_id, error);
+			spin_unlock_bh(&p->lock);
+			return PPE_DRV_RET_ACL_RULE_PRI_UPDATE_FAIL;
+		}
+	}
+
+	spin_unlock_bh(&p->lock);
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_acl_rule_prio_upd);
+
+/*
  * ppe_drv_acl_rule_fill()
  *	Fill rule related information.
  */
@@ -738,6 +763,7 @@ static bool ppe_drv_acl_rule_fill(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_ac
 	fal_rule->post_routing = info->cmn.post_routing_en;
 	fal_rule->qos_res_prec = info->cmn.qos_res_pre;
 	fal_rule->acl_pool = info->cmn.res_chain;
+	fal_rule->pri = info->cmn.pri;
 	if (info->cmn.is_ip) {
 		fal_rule->is_ip_val = A_TRUE;
 		fal_rule->is_ip_mask = 1;
@@ -1327,7 +1353,7 @@ nxt_list:
 		goto fail;
 	}
 
-	error = fal_acl_list_creat(PPE_DRV_SWITCH_ID, list_id, pri);
+	error = fal_acl_list_creat(PPE_DRV_SWITCH_ID, list_id, PPE_DRV_ACL_LIST_DEFAULT_PRI);
 	if (error != SW_OK) {
 		/*
 		 * If this list id is already used by other sub system, mark it

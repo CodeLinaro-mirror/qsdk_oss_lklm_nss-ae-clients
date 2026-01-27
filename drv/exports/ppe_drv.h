@@ -499,6 +499,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_ACL_RULE_INVALID,			/**< ACL rule invalid */
 	PPE_DRV_RET_ACL_RULE_ADD_FAIL,			/**< Failed to add ACL rule */
 	PPE_DRV_RET_ACL_RULE_BIND_FAIL,			/**< Failed to bind ACL rule to src */
+	PPE_DRV_RET_ACL_RULE_PRI_UPDATE_FAIL,		/**< Failed to update the acl rule priority */
 	PPE_DRV_RET_POLICER_RULE_BIND_FAIL,		/**< Failed to bind Policer rule */
 	PPE_DRV_RET_BASE_DEV_NOT_FOUND,			/**< Base Device not found */
 	PPE_DRV_RET_BASE_PORT_NOT_FOUND,		/**< Base Port not found */

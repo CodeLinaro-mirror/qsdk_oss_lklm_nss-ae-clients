@@ -393,6 +393,48 @@ ppe_acl_ret_t ppe_acl_rule_flush(ppe_acl_flush_type_t flush_type)
 EXPORT_SYMBOL(ppe_acl_rule_flush);
 
 /*
+ * ppe_acl_rule_prio_upd()
+ *	Update priority of ACL rule in PPE.
+ */
+ppe_acl_ret_t ppe_acl_rule_prio_upd(ppe_acl_rule_id_t id, uint16_t priority)
+{
+	struct ppe_acl_base *acl_g = &ppe_acl_gbl;
+	struct ppe_acl *acl;
+
+	if (priority > PPE_ACL_PRI_MAX) {
+		ppe_acl_warn("%p: Invalid priority value: %u", acl_g, priority);
+		return PPE_ACL_RET_UPDATE_PRI_FAIL_INVALID_PRIORITY;
+	}
+
+	ppe_acl_stats_inc(&acl_g->stats.cmn.acl_prio_upd_req);
+	spin_lock_bh(&acl_g->lock);
+
+	acl = ppe_acl_rule_find_by_id(id);
+	if (!acl) {
+		ppe_acl_stats_inc(&acl_g->stats.cmn.acl_rule_prio_upd_fail_invalid_id);
+		ppe_acl_warn("%p: failed to find the rule for ID: %d", acl_g, id);
+		spin_unlock_bh(&acl_g->lock);
+		return PPE_ACL_RET_UPDATE_PRI_FAIL_INVALID_ID;
+	}
+
+	/* Update hardware first */
+	if (ppe_drv_acl_rule_prio_upd(acl->ctx, priority)) {
+		ppe_acl_stats_inc(&acl_g->stats.cmn.acl_rule_prio_upd_fail_invalid_id);
+		ppe_acl_warn("%p: failed to update the priority: %d", acl_g, id);
+		spin_unlock_bh(&acl_g->lock);
+		return PPE_ACL_RET_UPDATE_PRI_FAIL_INVALID_ID;
+	}
+
+	/* Only update software state after successful hardware update */
+	acl->pri = priority;
+
+	ppe_acl_info("%p: rule_id: %u priority:  %u", acl_g, id, acl->pri);
+	spin_unlock_bh(&acl_g->lock);
+	return PPE_ACL_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_acl_rule_prio_upd);
+
+/*
  * ppe_acl_rule_to_slice_type
  *	Map ACL rule to PPE slice type.
  */
@@ -1925,6 +1967,7 @@ static bool ppe_acl_rule_cmn_fill(struct ppe_acl *acl, struct ppe_acl_rule *rule
 	info->cmn.post_routing_en = !!(rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_POST_RT_EN);
 	acl->pri = !!(rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_PRI_EN)
 			? rule->cmn.pri : PPE_ACL_PRI_NOMINAL;
+	info->cmn.pri = acl->pri; /* Fill the rule wise priority in ACL */
 	acl->ipo = !!((rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLAG_OUTER_HDR_MATCH) ||
 			(rule->cmn.cmn_flags & PPE_ACL_RULE_CMN_FLOW_DIR_TYPE_US))
 			? PPE_DRV_ACL_PREIPO : PPE_DRV_ACL_IPO;

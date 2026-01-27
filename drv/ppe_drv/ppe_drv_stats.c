@@ -449,6 +449,7 @@ static const char *ppe_drv_stats_acl_str[] = {
 	"rule_bind_fail",	/* ACL rule bind failures */
 	"rule_delete_fail",	/* ACL rule delete failures */
 	"list_delete_fail",	/* ACL list delete failures */
+	"rule_prio_upd_fail",	/* ACL rule update failures. */
 };
 
 /*

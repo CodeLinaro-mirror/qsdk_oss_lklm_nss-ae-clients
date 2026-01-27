@@ -418,6 +418,8 @@ typedef enum ppe_acl_ret {
 	PPE_ACL_RET_CREATE_FAIL_INVALID_ID,		/**< Rule create failed due to invalid rule ID. */
 	PPE_ACL_RET_DESTROY_FAIL_INVALID_ID,		/**< Rule destroy failed due to invalid rule ID. */
 	PPE_ACL_RET_FLUSH_FAIL,				/**< Rule flush failed. */
+	PPE_ACL_RET_UPDATE_PRI_FAIL_INVALID_ID,		/**< Rule update priority failed due to invalid ID. */
+	PPE_ACL_RET_UPDATE_PRI_FAIL_INVALID_PRIORITY,	/**< Rule update priority failed due to out of bound priority. */
 } ppe_acl_ret_t;
 
 /**
@@ -914,5 +916,20 @@ bool ppe_acl_rule_callback_register(ppe_acl_rule_id_t acl_id, ppe_acl_rule_proce
  * void.
  */
 void ppe_acl_rule_callback_unregister(ppe_acl_rule_id_t acl_id);
+
+/**
+ * ppe_acl_rule_prio_upd()
+ * 	Updates the priority of the existing ACL rules.
+ *
+ * @datatypes
+ * ppe_acl_rule_id_t
+ *
+ * @param[IN] acl_id            ACL rule information.
+ * @param[IN] priority		ACL rule priority.
+ *
+ * @return
+ * status of rule priority update.
+ */
+ppe_acl_ret_t ppe_acl_rule_prio_upd(ppe_acl_rule_id_t id, uint16_t priority);
 
 #endif /* _PPE_ACL_H_ */

@@ -955,4 +955,16 @@ bool ppe_drv_acl_enable_mirror_capture_core(uint8_t core_id);
  */
 bool ppe_drv_acl_process_skbuff(struct ppe_drv_acl_metadata *acl_info, struct sk_buff *skb);
 
+/**
+ * ppe_drv_acl_rule_prio_upd
+ * 	update the rule priorty in ppe hw.
+ *
+ *@datatypes
+ * ppe_drv_acl_ctx
+ *
+ *
+ * @param[IN] ctx		PPE driver acl context.
+ * @param[IN] priority		New priority of the rule.
+ */
+ppe_drv_ret_t ppe_drv_acl_rule_prio_upd(struct ppe_drv_acl_ctx *ctx, uint16_t priority);
 #endif

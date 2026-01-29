@@ -14,6 +14,7 @@
 #include "ppe_drv_host.h"
 #include "ppe_drv_l3_if.h"
 #include "ppe_drv_iface.h"
+#include <nss_debug.h>
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 #include "ppe_drv_nptv6.h"
 #include "ppe_drv_nptv6_hairpin.h"
@@ -43,6 +44,15 @@ extern uint32_t static_dbg_level;
 extern bool flow_deacclr_dis;
 extern int mac_lrn_exception_en;
 
+/* Ensure module tag and default category are available before debug macros */
+#ifndef KMODNAME
+#define KMODNAME KBUILD_MODNAME
+#endif
+
+#ifndef PPE_DRV_DEFAULT_CAT
+#define PPE_DRV_DEFAULT_CAT (NSS_LOG_CAT_GENERIC)
+#endif
+
 /*
  * ppe_drv_static_dbg_level
  *	PPE static debug level
@@ -65,11 +75,27 @@ enum ppe_drv_static_dbg_level {
 
 #if defined(CONFIG_DYNAMIC_DEBUG)
 /*
- * If dynamic debug is enabled, use pr_debug.
+ * With dynamic debug, guard evaluation and choose path:
+ * - If NSS print is enabled, route to nss_warn/info/trace.
+ * - Otherwise, use pr_debug to leverage dynamic debug controls.
  */
-#define ppe_drv_warn(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define ppe_drv_info(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define ppe_drv_trace(s, ...) pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define ppe_drv_warn(s, ...) \
+    if (nss_debug_enable_get()) \
+        nss_warn(KMODNAME, PPE_DRV_DEFAULT_CAT, "%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
+    else \
+        pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
+#define ppe_drv_info(s, ...) \
+    if (nss_debug_enable_get()) \
+        nss_info(KMODNAME, PPE_DRV_DEFAULT_CAT, "%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
+    else \
+        pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
+#define ppe_drv_trace(s, ...) \
+    if (nss_debug_enable_get()) \
+        nss_trace(KMODNAME, PPE_DRV_DEFAULT_CAT, "%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
+    else \
+        pr_debug("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #else
 
 /*
@@ -602,3 +628,4 @@ extern int ppe_drv_get_vxlan_gpe_dport(void);
 void ppe_drv_fse_ops_free(struct kref *kref);
 extern struct ppe_drv *ppe_drv_gbl;
 extern uint32_t if_bm_to_offload;
+

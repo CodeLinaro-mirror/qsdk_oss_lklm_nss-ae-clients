@@ -24,6 +24,7 @@
 #endif
 #include "ppe_drv.h"
 #include "tun/ppe_drv_tun.h"
+#include <nss_debug.h>
 
 #define PPE_DRV_STATIC_DBG_LEVEL_STR_LEN 8
 #define PPE_DRV_UPSTREAM_DEV_LEVEL_STR_LEN 32
@@ -2847,6 +2848,5 @@ static void __exit ppe_drv_module_exit(void)
 	kfree(ppe_drv_gbl);
 }
 module_exit(ppe_drv_module_exit);
-
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("NSS PPE driver");

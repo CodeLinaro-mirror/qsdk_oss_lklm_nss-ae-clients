@@ -2437,8 +2437,12 @@ struct ppe_drv_port *ppe_drv_port_alloc(enum ppe_drv_port_type type, struct net_
 	pp->ucast_queue = 0;
 	INIT_LIST_HEAD(&pp->l3_list);
 
-	ppe_drv_info("%p: allocated ppe port:%u for dev(%s): %p", pp, port, netdev_name(dev), dev);
+	if(dev){
+		ppe_drv_info("%p: allocated ppe port:%u for dev(%s): %p", pp, port, netdev_name(dev), dev);
+	}
+
 	return pp;
+
 }
 
 /*
@@ -2577,8 +2581,11 @@ struct ppe_drv_port *ppe_drv_port_phy_alloc(uint8_t port_num, struct net_device 
 	pp->ucast_queue = 0;
 	INIT_LIST_HEAD(&pp->l3_list);
 
-	ppe_drv_info("%p: allocated physical port:%u for dev(%s): %p",
+	if(dev){
+		ppe_drv_info("%p: allocated physical port:%u for dev(%s): %p",
 			pp, port_num, netdev_name(dev), dev);
+	}
+
 	return pp;
 }
 

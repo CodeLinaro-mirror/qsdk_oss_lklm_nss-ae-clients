@@ -320,10 +320,11 @@ bool ppe_drv_flow_v6_qos_set(struct ppe_drv_v6_conn_flow *pcf, struct ppe_drv_fl
 	/*
 	 * Check if flow needs PCP marking, set PCP fields in QoS config
 	 */
-	if ((ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_VLAN_PRI_MARKING))
-			&& (ppe_drv_v6_conn_flow_egress_vlan_cnt_get(pcf) == 1)) {
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLOW_FLAG_VLAN_PRI_MARKING)) {
 		/*
-		 * Note: PPE does not have flow based support for double vlan tagging.
+		 * Note: PCP marking is supported for both single and double VLAN tagging.
+		 * - For single VLAN: PCP is marked on that VLAN (index 0)
+		 * - For double VLAN: PCP is marked on outer VLAN only (index 0)
 		 * We do not need to mask unsigned integer.
 		 */
 		qos_cfg.internal_pcp = ppe_drv_v6_conn_flow_egress_vlan_get(pcf, 0)->tci >> PPE_DRV_VLAN_PRIORITY_SHIFT;;
@@ -1604,10 +1605,11 @@ bool ppe_drv_flow_v4_qos_set(struct ppe_drv_v4_conn_flow *pcf, struct ppe_drv_fl
 	/*
 	 * Check if flow needs PCP marking, set PCP fields in QoS config
 	 */
-	if ((ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_VLAN_PRI_MARKING))
-			&& (ppe_drv_v4_conn_flow_egress_vlan_cnt_get(pcf) == 1)) {
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLOW_FLAG_VLAN_PRI_MARKING)) {
 		/*
-		 * Note: PPE does not have flow based support for double vlan tagging.
+		 * Note: PCP marking is supported for both single and double VLAN tagging.
+		 * - For single VLAN: PCP is marked on that VLAN (index 0)
+		 * - For double VLAN: PCP is marked on outer VLAN only (index 0)
 		 * We do not need to mask unsigned integer.
 		 */
 		qos_cfg.internal_pcp = ppe_drv_v4_conn_flow_egress_vlan_get(pcf, 0)->tci >> PPE_DRV_VLAN_PRIORITY_SHIFT;;

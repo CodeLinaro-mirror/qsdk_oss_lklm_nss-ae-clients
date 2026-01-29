@@ -1146,6 +1146,19 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 					vlan_primary_rule->egress_vlan_tag,
 					vlan_secondary_rule->ingress_vlan_tag,
 					vlan_secondary_rule->egress_vlan_tag);
+
+			/*
+			 * Check if PCP marking is requested for inner VLAN (index 1) in case of double VLAN.
+			 * PCP marking is only supported for outer VLAN (index 0).
+			 * Reject the connection if inner VLAN PCP marking is requested.
+			 */
+			if ((ppe_drv_v4_conn_flow_egress_vlan_cnt_get(pcf) > 1) &&
+					(pcf->egress_vlan[1].tci & PPE_DRV_VLAN_PRIORITY_MASK)) {
+				ppe_drv_stats_inc(&comm_stats->v4_create_fail_inner_vlan_pcp);
+				ppe_drv_warn("%p: PCP marking for inner VLAN is not supported, egress_vlan[1].tci: 0x%x",
+						pcf, pcf->egress_vlan[1].tci);
+				return PPE_DRV_RET_FAILURE_VLAN_PCP_MARKING;
+			}
 		}
 
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_RETURN_PPPOE) {
@@ -1412,6 +1425,19 @@ ppe_drv_ret_t ppe_drv_v4_conn_fill(struct ppe_drv_v4_rule_create *create, struct
 					vlan_primary_rule->ingress_vlan_tag,
 					vlan_secondary_rule->egress_vlan_tag,
 					vlan_secondary_rule->ingress_vlan_tag);
+			/*
+			 * Check if PCP marking is requested for inner VLAN (index 1) in case of double VLAN.
+			 * PCP marking is only supported for outer VLAN (index 0).
+			 * Reject the connection if inner VLAN PCP marking is requested.
+			 */
+			if ((ppe_drv_v4_conn_flow_egress_vlan_cnt_get(pcr) > 1) &&
+					(pcr->egress_vlan[1].tci & PPE_DRV_VLAN_PRIORITY_MASK)) {
+				ppe_drv_stats_inc(&comm_stats->v4_create_fail_inner_vlan_pcp);
+				ppe_drv_warn("%p: PCP marking for inner VLAN is not supported, egress_vlan[1].tci: 0x%x",
+						pcr, pcr->egress_vlan[1].tci);
+				return PPE_DRV_RET_FAILURE_VLAN_PCP_MARKING;
+			}
+
 		}
 
 		if (valid_flags & PPE_DRV_V4_VALID_FLAG_FLOW_PPPOE) {

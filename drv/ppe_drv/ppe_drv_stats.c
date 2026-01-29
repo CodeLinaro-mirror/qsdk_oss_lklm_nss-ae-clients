@@ -127,6 +127,7 @@ static const char * const ppe_drv_comm_stats_flow_conn_str[] = {
 	"v4_create_fail_if_hierarchy",		/* No of v4 create failure due to interface hierarchy walk fail */
 
 	"v4_create_fail_vlan_filter",		/* No of v4 create failure due to interface not in bridge */
+	"v4_create_fail_inner_vlan_pcp",	/* No of v4 create failure due to inner vlan pcp marking */
 	"v4_create_fail_bridge_noexist",	/* No of v4 create failure due to bridge interface not created */
 	"v4_stats_conn_not_found",		/* No of v4 stats sync failure due to connection not found */
 
@@ -204,6 +205,7 @@ static const char * const ppe_drv_comm_stats_flow_conn_str[] = {
 	"v6_create_fail_if_hierarchy",		/* No of v6 create failure due to interface hierarchy walk fail */
 
 	"v6_create_fail_vlan_filter",		/* No of v6 create failure due to interface not in bridge */
+	"v6_create_fail_inner_vlan_pcp",	/* No of v6 create failure due to inner vlan pcp marking */
 	"v6_create_fail_bridge_noexist",	/* No of v6 create failure due to bridge interface not created */
 	"v6_stats_conn_not_found",		/* No of v6 stats sync failure due to connection not found */
 
@@ -289,6 +291,7 @@ static const char * const ppe_drv_comm_stats_tun_conn_str[] = {
 	"v4_tun_create_fail_if_hierarchy",	/* No of v4 create failure due to interface hierarchy walk fail */
 
 	"v4_tun_create_fail_vlan_filter",	/* No of v4 create failure due to interface not in bridge */
+	"v4_tun_create_fail_inner_vlan_pcp",	/* No of v4 create failure due to inner vlan pcp marking */
 	"v4_tun_create_fail_bridge_noexist",	/* No of v4 create failure due to bridge interface not created */
 	"v4_tun_stats_conn_not_found",          /* No of v4 stats sync failure due to connection not found */
 
@@ -367,6 +370,7 @@ static const char * const ppe_drv_comm_stats_tun_conn_str[] = {
 	"v6_tun_create_fail_if_hierarchy",	/* No of v6 create failure due to interface hierarchy walk fail */
 
 	"v6_tun_create_fail_vlan_filter",	/* No of v6 create failure due to interface not in bridge */
+	"v6_tun_create_fail_inner_vlan_pcp",	/* No of v6 create failure due to inner vlan pcp marking */
 	"v6_tun_create_fail_bridge_noexist",	/* No of v6 create failure due to bridge interface not created */
 	"v6_tun_stats_conn_not_found",		/* No of v6 stats sync failure due to connection not found */
 

@@ -949,8 +949,6 @@ void ppe_drv_acl_stats_update(struct ppe_drv_acl_ctx *ctx)
 	uint32_t delta_bytes;
 	fal_entry_counter_t acl_cntrs = {0};
 
-	ppe_drv_trace("%p: updating acl stats", ctx);
-
 	err = fal_acl_counter_get(PPE_DRV_SWITCH_ID, ctx->fal_rule.hw_info.hw_rule_id, &acl_cntrs);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to get stats for acl rule id: %u",

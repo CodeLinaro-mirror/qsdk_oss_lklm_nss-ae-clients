@@ -1099,6 +1099,7 @@ ppe_drv_ret_t ppe_drv_iface_mac_addr_set(struct ppe_drv_iface *iface, uint8_t *m
 	}
 
 	spin_unlock_bh(&p->lock);
+	ppe_drv_info("iface=%p mac set (info): %pM", iface, mac_addr);
 	return status;
 }
 EXPORT_SYMBOL(ppe_drv_iface_mac_addr_set);

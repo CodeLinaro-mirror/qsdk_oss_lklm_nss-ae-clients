@@ -104,6 +104,7 @@ struct ppe_drv_comm_stats {
 	atomic64_t v4_create_fail_if_hierarchy;		/* No of v4 create failure due to interface hierarchy walk fail */
 
 	atomic64_t v4_create_fail_vlan_filter;		/* No of v4 create failure due to interface not in bridge */
+	atomic64_t v4_create_fail_inner_vlan_pcp;	/* No of v4 create failure due to inner vlan pcp marking */
 	atomic64_t v4_create_fail_bridge_noexist;	/* No of v4 create failure due to bridge interface not created */
 	atomic64_t v4_stats_conn_not_found;		/* No of v4 stats sync failure due to connection not found */
 
@@ -181,6 +182,7 @@ struct ppe_drv_comm_stats {
 	atomic64_t v6_create_fail_if_hierarchy;		/* No of v6 create failure due to interface hierarchy walk fail */
 
 	atomic64_t v6_create_fail_vlan_filter;		/* No of v6 create failure due to interface not in bridge */
+	atomic64_t v6_create_fail_inner_vlan_pcp;	/* No of v6 create failure due to inner vlan pcp marking */
 	atomic64_t v6_create_fail_bridge_noexist;	/* No of v6 create failure due to bridge interface not created */
 	atomic64_t v6_stats_conn_not_found;		/* No of v6 stats sync failure due to connection not found */
 

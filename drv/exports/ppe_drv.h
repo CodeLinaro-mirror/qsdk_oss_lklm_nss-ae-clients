@@ -529,6 +529,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_DSCP_PBIT_TBL_CONFIG_FAIL,		/**< Failed to configure DSCP_PBIT_MAP table. */
 	PPE_DRV_RET_DSCP_PBIT_TBL_RST_FAIL,		/**< Failed to reset DSCP_PBIT_MAP table. */
 	PPE_DRV_RET_L2_DSCP_PBIT_TBL_CONFIG_FAIL,	/**< Failed to configure L2_DSCP_PBIT_MAP table. */
+	PPE_DRV_RET_FAILURE_VLAN_PCP_MARKING,		/**< Failure due to invalid VLAN PCP marking */
 	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 

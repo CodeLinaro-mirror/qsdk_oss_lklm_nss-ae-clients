@@ -255,11 +255,8 @@ enum ppe_drv_static_dbg_level {
 #define PPE_DRV_DS_MLO_LINK_NODE_ID_MAX	3
 
 /*
- * Enqueue vport VSI table start index
- *
  * Note: Ports 32,33 could be used for trunk. Hence MAX enqueue vp is 30[From 34 to 63].
  */
-#define PPE_DRV_PORT_ENQVP_VSI_TBL_START_IDX	512
 #define PPE_DRV_ENQ_VP_QID_NONE			0
 
 /*

@@ -401,6 +401,7 @@ static bool ppe_policer_create_port(struct ppe_policer_create_info *info)
 	}
 
 	port_info->action.red_drop = true;
+	port_info->meter_flag = info->frame_type;
 
 	pol->userspace_rule = info->userspace_rule;
 	pol->drv_ctx.port_ctx = ppe_drv_policer_port_create(&create);

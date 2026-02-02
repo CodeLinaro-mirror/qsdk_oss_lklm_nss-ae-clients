@@ -61,6 +61,18 @@ enum ppe_policer_type {
 };
 
 /*
+ * ppe_policer_frame_type
+ *	Policer frame type
+ */
+enum ppe_policer_frame_type {
+	PPE_POLICER_FRAME_TYPE_UNICAST = 0,		/**< Frame type unicast */
+	PPE_POLICER_FRAME_TYPE_UNKNOWN_UNICAST = 1,	/**< Frame type unknown unicast */
+	PPE_POLICER_FRAME_TYPE_MULTICAST = 2,		/**< Frame type multicast */
+	PPE_POLICER_FRAME_TYPE_UNKNOWN_MULTICAST = 3,	/**< Frame type unknown multicast */
+	PPE_POLICER_FRAME_TYPE_BROADCAST = 4,		/**< Frame type broadcast */
+};
+
+/*
  * ppe_policer_status
  *	ppe rule status
  */
@@ -151,6 +163,7 @@ struct ppe_policer_create_info {
 
 	/* Only for Port Policer */
 	enum ppe_policer_type policer_type;		/**< Port policer is enabled */
+	enum ppe_policer_frame_type frame_type;		/**< Port policer frame type */
 	char name[IFNAMSIZ];				/**< Net device for port policer */
 
 	/*

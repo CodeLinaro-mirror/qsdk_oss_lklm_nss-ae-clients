@@ -363,7 +363,7 @@ struct ppe_drv_policer_port *ppe_drv_policer_port_create(struct ppe_drv_policer_
 	pol_cfg.meter_en = pinfo->meter_en;	/* Default */
 	pol_cfg.couple_en = pinfo->coupling_flag;	/* Default */
 	pol_cfg.color_mode = pinfo->colour_mode;
-	pol_cfg.frame_type = 0x1;	/* Broadcast */
+	pol_cfg.frame_type = pinfo->meter_flag;
 	pol_cfg.meter_mode = pinfo->meter_mode;			/* 0 - rfc2698, 1 - rfc2697, rfc4115, mef */
 	pol_cfg.meter_unit = pinfo->meter_unit; 	/* 0 - byte based; 1 - packet based */
 

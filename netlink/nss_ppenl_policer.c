@@ -143,6 +143,10 @@ static int nss_ppenl_policer_ops_create_rule(struct sk_buff *skb, struct genl_in
 		create.config.colour_aware = false;
 	}
 
+	if (nl_policer_rule->config.meter_flag_valid) {
+		create.frame_type = nl_policer_rule->config.meter_flag;
+	}
+
 	create.config.action_info.yellow_pri = nl_policer_rule->config.action_info.yellow_int_pri;
 	create.config.action_info.yellow_dp = nl_policer_rule->config.action_info.yellow_dp;
 	create.config.action_info.yellow_pcp = nl_policer_rule->config.action_info.yellow_pcp;

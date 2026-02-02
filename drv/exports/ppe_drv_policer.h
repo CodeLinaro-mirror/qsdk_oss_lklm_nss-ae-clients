@@ -162,7 +162,7 @@ struct ppe_drv_policer_rule_create_port_info {
 	struct net_device *dev;		/**< Dev on which policing is needed */
 	bool meter_en;			/**< 1 - Metering enabled, 0 - disabled */
 	bool colour_mode;		/**< 0 - Colour bind, 1- Colour Aware */
-	uint8_t meter_flag;		/**< 0 - unicast, 1 - known unicast, 2 - multicast, 3 - unknown multicast, 4 - broadcast */
+	uint8_t meter_flag;		/**< Bit flags: 0x01 - uc, 0x02 - uuc, 0x04 - mc, 0x08 - umc, 0x10 - bc */
 	bool coupling_flag;		/**< 1- couple C + E bucket; 0 - discouple */
 	bool meter_mode;		/**< 0 - RFC2698, 1 - Rest RFC */
 	bool meter_unit;		/**< 0 - byte based, 1 - packet based */

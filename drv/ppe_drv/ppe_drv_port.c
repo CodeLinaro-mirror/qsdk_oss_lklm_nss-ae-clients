@@ -199,6 +199,44 @@ static void ppe_drv_port_dump(struct ppe_drv_port *pp)
 #endif
 
 /*
+ * ppe_drv_port_reset_state()
+ *	Initialise and reset the port structure variables.
+ */
+static void ppe_drv_port_reset_state(struct ppe_drv_port *port)
+{
+	INIT_LIST_HEAD(&port->l3_list);
+	port->flags = 0;
+	port->dev = NULL;
+	port->port_vsi = NULL;
+	port->br_vsi = NULL;
+	port->port_l3_if = NULL;
+	port->active_l3_if = NULL;
+	port->tl_l3_if = NULL;
+	port->port_tun = NULL;
+	port->l2_vp = NULL;
+	port->active_vlan = 0;
+	port->tunnel_vp_cfg = 0;
+	port->mac_valid = 0;
+	port->mtu = 0;
+	port->mru = 0;
+	port->type = PPE_DRV_PORT_VIRTUAL;
+	port->user_type = 0;
+	port->ucast_queue = 0;
+	port->src_profile = 0;
+	port->profile_id = 0;
+	port->core_mask = 0;
+	port->shadow_core_mask = 0;
+	port->next_core = 0;
+	port->xmit_port = 0;
+	port->active_l3_if_attached = false;
+	port->is_fdb_learn_enabled = false;
+	port->ingress_untag_vlan = false;
+	memset(port->mac_addr, 0, ETH_ALEN);
+	memset(&port->stats, 0, sizeof(port->stats));
+	memset(&port->evp, 0, sizeof(port->evp));
+}
+
+/*
  * ppe_drv_port_get_free_port()
  *	Returns a free port entry of given type.
  */
@@ -220,6 +258,7 @@ static inline struct ppe_drv_port *ppe_drv_port_get_free_port(enum ppe_drv_port_
 		for (i = PPE_DRV_VIRTUAL_START; i < (PPE_DRV_VIRTUAL_START + PPE_DRV_VIRTUAL_MAX); i++) {
 			if (!kref_read(&p->port[i].ref_cnt)) {
 				kref_init(&p->port[i].ref_cnt);
+				ppe_drv_port_reset_state(&p->port[i]);
 				return &p->port[i];
 			}
 		}

@@ -1951,6 +1951,10 @@ static int ppe_drv_probe(struct platform_device *pdev)
 
 	nss_ppe_drv_minidump_log(p, sizeof(struct ppe_drv), "ppe_drv");
 
+#ifdef NSS_PPE_FEATURE_DOT1P
+	ppe_drv_dot1p_configure_default_rule();
+#endif
+
 	return of_platform_populate(np, NULL, NULL, &pdev->dev);
 
 fail:

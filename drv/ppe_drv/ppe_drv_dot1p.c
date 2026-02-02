@@ -806,3 +806,34 @@ void ppe_drv_dot1p_policer_get_hw_index(struct ppe_drv_dot1p_policer_ctx *ctx, u
 	spin_unlock_bh(&p->lock);
 }
 EXPORT_SYMBOL(ppe_drv_dot1p_policer_get_hw_index);
+
+/*
+ * ppe_drv_dot1p_configure_default_rule()
+ *	configure default dot1p rule
+ *
+ */
+ppe_drv_ret_t ppe_drv_dot1p_configure_default_rule()
+{
+	ppe_drv_ret_t ret;
+	struct ppe_drv_dot1p_rule info = {0};
+
+	info.def_rule.def_rule_flags |= PPE_DRV_DOT1P_RULE_FLAG_VID;
+	info.def_rule.vid = PPE_DRV_DOT1P_DEF_VID_VAL;
+
+	info.def_rule.def_rule_flags |= PPE_DRV_DOT1P_RULE_FLAG_PCP;
+	info.def_rule.pcp = PPE_DRV_DOT1P_DEF_PCP_VAL;
+
+	info.def_rule.def_rule_flags |= PPE_DRV_DOT1P_RULE_FLAG_DSCP;
+	info.def_rule.dscp = PPE_DRV_DOT1P_DEF_DSCP_VAL;
+
+	info.def_rule.def_rule_flags |= PPE_DRV_DOT1P_RULE_FLAG_GEN_MISS_CMD;
+	info.def_rule.gen_miss_cmd = PPE_DRV_DOT1P_CMD_DROP;
+
+	ret = ppe_drv_dot1p_def_rule_configure(&info);
+	if (ret != PPE_DRV_RET_SUCCESS) {
+		ppe_drv_warn("failed to configure default ppe drv rule\n");
+	}
+
+	ppe_drv_trace("Dot1p default rule added succesfully\n");
+	return ret;
+}

@@ -666,3 +666,6 @@ extern uint32_t if_bm_to_offload;
 #ifdef PPE_LOOPBACK_PORT_SUPPORT
 extern bool ppe_drv_lpbk_port_info_ctx_fill(void);
 #endif
+#ifdef NSS_PPE_PON_SUPPORT
+extern uint32_t gem_port_bitmap;
+#endif

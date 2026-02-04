@@ -15,6 +15,7 @@ endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq52xx))
 ccflags-y += -DNSS_PPE_IPQ52XX
+ccflags-y += -DNSS_PPE_PON_SUPPORT
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq96xx))

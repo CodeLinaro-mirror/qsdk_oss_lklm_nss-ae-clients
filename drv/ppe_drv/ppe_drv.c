@@ -70,6 +70,9 @@ static unsigned int wlan_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
 MODULE_PARM_DESC(wlan_coremask, "Coremask for Ethernet to WLAN Flows");
 
 uint32_t if_bm_to_offload;
+#ifdef NSS_PPE_PON_SUPPORT
+uint32_t gem_port_bitmap;
+#endif
 int disable_port_mtu_check = true;
 uint32_t static_dbg_level = 0;
 static char static_dbg_level_str[PPE_DRV_STATIC_DBG_LEVEL_STR_LEN];

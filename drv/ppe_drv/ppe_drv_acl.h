@@ -61,6 +61,9 @@ struct ppe_drv_acl_ctx {
 	bool rule_valid;			/* Rule valid flag to handle failure with partial configuration. */
 	bool rule_type_valid;			/* Indicate if rule type is already set. */
 	ppe_drv_acl_ipo_t type;			/* IPO type - IPO or pre-IPO? */
+	ppe_drv_acl_dev_type_t dev_type;	/**< Device type for ACL binding. */
+	uint8_t dev;				/**< ACL dev binding. */
+	bool dev_valid;				/**< Indicate if the dev type is already set. */
 
 	/*
 	 * Hardware stats.
@@ -119,6 +122,9 @@ struct ppe_drv_acl {
 	void *flow_app_data;					/* Flow callback app data. */
 	void *acl_rule_app_data;				/* ACL rule callback app data. */
 	void *mirror_core_app_data;				/* Mirror core selection callback app data. */
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+	uint16_t ppe_drv_acl_ipo_port_info[PPE_DRV_PORTS_MAX];	/* IPO rule counts per UNI destination ports. */
+#endif
 };
 
 /*
@@ -137,3 +143,9 @@ static inline void ppe_drv_acl_stats_add(struct ppe_drv_acl_ctx *ctx, uint32_t p
 void ppe_drv_acl_stats_update(struct ppe_drv_acl_ctx *ctx);
 void ppe_drv_acl_entries_free(struct ppe_drv_acl *acl);
 struct ppe_drv_acl *ppe_drv_acl_entries_alloc(void);
+
+/*
+ * Loopback APIs
+ */
+void ppe_drv_acl_uni_to_l2vp_sc_unmap(struct ppe_drv_acl_ctx *ctx);
+void ppe_drv_acl_uni_to_l2vp_sc_map(struct ppe_drv_acl_ctx *ctx);

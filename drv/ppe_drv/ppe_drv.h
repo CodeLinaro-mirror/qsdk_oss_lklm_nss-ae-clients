@@ -365,6 +365,7 @@ struct ppe_drv_tun_gbl {
  */
 enum ppe_drv_loopback_port_feature_type  {
 	PPE_DRV_LOOPBACK_PORT_FT_TYPE_NONE = 0x00,			/* Loopback port feature is disabled */
+	PPE_DRV_LOOPBACK_PORT_FT_TYPE_ACL_PON = 0x01,			/* Loopback port feature is enabled for PON */
 };
 
 /*
@@ -376,6 +377,8 @@ enum ppe_drv_loopback_port_ctx_dir {
 	PPE_DRV_LOOPBACK_PORT_CTX_FLOW_SC_NEXT,		/* Context for flow direction next service code */
 	PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC,		/* Context for return direction first service code */
 	PPE_DRV_LOOPBACK_PORT_CTX_RETURN_SC_NEXT,	/* Context for return direction next service code */
+	PPE_DRV_LOOPBACK_PORT_CTX_PON_ACL_SC,			/* Context for pon direction first service code */
+	PPE_DRV_LOOPBACK_PORT_CTX_PON_ACL_SC_NEXT,		/* Context for PON direction next service code */
 	PPE_DRV_LOOPBACK_PORT_CTX_MAX,
 };
 
@@ -569,6 +572,17 @@ static inline bool ppe_drv_tun_gretap_to_mapt_loopback_enabled(struct ppe_drv *p
 }
 #endif
 
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+/*
+ * ppe_drv_loopback_port_ft_pon_enabled()
+ *      Check pon loopback port enabled.
+ */
+static inline bool ppe_drv_loopback_port_ft_pon_enabled(struct ppe_drv *p) {
+        return !!(p->loopback_port_info.enabled &&
+                                (p->loopback_port_info.ft_type == PPE_DRV_LOOPBACK_PORT_FT_TYPE_ACL_PON));
+}
+#endif
+
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 /*
  * ppe_drv_nptv6_hairpin_loopback_enabled()
@@ -649,4 +663,6 @@ extern int ppe_drv_get_vxlan_gpe_dport(void);
 void ppe_drv_fse_ops_free(struct kref *kref);
 extern struct ppe_drv *ppe_drv_gbl;
 extern uint32_t if_bm_to_offload;
-
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+extern bool ppe_drv_lpbk_port_info_ctx_fill(void);
+#endif

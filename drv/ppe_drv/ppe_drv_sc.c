@@ -99,6 +99,29 @@ void ppe_drv_sc_ucast_queue_set(ppe_drv_sc_t sc, uint8_t queue_id, uint8_t src_p
 	ppe_drv_info("set port ucast queue base id: %d", queue_id);
 }
 
+#if defined(PPE_LOOPBACK_PORT_SUPPORT)
+static void ppe_drv_sc_config_lpbk_port_pon(ppe_drv_sc_t sc, fal_servcode_config_t *sc_cfg) {
+	switch (sc) {
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC:
+		sc_cfg->bypass_bitmap[1] = (1 << EG_VLAN_MEMBER_CHECK_BYP);
+		sc_cfg->bypass_bitmap[2] = (1 << RX_COUNTER_BYP);
+		sc_cfg->direction = PPE_DRV_SC_IN_L2_DIR_SRC;
+		sc_cfg->field_update_bitmap[0] = (1 << FLD_UPDATE_SRC_INFO_BYPASS);
+		sc_cfg->dest_port_valid = A_TRUE;
+		break;
+
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC_NEXT:
+		sc_cfg->bypass_bitmap[1] = (1 << L2_VP_SERVICE_CODE_ENQ_BYP);
+		sc_cfg->dest_port_valid = A_FALSE;
+		break;
+
+	default:
+		ppe_drv_warn("Invalid service code for pon loopback port\n");
+		break;
+	}
+}
+#endif
+
 /*
  * ppe_drv_sc_config()
  *	Configured service code related tables based on input information.
@@ -318,6 +341,14 @@ void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t redir_port
 	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_RETURN_SC_NEXT:
 		break;
 
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC:
+	case PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC_NEXT:
+		if (ppe_drv_loopback_port_ft_pon_enabled(p)) {
+			ppe_drv_sc_config_lpbk_port_pon(sc, &sc_cfg);
+		}
+		break;
+#endif
 	case PPE_DRV_SC_NPT66_HAIRPIN_NAT:
 		sc_cfg.bypass_bitmap[1] = ((1 << L2_PKT_EDIT_BYP) | (1 << L2_SOURCE_SEC_BYP));
 		break;
@@ -762,6 +793,9 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 #ifdef NSS_PPE_FEATURE_EXCEPTION_EDIT
 	ppe_drv_sc_config(PPE_DRV_SC_PKT_EXCEPTION_EDIT_EN, PPE_DRV_SC_PKT_EXCEPTION_EDIT_EN, PPE_DRV_PORT_CPU);
 #endif
-
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC, PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC_NEXT, p->loopback_port_info.port_id);
+	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC_NEXT, PPE_DRV_SC_NONE, PPE_DRV_PORT_CPU);
+#endif
 	return sc;
 }

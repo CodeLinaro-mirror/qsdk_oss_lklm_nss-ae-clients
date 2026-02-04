@@ -178,6 +178,71 @@ ppe_drv_ret_t ppe_drv_acl_rule_prio_upd(struct ppe_drv_acl_ctx *ctx, uint16_t pr
 }
 EXPORT_SYMBOL(ppe_drv_acl_rule_prio_upd);
 
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+/*
+ * ppe_drv_acl_uni_to_l2vp_sc_map()
+ *      Incement the IPO rules count for ACL-bound UNI port.
+ */
+void ppe_drv_acl_uni_to_l2vp_sc_map(struct ppe_drv_acl_ctx *ctx)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	struct ppe_drv_acl *acl = p->acl;
+
+	spin_lock_bh(&p->lock);
+	if (ctx->dev_valid) {
+		if (ctx->dev_type == PPE_DRV_ACL_DEV_TYPE_DEST_L2_PORT ||
+				ctx->dev_type == PPE_DRV_ACL_DEV_TYPE_DEST_L3_PORT) {
+
+			if (ctx->dev >= PPE_DRV_PORTS_MAX) {
+				ppe_drv_warn("%p: invalid port number: %d\n", ctx, ctx->dev);
+				spin_unlock_bh(&p->lock);
+				return;
+			}
+
+			if (!acl->ppe_drv_acl_ipo_port_info[ctx->dev])
+				if(!ppe_drv_l2vp_sc_add(ctx->dev)) {
+					ppe_drv_warn("%p: loopback info cfg failed.\n", p);
+					spin_unlock_bh(&p->lock);
+					return;
+				}
+			acl->ppe_drv_acl_ipo_port_info[ctx->dev]++;
+		}
+	}
+	spin_unlock_bh(&p->lock);
+}
+EXPORT_SYMBOL(ppe_drv_acl_uni_to_l2vp_sc_map);
+
+/*
+ * ppe_drv_acl_uni_to_l2vp_sc_unmap()
+ *      Decrement the IPO rules count for ACL-bound UNI port.
+ */
+void ppe_drv_acl_uni_to_l2vp_sc_unmap(struct ppe_drv_acl_ctx *ctx)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	struct ppe_drv_acl *acl = p->acl;
+
+	spin_lock_bh(&p->lock);
+	if (ctx->dev_valid) {
+		if (ctx->dev_type == PPE_DRV_ACL_DEV_TYPE_DEST_L2_PORT ||
+				ctx->dev_type == PPE_DRV_ACL_DEV_TYPE_DEST_L3_PORT) {
+
+			if (ctx->dev >= PPE_DRV_PORTS_MAX) {
+				ppe_drv_warn("%p: invalid port number: %d\n", ctx, ctx->dev);
+				return;
+			}
+
+			acl->ppe_drv_acl_ipo_port_info[ctx->dev]--;
+			ctx->dev_valid = false;
+
+			if (acl->ppe_drv_acl_ipo_port_info[ctx->dev] == 0)
+				ppe_drv_l2vp_sc_rmv(ctx->dev);
+		}
+	}
+	spin_unlock_bh(&p->lock);
+}
+EXPORT_SYMBOL(ppe_drv_acl_uni_to_l2vp_sc_unmap);
+#endif
+
 /*
  * ppe_drv_acl_rule_fill()
  *	Fill rule related information.
@@ -1269,6 +1334,9 @@ ppe_drv_ret_t ppe_drv_acl_configure(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_
 	}
 
 	ctx->rule_valid = true;
+	ctx->dev = info->dev;
+	ctx->dev_type = info->dev_type;
+	ctx->dev_valid = true;
 	ppe_drv_acl_dump(ctx);
 	ppe_drv_info("Created ACL rule\n");
 	spin_unlock_bh(&p->lock);

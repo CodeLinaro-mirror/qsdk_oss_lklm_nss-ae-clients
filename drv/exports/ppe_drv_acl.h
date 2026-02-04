@@ -969,4 +969,28 @@ bool ppe_drv_acl_process_skbuff(struct ppe_drv_acl_metadata *acl_info, struct sk
  * @param[IN] priority		New priority of the rule.
  */
 ppe_drv_ret_t ppe_drv_acl_rule_prio_upd(struct ppe_drv_acl_ctx *ctx, uint16_t priority);
+
+/**
+ * ppe_drv_acl_uni_to_l2vp_sc_map
+ * 	 Increments IPO rules count for ACL-bound UNI port.
+ *
+ *@datatypes
+ * ppe_drv_acl_ctx
+ *
+ * @param[IN] ctx               Pointer to ACL context.
+ *
+ */
+void ppe_drv_acl_uni_to_l2vp_sc_map(struct ppe_drv_acl_ctx *ctx);
+
+/**
+ * ppe_drv_acl_uni_to_l2vp_sc_map
+ *       Decrements IPO rules count for ACL-bound UNI port.
+ *
+ *@datatypes
+ * ppe_drv_acl_ctx
+ *
+ * @param[IN] ctx               Pointer to ACL context.
+ *
+ */
+void ppe_drv_acl_uni_to_l2vp_sc_unmap(struct ppe_drv_acl_ctx *ctx);
 #endif

@@ -154,6 +154,9 @@ static void ppe_acl_rule_free(struct kref *kref)
 	 * Destroy the rule in PPE driver.
 	 */
 	if (acl->ctx) {
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+		ppe_drv_acl_uni_to_l2vp_sc_unmap(acl->ctx);
+#endif
 		ppe_drv_acl_destroy(acl->ctx);
 		acl->ctx = NULL;
 	}
@@ -2774,6 +2777,9 @@ ppe_acl_ret_t ppe_acl_rule_flow_policer_create(struct ppe_acl_rule_flow_policer 
 
 fail:
 	if (ctx) {
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+		ppe_drv_acl_uni_to_l2vp_sc_unmap(ctx);
+#endif
 		ppe_drv_acl_destroy(ctx);
 	}
 
@@ -3011,12 +3017,17 @@ ppe_acl_ret_t ppe_acl_rule_create(struct ppe_acl_rule *rule)
 	kref_init(&acl->ref_cnt);
 	acl->slice_cnt = slice_cnt;
 	memcpy(&acl->rule, rule, sizeof(struct ppe_acl_rule));
-
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+	ppe_drv_acl_uni_to_l2vp_sc_map(ctx);
+#endif
 	spin_unlock_bh(&acl_g->lock);
 	return PPE_ACL_RET_SUCCESS;
 
 fail:
 	if (ctx) {
+#ifdef PPE_LOOPBACK_PORT_SUPPORT
+		ppe_drv_acl_uni_to_l2vp_sc_unmap(ctx);
+#endif
 		ppe_drv_acl_destroy(ctx);
 	}
 

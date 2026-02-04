@@ -797,4 +797,31 @@ int ppe_drv_get_tpid_index(uint16_t tpid, const char *type);
 int ppe_drv_get_vsi_num(void);
 #endif
 
+/*
+ * ppe_drv_l2vp_sc_add
+ * 	Add the sc configs in L2_VP port tbl.
+ *
+ * @datatypes
+ * int32_t
+ *
+ * @param[in] dest_port_id    UNI port id for PON.
+ *
+ * @return
+ * Success or error code.
+ */
+bool ppe_drv_l2vp_sc_add(uint32_t dest_port_id);
+
+/*
+ * ppe_drv_l2vp_sc_rmv()
+ *      Remove the sc configs in L2_VP port tbl.
+ *
+ * @datatypes
+ * int32_t
+ *
+ * @param[in] dest_port_id    UNI port id for PON.
+ *
+ * @return
+ * Success or error code.
+ */
+bool ppe_drv_l2vp_sc_rmv(uint32_t dest_port_id);
 #endif /* _PPE_DRV_H_ */

@@ -996,7 +996,12 @@ static bool ppe_drv_acl_action_fill(struct ppe_drv_acl_ctx *ctx, struct ppe_drv_
 	}
 
 	if (action->flags & PPE_DRV_ACL_ACTION_FLAG_COUNTER_EN) {
-		/* TODO */
+		/* Fill hw counter id */
+		fal_rule->counter_id = action->hw_counter_id;
+		fal_rule->counter_mode = action->counter_mode;
+		FAL_ACTION_FLG_SET(fal_rule->action_flg, FAL_ACL_ACTION_COUNTER);
+		ppe_drv_trace("%p: action counter id: %d counter mode: %d", ctx,
+				fal_rule->counter_id, fal_rule->counter_mode);
 	}
 #endif
 	return true;

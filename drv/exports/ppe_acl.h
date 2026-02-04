@@ -414,6 +414,7 @@ typedef enum ppe_acl_ret {
 	PPE_ACL_RET_CREATE_FAIL_RULE_PARSE,		/**< Rule create failed due to rule parse failure. */
 	PPE_ACL_RET_CREATE_FAIL_SC_ALLOC,		/**< Rule create failed due to service code allocation failure. */
 	PPE_ACL_RET_CREATE_FAIL_ACTION_CONFIG,		/**< Rule create failed due to invalid action configuration. */
+	PPE_ACL_RET_CREATE_FAIL_PM_CTX,			/**< Rule create failed due to pm context failure. */
 	PPE_ACL_RET_CREATE_FAIL_INVALID_ID,		/**< Rule create failed due to invalid rule ID. */
 	PPE_ACL_RET_DESTROY_FAIL_INVALID_ID,		/**< Rule destroy failed due to invalid rule ID. */
 	PPE_ACL_RET_FLUSH_FAIL,				/**< Rule flush failed. */
@@ -644,6 +645,7 @@ struct ppe_acl_rule_action {
 	uint8_t stag_pid;                       /**< S-TPID change action. */
 	uint8_t dscp_pbit_map_idx;		/**< DSCP to pbit mapping index. */
 	uint8_t counter_id;                     /**< Counter ID for stats action. */
+	uint8_t hw_counter_id;			/**< HW Counter ID. */
 	uint8_t tags_to_rmv;                    /**< Tags to remove. */
 	uint8_t	src_info;			/**< source info. */
 	ppe_acl_src_info_type_t src_info_type;	/**< source info type. */

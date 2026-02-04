@@ -11,6 +11,7 @@
 #include "../ppe_policer/ppe_policer.h"
 #endif
 #include "ppe_acl.h"
+#include "ppe_pm.h"
 
 /*
  * Global ACL context
@@ -140,6 +141,15 @@ static void ppe_acl_rule_free(struct kref *kref)
 		acl->sc = 0;
 	}
 
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	/*
+	 * Destroy PM context
+	 */
+	if (acl->counter_valid) {
+		ppe_pm_counter_deref(acl->counter_id);
+		acl->counter_valid = false;
+	}
+#endif
 	/*
 	 * Destroy the rule in PPE driver.
 	 */
@@ -1528,6 +1538,56 @@ static bool ppe_acl_rule_info_fill(struct ppe_acl *acl, struct ppe_acl_rule_matc
 	return true;
 }
 
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+/*
+ * ppe_acl_create_pm_ctx()
+ *	Creates the PM entry by calling the PM counter
+ *	for the given ACL counter ID
+ */
+static bool ppe_acl_create_pm_ctx(struct ppe_acl *acl, struct ppe_acl_rule_action *r_action)
+{
+	struct ppe_acl_base *acl_g = &ppe_acl_gbl;
+	ppe_pm_rule_dir_t dir;
+	int hw_idx;
+
+	/*
+	 * Get PM counter context only for pon mode.
+	 */
+	if (r_action->counter_mode != PPE_ACL_PON_PM)
+		return true;
+
+	/*
+	 * Get the flow direction.
+	 */
+	dir  = (acl->ipo == PPE_DRV_ACL_PREIPO) ? PPE_PM_RULE_DIR_INGRESS : PPE_PM_RULE_DIR_EGRESS;
+
+	/*
+	 * Allocate context and fill ppe acl action fields.
+	 */
+	if (r_action->flags & PPE_ACL_RULE_ACTION_FLAG_COUNTER_EN) {
+		/*
+		 * Get the PM counter hw idx.
+		 */
+		hw_idx  = ppe_pm_counter_alloc(r_action->counter_id, dir);
+		if (hw_idx < 0) {
+			ppe_acl_warn("Couldn't allocate PM  counter context for counter_id: %d\n",
+					r_action->counter_id);
+			ppe_acl_stats_inc(&acl_g->stats.cmn.acl_create_fail_action_config);
+			return false;
+		}
+
+		/*
+		 * Set values in ppe_acl.
+		 */
+		r_action->hw_counter_id = hw_idx;
+		acl->counter_id = r_action->counter_id;
+		acl->counter_valid = true;
+	}
+
+	return true;
+}
+#endif
+
 /*
  * ppe_acl_action_fill()
  *	Action corresponding to an ACL rule.
@@ -1758,6 +1818,14 @@ static bool ppe_acl_action_fill(struct ppe_acl *acl, struct ppe_acl_rule_action 
 	if (r_action->flags_ext & PPE_ACL_RULE_ACTION_FLAG_STAG_PCP_CMD) {
 		acl_action->stag_pcp_cmd = (ppe_drv_acl_pcp_cmd_t)r_action->stag_pcp_cmd;
 		acl_action->flags_ext |= PPE_DRV_ACL_ACTION_FLAG_STAG_PCP_CMD;
+	}
+#endif
+
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	if (r_action->flags & PPE_ACL_RULE_ACTION_FLAG_COUNTER_EN) {
+		acl_action->hw_counter_id = r_action->hw_counter_id;
+		acl_action->counter_mode = (ppe_drv_acl_counter_mode_t)r_action->counter_mode;
+		acl_action->flags |= PPE_DRV_ACL_ACTION_FLAG_COUNTER_EN;
 	}
 #endif
 	return true;
@@ -2621,6 +2689,12 @@ fail:
 			ppe_drv_acl_sc_return(acl->sc);
 		}
 
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+		if (acl->counter_valid) {
+			ppe_pm_counter_deref(acl->counter_id);
+			acl->counter_valid = false;
+		}
+#endif
 		ppe_acl_free(acl);
 	}
 
@@ -2791,6 +2865,17 @@ ppe_acl_ret_t ppe_acl_rule_create(struct ppe_acl_rule *rule)
 		goto fail;
 	}
 
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	/*
+	 * Create or fetch the PM ctx.
+	 */
+	if (!ppe_acl_create_pm_ctx(acl, &rule->action)) {
+		ppe_acl_stats_inc(&acl_g->stats.cmn.acl_create_fail_action_config);
+		ppe_acl_warn("%p: failed to get the PM ctx: %p", acl_g, ctx);
+		ret = PPE_ACL_RET_CREATE_FAIL_ACTION_CONFIG;
+		goto fail;
+	}
+#endif
 	/*
 	 * Fill ACL rule action
 	 */
@@ -2847,6 +2932,12 @@ fail:
 			ppe_drv_acl_sc_return(acl->sc);
 		}
 
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+		if (acl->counter_valid) {
+			ppe_pm_counter_deref(acl->counter_id);
+			acl->counter_valid = false;
+		}
+#endif
 		ppe_acl_free(acl);
 	}
 

@@ -99,6 +99,12 @@ struct ppe_acl {
 	uint8_t sc;
 
 	/*
+	 * Counter ID for PON PM case
+	 */
+	uint16_t counter_id;
+	bool counter_valid;
+
+	/*
 	 * Registered callback info.
 	 */
 	ppe_acl_rule_process_callback_t cb;	/* Per ACL index registered callback */

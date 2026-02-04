@@ -662,7 +662,7 @@ ppe_drv_ret_t ppe_drv_enq_vp_map_to_queue(uint8_t queue_id, int8_t enq_vp)
 	 * Configure the allocated enqueue vp number on PORT_VSI_ENQUEUE table.
 	 */
 	enqueue_cfg.rule_entry.enqueue_type = FAL_ENQUEUE_FLOW;
-	enqueue_cfg.rule_entry.flow_pri_profile = PPE_DRV_PORT_ENQVP_VSI_TBL_START_IDX + pri_profile;
+	enqueue_cfg.rule_entry.flow_pri_profile = pri_profile;
 	enqueue_cfg.index_entry.enqueue_en = (a_bool_t)PPE_DRV_PORT_EVP_ENABLE;
 	enqueue_cfg.index_entry.enqueue_vport = enq_vp;
 	ret = fal_qm_enqueue_config_set(PPE_DRV_SWITCH_ID, &enqueue_cfg);
@@ -715,7 +715,7 @@ ppe_drv_ret_t ppe_drv_ds_map_free(uint8_t node_id)
 	 * Disable enqueue vp bit on PORT_VSI_ENQUEUE table.
 	 */
 	enqueue_cfg.rule_entry.enqueue_type = FAL_ENQUEUE_FLOW;
-	enqueue_cfg.rule_entry.flow_pri_profile = PPE_DRV_PORT_ENQVP_VSI_TBL_START_IDX + pri_profile;
+	enqueue_cfg.rule_entry.flow_pri_profile = pri_profile;
 	enqueue_cfg.index_entry.enqueue_en = (a_bool_t)PPE_DRV_PORT_EVP_DISABLE;
 	enqueue_cfg.index_entry.enqueue_vport = enq_vp;
 	ret = fal_qm_enqueue_config_set(PPE_DRV_SWITCH_ID, &enqueue_cfg);

@@ -31,5 +31,8 @@
 #ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
 #include "ppe_drv_pm.h"
 #endif
+#ifdef NSS_PPE_DRV_PORT_MGMT_SUPPORT
+#include "ppe_drv_port_mgmt.h"
+#endif
 
 #endif /* _PPE_DRV_PUBLIC_H_ */

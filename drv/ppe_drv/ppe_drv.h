@@ -39,7 +39,9 @@
 #include "ppe_drv_pm.h"
 #endif
 #include "ppe_drv_vlan.h"
-
+#ifdef NSS_PPE_DRV_PORT_MGMT_SUPPORT
+#include "ppe_drv_port_mgmt.h"
+#endif
 #ifdef CONFIG_QCA_MINIDUMP
 #include <soc/qcom/ctx-save.h>
 #endif
@@ -473,6 +475,10 @@ struct ppe_drv {
 	struct ppe_drv_pm_gen *pm_gen;			/* Memory for PM counter gen management */
 #endif
 	struct ppe_drv_vlan_tbl *vlan;			/* Memory for PPE VLAN entries */
+#ifdef NSS_PPE_DRV_PORT_MGMT_SUPPORT
+	struct ppe_drv_port_mgmt *port_mgmt;		/* Memory for PORT_MGMT counter management */
+	struct ppe_drv_port_mgmt_gen *port_mgmt_gen;	/* Memory for PORT_MGMT counter gen management */
+#endif
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 	struct ppe_drv_nptv6_prefix *pfx;		/* Memory for PPE prefix table */
 	struct ppe_drv_nptv6_iid *iid;			/* Memory for PPE IID table */

@@ -38,6 +38,7 @@
 #ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
 #include "ppe_drv_pm.h"
 #endif
+#include "ppe_drv_vlan.h"
 
 #ifdef CONFIG_QCA_MINIDUMP
 #include <soc/qcom/ctx-save.h>
@@ -200,6 +201,13 @@ enum ppe_drv_static_dbg_level {
 #define PPE_DRV_VLAN_TCI_MASK		0xFFFF
 #define PPE_DRV_VLAN_PRIORITY_MASK	0xE000
 #define PPE_DRV_VLAN_PRIORITY_SHIFT	13
+
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+#define PPE_DRV_VLAN_CTPID_IDX		0
+#define PPE_DRV_VLAN_STPID_IDX		1
+#define PPE_DRV_VLAN_CTPID_EXT_IDX	2
+#define PPE_DRV_VLAN_STPID_EXT_IDX	3
+#endif
 
 /*
  * SAWF macros
@@ -461,6 +469,7 @@ struct ppe_drv {
 	struct ppe_drv_pm *pm;				/* Memory for PM counter management */
 	struct ppe_drv_pm_gen *pm_gen;			/* Memory for PM counter gen management */
 #endif
+	struct ppe_drv_vlan_tbl *vlan;			/* Memory for PPE VLAN entries */
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 	struct ppe_drv_nptv6_prefix *pfx;		/* Memory for PPE prefix table */
 	struct ppe_drv_nptv6_iid *iid;			/* Memory for PPE IID table */
@@ -507,6 +516,11 @@ struct ppe_drv {
 	 */
 	uint16_t gbl_ctpid;			/**< Switch C-TPID. */
 	uint16_t gbl_stpid;			/**< Switch S-TPID. */
+
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+	uint16_t gbl_ctpid_ext;			/**< Switch C-TPID Extra. */
+	uint16_t gbl_stpid_ext;			/**< Switch S-TPID Extra. */
+#endif
 
 	bool toggled_v4;			/* Toggled bit for v4 sync during a particular iteration */
 	bool toggled_v6;			/* Toggled bit for v6 sync during a particular iteration */
@@ -627,6 +641,9 @@ static inline void nss_ppe_drv_minidump_free(void *start_addr, const char *name)
 #endif
 }
 
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+int ppe_drv_get_tpid_index(uint16_t tpid, const char *type);
+#endif
 extern int ppe_drv_get_vxlan_dport(void);
 extern int ppe_drv_get_vxlan_gpe_dport(void);
 void ppe_drv_fse_ops_free(struct kref *kref);

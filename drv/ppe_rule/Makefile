@@ -22,6 +22,7 @@ endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
+ccflags-y += -DNSS_PPE_EXT_VLAN_FEATURE_SUPPORT
 endif
 
 obj-m += qca-nss-ppe-rule.o
@@ -66,6 +67,13 @@ qca-nss-ppe-rule-objs += ppe_pm/ppe_pm_stats.o
 qca-nss-ppe-rule-objs += ppe_pm/ppe_pm_dump.o
 ccflags-y += -DPPE_PM_DEBUG_LEVEL=3
 ccflags-y += -DNSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+endif
+
+ifeq ($(PPE_VLAN_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_vlan/ppe_vlan.o
+qca-nss-ppe-rule-objs += ppe_vlan/ppe_vlan_dump.o
+qca-nss-ppe-rule-objs += ppe_vlan/ppe_vlan_stats.o
+ccflags-y += -DPPE_VLAN_DEBUG_LEVEL=3
 endif
 endif
 

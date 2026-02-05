@@ -111,6 +111,46 @@ int ppe_drv_get_vxlan_gpe_dport(void)
 	return ppe_drv_gbl->vxlan_gpe_dport;
 }
 
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+/*
+ * ppe_drv_get_tpid_index()
+ *      Get PPE VLAN TPID indexes by TPID values.
+ */
+int ppe_drv_get_tpid_index(uint16_t tpid, const char *type)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	int index = -1;
+
+	spin_lock_bh(&p->lock);
+
+	if (strcmp(type, "ctpid") == 0) {
+		if (tpid == p->gbl_ctpid)
+			index = PPE_DRV_VLAN_CTPID_IDX;
+		if (tpid == p->gbl_ctpid_ext)
+			index = PPE_DRV_VLAN_CTPID_EXT_IDX;
+	} else if (strcmp(type, "stpid") == 0) {
+		if (tpid == p->gbl_stpid)
+			index = PPE_DRV_VLAN_STPID_IDX;
+		if (tpid == p->gbl_stpid_ext)
+			index = PPE_DRV_VLAN_STPID_EXT_IDX;
+	}
+
+	spin_unlock_bh(&p->lock);
+	return index;
+}
+EXPORT_SYMBOL(ppe_drv_get_tpid_index);
+
+/*
+ * ppe_drv_get_vsi_num()
+ *	Get VSI number.
+ */
+int ppe_drv_get_vsi_num(void)
+{
+	return ppe_drv_gbl->vsi_num;
+}
+EXPORT_SYMBOL(ppe_drv_get_vsi_num);
+#endif
+
 /*
  * ppe_drv_is_mht_dev()
  *	API to get MHT switch interface flag
@@ -1413,6 +1453,13 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	}
 #endif
 
+	/* Allocate VLAN entries */
+	p->vlan = ppe_drv_vlan_entries_alloc();
+	if (!p->vlan) {
+		ppe_drv_warn("%p: Failed to allocate VLAN entries", p);
+		goto fail;
+	}
+
 #ifdef PPE_TUNNEL_ENABLE
 	p->pgm = ppe_drv_tun_prgm_prsr_alloc(p);
 	if (!p->pgm) {
@@ -1534,6 +1581,11 @@ fail:
 		p->pm_gen = NULL;
 	}
 #endif
+
+	if (p->vlan) {
+		ppe_drv_vlan_entries_free(p->vlan);
+		p->vlan = NULL;
+	}
 
 	if (p->acl) {
 		ppe_drv_acl_entries_free(p->acl);
@@ -1763,6 +1815,11 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		p->pm_gen = NULL;
 	}
 #endif
+
+	if (p->vlan) {
+		ppe_drv_vlan_entries_free(p->vlan);
+		p->vlan = NULL;
+	}
 
 	if (p->fse_ops) {
 		ppe_drv_warn("FSE ops still registered while ppe module getting removed\n");

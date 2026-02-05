@@ -18,6 +18,9 @@
 #ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
 #include "ppe_pm/ppe_pm.h"
 #endif
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+#include "ppe_vlan/ppe_vlan.h"
+#endif
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M) && !defined(NSS_PPE_LOWMEM_PROFILE_256M)
 #include "ppe_mirror/ppe_mirror.h"
 #include "ppe_priority/ppe_priority.h"
@@ -54,6 +57,9 @@ static int __init ppe_rule_module_init(void)
 #ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
 	ppe_pm_init(d_rule);
 #endif
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+	ppe_vlan_init(d_rule);
+#endif
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M) && !defined(NSS_PPE_LOWMEM_PROFILE_256M)
 	ppe_mirror_init(d_rule);
 	ppe_priority_init(d_rule);
@@ -86,6 +92,9 @@ static void __exit ppe_rule_module_exit(void)
 #endif
 #ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
 	ppe_pm_deinit();
+#endif
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+	ppe_vlan_deinit();
 #endif
 	debugfs_remove_recursive(d_rule);
 	printk("PPE-RULE module unloaded");

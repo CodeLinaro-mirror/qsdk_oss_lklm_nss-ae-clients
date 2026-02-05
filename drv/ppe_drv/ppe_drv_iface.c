@@ -480,6 +480,7 @@ int32_t ppe_drv_iface_l3_if_idx_get(struct ppe_drv_iface *iface)
 
 	return l3_if->l3_if_index;
 }
+EXPORT_SYMBOL(ppe_drv_iface_l3_if_idx_get);
 
 /*
  * ppe_drv_iface_l3_if_clear()

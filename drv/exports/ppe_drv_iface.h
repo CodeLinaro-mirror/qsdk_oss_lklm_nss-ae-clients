@@ -391,5 +391,20 @@ bool ppe_drv_iface_udp_zero_csum_action_set(struct ppe_drv_iface *iface,
  */
 ppe_drv_iface_t ppe_drv_iface_get_index(struct ppe_drv_iface *iface);
 
+
+/**
+ * ppe_drv_iface_l3_if_idx_get
+ *      Return L3 interface index associated with a PPE interface.
+ *
+ * @datatypes
+ * ppe_drv_iface
+ *
+ * @param[in] iface   PPE interface instance.
+ *
+ * @return
+ * L3 interface index (int32_t) for @iface.
+ */
+int32_t ppe_drv_iface_l3_if_idx_get(struct ppe_drv_iface *iface);
+
 /** @} */ /* end_addtogroup ppe_drv_iface_subsystem */
 #endif /* _PPE_DRV_IFACE_H_ */

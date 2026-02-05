@@ -13,6 +13,14 @@ ifeq ($(SoC),$(filter $(SoC),ipq95xx))
 ccflags-y += -DNSS_PPE_IPQ95XX
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq52xx))
+ccflags-y += -DNSS_PPE_IPQ52XX
+endif
+
+ifeq ($(SoC),$(filter $(SoC),ipq96xx))
+ccflags-y += -DNSS_PPE_IPQ96XX
+endif
+
 ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx))
 ccflags-y += -DPPE_DRV_FLOW_IG_MAC_WAR
 endif
@@ -25,6 +33,7 @@ ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
 ccflags-y += -DNSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
 ccflags-y += -DNSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+ccflags-y += -DNSS_PPE_EXT_VLAN_FEATURE_SUPPORT
 endif
 
 obj-m += qca-nss-ppe.o

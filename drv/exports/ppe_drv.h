@@ -431,6 +431,8 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_FAILURE_INVALID_PARAM,		/**< Failure due to invalid parameter */
 	PPE_DRV_RET_PORT_NOT_FOUND,			/**< Port not found */
 	PPE_DRV_RET_VSI_NOT_FOUND,			/**< VSI not found */
+	PPE_DRV_RET_VSI_MEMBER_NOT_FOUND,		/**< VSI member not found */
+	PPE_DRV_RET_VSI_MEMBER_NOT_SET,			/**< VSI memeber not set */
 	PPE_DRV_RET_L3_IF_NOT_FOUND,			/**< L3_IF not found */
 	PPE_DRV_RET_PORT_ALLOC_FAIL,			/**< Port allocation fails */
 	PPE_DRV_RET_L3_IF_ALLOC_FAIL,			/**< L3_IF allocation fails */
@@ -453,6 +455,7 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_BASE_IFACE_NOT_FOUND,		/**< Base interface not found */
 	PPE_DRV_RET_VLAN_TPID_FAIL,			/**< VLAN TPID not found */
 	PPE_DRV_RET_PORT_ROLE_FAIL,			/**< Port role configuration failed */
+	PPE_DRV_RET_VLAN_RULE_INVALID,			/**< VLAN rule invalid */
 	PPE_DRV_RET_INGRESS_VLAN_FAIL,			/**< Ingress vlan configuration failed */
 	PPE_DRV_RET_EGRESS_VLAN_FAIL,			/**< Egress vlan configuration failed */
 	PPE_DRV_RET_VLAN_INGRESS_DEL_FAIL,		/**< Ingress vlan deletion configuration failed */
@@ -761,5 +764,36 @@ int8_t ppe_drv_get_qdisc_rule_flag(int32_t flow_index);
  * none.
  */
 void ppe_drv_wlan_rfs_enable_set(bool enable);
+
+#ifdef NSS_PPE_EXT_VLAN_FEATURE_SUPPORT
+/**
+ * ppe_drv_get_tpid_index
+ *	Return TPID table index for the given TPID value.
+ *
+ * @datatypes
+ * uint16_t
+ *
+ * @param[in] tpid   TPID value to look up.
+ * @param[in] type   TPID type string (e.g., "stag", "ctag"), used for logging.
+ *
+ * @return
+ * TPID index (0-based) on success; negative value on failure
+ * (e.g., TPID not supported or type invalid).
+ */
+int ppe_drv_get_tpid_index(uint16_t tpid, const char *type);
+
+/**
+ * ppe_drv_get_vsi_num
+ *	Get the number of VSIs supported by the PPE driver.
+ *
+ * @datatypes
+ * int
+ *
+ * @return
+ * Total number of supported VSIs (>=0). Returns a negative value on error.
+ * Valid VSI indices range from 0 to (returned_value - 1).
+ */
+int ppe_drv_get_vsi_num(void);
+#endif
 
 #endif /* _PPE_DRV_H_ */

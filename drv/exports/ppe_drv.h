@@ -530,6 +530,10 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_DSCP_PBIT_TBL_RST_FAIL,		/**< Failed to reset DSCP_PBIT_MAP table. */
 	PPE_DRV_RET_L2_DSCP_PBIT_TBL_CONFIG_FAIL,	/**< Failed to configure L2_DSCP_PBIT_MAP table. */
 	PPE_DRV_RET_FAILURE_VLAN_PCP_MARKING,		/**< Failure due to invalid VLAN PCP marking */
+	PPE_DRV_RET_PM_GEN_RULE_INVALID,		/**< PM gen rule invalid */
+	PPE_DRV_RET_IN_PM_COUNTER_GEN_CREATE_FAIL,	/**< Failed to create the PM counter gen rule in PRE_IPO_PM_COUNTER_TBL. */
+	PPE_DRV_RET_EG_PM_COUNTER_GEN_CREATE_FAIL,	/**< Failed to create the PM counter gen rule in EG_PM_COUNTER_TBL. */
+	PPE_DRV_RET_PM_COUNTER_GET_FAIL,		/**< Failed to get the PM counter stats. */
 	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 

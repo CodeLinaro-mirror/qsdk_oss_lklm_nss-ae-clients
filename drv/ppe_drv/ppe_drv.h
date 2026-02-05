@@ -35,6 +35,9 @@
 #include "ppe_drv_dscp.h"
 #endif
 #include <fal/fal_portvlan.h>
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+#include "ppe_drv_pm.h"
+#endif
 
 #ifdef CONFIG_QCA_MINIDUMP
 #include <soc/qcom/ctx-save.h>
@@ -454,6 +457,10 @@ struct ppe_drv {
 	struct ppe_drv_sc *sc;				/* Memory for PPE Service Code table */
 	struct ppe_drv_cc *cc;				/* Memory for PPE CPU Code table */
 	struct ppe_drv_acl *acl;			/* Memory for PPE ACL entries */
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	struct ppe_drv_pm *pm;				/* Memory for PM counter management */
+	struct ppe_drv_pm_gen *pm_gen;			/* Memory for PM counter gen management */
+#endif
 #ifdef PPE_DRV_NPTV6_HW_SUPPORT
 	struct ppe_drv_nptv6_prefix *pfx;		/* Memory for PPE prefix table */
 	struct ppe_drv_nptv6_iid *iid;			/* Memory for PPE IID table */

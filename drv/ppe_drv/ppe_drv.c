@@ -162,6 +162,9 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 	struct ppe_drv_v6_conn_flow *pcf_hp;
 	struct ppe_drv_v6_conn_flow *pcr_hp;
 #endif
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+        struct ppe_drv_pm_counter_ctx *pm_ctx;
+#endif
 	uint16_t id;
 
 	/*
@@ -257,6 +260,22 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 			ppe_drv_acl_policer_stats_update(&p->pol_ctx->acl_pol[id]);
 		}
 	}
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	/*
+	 * Update the PM counter stats.
+	 */
+	for (id = 0; id < PPE_DRV_PM_COUNTER_ID_MAX; id++) {
+		pm_ctx = &p->pm->in_ctx_array[id];
+		if (pm_ctx->state == PPE_DRV_PM_COUNTER_ID_USED) {
+			ppe_drv_pm_counter_stats_update(pm_ctx);
+		}
+
+		pm_ctx = &p->pm->eg_ctx_array[id];
+		if (pm_ctx->state == PPE_DRV_PM_COUNTER_ID_USED) {
+			ppe_drv_pm_counter_stats_update(pm_ctx);
+		}
+	}
+#endif
 
 	spin_unlock_bh(&p->lock);
 
@@ -1378,6 +1397,22 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	/* Allocate PM counter management */
+	p->pm = ppe_drv_pm_entries_alloc();
+	if (!p->pm) {
+		ppe_drv_warn("%p: Failed to allocate PM entries", p);
+		goto fail;
+	}
+
+	/* Allocate PM counter gen management */
+	p->pm_gen = ppe_drv_pm_gen_entries_alloc();
+	if (!p->pm_gen) {
+		ppe_drv_warn("%p: Failed to allocate PM gen entries", p);
+		goto fail;
+	}
+#endif
+
 #ifdef PPE_TUNNEL_ENABLE
 	p->pgm = ppe_drv_tun_prgm_prsr_alloc(p);
 	if (!p->pgm) {
@@ -1487,6 +1522,18 @@ fail:
 		ppe_drv_policer_entries_free(p->pol_ctx);
 		p->pol_ctx = NULL;
 	}
+
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	if (p->pm) {
+		ppe_drv_pm_entries_free(p->pm);
+		p->pm = NULL;
+	}
+
+	if (p->pm_gen) {
+		ppe_drv_pm_entries_free(p->pm_gen);
+		p->pm_gen = NULL;
+	}
+#endif
 
 	if (p->acl) {
 		ppe_drv_acl_entries_free(p->acl);
@@ -1704,6 +1751,18 @@ static int ppe_drv_remove(struct platform_device *pdev)
 		ppe_drv_policer_entries_free(p->pol_ctx);
 		p->pol_ctx = NULL;
 	}
+
+#ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+	if (p->pm) {
+		ppe_drv_pm_entries_free(p->pm);
+		p->pm = NULL;
+	}
+
+	if (p->pm_gen) {
+		ppe_drv_pm_entries_free(p->pm_gen);
+		p->pm_gen = NULL;
+	}
+#endif
 
 	if (p->fse_ops) {
 		ppe_drv_warn("FSE ops still registered while ppe module getting removed\n");

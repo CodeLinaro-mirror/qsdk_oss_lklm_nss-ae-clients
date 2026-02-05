@@ -72,7 +72,6 @@ EXPORT_SYMBOL(ppe_port_mgmt_isol_config);
 ppe_port_mgmt_ret_t ppe_port_mgmt_act_ctrl_set(struct ppe_port_mgmt_isol *isol_info)
 {
 	uint8_t ppe_ret;
-
 	struct ppe_drv_port_mgmt_isol drv_isol_info = {0};
 
 	drv_isol_info.mc_isol_en = isol_info->mc_isol_en;
@@ -127,6 +126,57 @@ ppe_port_mgmt_ret_t ppe_port_mgmt_default_isol_set(void)
 }
 EXPORT_SYMBOL(ppe_port_mgmt_default_isol_set);
 #endif
+
+/*
+ * ppe_port_mgmt_mac_lrn_limit_set()
+ *	Set mac learn limit for the port.
+ */
+ppe_port_mgmt_ret_t ppe_port_mgmt_mac_lrn_limit_set(struct ppe_port_mac_lrn_limit *mac_lrn_limit)
+{
+	uint8_t ppe_ret;
+	struct net_device *dev;
+	struct ppe_drv_iface *iface;
+	int32_t port_id;
+	struct ppe_drv_port_mac_lrn_limit drv_mac_lrn_limit = {0};
+
+	dev = dev_get_by_name(&init_net, mac_lrn_limit->port_name);
+	if (!dev) {
+		ppe_port_mgmt_warn("Port name %s not found\n", mac_lrn_limit->port_name);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	iface = ppe_drv_iface_get_by_dev(dev);
+	if (!iface) {
+		ppe_port_mgmt_warn("Failed to find PPE interface for dev: %s\n", mac_lrn_limit->port_name);
+		dev_put(dev);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	port_id = ppe_drv_iface_port_idx_get(iface);
+	if (port_id < 0) {
+		ppe_port_mgmt_warn("Failed to find PPE port for iface: %s\n", mac_lrn_limit->port_name);
+		dev_put(dev);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	dev_put(dev);
+	mac_lrn_limit->port_id = port_id;
+
+	drv_mac_lrn_limit.port_id = mac_lrn_limit->port_id;
+	drv_mac_lrn_limit.port_learn_limit_en = mac_lrn_limit->port_learn_limit_en;
+	drv_mac_lrn_limit.port_learn_limit = mac_lrn_limit->port_learn_limit;
+	drv_mac_lrn_limit.lrn_exceed_action_en = mac_lrn_limit->lrn_exceed_action_en;
+	drv_mac_lrn_limit.lrn_exceed_action = (ppe_drv_port_mgmt_fwd_cmd_t)mac_lrn_limit->lrn_exceed_action;
+
+	ppe_port_mgmt_info("Mac learn limit for port %d, mac learn limit: %d\n", mac_lrn_limit->port_id, mac_lrn_limit->port_learn_limit);
+	ppe_ret = ppe_drv_port_mgmt_mac_lrn_limit_set(&drv_mac_lrn_limit);
+	if (ppe_ret != PPE_PORT_MGMT_RET_SUCCESS) {
+		ppe_port_mgmt_warn("Failed to set mac learn limit, err: %d\n", ppe_ret);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+	return PPE_PORT_MGMT_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_port_mgmt_mac_lrn_limit_set);
 
 /*
  * ppe_port_mgmt_init()

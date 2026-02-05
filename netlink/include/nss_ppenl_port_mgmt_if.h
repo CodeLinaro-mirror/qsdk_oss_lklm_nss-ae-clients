@@ -23,8 +23,9 @@
  * This info is used to communicate PPE PORT_MGMT configuration.
  */
 struct nss_ppenl_port_mgmt_info {
-	struct nss_ppenl_cmn cm;		/**< Common message header */
-	struct ppe_port_mgmt_isol isol;		/**< Port Isolation information */
+	struct nss_ppenl_cmn cm;			/**< Common message header */
+	struct ppe_port_mgmt_isol isol;			/**< Port Isolation information */
+	struct ppe_port_mac_lrn_limit mac_lrn_limit;	/**< Port learn limit for FDB */
 };
 
 /*
@@ -34,6 +35,7 @@ enum nss_ppe_port_mgmt_message_types {
 	NSS_PPE_PORT_MGMT_PORT_ISOL_SET_MSG,		/**< Port isolation set message */
 	NSS_PPE_PORT_MGMT_ACT_CTRL_SET_MSG,		/**< Port action control set message */
 	NSS_PPE_PORT_MGMT_PORT_ISOL_DEF_MSG,		/**< Port isolation set to default */
+	NSS_PPE_PORT_MGMT_MAC_LRN_LIMIT_SET_MSG,	/**< Port mac learn limit set */
 	NSS_PPE_PORT_MGMT_MAX_MSG_TYPES,		/**< Maximum message type */
 };
 

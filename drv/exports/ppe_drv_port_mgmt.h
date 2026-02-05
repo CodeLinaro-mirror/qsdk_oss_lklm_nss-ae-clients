@@ -10,6 +10,8 @@
 
 #include <linux/if_ether.h>
 #include <ppe_drv.h>
+#include <fal/fal_portvlan.h>
+#include <fal/fal_fdb.h>
 
 #ifndef _PPE_DRV_PORT_MGMT_H_
 #define _PPE_DRV_PORT_MGMT_H_
@@ -21,6 +23,17 @@
 #define PPE_DRV_PORT_MGMT_ACT_ARR_SIZE					4
 #define PPE_DRV_VP_PROFILE_ID_MAX					64
 #define PPE_DRV_PORT_MGMT_ISOL_RULE_FLAG_PORT_ID			0x1
+
+/*
+ * ppe_drv_port_mgmt_fwd_cmd
+ *	port mgmt action command
+ */
+typedef enum ppe_drv_port_mgmt_fwd_cmd {
+	PPE_DRV_PORT_MGMT_FWD_CMD_FWD,		      /**< PORT_MGMT forward command - forward. */
+	PPE_DRV_PORT_MGMT_FWD_CMD_DROP,		      /**< PORT_MGMT forward command - drop. */
+	PPE_DRV_PORT_MGMT_FWD_CMD_COPY,		      /**< PORT_MGMT forward command - copy to CPU. */
+	PPE_DRV_PORT_MGMT_FWD_CMD_REDIR		      /**< PORT_MGMT forward command - redirect to CPU. */
+} ppe_drv_port_mgmt_fwd_cmd_t;
 
 /**
  * ppe_drv_vp_profile_id_info
@@ -90,7 +103,19 @@ struct ppe_drv_port_mgmt {
 	uint8_t us_port_id;							  	/**< Upstream port ID */
 };
 
-/**
+/*
+ * ppe_drv_port_mac_lrn_limit
+ *	Port mac learn limit configuration
+ */
+struct ppe_drv_port_mac_lrn_limit {
+	uint32_t port_id;				/**< Port id */
+	bool port_learn_limit_en;			/**< Mac learn limit enable */
+	uint32_t port_learn_limit;			/**< Mac learn limit */
+	bool lrn_exceed_action_en;			/**< Mac learn action valid */
+	ppe_drv_port_mgmt_fwd_cmd_t lrn_exceed_action;	/**< Mac learn exceed action command */
+};
+
+/*
  * ppe_drv_port_mgmt_act_ctrl_set()
  *	Configures the action control parameters for port‑management‑based
  *	isolation or forwarding behavior.
@@ -134,4 +159,15 @@ ppe_drv_ret_t ppe_drv_port_mgmt_isol_configure(struct ppe_drv_port_mgmt_isol *is
  * ppe_drv_ret_t	      Status of default isolation configuration.
  */
 ppe_drv_ret_t ppe_drv_port_mgmt_default_isol_set(void);
+
+/**
+ * ppe_drv_port_mgmt_mac_lrn_limit_set()
+ *	Sets the MAC learning limit for the specified port.
+ *
+ * @param[in] mac_lrn_limit    MAC learning limit configuration.
+ *
+ * @return
+ * ppe_drv_ret_t	       Status of MAC limit update.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_mac_lrn_limit_set(struct ppe_drv_port_mac_lrn_limit *mac_lrn_limit);
 #endif // _PPE_DRV_PORT_MGMT_H_

@@ -18,6 +18,17 @@
 #define PPE_PORT_MGMT_ACT_ARR_SIZE	16
 #define PPE_PORT_MGMT_PORT_MAX		256
 
+/**
+ * ppe_port_mgmt_fwd_cmd
+ *	PPE PORT MGMT forward action
+ */
+typedef enum ppe_port_mgmt_fwd_cmd {
+	PPE_PORT_MGMT_FWD_CMD_FWD,		      /**< Forward command to allow regular forwarding. */
+	PPE_PORT_MGMT_FWD_CMD_DROP,		      /**< Forward command to drop matching packets. */
+	PPE_PORT_MGMT_FWD_CMD_COPY,		      /**< Forward command to copy the matching packets. */
+	PPE_PORT_MGMT_FWD_CMD_REDIR,		      /**< Forward command to redirecting the matching packets. */
+} ppe_port_mgmt_fwd_cmd_t;
+
 /*
  * ppe_port_mgmt_ret
  *	Return type
@@ -39,6 +50,20 @@ struct ppe_port_mgmt_isol {
 	bool mc_isol_en;					/**< Multicast Isolation Enable */
 	bool bc_isol_en;					/**< Broadcast Isolation Enable */
 	ppe_port_mgmt_ret_t ret;				/**< PORT_MGMT return type. */
+};
+
+/*
+ * ppe_port_mac_lrn_limit
+ *	Port mac learn limit configuration
+ */
+struct ppe_port_mac_lrn_limit {
+	uint32_t port_id;				/**< Port id */
+	char port_name[IFNAMSIZ];			/**< Port Name */
+	bool port_learn_limit_en;			/**< Mac learn limit enable */
+	uint32_t port_learn_limit;			/**< Mac learn limit */
+	bool lrn_exceed_action_en;			/**< Mac learn action valid */
+	ppe_port_mgmt_fwd_cmd_t lrn_exceed_action;	/**< Mac learn exceed action command */
+	ppe_port_mgmt_ret_t ret;			/**< PORT_MGMT return type. */
 };
 
 /**
@@ -71,4 +96,13 @@ ppe_port_mgmt_ret_t ppe_port_mgmt_act_ctrl_set(struct ppe_port_mgmt_isol *isol_i
  * Status of the operation, indicating success or failure.
  */
 ppe_port_mgmt_ret_t ppe_port_mgmt_default_isol_set(void);
+
+/**
+ * ppe_drv_port_mgmt_mac_lrn_limit_set()
+ *	Set mac learn limit for port
+ *
+ * @return
+ * Status of the operation, indicating success or failure.
+ */
+ppe_port_mgmt_ret_t ppe_port_mgmt_mac_lrn_limit_set(struct ppe_port_mac_lrn_limit *mac_lrn_limit);
 #endif // _PPE_PORT_MGMT_H_

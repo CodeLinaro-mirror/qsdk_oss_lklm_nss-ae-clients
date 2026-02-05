@@ -67,9 +67,7 @@ static void ppe_pppoe_mgr_remove_session(struct ppe_pppoe_mgr_session_entry *ppe
 				   entry, info->session_id, info->server_mac, info->local_mac);
 
 	pppoe_stats_inc(&ctx->stats.pppoe_session_remove_success);
-
 	hash_del_rcu(&ppe_entry->session_list);
-	synchronize_rcu();
 }
 
 /*
@@ -118,6 +116,7 @@ static int ppe_pppoe_mgr_disconnect(struct net_device *dev)
 		return NOTIFY_DONE;
 	}
 
+	synchronize_rcu();
 	ret = ppe_drv_pppoe_session_deinit(iface);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		pppoe_mgr_warn("%px: Unable to deinitialize PPPoE session in PPE\n", dev);
@@ -235,7 +234,10 @@ fail2:
 
 fail:
 	ppe_drv_iface_deref(iface);
+	spin_lock(&ppe_pppoe_lock);
 	ppe_pppoe_mgr_remove_session(ppe_entry);
+	spin_unlock(&ppe_pppoe_lock);
+	synchronize_rcu();
 	kfree(ppe_entry);
 	return NOTIFY_DONE;
 }

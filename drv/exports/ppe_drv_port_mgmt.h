@@ -116,6 +116,16 @@ struct ppe_drv_port_mac_lrn_limit {
 };
 
 /*
+ * ppe_drv_port_mac_filter
+ *	mac filter or block configuration
+ */
+struct ppe_drv_port_mac_filter {
+	uint8_t mac[ETH_ALEN];				/**< MAC addressto filter. */
+	bool fid_valid;					/**< Filter ID info valid. */
+	uint8_t fid_index;				/**< Filter Index. */
+};
+
+/**
  * ppe_drv_port_mgmt_act_ctrl_set()
  *	Configures the action control parameters for port‑management‑based
  *	isolation or forwarding behavior.
@@ -170,4 +180,38 @@ ppe_drv_ret_t ppe_drv_port_mgmt_default_isol_set(void);
  * ppe_drv_ret_t	       Status of MAC limit update.
  */
 ppe_drv_ret_t ppe_drv_port_mgmt_mac_lrn_limit_set(struct ppe_drv_port_mac_lrn_limit *mac_lrn_limit);
+
+/**
+ * ppe_drv_port_mgmt_mac_filter_set()
+ *	Sets the MAC filter configuration for the specified port.
+ *
+ * @param[in] mac_filter       MAC filter configuration parameters.
+ *
+ * @return
+ * ppe_drv_ret_t	       Status of MAC filter update.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_mac_filter_set(struct ppe_drv_port_mac_filter *mac_filter);
+
+/**
+ * ppe_drv_port_mgmt_mac_filter_clear()
+ *	Clears the MAC filter configuration for the specified port.
+ *
+ * @param[in] mac_filter       MAC filter entry to clear.
+ *
+ * @return
+ * ppe_drv_ret_t	       Status of MAC filter clear operation.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_mac_filter_clear(struct ppe_drv_port_mac_filter *mac_filter);
+
+/**
+ * ppe_drv_port_mgmt_fid_get()
+ *      Retrieves the FID associated with the specified device.
+ *
+ * @param[in]  dev            Network device for which the FID is requested.
+ * @param[out] fid_index      Pointer to store the retrieved FID index.
+ *
+ * @return
+ * ppe_drv_ret_t              Status of the FID retrieval operation.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_fid_get(struct net_device *dev, uint8_t* fid_index);
 #endif // _PPE_DRV_PORT_MGMT_H_

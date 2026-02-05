@@ -66,6 +66,18 @@ struct ppe_port_mac_lrn_limit {
 	ppe_port_mgmt_ret_t ret;			/**< PORT_MGMT return type. */
 };
 
+/*
+ * ppe_port_mac_filter
+ *      Port mac filter configuration
+ */
+struct ppe_port_mac_filter {
+	uint8_t mac[ETH_ALEN];				/**< MAC addressto filter. */
+	bool fid_valid;					/**< Filter ID info valid. */
+	char fid_name[IFNAMSIZ];			/**< Filter ID name. */
+	uint8_t fid_index;				/**< Filter Index. */
+        ppe_port_mgmt_ret_t ret;			/**< PORT_MGMT return type. */
+};
+
 /**
  * ppe_port_mgmt_isol_config()
  *	Set port isolation configuration
@@ -105,4 +117,22 @@ ppe_port_mgmt_ret_t ppe_port_mgmt_default_isol_set(void);
  * Status of the operation, indicating success or failure.
  */
 ppe_port_mgmt_ret_t ppe_port_mgmt_mac_lrn_limit_set(struct ppe_port_mac_lrn_limit *mac_lrn_limit);
+
+/**
+ * ppe_port_mgmt_mac_filter_set()
+ *	Block mac address in FDB
+ *
+ * @return
+ * Status of the operation, indicating success or failure.
+ */
+ppe_port_mgmt_ret_t ppe_port_mgmt_mac_filter_set(struct ppe_port_mac_filter *mac_filter);
+
+/**
+ * ppe_port_mgmt_mac_filter_clear()
+ *	Allow the blocked mac address in FDB
+ *
+ * @return
+ * Status of the operation, indicating success or failure.
+ */
+ppe_port_mgmt_ret_t ppe_port_mgmt_mac_filter_clear(struct ppe_port_mac_filter *mac_filter);
 #endif // _PPE_PORT_MGMT_H_

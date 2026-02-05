@@ -730,3 +730,155 @@ ppe_drv_ret_t ppe_drv_port_mgmt_mac_lrn_limit_set(struct ppe_drv_port_mac_lrn_li
 	return PPE_DRV_RET_SUCCESS;
 }
 EXPORT_SYMBOL(ppe_drv_port_mgmt_mac_lrn_limit_set);
+
+
+/*
+ * ppe_drv_port_mgmt_fid_get()
+ *	Gets the FID associated with the MAC filter.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_fid_get(struct net_device *dev, uint8_t* fid_index)
+{
+	struct ppe_drv_iface *iface;
+	struct ppe_drv_vsi *vsi;
+
+	/* Resolve iface by FID name when available, else via upstream GEM bitmap */
+	if (dev) {
+		iface = ppe_drv_iface_get_by_dev(dev);
+		if (!iface) {
+			ppe_drv_warn("Failed to resolve PPE iface for dev '%s'\n", dev->name);
+			return PPE_DRV_RET_PORT_MGMT_FID_GET_FAIL;
+		}
+
+	} else {
+#ifdef NSS_PPE_PON_SUPPORT
+		/*
+		 * If no VSI, then derive from gem port.
+		 */
+		if (!gem_port_bitmap) {
+			ppe_drv_warn("No upstream port (gem_port_bitmap=0) and no FID name\n");
+			return PPE_DRV_RET_PORT_MGMT_FID_GET_FAIL;
+		}
+
+		int port_idx = __builtin_ffs(gem_port_bitmap) - 1;
+		iface = ppe_drv_iface_get_by_idx(port_idx);
+		if (!iface) {
+			ppe_drv_warn("Failed to resolve PPE iface for upstream port idx=%d\n", port_idx);
+			return PPE_DRV_RET_PORT_MGMT_FID_GET_FAIL;
+		}
+#else
+		ppe_drv_warn("No upstream port (gem_port_bitmap=0) and no FID name\n");
+		return PPE_DRV_RET_PORT_MGMT_FID_GET_FAIL;
+#endif
+	}
+
+	/* Get VSI info */
+	vsi = ppe_drv_iface_vsi_get(iface);
+	if (!vsi) {
+		ppe_drv_warn("Invalid VSI for given iface\n");
+		return PPE_DRV_RET_PORT_MGMT_FID_GET_FAIL;
+	}
+
+	*fid_index = vsi->index;
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_port_mgmt_fid_get);
+
+/*
+ * ppe_drv_port_mgmt_mac_filter_clear()
+ *	Clears the MAC filter configuration.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_mac_filter_clear(struct ppe_drv_port_mac_filter *mac_filter)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	fal_fdb_entry_t entry;
+	sw_error_t err;
+	ppe_drv_ret_t ret = PPE_DRV_RET_SUCCESS;
+
+	if (!mac_filter) {
+		ppe_drv_warn("Invalid arguments: mac_filter=%p\n", mac_filter);
+		return PPE_DRV_RET_PORT_MGMT_MAC_FILTER_CLR_FAIL;
+	}
+
+	memset(&entry, 0, sizeof(entry));
+	memcpy(&entry.addr, mac_filter->mac, ETH_ALEN);
+	entry.fid = mac_filter->fid_index;
+
+	spin_lock_bh(&p->lock);
+
+	/* Look up existing entry; clear only if present and currently DROPPING */
+	err = fal_fdb_entry_search(PPE_DRV_SWITCH_ID, &entry);
+	if (err != SW_OK) {
+		ppe_drv_warn("FDB entry not found for MAC %pM (fid=%u), err=%d\n",
+				mac_filter->mac, entry.fid, err);
+		ret = PPE_DRV_RET_PORT_MGMT_MAC_FILTER_CLR_FAIL;
+		goto out_unlock;
+	}
+
+	if (entry.dacmd == FAL_MAC_DROP && entry.sacmd == FAL_MAC_DROP) {
+		entry.dacmd = FAL_MAC_RDT_TO_CPU;
+		entry.sacmd = FAL_MAC_RDT_TO_CPU;
+
+		err = fal_fdb_entry_add(PPE_DRV_SWITCH_ID, &entry);
+		if (err != SW_OK) {
+			ppe_drv_warn("Failed to program RDT-to-CPU for MAC %pM (fid=%u), err=%d\n",
+					mac_filter->mac, entry.fid, err);
+			ret = PPE_DRV_RET_PORT_MGMT_MAC_FILTER_CLR_FAIL;
+			goto out_unlock;
+		}
+
+		ppe_drv_info("RDT-to-CPU applied for MAC %pM (fid=%u)\n",
+				mac_filter->mac, entry.fid);
+	} else {
+		/* Not a DROP entry; treat as no-op */
+		ppe_drv_info("No-op: FDB for MAC %pM (fid=%u) not in DROP state (dacmd=%u sacmd=%u)\n",
+				mac_filter->mac, entry.fid, entry.dacmd, entry.sacmd);
+	}
+
+out_unlock:
+	spin_unlock_bh(&p->lock);
+	return ret;
+}
+EXPORT_SYMBOL(ppe_drv_port_mgmt_mac_filter_clear);
+
+/*
+ * ppe_drv_port_mgmt_mac_filter_set()
+ *	Sets the MAC filter configuration.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_mac_filter_set(struct ppe_drv_port_mac_filter *mac_filter)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	fal_fdb_entry_t entry;
+	sw_error_t err;
+
+	if (!mac_filter) {
+		ppe_drv_warn("Invalid arguments: p=%p mac_filter=%p\n", p, mac_filter);
+		return PPE_DRV_RET_PORT_MGMT_MAC_FILTER_SET_FAIL;
+	}
+
+	memset(&entry, 0, sizeof(entry));
+	memcpy(&entry.addr, mac_filter->mac, ETH_ALEN);
+	entry.fid = mac_filter->fid_index;
+
+	spin_lock_bh(&p->lock);
+
+	/* Find the existing FDB entry. */
+	fal_fdb_entry_search(PPE_DRV_SWITCH_ID, &entry);
+
+	/* Update or Add in FDB */
+	entry.dacmd = FAL_MAC_DROP;
+	entry.sacmd = FAL_MAC_DROP;
+	err = fal_fdb_entry_add(PPE_DRV_SWITCH_ID, &entry);
+
+	spin_unlock_bh(&p->lock);
+
+	if (err != SW_OK) {
+		ppe_drv_warn("Failed to add/update drop FDB for MAC %pM (fid=%u), err=%d\n",
+				mac_filter->mac, entry.fid, err);
+		return PPE_DRV_RET_PORT_MGMT_MAC_FILTER_SET_FAIL;
+	}
+
+	ppe_drv_info("Drop FDB entry applied for MAC %pM (fid=%u)\n",
+			mac_filter->mac, entry.fid);
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_port_mgmt_mac_filter_set);

@@ -25,6 +25,10 @@ ccflags-y += -DNSS_PPE_FEATURE_EXCEPTION_EDIT
 ccflags-y += -DNSS_PPE_EXT_VLAN_FEATURE_SUPPORT
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq52xx))
+ccflags-y += -DNSS_PPE_ACL_RULE_RANGE
+endif
+
 obj-m += qca-nss-ppe-rule.o
 qca-nss-ppe-rule-objs := ppe_rule.o
 

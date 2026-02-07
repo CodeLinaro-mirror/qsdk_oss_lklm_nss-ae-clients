@@ -124,6 +124,10 @@ ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq54xx ipq53xx))
 ccflags-y += -DPPE_LOOPBACK_RING_SUPPORT
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq52xx))
+ccflags-y += -DNSS_PPE_ACL_RULE_RANGE
+endif
+
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DPPE_LOOPBACK_PORT_SUPPORT
 endif

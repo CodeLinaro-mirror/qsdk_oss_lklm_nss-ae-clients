@@ -900,4 +900,16 @@ bool ppe_drv_l2vp_sc_rmv(uint32_t dest_port_id);
  */
 bool ppe_drv_pon_get_pq_config(uint8_t pq, uint8_t *enq_vp, uint8_t *int_pri);
 #endif
+
+/**
+ * ppe_drv_hw_gro_feature_set
+ *	Set HW GRO feature state
+ *
+ * @param[in] dev	Netdevice on which HW GRO is enabled or disabled
+ * @param[in] enable	Enable or disable for HW GRO
+ *
+ * @return
+ * none.
+ */
+bool ppe_drv_hw_gro_feature_set(struct net_device *dev, bool enable);
 #endif /* _PPE_DRV_H_ */

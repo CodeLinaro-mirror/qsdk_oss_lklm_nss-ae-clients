@@ -3379,6 +3379,25 @@ static const struct kernel_param_ops eth_coremask_ops = {
 module_param_cb(eth_coremask, &eth_coremask_ops, &eth_coremask, 0644);
 
 #ifdef NSS_PPE_DRV_HW_GRO
+bool ppe_drv_hw_gro_feature_set(struct net_device *dev, bool enable)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	struct ppe_drv_port *port;
+
+	spin_lock_bh(&p->lock);
+	port = ppe_drv_port_from_dev(dev);
+	if (!port) {
+		ppe_drv_warn("PPE port invalid for HW GRO setting for dev:%s", dev->name);
+		spin_unlock_bh(&p->lock);
+		return false;
+	}
+
+	port->hw_gro_en = enable;
+	spin_unlock_bh(&p->lock);
+	return true;
+}
+EXPORT_SYMBOL(ppe_drv_hw_gro_feature_set);
+
 /*
  * ppe_drv_eth_gro_coremask_set_handler()
  *	Handler function to set value of eth_gro_coremask.

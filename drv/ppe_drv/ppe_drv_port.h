@@ -83,6 +83,7 @@ typedef enum ppe_drv_port_flag {
 	PPE_DRV_PORT_FLAG_TUN_ACTIVE = 0x800,
 	PPE_DRV_PORT_FLAG_IPSEC_FULL_INLINE = 0x1000,
 	PPE_DRV_PORT_FLAG_PORT_GEM = 0x2000,
+	PPE_DRV_PORT_FLAG_NETFN_OL=0x4000,
 } ppe_drv_port_flag_t;
 
 /*
@@ -115,6 +116,9 @@ struct ppe_drv_port {
 	bool ingress_untag_vlan;		/* Ingress VLAN rule for untag packets configured? */
 	bool active_l3_if_attached;		/* Port L3_IF attached? */
 	bool is_fdb_learn_enabled;		/* Port FDB learning enabled */
+#if defined(NSS_PPE_DRV_HW_GRO)
+	bool hw_gro_en;				/* HW GRO enable flag */
+#endif
 	uint16_t mtu;				/* MTU value of port */
 	uint16_t mru;				/* MRU value of port */
 	uint8_t mac_addr[ETH_ALEN];		/* MAC address of port */

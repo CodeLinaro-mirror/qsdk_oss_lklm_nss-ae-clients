@@ -93,6 +93,7 @@ static int16_t ppe_drv_pm_gen_tbl_idx_get(ppe_drv_rule_dir_t rule_dir)
 		 */
 		for (id = 0; id < PPE_DRV_PM_COUNTER_GEN_ID_MAX; id++) {
 			if (pm_gen->pm_ctx[id].idx_state == PPE_DRV_PM_COUNTER_GEN_ID_FREE) {
+				pm_gen->pm_ctx[id].idx_state = PPE_DRV_PM_COUNTER_GEN_ID_USED;
 				return id;
 			}
 		}
@@ -102,6 +103,7 @@ static int16_t ppe_drv_pm_gen_tbl_idx_get(ppe_drv_rule_dir_t rule_dir)
 		 */
 		for (id = 0; id < PPE_DRV_PM_COUNTER_GEN_ID_MAX; id++) {
 			if (pm_gen->eg_pm_ctx[id].idx_state == PPE_DRV_PM_COUNTER_GEN_ID_FREE) {
+				pm_gen->eg_pm_ctx[id].idx_state = PPE_DRV_PM_COUNTER_GEN_ID_USED;
 				return id;
 			}
 		}
@@ -156,16 +158,14 @@ struct ppe_drv_pm_counter_gen_ctx *ppe_drv_pm_gen_alloc(ppe_drv_rule_dir_t rule_
 	}
 
 	gen_ctx = (rule_dir == PPE_DRV_RULE_INGRESS) ? &pm_gen->pm_ctx[id] : &pm_gen->eg_pm_ctx[id];
-
-	memset(gen_ctx, 0, sizeof(struct ppe_drv_pm_counter_gen_ctx));
 	gen_ctx->tbl_idx = id;
 	gen_ctx->rule_dir = rule_dir;
-	gen_ctx->idx_state = PPE_DRV_PM_COUNTER_GEN_ID_USED;
 
 	if (rule_dir == PPE_DRV_RULE_INGRESS) {
 		gen_ctx->entry_index = id;
 	}
 
+	ppe_drv_trace("PM generation context is allocated with hw_index: %d\n", id);
 	spin_unlock_bh(&p->lock);
 
 	return gen_ctx;
@@ -393,12 +393,14 @@ static int16_t ppe_drv_pm_tbl_idx_get(ppe_drv_rule_dir_t rule_dir)
 	if (rule_dir == PPE_DRV_RULE_INGRESS) {
 		for (id = PPE_DRV_PM_COUNTER_ID_START; id <= PPE_DRV_PM_COUNTER_ID_END; id++) {
 			if (pm->in_ctx_array[id].state == PPE_DRV_PM_COUNTER_ID_FREE) {
+				pm->in_ctx_array[id].state = PPE_DRV_PM_COUNTER_ID_USED;
 				return id;
 			}
 		}
 	} else {
 		for (id = PPE_DRV_PM_COUNTER_ID_START; id <= PPE_DRV_PM_COUNTER_ID_END; id++) {
 			if (pm->eg_ctx_array[id].state == PPE_DRV_PM_COUNTER_ID_FREE) {
+				pm->eg_ctx_array[id].state = PPE_DRV_PM_COUNTER_ID_USED;
 				return id;
 			}
 		}
@@ -472,14 +474,8 @@ struct ppe_drv_pm_counter_ctx *ppe_drv_pm_alloc(ppe_drv_rule_dir_t rule_dir)
 	ctx = (rule_dir == PPE_DRV_RULE_INGRESS) ? &pm->in_ctx_array[tbl_idx] : &pm->eg_ctx_array[tbl_idx];
 
 	/*
-	 * Initialize context
-	 */
-	memset(ctx, 0, sizeof(struct ppe_drv_pm_counter_ctx));
-
-	/*
 	 * hw_index is the first free entry in table.
 	 */
-	ctx->state = PPE_DRV_PM_COUNTER_ID_USED;
 	ctx->info.hw_index = (uint8_t)tbl_idx;
 	ctx->info.rule_dir = rule_dir;
 
@@ -519,7 +515,6 @@ void ppe_drv_pm_counter_stats_update(struct ppe_drv_pm_counter_ctx *ctx)
 				ctx->info.hw_index, ret);
 		return;
 	}
-
 
 	/*
 	 * Calculate delta and update atomic counters

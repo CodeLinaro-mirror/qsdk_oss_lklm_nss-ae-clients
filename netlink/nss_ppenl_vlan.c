@@ -188,6 +188,7 @@ static int nss_ppenl_vlan_ops_create_rule(struct sk_buff *skb, struct genl_info 
 		nss_ppenl_info("%s: PPE rule create success\n", __func__);
 	} else {
 		nss_ppenl_info("create rule in ppe driver failed, error = %d\n", status);
+		nl_vlan_rule->rule.ret = status;
 	}
 
 	ret = nl_vlan_rule->rule.ret;

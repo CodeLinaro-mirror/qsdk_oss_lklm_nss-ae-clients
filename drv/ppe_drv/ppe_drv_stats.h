@@ -79,6 +79,11 @@ struct ppe_drv_gen_stats {
 	atomic64_t fail_ingress_vlan_over_bridge_add;	/* Ingress VLAN over brige add rule failed */
 	atomic64_t fail_ingress_vlan_over_bridge_del;	/* Ingress VLAN over brige delete rule failed */
 	atomic64_t fail_evp_full;		/* Create req fail due to Enqueue VP full */
+	atomic64_t fail_wlan_metadata_update;		/* Failed to update wlan metadata */
+	atomic64_t fail_qos_mapping_update;		/* Failed to update qos mapping */
+	atomic64_t fail_unidir_rule_entry_update;	/* Failed to update unidirection rule fwd_type */
+	atomic64_t fail_unidir_rule_match;		/* Failed to find matching tuple information */
+	atomic64_t unidir_update_rule_type_invalid;	/* Invalid rule type for unidirection update */
 };
 
 /*

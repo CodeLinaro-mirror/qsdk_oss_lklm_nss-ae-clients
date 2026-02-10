@@ -1158,10 +1158,10 @@ struct ppe_drv_flow *ppe_drv_flow_v6_get(struct ppe_drv_v6_5tuple *tuple)
 }
 
 /*
- * ppe_drv_flow_v6_sawf_mark_update()
- *	Update sawf mark in PPE
+ * ppe_drv_flow_v6_wlan_metadata_set()
+ *	Set flow QOS information for the v6 flow.
  */
-bool ppe_drv_flow_v6_sawf_mark_update(struct ppe_drv_v6_conn_flow *pcf)
+bool ppe_drv_flow_v6_wlan_metadata_set(struct ppe_drv_v6_conn_flow *pcf)
 {
 	fal_flow_qos_t flow_qos = {0};
 	uint16_t index;
@@ -1198,7 +1198,7 @@ bool ppe_drv_flow_v6_sawf_mark_update(struct ppe_drv_v6_conn_flow *pcf)
 #endif
 
 	if (!ppe_drv_flow_v6_wifi_qos_get(pcf, &flow_qos.qos, &wifi_qos_en)) {
-		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
+		ppe_drv_warn("%p: failed to obtain wifi qos %d", pcf, flow_qos.qos);
 		return false;
 	}
 
@@ -1206,7 +1206,8 @@ bool ppe_drv_flow_v6_sawf_mark_update(struct ppe_drv_v6_conn_flow *pcf)
 
 	err = fal_flow_qos_set(PPE_DRV_SWITCH_ID, index, &flow_qos);
 	if (err != SW_OK) {
-		ppe_drv_warn("%px: Mark rule update failed in PPE", pcf);
+		ppe_drv_warn("%px: failed to set wifi metadata in PPE with tree id %px and wifi qos %u",
+				pcf, flow_qos.tree_id, flow_qos.qos);
 		return false;
 	}
 
@@ -1235,6 +1236,7 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	bool tuple_3 = false;
 	bool wifi_qos_en = false;
 	uint16_t xmit_mtu;
+	fal_flow_entry_t *unidir_flow_cfg = NULL;
 	sw_error_t err;
 
 	/*
@@ -1530,11 +1532,28 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	ppe_drv_trace("%p: flow_tbl[PMTU]: %u", pcf, xmit_mtu);
 
 	/*
+	 * Changing the fwd_type to RDT_TO_CPU in case of unidirectional acceleration,
+	 * when one of the flow is not accelerated (flow or return)
+	 */
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_ACCEL_DISABLE)) {
+		unidir_flow_cfg = kzalloc(sizeof(fal_flow_entry_t), GFP_ATOMIC);
+		if (unidir_flow_cfg) {
+			memcpy(unidir_flow_cfg, &flow_cfg, sizeof(fal_flow_entry_t));
+		} else {
+			ppe_drv_warn("%p: failed to allocate flow_cfg, unidirectional updates will be disabled", pcf);
+		}
+		flow_cfg.fwd_type = FAL_FLOW_RDT_TO_CPU;
+	}
+
+	/*
 	 * Add the flow
 	 */
 	err = fal_flow_entry_add(PPE_DRV_SWITCH_ID, FAL_FLOW_OP_MODE_KEY, &flow_cfg);
 	if (err != SW_OK) {
 		ppe_drv_trace("%p: flow entry add failed", pcf);
+		if (unidir_flow_cfg) {
+			kfree(unidir_flow_cfg);
+		}
 		return NULL;
 	}
 
@@ -1572,6 +1591,10 @@ struct ppe_drv_flow *ppe_drv_flow_v6_add(struct ppe_drv_v6_conn_flow *pcf, struc
 	flow->entry_type = flow_cfg.entry_type;
 	flow->pri_profile = flow_cfg.pri_profile;
 	flow->pcf.v6 = pcf;
+	if (ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_ACCEL_DISABLE)) {
+		flow->unidir_info.flow_cfg = unidir_flow_cfg;
+	}
+
 	ppe_drv_trace("%p: flow_tbl entry added at index: %u", pcf, flow_cfg.entry_id);
 	return flow;
 }
@@ -2238,6 +2261,15 @@ bool ppe_drv_flow_del(struct ppe_drv_flow *pf)
 	pf->flags = 0;
 	pf->type = 0;
 	pf->entry_type = 0;
+
+	/*
+	 * Free the dynamically allocated flow_cfg memory
+	 */
+	if (pf->unidir_info.flow_cfg) {
+		kfree(pf->unidir_info.flow_cfg);
+		pf->unidir_info.flow_cfg = NULL;
+	}
+
 	ppe_drv_trace("%p: flow_tbl entry deleted at index: %u", pf, pf->index);
 	return true;
 }
@@ -2334,10 +2366,10 @@ struct ppe_drv_flow *ppe_drv_flow_v4_get(struct ppe_drv_v4_5tuple *tuple)
 
 
 /*
- * ppe_drv_flow_v4_sawf_mark_update()
- *	Update sawf mark in PPE
+ * ppe_drv_flow_v4_wlan_metadata_set()
+ *	Set flow QoS information for the v4 flow.
  */
-bool ppe_drv_flow_v4_sawf_mark_update(struct ppe_drv_v4_conn_flow *pcf)
+bool ppe_drv_flow_v4_wlan_metadata_set(struct ppe_drv_v4_conn_flow *pcf)
 {
 	fal_flow_qos_t flow_qos = {0};
 	uint16_t index;
@@ -2374,7 +2406,7 @@ bool ppe_drv_flow_v4_sawf_mark_update(struct ppe_drv_v4_conn_flow *pcf)
 #endif
 
 	if (!ppe_drv_flow_v4_wifi_qos_get(pcf, &flow_qos.qos, &wifi_qos_en)) {
-		ppe_drv_warn("%p: failed to obtain wifi qos", pcf);
+		ppe_drv_warn("%p: failed to obtain wifi qos %d", pcf, flow_qos.qos);
 		return false;
 	}
 
@@ -2382,7 +2414,8 @@ bool ppe_drv_flow_v4_sawf_mark_update(struct ppe_drv_v4_conn_flow *pcf)
 
 	err = fal_flow_qos_set(PPE_DRV_SWITCH_ID, index, &flow_qos);
 	if (err != SW_OK) {
-		ppe_drv_warn("%px: Mark rule update failed in PPE", pcf);
+		ppe_drv_warn("%px: failed to set wifi metadata in PPE with tree id %px and wifi qos %u",
+			pcf, flow_qos.tree_id, flow_qos.qos);
 		return false;
 	}
 
@@ -2413,6 +2446,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	bool tuple_3 = false;
 	bool wifi_qos_en = false;
 	uint16_t xmit_mtu;
+	fal_flow_entry_t *unidir_flow_cfg = NULL;
 	sw_error_t err;
 
 	/*
@@ -2724,11 +2758,28 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	ppe_drv_trace("%p: flow_tbl[PMTU]: %u", pcf, xmit_mtu);
 
 	/*
+	 * Changing the fwd_type to RDT_TO_CPU in case of unidirectional acceleration,
+	 * when one of the flow is not accelerated (flow or return)
+	 */
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_ACCEL_DISABLE)) {
+		unidir_flow_cfg = kzalloc(sizeof(fal_flow_entry_t), GFP_ATOMIC);
+		if (unidir_flow_cfg) {
+			memcpy(unidir_flow_cfg, &flow_cfg, sizeof(fal_flow_entry_t));
+		} else {
+			ppe_drv_warn("%p: failed to allocate flow_cfg, unidirectional updates will be disabled", pcf);
+		}
+		flow_cfg.fwd_type = FAL_FLOW_RDT_TO_CPU;
+	}
+
+	/*
 	 * Add the flow
 	 */
 	err = fal_flow_entry_add(PPE_DRV_SWITCH_ID, FAL_FLOW_OP_MODE_KEY, &flow_cfg);
 	if (err != SW_OK) {
 		ppe_drv_trace("%p: flow entry add failed", pcf);
+		if (unidir_flow_cfg) {
+			kfree(unidir_flow_cfg);
+		}
 		return NULL;
 	}
 
@@ -2767,6 +2818,10 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 	flow->entry_type = flow_cfg.entry_type;
 	flow->pri_profile = flow_cfg.pri_profile;
 	flow->pcf.v4 = pcf;
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_ACCEL_DISABLE)) {
+		flow->unidir_info.flow_cfg = unidir_flow_cfg;
+	}
+
 	ppe_drv_trace("%p: flow_tbl entry added at index: %u", pcf, flow_cfg.entry_id);
 	return flow;
 }
@@ -2824,6 +2879,41 @@ static void ppe_drv_flow_table_free(void)
 		vfree(flow_table_info->qdisc_info);
 		vfree(flow_table_info);
 	}
+}
+
+/*
+ * ppe_drv_flow_accel_enable()
+ *	Accelerate the de-accelerated flow by updating the fwd_type.
+ * This will be called under the ppe_drv lock, taken at the
+ * time of update.
+ */
+bool ppe_drv_flow_accel_enable(struct ppe_drv_flow *flow)
+{
+	sw_error_t err;
+
+	if (!flow || !flow->unidir_info.flow_cfg) {
+		ppe_drv_warn("%p: invalid flow for acceleration", flow);
+		return false;
+	}
+
+	/*
+	 * Update the flow in FAL to change the forward type.
+	 */
+	err = fal_flow_entry_add(PPE_DRV_SWITCH_ID, FAL_FLOW_OP_MODE_KEY, flow->unidir_info.flow_cfg);
+	if (err != SW_OK) {
+		ppe_drv_warn("%p: flow entry %u resume failed", flow, flow->unidir_info.flow_cfg->entry_id);
+		return false;
+	}
+
+	/*
+	 * Delete the flow_cfg reference
+	 */
+	if (flow->unidir_info.flow_cfg) {
+		kfree(flow->unidir_info.flow_cfg);
+		flow->unidir_info.flow_cfg = NULL;
+	}
+
+	return true;
 }
 
 /*

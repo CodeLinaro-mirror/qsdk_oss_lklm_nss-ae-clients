@@ -1,17 +1,6 @@
 /*
- * Copyright (c) 2022-2026 Qualcomm Innovation Center, Inc. All rights reserved.
- *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: ISC
  */
 
 /**
@@ -91,6 +80,8 @@
 #define PPE_DRV_V6_VALID_FLAG_FLOW_HOST_QDISC_VALID	0x00004000  /**< Qdisc info is valid in flow direction. */
 #define PPE_DRV_V6_VALID_FLAG_RETURN_HOST_QDISC_VALID	0x00008000  /**< Qdisc info is valid in return direction. */
 #define PPE_DRV_V6_VALID_FLAG_FLOW_LABEL		0x00010000	/** < IPv6 header flow label valid. */
+#define PPE_DRV_V6_VALID_FLAG_UNIDIR_RULE	0x00020000	/**< Unidirectional rule is valid. */
+
 #define PPE_DRV_V6_MAX_CONN_COUNT               1024
 
 /**
@@ -106,13 +97,17 @@ struct ppe_drv_v6_5tuple {
 };
 
 /**
- * ppe_drv_v6_sawf_mark_update
- *	PPE IPv6 SAWF rule update structure
+ * ppe_drv_v6_rule_update_msg
+ *	PPE IPv6 rule update structure
  */
-struct ppe_drv_v6_sawf_mark_update {
-	struct ppe_drv_v6_5tuple tuple;			/**< Holds values of the 5 tuple. */
-	struct ppe_drv_service_class_rule sawf_rule;	/**< Service class related information. */
-	uint16_t valid_flags;				/**< Flags associated with SAWF mark update. */
+struct ppe_drv_v6_rule_update_msg  {
+	struct ppe_drv_v6_5tuple tuple;		/**< Holds values of the original 5 tuple. */
+	uint8_t rule_type;			/**< Type of rule to be updated. */
+
+	union ppe_drv_v6_update_info {
+		struct ppe_drv_unidir_update_info unidir;	/**< Unidirectional update related information. */
+		struct ppe_drv_service_class_rule sawf;		/**< Service class related information. */
+	} info;
 };
 
 /**
@@ -168,6 +163,7 @@ struct ppe_drv_v6_rule_create {
 	struct ppe_drv_wifi_mdata_rule wifi_rule;	/**< Wi-Fi metadata rule ID information. */
 	struct ppe_drv_nptv6_rule npt6_rule;		/**< NPTv6 configured rule. */
 	struct ppe_drv_vp_dl_qdisc_rule qdisc_rule;	/**< Qdisc rule information. */
+	struct ppe_drv_accel_rule_dir rule_dir;		/**< Information about direction to accelerate. */
 
 	/*
 	 * Response.
@@ -392,18 +388,18 @@ ppe_drv_ret_t ppe_drv_v6_destroy(struct ppe_drv_v6_rule_destroy *destroy);
 ppe_drv_ret_t ppe_drv_v6_create(struct ppe_drv_v6_rule_create *create);
 
 /**
- * ppe_drv_v6_rule_sawf_mark_update
- *	Update SAWF rule in PPE.
+ * ppe_drv_v6_rule_update
+ * 	Update bidirection rule in PPE.
  *
  * @datatypes
- * ppe_drv_v6_sawf_mark_update
+ * ppe_drv_v6_rule_update_msg
  *
- * @param[in] update	Pointer to the NSS PPE SAWF rule update message.
+ * @param[in] update_msg	Pointer to the PPE rule update message.
  *
  * @return
- * Status of the mark update operation.
+ * Status of the update operation.
  */
-ppe_drv_ret_t ppe_drv_v6_rule_sawf_mark_update(struct ppe_drv_v6_sawf_mark_update *update);
+ppe_drv_ret_t ppe_drv_v6_rule_update(struct ppe_drv_v6_rule_update_msg *update_msg);
 
 /**
  * ppe_drv_v6_nsm_stats_update

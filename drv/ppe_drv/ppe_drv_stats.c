@@ -102,6 +102,11 @@ static const char *ppe_drv_stats_conn_str[] = {
 	"fail_ingress_vlan_over_bridge_add",		/* Ingress VLAN over bridge add rule failed */
 	"fail_ingress_vlan_over_bridge_del",		/* Ingress VLAN over bridge delete rule failed */
 	"fail_evp_full",				/* Create req fail due to enqueue port table full */
+	"fail_wlan_metadata_update",			/* Failed to update wlan metadata */
+	"fail_qos_mapping_update",			/* Failed to update qos mapping */
+	"fail_unidir_rule_entry_update",		/* Failed to update unidirection rule fwd_type */
+	"fail_unidir_rule_match",			/* Failed to find matching tuple information */
+	"unidir_update_rule_type_invalid",		/* Invalid rule type for unidirection update */
 };
 
 /*

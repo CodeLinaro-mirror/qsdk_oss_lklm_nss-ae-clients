@@ -67,8 +67,7 @@ static struct ppe_drv_pm_counter_ctx *ppe_pm_counter_alloc_internal(uint8_t coun
 		}
 
 		kref_get(&pm_g->counter_array[counter_id].ref);
-		ppe_pm_info("Ctx for counter_id %d is already allocated.\n"
-				"%d rules are associated with this ctx.\n",
+		ppe_pm_info("Ctx for counter_id %d is already allocated, %d rules are associated with this ctx.\n",
 				counter_id, kref_read(&pm_g->counter_array[counter_id].ref));
 		return pm_ctx;
 	}

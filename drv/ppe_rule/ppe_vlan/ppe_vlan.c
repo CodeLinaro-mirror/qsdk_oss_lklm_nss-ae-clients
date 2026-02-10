@@ -61,7 +61,7 @@ static struct ppe_vlan *ppe_vlan_rule_find_by_id(int id)
 
 /*
  * ppe_vlan_rule_exist()
- *	Check if VLAN rule already exist.
+ *      Check if VLAN rule already exist.
  */
 static bool ppe_vlan_rule_exist(struct ppe_vlan *vlan)
 {
@@ -86,7 +86,18 @@ static bool ppe_vlan_rule_exist(struct ppe_vlan *vlan)
 		}
 
 		if (rule_active->flags & PPE_DRV_VLAN_RULE_FLAG_PORT_TYPE) {
-			if ((rule_active->port_type != rule_new->port_type) || (rule_active->port_val != rule_new->port_val)) {
+			if (rule_active->port_type != rule_new->port_type) {
+				continue;
+			}
+
+			/*
+			 * For port based VLAN, match dev pointer. For others, match port value.
+			 */
+			if (rule_new->port_type == PPE_DRV_VLAN_PORT_TYPE_PORT) {
+				if (vlan_active->info.src_dev != vlan->info.src_dev) {
+					continue;
+				}
+			} else if (rule_active->port_val != rule_new->port_val) {
 				continue;
 			}
 		}
@@ -568,39 +579,54 @@ static bool ppe_vlan_action_fill(struct ppe_vlan *vlan, struct ppe_vlan_rule *ru
 		vlan_action->flags |= PPE_DRV_VLAN_ACTION_FLAG_CTPID;
 	}
 
-	if (r_action->action_flags & PPE_VLAN_ACTION_FLAG_CNTR_ID) {
-		if (rule->rule_dir == PPE_VLAN_RULE_DIR_EGRESS) {
-			ppe_vlan_warn("counter_id is not supported with downstream rule_dir\n");
-			return false;
-		}
-
-		if(r_action->counter_id >= 0 && r_action->counter_id < 64) {
-			vlan_action->counter_id = r_action->counter_id;
-		} else {
-			ppe_vlan_warn("Invalid value for counter parameter: %d.\n"
-					"Valid Range 0-63\n", r_action->counter_id);
-			return false;
-		}
-		vlan_action->flags |= PPE_DRV_VLAN_ACTION_FLAG_CNTR_ID;
+	/*
+	 * counter_id is only valid when counter_mode is also specified.
+	 */
+	if ((r_action->action_flags & PPE_VLAN_ACTION_FLAG_CNTR_ID) &&
+			!(r_action->action_flags & PPE_VLAN_ACTION_FLAG_CNTR_MODE)) {
+		ppe_vlan_warn("counter_id is only valid when counter_mode is specified\n");
+		return false;
 	}
 
 	if (r_action->action_flags & PPE_VLAN_ACTION_FLAG_CNTR_MODE) {
 		if (rule->rule_dir == PPE_VLAN_RULE_DIR_EGRESS) {
-			ppe_vlan_warn("counter_mode is not valid with DOWNSTREAM rule_dir\n");
+			ppe_vlan_warn("counter_mode/counter_id is not valid with DOWNSTREAM rule_dir\n");
 			return false;
 		}
+
 		switch (r_action->counter_mode) {
 			case PPE_VLAN_COUNTER_MODE_VLAN:
+				if (r_action->action_flags & PPE_VLAN_ACTION_FLAG_CNTR_ID) {
+					ppe_vlan_warn("counter_id is not valid with VLAN counter_mode\n");
+					return false;
+				}
+
 				vlan_action->counter_mode = PPE_DRV_VLAN_COUNTER_MODE_VLAN;
 				break;
+
 			case PPE_VLAN_COUNTER_MODE_PON_PM:
+				if (!(r_action->action_flags & PPE_VLAN_ACTION_FLAG_CNTR_ID)) {
+					ppe_vlan_warn("counter_id must be specified with PON_PM counter_mode\n");
+					return false;
+				}
+
+				if (r_action->counter_id < 0 || r_action->counter_id >= 64) {
+					ppe_vlan_warn("Invalid value for counter parameter: %d.\n"
+							"Valid Range 0-63\n", r_action->counter_id);
+					return false;
+				}
+
+				vlan_action->counter_id = r_action->counter_id;
+				vlan_action->flags |= PPE_DRV_VLAN_ACTION_FLAG_CNTR_ID;
 				vlan_action->counter_mode = PPE_DRV_VLAN_COUNTER_MODE_PONPM;
 				break;
+
 			default:
 				ppe_vlan_warn("Incorrect input for counter_mode parameter: %d\n",
 						r_action->counter_mode);
 				return false;
 		}
+
 		vlan_action->flags |= PPE_DRV_VLAN_ACTION_FLAG_CNTR_MODE;
 	}
 
@@ -1305,15 +1331,13 @@ ppe_vlan_ret_t ppe_vlan_rule_destroy(ppe_vlan_rule_id_t id)
 	}
 
 	if (kref_put(&vlan->ref_cnt, ppe_vlan_rule_free)) {
-		ppe_vlan_trace("%p: reference goes down to 0 for vlan: %p ID: %d\n",
-				vlan_g, vlan, id);
+		ppe_vlan_trace("%p: reference goes down to 0 for ID: %d\n", vlan_g, id);
 	}
 
 	/*
 	 * Update stats
 	 */
 	ppe_vlan_stats_inc(&vlan_g->stats.cmn.vlan_destroy_req);
-	ppe_vlan_info("%p: rule_id: %u ref dec: %u", vlan_g, id, kref_read(&vlan->ref_cnt));
 
 	spin_unlock_bh(&vlan_g->lock);
 	return PPE_VLAN_RET_SUCCESS;

@@ -37,8 +37,8 @@ static char *ppe_vlan_dump_tag_format[] = {
  */
 static char *ppe_vlan_dump_port_type[] = {
 	"bitmap",
-	"gem_port",
 	"port",
+	"gemport",
 };
 
 /*

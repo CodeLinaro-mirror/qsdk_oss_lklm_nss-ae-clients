@@ -70,15 +70,15 @@
 
 #define PPE_DRV_V4_CONN_FLAG_FLOW_SW_MDATA_VALID	0x00800000
 					/* Flow has valid flow idx set*/
-
 #define PPE_DRV_V4_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_ENCAP	0x01000000
 					/* Flow is full inline encap direction */
 
 #define PPE_DRV_V4_CONN_FLOW_FLAG_FULL_INLINE_IPSEC_DECAP	0x02000000
 					/* Flow is full inline encap direction */
-
 #define PPE_DRV_V4_CONN_FLAG_FLOW_ACCEL_DISABLE			0x04000000
 					/* Disable PPE acceleration of this Flow. */
+#define PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO	0x08000000
+					/* Flow has HW GRO enabled */
 
 /*
  * ppe_drv_v4_addr_equal()

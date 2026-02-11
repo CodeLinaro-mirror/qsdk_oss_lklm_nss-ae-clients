@@ -22,6 +22,10 @@ ifeq ($(SoC),$(filter $(SoC),ipq96xx))
 ccflags-y += -DNSS_PPE_IPQ96XX
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
+ccflags-y += -DNSS_PPE_DRV_HW_GRO
+endif
+
 ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx))
 ccflags-y += -DPPE_DRV_FLOW_IG_MAC_WAR
 endif

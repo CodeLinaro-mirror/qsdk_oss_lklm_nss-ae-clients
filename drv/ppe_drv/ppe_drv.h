@@ -297,6 +297,17 @@ enum ppe_drv_static_dbg_level {
 #define PPE_DRV_ENQ_VP_QID_NONE			0
 
 /*
+ * Default coremask value. This value means that flows created,
+ * can be mapped to 3 cores i.e. 0, 1 and 2.
+ */
+#define PPE_DRV_RFS_COREMASK_DEFAULT		0x7
+#define PPE_DRV_GRO_COREMASK_DEFAULT		0x7
+
+#ifdef NSS_PPE_DRV_HW_GRO
+#define NSS_PPE_DRV_MAX_GRO_FLOWS 8
+#endif
+
+/*
  * ppe_drv_rfs_interface_type
  *	PPE interfaces for which RFS coremask is stored
  */
@@ -307,11 +318,26 @@ typedef enum ppe_drv_rfs_interface_type {
 	PPE_DRV_RFS_INTERFACE_TYPE_MAX,		/* Maximun number of interface types. */
 } ppe_drv_rfs_interface_t;
 
+#ifdef NSS_PPE_DRV_HW_GRO
 /*
- * Default coremask value. This value means that flows created,
- * can be mapped to 3 cores i.e. 0, 1 and 2.
+ * ppe_drv_gro_info
+ *	PPE GRO specific global context in ppe_drv
  */
-#define PPE_DRV_RFS_COREMASK_DEFAULT		0x7
+struct ppe_drv_gro_info {
+	uint8_t core2enq_vp[NR_CPUS];					/* Storing the enqueue VP number corresponding to each core. */
+	uint8_t coremask;						/* Global access value of the coremasks of different interfaces. */
+	uint8_t shadow_coremask;					/* Global access value of the coremasks of different interfaces. */
+};
+
+/*
+ * ppe_drv_gro_ctx
+ *	GRO information
+ */
+struct ppe_drv_gro_ctx {
+	atomic_t num_hw_gro_flows;			/* Number of HW GRO offloaded */
+	struct ppe_drv_gro_info gro_info;		/* PPE GRO global context */
+};
+#endif
 
 /*
  * ppe_drv_rfs_ctx
@@ -539,6 +565,9 @@ struct ppe_drv {
 	struct ppe_drv_rfs_ctx rfs;		/* PPE RFS global context */
 #ifdef NSS_PPE_TUNNEL_TPR_ENABLE
 	struct ppe_drv_tun_tpr *tun_tpr;	/* Tunnel TPR entries list */
+#endif
+#ifdef NSS_PPE_DRV_HW_GRO
+	struct ppe_drv_gro_ctx gro_ctx;		/* HW GRO specific context */
 #endif
 };
 

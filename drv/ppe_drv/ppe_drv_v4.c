@@ -2482,6 +2482,13 @@ ppe_drv_ret_t ppe_drv_v4_flush(struct ppe_drv_v4_conn *cn)
 	 */
 	ppe_drv_stats_inc(&p->stats.gen_stats.v4_flush_req);
 
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+	}
+#endif
+
 	/*
 	 * Delete flow table entry.
 	 */
@@ -2497,6 +2504,13 @@ ppe_drv_ret_t ppe_drv_v4_flush(struct ppe_drv_v4_conn *cn)
 	if (pcf) {
 		ppe_drv_v4_if_walk_release(pcf);
 	}
+
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v4_conn_flow_flags_check(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+	}
+#endif
 
 	/*
 	 * Find the other flow associated with this connection.
@@ -2799,12 +2813,20 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 
 	pcf = flow->pcf.v4;
 
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+	}
+#endif
+
 	if (!ppe_drv_v4_flow_del(pcf)) {
 		spin_unlock_bh(&p->lock);
 		ppe_drv_stats_inc(&comm_stats->v4_destroy_fail);
 		ppe_drv_warn("%p: deletion of flow failed: %p", p, pcf);
 		return PPE_DRV_RET_FAILURE_DESTROY_FAIL;
 	}
+
 
 	/*
 	 * Release references on interfaces.
@@ -2813,6 +2835,13 @@ ppe_drv_ret_t ppe_drv_v4_destroy(struct ppe_drv_v4_rule_destroy *destroy)
 
 	cn = ppe_drv_v4_conn_flow_conn_get(pcf);
 	pcr = (pcf == &cn->pcf) ? &cn->pcr : &cn->pcf;
+
+#if defined(NSS_PPE_DRV_HW_GRO)
+	if (ppe_drv_v4_conn_flow_flags_check(pcr, PPE_DRV_V4_CONN_FLAG_FLOW_HW_GRO)) {
+		BUG_ON(atomic_read(&p->gro_ctx.num_hw_gro_flows) <= 0);
+		atomic_dec(&p->gro_ctx.num_hw_gro_flows);
+	}
+#endif
 
 	/*
 	 * Find the other flow associated with this connection.

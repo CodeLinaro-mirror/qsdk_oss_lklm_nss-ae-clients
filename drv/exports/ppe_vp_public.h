@@ -70,6 +70,37 @@ typedef enum ppe_vp_status {
 
 typedef int16_t ppe_vp_num_t;
 
+/*
+ * ppe_vp_cb_mdata_type
+ *	Metadata type
+ */
+enum ppe_vp_cb_mdata_type {
+	PPE_VP_CB_MDATA_TYPE_NONE = 0,		/**< No specific metadata */
+	PPE_VP_CB_MDATA_TYPE_HW_GRO = 1,	/**< HW GRO metadata */
+};
+
+/*
+ * ppe_vp_cb_mdata_info_gro
+ *	GRO metadata information
+ */
+struct ppe_vp_cb_mdata_info_gro {
+	bool hw_gro_en;		/**< HW GRO enable flag */
+	bool hw_gro_more;	/**< HW GRO more flag */
+	bool hw_gro_fin;	/**< HW GRO fin flag */
+	bool hw_gro_psh;	/**< HW GRO push flag */
+};
+
+/*
+ * ppe_vp_cb_mdata_info
+ *	PPE VP metadata info
+ */
+struct ppe_vp_cb_mdata_info {
+	enum ppe_vp_cb_mdata_type mdata_type;	/**< Metadata type */
+	union {
+		struct ppe_vp_cb_mdata_info_gro gro_info;
+	} minfo;
+};
+
 /**
  * ppe_vp_cb_info
  *	Information for VP callback
@@ -82,6 +113,7 @@ struct ppe_vp_cb_info {
 	struct napi_struct *napi;	/**< RX napi */
 	struct net_device *phys_dev;	/**< Physical dev for tunnel */
 	uint32_t flow_idx;		/**< Flow index of a packet */
+	struct ppe_vp_cb_mdata_info mdata_info;	/**< Metadata info */
 };
 
 /**

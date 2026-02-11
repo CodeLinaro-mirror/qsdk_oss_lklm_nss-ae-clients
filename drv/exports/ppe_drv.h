@@ -615,6 +615,18 @@ int16_t ppe_drv_queue_from_core(uint8_t core);
 void ppe_drv_loopback_base_queue(uint8_t queue_id, uint32_t loopback_feature_type);
 
 /**
+ * ppe_drv_gro_core2queue_mapping
+ *	Provide core to queue gro mapping.
+ *
+ * @param[in] core core_id.
+ * @param[in] queue_id  queue_id.
+ *
+ * @return
+ * none.
+ */
+void ppe_drv_gro_core2queue_mapping(uint8_t core, uint8_t queue_id);
+
+/**
  * ppe_drv_core2queue_mapping
  *	Provide core to queue mapping.
  *

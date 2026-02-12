@@ -179,6 +179,104 @@ ppe_port_mgmt_ret_t ppe_port_mgmt_mac_lrn_limit_set(struct ppe_port_mac_lrn_limi
 EXPORT_SYMBOL(ppe_port_mgmt_mac_lrn_limit_set);
 
 /*
+ * ppe_port_mgmt_mac_filter_clear()
+ *      Allow MAC address via PPE port MAC filter.
+ */
+ppe_port_mgmt_ret_t ppe_port_mgmt_mac_filter_clear(struct ppe_port_mac_filter *mac_filter)
+{
+	uint8_t ret;
+	struct ppe_drv_port_mac_filter drv_mac_filter = {0};
+	struct net_device *dev = NULL;
+
+	if (!mac_filter) {
+		ppe_port_mgmt_warn("mac_filter is NULL\n");
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	if (mac_filter->fid_valid) {
+		if (!mac_filter->fid_name[0]) {
+			ppe_port_mgmt_warn("FID name not provided while fid_valid is set\n");
+			return PPE_PORT_MGMT_RET_FAILURE;
+		}
+
+		dev = dev_get_by_name(&init_net, mac_filter->fid_name);
+		if (!dev) {
+			ppe_port_mgmt_warn("Interface '%s' not found\n", mac_filter->fid_name);
+			return PPE_PORT_MGMT_RET_FAILURE;
+		}
+		dev_put(dev);
+	}
+
+	ret = ppe_drv_port_mgmt_fid_get(dev, &mac_filter->fid_index);
+	if (ret != PPE_PORT_MGMT_RET_SUCCESS) {
+		ppe_port_mgmt_warn("Failed to clear MAC filter (err=%d)\n", ret);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	memcpy(&drv_mac_filter.mac, mac_filter->mac, ETH_ALEN);
+	drv_mac_filter.fid_valid = mac_filter->fid_valid;
+	drv_mac_filter.fid_index = mac_filter->fid_index;
+
+	ret = ppe_drv_port_mgmt_mac_filter_clear(&drv_mac_filter);
+	if (ret != PPE_PORT_MGMT_RET_SUCCESS) {
+		ppe_port_mgmt_warn("Failed to clear MAC filter (err=%d)\n", ret);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	return PPE_PORT_MGMT_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_port_mgmt_mac_filter_clear);
+
+/*
+ * ppe_port_mgmt_mac_filter_set()
+ *      Block a MAC address via PPE port MAC filter.
+ */
+ppe_port_mgmt_ret_t ppe_port_mgmt_mac_filter_set(struct ppe_port_mac_filter *mac_filter)
+{
+	uint8_t ret;
+	struct ppe_drv_port_mac_filter drv_mac_filter = {0};
+	struct net_device *dev = NULL;
+
+	if (!mac_filter) {
+		ppe_port_mgmt_warn("mac_filter is NULL\n");
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	if (mac_filter->fid_valid) {
+		if (!mac_filter->fid_name[0]) {
+			ppe_port_mgmt_warn("FID name not provided while fid_valid is set\n");
+			return PPE_PORT_MGMT_RET_FAILURE;
+		}
+
+		dev = dev_get_by_name(&init_net, mac_filter->fid_name);
+		if (!dev) {
+			ppe_port_mgmt_warn("Interface '%s' not found\n", mac_filter->fid_name);
+			return PPE_PORT_MGMT_RET_FAILURE;
+		}
+		dev_put(dev);
+	}
+
+	ret = ppe_drv_port_mgmt_fid_get(dev, &mac_filter->fid_index);
+	if (ret != PPE_PORT_MGMT_RET_SUCCESS) {
+		ppe_port_mgmt_warn("Failed to clear MAC filter (err=%d)\n", ret);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	memcpy(&drv_mac_filter.mac, mac_filter->mac, ETH_ALEN);
+	drv_mac_filter.fid_valid = mac_filter->fid_valid;
+	drv_mac_filter.fid_index = mac_filter->fid_index;
+
+	ret = ppe_drv_port_mgmt_mac_filter_set(&drv_mac_filter);
+	if (ret != PPE_PORT_MGMT_RET_SUCCESS) {
+		ppe_port_mgmt_warn("Failed to set MAC filter (err=%d)\n", ret);
+		return PPE_PORT_MGMT_RET_FAILURE;
+	}
+
+	return PPE_PORT_MGMT_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_port_mgmt_mac_filter_set);
+
+/*
  * ppe_port_mgmt_init()
  *      PORT_MGMT init API.
  */
@@ -189,6 +287,7 @@ void ppe_port_mgmt_init(struct dentry *d_rule)
 	spin_lock_init(&port_mgmt_g->lock);
 
 	INIT_LIST_HEAD(&port_mgmt_g->active_rules);
+
 	ppe_port_mgmt_stats_debugfs_init(d_rule);
 	ppe_port_mgmt_gen_dump_init(d_rule);
 }

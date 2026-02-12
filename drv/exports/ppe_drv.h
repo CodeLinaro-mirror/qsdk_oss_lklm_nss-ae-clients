@@ -583,6 +583,9 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_PORT_MGMT_ACT_CONFIG_FAIL,		/**< Failed to configure the action control info. */
 	PPE_DRV_RET_PORT_MGMT_ISOL_DEFAULT_FAIL,	/**< Failed to configure the default isol config. */
 	PPE_DRV_RET_PORT_MGMT_MAC_LRN_LMT_CONFIG_FAIL,	/**< Failed to configure the mac learn limit. */
+	PPE_DRV_RET_PORT_MGMT_FID_GET_FAIL,		/**< Failed to get the vsi for the port. */
+	PPE_DRV_RET_PORT_MGMT_MAC_FILTER_CLR_FAIL,	/**< Failed to clear the mac filter table. */
+	PPE_DRV_RET_PORT_MGMT_MAC_FILTER_SET_FAIL,	/**< Failed to config the mac filter. */
 	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 

@@ -21,6 +21,8 @@ static int nss_ppenl_port_mgmt_ops_port_isol_set(struct sk_buff *skb, struct gen
 static int nss_ppenl_port_mgmt_ops_act_ctrl_set(struct sk_buff *skb, struct genl_info *info);
 static int nss_ppenl_port_mgmt_ops_isol_def_set(struct sk_buff *skb, struct genl_info *info);
 static int nss_ppenl_port_mgmt_ops_mac_lrn_limit_set(struct sk_buff *skb, struct genl_info *info);
+static int nss_ppenl_port_mgmt_ops_mac_filter_set(struct sk_buff *skb, struct genl_info *info);
+static int nss_ppenl_port_mgmt_ops_mac_filter_clear(struct sk_buff *skb, struct genl_info *info);
 
 /*
  * operation table called by the generic netlink layer based on the command
@@ -30,6 +32,8 @@ static struct genl_ops nss_ppenl_port_mgmt_ops[] = {
 	{.cmd = NSS_PPE_PORT_MGMT_ACT_CTRL_SET_MSG, .doit = nss_ppenl_port_mgmt_ops_act_ctrl_set,},	/* PORT_MGMT action control set */
 	{.cmd = NSS_PPE_PORT_MGMT_PORT_ISOL_DEF_MSG, .doit = nss_ppenl_port_mgmt_ops_isol_def_set,},	/* PORT_MGMT default isolation set */
 	{.cmd = NSS_PPE_PORT_MGMT_MAC_LRN_LIMIT_SET_MSG, .doit = nss_ppenl_port_mgmt_ops_mac_lrn_limit_set,},	/* PORT_MGMT mac learn limit set */
+	{.cmd = NSS_PPE_PORT_MGMT_MAC_FILTER_SET_MSG, .doit = nss_ppenl_port_mgmt_ops_mac_filter_set,},   /* PORT_MGMT mac filter set */
+	{.cmd = NSS_PPE_PORT_MGMT_MAC_FILTER_CLR_MSG, .doit = nss_ppenl_port_mgmt_ops_mac_filter_clear,},   /* PORT_MGMT mac filter clear */
 };
 
 /*
@@ -274,6 +278,120 @@ static int nss_ppenl_port_mgmt_ops_mac_lrn_limit_set(struct sk_buff *skb, struct
 	nss_ppenl_ucast_resp(resp);
 	return 0;
 
+}
+
+/*
+ * nss_ppenl_port_mgmt_ops_mac_filter_set()
+ *	Handle Netlink request to set MAC filter configuration.
+ */
+static int nss_ppenl_port_mgmt_ops_mac_filter_set(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nss_ppenl_port_mgmt_info *nl_port_mgmt_rule;
+	struct nss_ppenl_cmn *nl_cm;
+	struct sk_buff *resp;
+	uint32_t pid;
+	int error;
+	int ret;
+
+	/*
+	 * extract the message payload
+	 */
+	nl_cm = nss_ppenl_get_msg(&nss_ppenl_port_mgmt_family, info, NSS_PPE_PORT_MGMT_MAC_FILTER_SET_MSG);
+	if (!nl_cm) {
+		nss_ppenl_info("unable to extract PORT_MGMT mac filter set info\n");
+		nss_ppenl_ucast_resp(skb);
+		return -EINVAL;
+	}
+
+	/*
+	 * Message validation required before accepting the configuration
+	 */
+	nl_port_mgmt_rule = container_of(nl_cm, struct nss_ppenl_port_mgmt_info, cm);
+	pid = nl_cm->pid;
+	nss_ppenl_info("%s: pid: %d\n", __func__, pid);
+
+	/*
+	 * copy the NL message for response
+	 */
+	resp = nss_ppenl_copy_msg(skb);
+	if (!resp) {
+		nss_ppenl_info("%d:unable to save response data from NL buffer\n", pid);
+		error = -ENOMEM;
+		nss_ppenl_ucast_resp(skb);
+		return error;
+	}
+
+	ret = ppe_port_mgmt_mac_filter_set(&nl_port_mgmt_rule->mac_filter);
+	if (ret) {
+		nss_ppenl_info("PPE port mac filter set failed = %d\n", ret);
+	}
+
+	/*
+	 * Send the response code to user application
+	 */
+	nl_port_mgmt_rule = nss_ppenl_get_data(resp);
+	nl_port_mgmt_rule->mac_filter.ret = ret;
+
+	nss_ppenl_trace("Sending response to userspace: ret %d\n",  nl_port_mgmt_rule->mac_filter.ret);
+	nss_ppenl_ucast_resp(resp);
+	return 0;
+}
+
+/*
+ * nss_ppenl_port_mgmt_ops_mac_filter_clear()
+ *	Handle Netlink request to clear MAC filter configuration.
+ */
+static int nss_ppenl_port_mgmt_ops_mac_filter_clear(struct sk_buff *skb, struct genl_info *info)
+{
+	struct nss_ppenl_port_mgmt_info *nl_port_mgmt_rule;
+	struct nss_ppenl_cmn *nl_cm;
+	struct sk_buff *resp;
+	uint32_t pid;
+	int error;
+	int ret;
+
+	/*
+	 * extract the message payload
+	 */
+	nl_cm = nss_ppenl_get_msg(&nss_ppenl_port_mgmt_family, info, NSS_PPE_PORT_MGMT_MAC_FILTER_CLR_MSG);
+	if (!nl_cm) {
+		nss_ppenl_info("unable to extract PORT_MGMT mac filter clear info\n");
+		nss_ppenl_ucast_resp(skb);
+		return -EINVAL;
+	}
+
+	/*
+	 * Message validation required before accepting the configuration
+	 */
+	nl_port_mgmt_rule = container_of(nl_cm, struct nss_ppenl_port_mgmt_info, cm);
+	pid = nl_cm->pid;
+	nss_ppenl_info("%s: pid: %d\n", __func__, pid);
+
+	/*
+	 * copy the NL message for response
+	 */
+	resp = nss_ppenl_copy_msg(skb);
+	if (!resp) {
+		nss_ppenl_info("%d:unable to save response data from NL buffer\n", pid);
+		error = -ENOMEM;
+		nss_ppenl_ucast_resp(skb);
+		return error;
+	}
+
+	ret = ppe_port_mgmt_mac_filter_clear(&nl_port_mgmt_rule->mac_filter);
+	if (ret) {
+		nss_ppenl_info("PPE port mac filter clear failed = %d\n", ret);
+	}
+
+	/*
+	 * Send the response code to user application
+	 */
+	nl_port_mgmt_rule = nss_ppenl_get_data(resp);
+	nl_port_mgmt_rule->mac_filter.ret = ret;
+
+	nss_ppenl_trace("Sending response to userspace: ret %d\n",  nl_port_mgmt_rule->mac_filter.ret);
+	nss_ppenl_ucast_resp(resp);
+	return 0;
 }
 
 /*

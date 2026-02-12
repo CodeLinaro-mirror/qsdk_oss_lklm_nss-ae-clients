@@ -24,6 +24,7 @@
 #include <fal/fal_pon.h>
 #endif
 #include <fal/fal_qos.h>
+#include <fal/fal_flow.h>
 #ifdef PPE_DRV_PKT_PADDING_STRIP
 #include <fal/fal_pktedit.h>
 #endif
@@ -121,6 +122,10 @@ static char packet_padding[PPE_DRV_PACKET_PADDING_STR_LEN];
 int l4_checksum_exception_enable = false;
 int mac_lrn_exception_en = true;
 static char flood_vsi_override_en[PPE_DRV_FLOOD_VSI_EN_STR_LEN];
+
+#ifdef PPE_DRV_ESP_SPI_PASSTH_ENABLE
+int ppe_drv_ipsec_passth_en = 0;
+#endif
 
 #if defined(PPE_LOOPBACK_PORT_SUPPORT)
 static uint32_t loopback_port_ft_type;
@@ -2795,6 +2800,98 @@ static int ppe_drv_loopback_port_feature_write_handler(struct ctl_table *table, 
 }
 #endif
 
+#ifdef PPE_DRV_ESP_SPI_PASSTH_ENABLE
+/*
+ * ppe_drv_ipsec_pass_through_en_handler()
+ *	Handler for ppe_drv_ipsec_passth_en sysctl
+ *
+ *	This handler configures IPsec passthrough by managing the flow_key_en_bitmap
+ *	in the PPE hardware. The bitmap controls which protocol fields are used for
+ *	flow key generation.
+ *
+ *	Flow key bitmap bits:
+ *		- BIT(0): FAL_FLOW_KEY_ROUTING
+ *		- BIT(1): FAL_FLOW_KEY_IPSEC_AH  (IPsec Authentication Header)
+ *		- BIT(2): FAL_FLOW_KEY_IPSEC_ESP (IPsec Encapsulating Security Payload)
+ *		- BIT(3): FAL_FLOW_KEY_IPSEC_NATT (IPsec NAT Traversal)
+ *
+ *	When ppe_drv_ipsec_passth_en is set to 1:
+ *		- Reads the current flow_key_en_bitmap configuration
+ *		- Sets BIT(1) and BIT(2) to enable IPsec AH and ESP flow keys
+ *		- Writes the updated configuration back to hardware
+ *
+ *	When ppe_drv_ipsec_passth_en is set to 0:
+ *		- Reads the current flow_key_en_bitmap configuration
+ *		- Clears BIT(1) and BIT(2) to disable IPsec AH and ESP flow keys
+ *		- Writes the updated configuration back to hardware
+ */
+static int ppe_drv_ipsec_pass_through_en_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+	fal_flow_global_cfg_t cfg = {0};
+	sw_error_t sw_ret;
+
+	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+	if (!write) {
+		return ret;
+	}
+
+	/*
+	 * Validate the input value (should be 0 or 1)
+	 */
+	if (ppe_drv_ipsec_passth_en != 0 && ppe_drv_ipsec_passth_en != 1) {
+		ppe_drv_warn("Invalid value for ppe_drv_ipsec_passth_en. Must be 0 or 1\n");
+		ppe_drv_ipsec_passth_en = 0;
+		return -EINVAL;
+	}
+
+	/*
+	 * Read the existing flow_key_en_bitmap value from hardware.
+	 * This ensures we preserve other bits that may be set.
+	 */
+	sw_ret = fal_flow_global_cfg_get(0, &cfg);
+	if (sw_ret != SW_OK) {
+		ppe_drv_warn("Failed to get flow global config, error: %d\n", sw_ret);
+		return -EIO;
+	}
+
+	if (ppe_drv_ipsec_passth_en == 1) {
+		/*
+		 * Enable IPsec passthrough by setting BIT(1) and BIT(2).
+		 * Use bitwise OR to set the bits while preserving other bits.
+		 * FAL_FLOW_KEY_IPSEC_AH  = BIT(1) - IPsec Authentication Header
+		 * FAL_FLOW_KEY_IPSEC_ESP = BIT(2) - IPsec Encapsulating Security Payload
+		 */
+		cfg.flow_key_en_bitmap |= FAL_FLOW_KEY_IPSEC_AH;
+		cfg.flow_key_en_bitmap |= FAL_FLOW_KEY_IPSEC_ESP;
+		ppe_drv_info("Enabling IPsec passthrough, flow_key_en_bitmap: 0x%x\n", cfg.flow_key_en_bitmap);
+	} else {
+		/*
+		 * Disable IPsec passthrough by clearing BIT(1) and BIT(2).
+		 * Use bitwise AND with complement to clear the bits while preserving other bits.
+		 */
+		cfg.flow_key_en_bitmap &= ~FAL_FLOW_KEY_IPSEC_AH;
+		cfg.flow_key_en_bitmap &= ~FAL_FLOW_KEY_IPSEC_ESP;
+		ppe_drv_info("Disabling IPsec passthrough, flow_key_en_bitmap: 0x%x\n", cfg.flow_key_en_bitmap);
+	}
+
+	/*
+	 * Write the updated configuration back to hardware.
+	 * This applies the IPsec passthrough enable/disable setting.
+	 */
+	sw_ret = fal_flow_global_cfg_set(0, &cfg);
+	if (sw_ret != SW_OK) {
+		ppe_drv_warn("Failed to set flow global config, error: %d\n", sw_ret);
+		return -EIO;
+	}
+
+	ppe_drv_info("PPE IPsec passthrough enable set to %d\n", ppe_drv_ipsec_passth_en);
+
+	return 0;
+}
+#endif
+
 /*
  * ppe_drv_eth2eth_offload_if_bitmap_handler()
  * 	Set eth to eth offload with if bitmap config
@@ -3577,6 +3674,15 @@ static struct ctl_table ppe_drv_sub[] = {
 		.proc_handler   =       ppe_drv_flood_vsi_override_en,
 	},
 
+#ifdef PPE_DRV_ESP_SPI_PASSTH_ENABLE
+	{
+		.procname	=	"ppe_drv_ipsec_passth_en",
+		.data		=	&ppe_drv_ipsec_passth_en,
+		.maxlen		=	sizeof(int),
+		.mode		=	0644,
+		.proc_handler	=	ppe_drv_ipsec_pass_through_en_handler
+	},
+#endif
 	{}
 };
 

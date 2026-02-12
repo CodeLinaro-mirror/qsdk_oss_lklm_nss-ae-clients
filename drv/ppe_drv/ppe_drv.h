@@ -69,6 +69,10 @@ extern int mac_lrn_exception_en;
 #define PPE_DRV_DEFAULT_CAT (NSS_LOG_CAT_GENERIC)
 #endif
 
+#ifdef PPE_DRV_ESP_SPI_PASSTH_ENABLE
+extern int ppe_drv_ipsec_passth_en;
+#endif
+
 /*
  * ppe_drv_static_dbg_level
  *	PPE static debug level

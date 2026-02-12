@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: ISC
  */
 #include "ppe_drv.h"
+#include <fal/fal_fdb.h>
 
 /*
  * ppe_drv_port_mgmt_entries_init()
@@ -695,3 +696,37 @@ ppe_drv_ret_t ppe_drv_port_mgmt_default_isol_set(void)
 }
 EXPORT_SYMBOL(ppe_drv_port_mgmt_default_isol_set);
 #endif
+
+/*
+ * ppe_drv_port_mgmt_mac_lrn_limit_set()
+ *	Set the MAC learning limit configuration.
+ */
+ppe_drv_ret_t ppe_drv_port_mgmt_mac_lrn_limit_set(struct ppe_drv_port_mac_lrn_limit *mac_lrn_limit)
+{
+	sw_error_t err;
+	struct ppe_drv *p = ppe_drv_gbl;
+
+	spin_lock_bh(&p->lock);
+	err = fal_port_fdb_learn_limit_set(PPE_DRV_SWITCH_ID, mac_lrn_limit->port_id,
+			mac_lrn_limit->port_learn_limit_en, mac_lrn_limit->port_learn_limit);
+	if (err != SW_OK) {
+		ppe_drv_warn("Failed to set port mac leran limit, err %d\n", err);
+		spin_unlock_bh(&p->lock);
+		return PPE_DRV_RET_PORT_MGMT_MAC_LRN_LMT_CONFIG_FAIL;
+	}
+
+	if (mac_lrn_limit->lrn_exceed_action_en) {
+		fal_port_fdb_learn_exceed_cmd_set(PPE_DRV_SWITCH_ID, mac_lrn_limit->port_id,
+				(fal_fwd_cmd_t)mac_lrn_limit->lrn_exceed_action);
+		if (err != SW_OK) {
+			ppe_drv_warn("Failed to set action command when mac learn limit exceeds, err %d\n", err);
+			spin_unlock_bh(&p->lock);
+			return PPE_DRV_RET_PORT_MGMT_MAC_LRN_LMT_CONFIG_FAIL;
+		}
+	}
+
+	ppe_drv_info("port mac learn limit is enabled:%d for port_id: %d and limit: %d\n", mac_lrn_limit->port_learn_limit_en, mac_lrn_limit->port_id, mac_lrn_limit->port_learn_limit);
+	spin_unlock_bh(&p->lock);
+	return PPE_DRV_RET_SUCCESS;
+}
+EXPORT_SYMBOL(ppe_drv_port_mgmt_mac_lrn_limit_set);

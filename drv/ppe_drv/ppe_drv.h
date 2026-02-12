@@ -36,6 +36,7 @@
 #endif
 #include <fal/fal_portvlan.h>
 #ifdef NSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+#include <fal/fal_fdb.h>
 #include "ppe_drv_pm.h"
 #endif
 #include "ppe_drv_vlan.h"

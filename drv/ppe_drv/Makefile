@@ -75,6 +75,7 @@ qca-nss-ppe-objs += ppe_drv_if_map.o
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 qca-nss-ppe-objs += ppe_drv_dscp.o
 qca-nss-ppe-objs += ppe_drv_pm.o
+qca-nss-ppe-objs += ppe_drv_port_mgmt.o
 endif
 ifdef PPE_TUN_ENABLE
 ccflags-y += -DPPE_TUNNEL_ENABLE
@@ -136,6 +137,8 @@ endif
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DPPE_LOOPBACK_PORT_SUPPORT
 ccflags-y += -DPPE_ACL_DEST_BIND_SUPPORT
+ccflags-y += -DNSS_PPE_DRV_PORT_ISOL_SUPPORT
+ccflags-y += -DNSS_PPE_DRV_PORT_MGMT_SUPPORT
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq54xx))

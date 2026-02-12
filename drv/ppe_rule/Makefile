@@ -31,6 +31,7 @@ endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DPPE_ACL_DEST_BIND_SUPPORT
+ccflags-y += -DNSS_PPE_PORT_ISOL_SUPPORT
 endif
 
 obj-m += qca-nss-ppe-rule.o
@@ -75,6 +76,14 @@ qca-nss-ppe-rule-objs += ppe_pm/ppe_pm_stats.o
 qca-nss-ppe-rule-objs += ppe_pm/ppe_pm_dump.o
 ccflags-y += -DPPE_PM_DEBUG_LEVEL=3
 ccflags-y += -DNSS_PPE_PM_COUNTER_FEATURE_SUPPORT
+endif
+
+ifeq ($(PPE_PORT_MGMT_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_port_mgmt/ppe_port_mgmt.o
+qca-nss-ppe-rule-objs += ppe_port_mgmt/ppe_port_mgmt_stats.o
+qca-nss-ppe-rule-objs += ppe_port_mgmt/ppe_port_mgmt_gen_dump.o
+ccflags-y += -DPPE_PORT_MGMT_DEBUG_LEVEL=3
+ccflags-y += -DNSS_PPE_PORT_MGMT_SUPPORT
 endif
 
 ifeq ($(PPE_VLAN_ENABLED), y)

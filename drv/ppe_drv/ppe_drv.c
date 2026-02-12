@@ -19,6 +19,7 @@
 #include <fal/fal_qm.h>
 #include <fal/fal_servcode.h>
 #include <fal/fal_fdb.h>
+#include <fal/fal_portvlan.h>
 #ifdef PPE_DRV_PKT_PADDING_STRIP
 #include <fal/fal_pktedit.h>
 #endif
@@ -1567,6 +1568,14 @@ static int ppe_drv_probe(struct platform_device *pdev)
 	}
 #endif
 
+#ifdef NSS_PPE_DRV_PORT_MGMT_SUPPORT
+	p->port_mgmt = ppe_drv_port_mgmt_entries_alloc();
+	if (!p->port_mgmt) {
+		ppe_drv_warn("%p: Failed to allocate Port Mgmt entries", p);
+		goto fail;
+	}
+#endif
+
 	/* Allocate VLAN entries */
 	p->vlan = ppe_drv_vlan_entries_alloc();
 	if (!p->vlan) {
@@ -1695,7 +1704,12 @@ fail:
 		p->pm_gen = NULL;
 	}
 #endif
-
+#ifdef NSS_PPE_DRV_PORT_MGMT_SUPPORT
+	if (p->port_mgmt) {
+		ppe_drv_port_mgmt_entries_free(p->port_mgmt);
+		p->port_mgmt = NULL;
+	}
+#endif
 	if (p->vlan) {
 		ppe_drv_vlan_entries_free(p->vlan);
 		p->vlan = NULL;

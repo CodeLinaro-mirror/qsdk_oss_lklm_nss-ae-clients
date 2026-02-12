@@ -579,6 +579,9 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_QOS_UPDATE_FAIL,			/**< Failure to update generic qos entry which includes fields such as int_pri, dscp, pcp values. */
 	PPE_DRV_RET_FLOW_ENTRY_UPDATE_FAIL,		/**< Failure to update flow entry in hardware */
 	PPE_DRV_RET_UNIDIR_CONN_MATCH_FAIL,		/**< Failure to find connection object at the time of unidirection update */
+	PPE_DRV_RET_PORT_MGMT_ISOL_CONFIG_FAIL,		/**< Failed to configure the port isolation. */
+	PPE_DRV_RET_PORT_MGMT_ACT_CONFIG_FAIL,		/**< Failed to configure the action control info. */
+	PPE_DRV_RET_PORT_MGMT_ISOL_DEFAULT_FAIL,	/**< Failed to configure the default isol config. */
 	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 

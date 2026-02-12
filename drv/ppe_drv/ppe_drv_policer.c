@@ -261,6 +261,7 @@ int ppe_drv_policer_user2hw_id(int index)
 
 	return hw_index;
 }
+EXPORT_SYMBOL(ppe_drv_policer_user2hw_id);
 
 /*
  * ppe_drv_policer_port_destroy()

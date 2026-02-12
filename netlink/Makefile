@@ -32,4 +32,9 @@ qca-nss-ppe-netlink-objs += nss_ppenl_port_mgmt.o
 qca-nss-ppe-netlink-objs += nss_ppenl_vlan.o
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq52xx))
+ccflags-y += -DNSS_PPE_FEATURE_DOT1P
+ccflags-y += -DCONFIG_NSS_PPENL_DOT1P=1
+qca-nss-ppe-netlink-objs += nss_ppenl_dot1p.o
+endif
 obj-m += qca-nss-ppe-netlink.o

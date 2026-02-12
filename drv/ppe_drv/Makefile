@@ -146,5 +146,11 @@ ccflags-y += -DNSS_ATH_HDR_BASED_DSA_SUPPORT
 qca-nss-ppe-objs += ppe_drv_athtag.o
 endif
 
+ifeq ($(SoC),$(filter $(SoC),ipq52xx))
+ccflags-y += -DPPE_DRV_PON_PQ_MAPPING
+ccflags-y += -DNSS_PPE_FEATURE_DOT1P
+qca-nss-ppe-objs += ppe_drv_dot1p.o
+endif
+
 ccflags-y += -Wall -Werror
 ccflags-y += -DPPE_DRV_DEBUG_LEVEL=3

@@ -144,8 +144,7 @@ ppe_drv_ret_t ppe_drv_dp_set_ppe_offload_enable_flag(struct ppe_drv_iface *iface
  * @return
  * Status of the operation.
  */
-ppe_drv_ret_t ppe_drv_dp_set_ppe_gem_type_enable_flag(struct ppe_drv_iface *iface,
+ppe_drv_ret_t ppe_drv_dp_gem_enable(struct ppe_drv_iface *iface,
                 bool enable);
-
 /** @} */ /* end_addtogroup ppe_drv_dp_subsystem */
 #endif /* _PPE_DRV_DP_H_ */

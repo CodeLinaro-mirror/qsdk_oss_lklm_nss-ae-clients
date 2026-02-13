@@ -25,6 +25,11 @@
 #define PPE_DRV_PRI_PROF_DEFAULT 		0	/**< PPE enqueue vp pri profile default */
 #define PPE_DRV_PORT_EVP_PRI_PROF_START	((PPE_DRV_PORT_ENQ_VP_END) - (PPE_DRV_PORT_ENQ_VP_START) + 1)	/**<  PPE enqueue vp pri profile start */
 
+#define PPE_DRV_PORT_ENQ_VP_MAX_NUM	((PPE_DRV_PORT_ENQ_VP_END) - (PPE_DRV_PORT_ENQ_VP_START) +1) /**< Maximum number of enq_vp available */
+#ifdef NSS_PPE_PON_SUPPORT
+#define PPE_DRV_PORT_PON_PQ_PER_ENQ_VP		16	/**< Max pq per enqueue vp */
+#endif
+
 /*
  * Port fields update flags.
  */
@@ -87,6 +92,7 @@ typedef enum ppe_drv_port_flag {
 struct ppe_drv_port_enq_vp {
 	uint8_t pri_profile;	/* Enqueue vport pri profile */
 	uint8_t metadata;	/* Metadata value(node_id) for enqueue vport */
+	enum ppe_drv_enq_vp_type type;		/* Port type */
 };
 
 /*
@@ -125,7 +131,7 @@ struct ppe_drv_port {
 	uint8_t next_core;			/* Next core to pick for RFS */
 	uint8_t xmit_port;			/* Physical port attached to virtual port */
 	uint8_t profile_id;			/* Profile id */
-	struct ppe_drv_port_enq_vp evp;	/* PPE enqueue vport information */
+	struct ppe_drv_port_enq_vp evp;		/* PPE enqueue vport information */
 };
 
 void ppe_drv_port_ucast_queue_update(struct ppe_drv_port *pp, uint8_t queue_id);

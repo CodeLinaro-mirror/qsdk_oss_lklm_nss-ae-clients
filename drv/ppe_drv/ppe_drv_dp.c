@@ -279,14 +279,16 @@ EXPORT_SYMBOL(ppe_drv_dp_set_ppe_offload_enable_flag);
 
 #ifdef NSS_PPE_PON_SUPPORT
 /*
- * ppe_drv_dp_set_ppe_gem_type_enable_flag()
+ * ppe_drv_dp_gem_enable()
  *	API to set GEM type enable flag in PPE port
+ *	And do enqueue vp to pq mapping
  */
-ppe_drv_ret_t ppe_drv_dp_set_ppe_gem_type_enable_flag(struct ppe_drv_iface *iface,
+ppe_drv_ret_t ppe_drv_dp_gem_enable(struct ppe_drv_iface *iface,
 		bool enable)
 {
 	struct ppe_drv *p = ppe_drv_gbl;
 	struct ppe_drv_port *port;
+	ppe_drv_ret_t status = PPE_DRV_RET_SUCCESS;
 
 	spin_lock_bh(&p->lock);
 	port = ppe_drv_iface_port_get(iface);
@@ -303,14 +305,15 @@ ppe_drv_ret_t ppe_drv_dp_set_ppe_gem_type_enable_flag(struct ppe_drv_iface *ifac
 	if (enable) {
 		port->flags |= PPE_DRV_PORT_FLAG_PORT_GEM;
 		gem_port_bitmap |= (1 << (port->port));
+		status = ppe_drv_pon_map_enqueue_vp_to_pq(port);
 	}
 
 	spin_unlock_bh(&p->lock);
-	return PPE_DRV_RET_SUCCESS;
+	return status;
 }
-EXPORT_SYMBOL(ppe_drv_dp_set_ppe_gem_type_enable_flag);
+EXPORT_SYMBOL(ppe_drv_dp_gem_enable);
 #else
-ppe_drv_ret_t ppe_drv_dp_set_ppe_gem_type_enable_flag(struct ppe_drv_iface *iface,
+ppe_drv_ret_t ppe_drv_dp_gem_enable(struct ppe_drv_iface *iface,
                 bool enable)
 {
 	return PPE_DRV_RET_SUCCESS;

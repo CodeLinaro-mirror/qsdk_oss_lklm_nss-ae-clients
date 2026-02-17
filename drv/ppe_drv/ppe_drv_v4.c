@@ -361,7 +361,7 @@ void ppe_drv_v4_flow_vlan_set(struct ppe_drv_v4_conn_flow *pcf,
  *	Populate single direction flow object rule.
  */
 ppe_drv_ret_t ppe_drv_v4_rfs_conn_fill(struct ppe_drv_v4_rule_create *create, struct ppe_drv_top_if_rule *top_if,
-				       struct ppe_drv_v4_conn *cn, enum ppe_drv_conn_type flow_type)
+				       struct ppe_drv_v4_conn *cn, enum ppe_drv_conn_type flow_type, bool ppe_iface_chk_needed)
 {
 	struct ppe_drv_v4_connection_rule *conn = &create->conn_rule;
 	struct ppe_drv_qos_rule *qos_rule = &create->qos_rule;
@@ -369,12 +369,22 @@ ppe_drv_ret_t ppe_drv_v4_rfs_conn_fill(struct ppe_drv_v4_rule_create *create, st
 	struct ppe_drv_iface *if_rx, *if_tx, *top_rx_iface;
 	struct ppe_drv_v4_conn_flow *pcf = &cn->pcf;
 	struct ppe_drv_comm_stats *comm_stats;
-	struct ppe_drv_port *pp_rx, *pp_tx;
+	struct ppe_drv_port *pp_rx = NULL, *pp_tx = NULL;
 	struct ppe_drv *p = ppe_drv_gbl;
+	struct ppe_drv_iface *cpu_port_if = p->rfs.cpu_iface;
 	uint16_t valid_flags = create->valid_flags;
 	uint32_t rule_flags = create->rule_flags;
 
 	comm_stats = &p->stats.comm_stats[flow_type];
+
+	/*
+	 * For the flows in which the tx_dev doesn't have a ppe iface representation,
+	 * for those flows, we replace tx_if with cpu_port index.
+	 */
+	if (!ppe_iface_chk_needed) {
+		conn->tx_if = cpu_port_if->index;
+		top_if->tx_if = cpu_port_if->index;
+	}
 
 	/*
 	 * Make sure both Rx and Tx inteface are mapped to PPE ports properly.
@@ -451,17 +461,31 @@ ppe_drv_ret_t ppe_drv_v4_rfs_conn_fill(struct ppe_drv_v4_rule_create *create, st
 
 	ppe_drv_v4_conn_flow_conn_set(pcf, cn);
 
-	if (flow_type == PPE_DRV_CONN_TYPE_FLOW_WLAN) {
+	/*
+	 * Set coremask and shadow_coremask
+	 */
+	switch (flow_type) {
+	case PPE_DRV_CONN_TYPE_FLOW:
+		pcf->fl_mdata.coremask = &p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL];
+		pcf->fl_mdata.shadow_coremask = &p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL];
+		break;
+	case PPE_DRV_CONN_TYPE_FLOW_WLAN:
 		ppe_drv_v4_conn_flow_flags_set(pcf, PPE_DRV_V4_CONN_FLAG_PASSIVE_WLAN_FLOW);
 		pcf->fl_mdata.coremask = &p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_WLAN];
 		pcf->fl_mdata.shadow_coremask = &p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_WLAN];
-
-	} else if (flow_type == PPE_DRV_CONN_TYPE_FLOW) {
+		break;
+	case PPE_DRV_CONN_TYPE_TUNNEL:
+		pcf->fl_mdata.coremask = &p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_TUNNEL];
+		pcf->fl_mdata.shadow_coremask = &p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_TUNNEL];
+		break;
+	default:
 		/*
-		 * Set coremask and shadow_coremask
+		 * Note: This case is currently not expected to executed, but in future if we will have some flow for which,
+		 * above flow_types are not covered then we can use a default coremask.
 		 */
-		pcf->fl_mdata.coremask = &p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL];
-		pcf->fl_mdata.shadow_coremask = &p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL];
+		pcf->fl_mdata.coremask = &p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_DEFAULT];
+		pcf->fl_mdata.shadow_coremask = &p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_DEFAULT];
+		break;
 	}
 
 	/*
@@ -3084,7 +3108,7 @@ ppe_drv_ret_t ppe_drv_v4_rfs_create(struct ppe_drv_v4_rule_create *create)
 
 	top_if.rx_if = create->top_rule.rx_if;
 	top_if.tx_if = create->top_rule.tx_if;
-	ret = ppe_drv_v4_rfs_conn_fill(create, &top_if, cn, PPE_DRV_CONN_TYPE_FLOW);
+	ret = ppe_drv_v4_rfs_conn_fill(create, &top_if, cn, PPE_DRV_CONN_TYPE_FLOW, true);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		ppe_drv_stats_inc(&comm_stats->v4_create_rfs_fail_conn);
 		ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
@@ -3215,24 +3239,33 @@ ppe_drv_ret_t ppe_drv_v4_assist_rule_create(struct ppe_drv_v4_rule_create *creat
 	 */
 	spin_lock_bh(&p->lock);
 
-	if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS_ETH)) {
-		ppe_drv_stats_inc(&comm_stats->v4_create_rfs_req);
-		top_if.rx_if = create->top_rule.rx_if;
-		top_if.tx_if = create->top_rule.tx_if;
-		ret = ppe_drv_v4_rfs_conn_fill(create, &top_if, cn, PPE_DRV_CONN_TYPE_FLOW);
-		if (ret != PPE_DRV_RET_SUCCESS) {
-			ppe_drv_stats_inc(&comm_stats->v4_assist_rule_create_rfs_fail_conn);
-			ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
+	if (ppe_drv_assist_feature_type_is_rfs(feature)) {
+		enum ppe_drv_conn_type conn_type = PPE_DRV_CONN_TYPE_FLOW;
+		bool ppe_iface_chk_needed = true;
+
+		switch(feature) {
+		case PPE_DRV_ASSIST_FEATURE_RFS_ETH:
+			conn_type = PPE_DRV_CONN_TYPE_FLOW;
+			break;
+		case PPE_DRV_ASSIST_FEATURE_RFS_WLAN:
+			conn_type = PPE_DRV_CONN_TYPE_FLOW_WLAN;
+			break;
+		case PPE_DRV_ASSIST_FEATURE_RFS_TUNNEL:
+			conn_type = PPE_DRV_CONN_TYPE_TUNNEL;
+			ppe_iface_chk_needed = false;
+			break;
+		default:
+			ppe_drv_warn("%p: Invalid feature type, feature: %u\n", create, feature);
 			goto fail;
 		}
-	} else if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_RFS_WLAN)) {
+
 		ppe_drv_stats_inc(&comm_stats->v4_create_rfs_req);
 		top_if.rx_if = create->top_rule.rx_if;
 		top_if.tx_if = create->top_rule.tx_if;
-		ret = ppe_drv_v4_rfs_conn_fill(create, &top_if, cn, PPE_DRV_CONN_TYPE_FLOW_WLAN);
+		ret = ppe_drv_v4_rfs_conn_fill(create, &top_if, cn, conn_type, ppe_iface_chk_needed);
 		if (ret != PPE_DRV_RET_SUCCESS) {
 			ppe_drv_stats_inc(&comm_stats->v4_assist_rule_create_rfs_fail_conn);
-			ppe_drv_warn("%p: failed to fill connection object: %p", p, create);
+			ppe_drv_warn("%p: failed to fill connection object: %p for conn_type: %u", p, create, conn_type);
 			goto fail;
 		}
 	} else if (ppe_drv_assist_feature_type_check(feature, PPE_DRV_ASSIST_FEATURE_PRIORITY)) {

@@ -38,9 +38,11 @@
 /*
  * PPE Assist feature flags
  */
-#define PPE_DRV_ASSIST_FEATURE_RFS_ETH	0x00000001      /* PPE Assist feature to configure RFS */
-#define PPE_DRV_ASSIST_FEATURE_RFS_WLAN	0x00000002      /* PPE Assist feature to configure RFS for WLAN flows */
-#define PPE_DRV_ASSIST_FEATURE_PRIORITY	0x00000004      /* PPE Assist feature to configure Priority */
+#define PPE_DRV_ASSIST_FEATURE_RFS_ETH		0x00000001      /* PPE Assist feature to configure RFS */
+#define PPE_DRV_ASSIST_FEATURE_RFS_WLAN		0x00000002      /* PPE Assist feature to configure RFS for WLAN flows */
+#define PPE_DRV_ASSIST_FEATURE_PRIORITY		0x00000004      /* PPE Assist feature to configure Priority */
+#define PPE_DRV_ASSIST_FEATURE_RFS_TUNNEL	0x00000008		/* PPE Assist feature to configure RFS for Tunnel flows */
+#define PPE_DRV_ASSIST_FEATURE_RFS_DEFAULT	0x00000010      /* PPE Assist feature to configure RFS */
 
 #define PPE_DRV_SERVICE_CLASS_IS_VALID(sc)	((sc >= PPE_DRV_SAWF_SC_START) && (sc <= PPE_DRV_SAWF_SC_END))
 

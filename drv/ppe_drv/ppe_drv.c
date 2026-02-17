@@ -88,6 +88,12 @@ MODULE_PARM_DESC(eth_gro_coremask, "Coremask for Ethernet GRO Flows");
 static unsigned int wlan_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
 MODULE_PARM_DESC(wlan_coremask, "Coremask for Ethernet to WLAN Flows");
 
+/*
+ * Module parameter to set coremask for tunnel, etc.
+ */
+static unsigned int tun_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
+MODULE_PARM_DESC(tun_coremask, "Coremask for Ethernet to Tunnel, etc Flows");
+
 uint32_t if_bm_to_offload;
 #ifdef NSS_PPE_PON_SUPPORT
 uint32_t gem_port_bitmap;
@@ -1131,6 +1137,12 @@ static ppe_drv_ret_t ppe_drv_rfs_map_core_to_enqueue_vp(uint8_t core, uint8_t qu
 	 */
 	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = eth_coremask;
 	p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_PHYSICAL] = eth_coremask;
+
+	/*
+	 * Default coremask for the default generic interface is set.
+	 */
+	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_TUNNEL] = tun_coremask;
+	p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_TUNNEL] = tun_coremask;
 
 	enq_vp = ppe_drv_port_enq_vp_alloc();
 	if (enq_vp == PPE_DRV_PORT_ID_INVALID) {
@@ -3355,7 +3367,7 @@ static int ppe_drv_eth_coremask_set_handler(const char *val, const struct kernel
 	int res = param_set_uint(val, kp);
 
 	if ((eth_coremask < PPE_DRV_RFS_COREMASK_MIN) || (eth_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
-		ppe_drv_warn("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
+		printk("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
 						PPE_DRV_RFS_COREMASK_MIN, PPE_DRV_RFS_COREMASK_MAX, PPE_DRV_RFS_COREMASK_DEFAULT);
 		eth_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
 		res = 0;
@@ -3428,7 +3440,7 @@ static int ppe_drv_wlan_coremask_set_handler(const char *val, const struct kerne
 	int res = param_set_uint(val, kp);
 
 	if ((wlan_coremask < PPE_DRV_RFS_COREMASK_MIN) || (wlan_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
-		ppe_drv_warn("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
+		printk("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
 						PPE_DRV_RFS_COREMASK_MIN, PPE_DRV_RFS_COREMASK_MAX, PPE_DRV_RFS_COREMASK_DEFAULT);
 		wlan_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
 		res = 0;
@@ -3450,6 +3462,39 @@ static const struct kernel_param_ops wlan_coremask_ops = {
 };
 
 module_param_cb(wlan_coremask, &wlan_coremask_ops, &wlan_coremask, 0644);
+
+/*
+ * ppe_drv_tun_coremask_set_handler()
+ *	Handler function to set value of tun_coremask.
+ */
+static int ppe_drv_tun_coremask_set_handler(const char *val, const struct kernel_param *kp)
+{
+	struct ppe_drv *p = ppe_drv_gbl;
+	int res = param_set_uint(val, kp);
+
+	if ((tun_coremask < PPE_DRV_RFS_COREMASK_MIN) || (tun_coremask > PPE_DRV_RFS_COREMASK_MAX)) {
+		printk("Invalid coremask value, should be between %u to %u. Hence setting to default value : %u \n",
+						PPE_DRV_RFS_COREMASK_MIN, PPE_DRV_RFS_COREMASK_MAX, PPE_DRV_RFS_COREMASK_DEFAULT);
+		tun_coremask = PPE_DRV_RFS_COREMASK_DEFAULT;
+		res = 0;
+	}
+
+	spin_lock_bh(&p->lock);
+	p->rfs.coremask[PPE_DRV_RFS_INTERFACE_TYPE_TUNNEL] = tun_coremask;
+	p->rfs.shadow_coremask[PPE_DRV_RFS_INTERFACE_TYPE_TUNNEL] = tun_coremask;
+	spin_unlock_bh(&p->lock);
+
+	ppe_drv_trace("Tunnel coremask value is set to : %u\n", tun_coremask);
+
+	return res;
+}
+
+static const struct kernel_param_ops tun_coremask_ops = {
+    .set = ppe_drv_tun_coremask_set_handler,
+    .get = param_get_uint,
+};
+
+module_param_cb(tun_coremask, &tun_coremask_ops, &tun_coremask, 0644);
 
 /*
  * ppe_drv_module_init()

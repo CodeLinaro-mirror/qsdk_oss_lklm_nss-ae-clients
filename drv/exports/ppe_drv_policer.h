@@ -295,6 +295,17 @@ uint16_t ppe_drv_policer_get_port_id(struct ppe_drv_policer_port *ctx);
 void ppe_drv_policer_user2hw_id_map(struct ppe_drv_policer_acl *ctx, int user_id);
 
 /**
+ * ppe_drv_policer_user2hw_id
+ *	get hw index from user index
+ *
+ * @param[IN] index	Policer User ID.
+ *
+ * @return
+ * Policer hw Index.
+ */
+int ppe_drv_policer_user2hw_id(int index);
+
+/**
  * ppe_drv_policer_acl_destroy
  *	Destroy ACL policer in PPE HW
  *

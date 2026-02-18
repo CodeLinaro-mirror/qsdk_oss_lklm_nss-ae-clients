@@ -92,6 +92,15 @@ qca-nss-ppe-rule-objs += ppe_vlan/ppe_vlan_dump.o
 qca-nss-ppe-rule-objs += ppe_vlan/ppe_vlan_stats.o
 ccflags-y += -DPPE_VLAN_DEBUG_LEVEL=3
 endif
+
+ifeq ($(PPE_DOT1P_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_dot1p/ppe_dot1p.o
+qca-nss-ppe-rule-objs += ppe_dot1p/ppe_dot1p_dump.o
+qca-nss-ppe-rule-objs += ppe_dot1p/ppe_dot1p_stats.o
+ccflags-y += -DPPE_DOT1P_DEBUG_LEVEL=3
+ccflags-y += -DNSS_PPE_FEATURE_DOT1P
+ccflags-y += -DNSS_PPE_PON_SUPPORT
+endif
 endif
 
 ifndef PPE_LOWMEM_PROFILE_16M

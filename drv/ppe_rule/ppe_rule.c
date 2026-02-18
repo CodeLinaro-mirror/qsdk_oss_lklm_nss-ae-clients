@@ -28,6 +28,9 @@
 #include "ppe_mirror/ppe_mirror.h"
 #include "ppe_priority/ppe_priority.h"
 #endif
+#ifdef NSS_PPE_FEATURE_DOT1P
+#include "ppe_dot1p/ppe_dot1p.h"
+#endif
 
 struct dentry *d_rule;
 
@@ -70,6 +73,9 @@ static int __init ppe_rule_module_init(void)
 	ppe_mirror_init(d_rule);
 	ppe_priority_init(d_rule);
 #endif
+#ifdef NSS_PPE_FEATURE_DOT1P
+	ppe_dot1p_init(d_rule);
+#endif
 
 	printk("PPE-RULE module loaded successfully\n");
 	return 0;
@@ -104,6 +110,9 @@ static void __exit ppe_rule_module_exit(void)
 #endif
 #ifdef NSS_PPE_PORT_MGMT_SUPPORT
 	ppe_port_mgmt_deinit();
+#endif
+#ifdef NSS_PPE_FEATURE_DOT1P
+	ppe_dot1p_deinit();
 #endif
 	debugfs_remove_recursive(d_rule);
 	printk("PPE-RULE module unloaded");

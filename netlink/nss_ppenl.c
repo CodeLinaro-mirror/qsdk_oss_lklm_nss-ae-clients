@@ -38,6 +38,10 @@
 #include "nss_ppenl_port_mgmt.h"
 #include "nss_ppenl_port_mgmt_if.h"
 #endif
+#ifdef NSS_PPE_FEATURE_DOT1P
+#include "nss_ppenl_dot1p.h"
+#include "nss_ppenl_dot1p_if.h"
+#endif
 
 /*
  * nss_ppenl.c
@@ -85,6 +89,17 @@ static struct nss_ppenl_family family_handlers[] = {
                 .exit = NSS_PPENL_QOS_EXIT,		/* exit */
                 .valid = CONFIG_NSS_PPENL_QOS       	/* 1 or 0 */
         },
+#ifdef NSS_PPE_FEATURE_DOT1P
+        {
+                /*
+                 * NSS_PPENL_DOT1P
+                 */
+                .name = NSS_PPENL_DOT1P_FAMILY,       	/* Dot1p Family */
+                .entry = NSS_PPENL_DOT1P_INIT,        	/* Init */
+                .exit = NSS_PPENL_DOT1P_EXIT,		/* exit */
+                .valid = CONFIG_NSS_PPENL_DOT1P       	/* 1 or 0 */
+        },
+#endif
 	{
 		/*
 		 * NSS_PPENL_EXCEPTION

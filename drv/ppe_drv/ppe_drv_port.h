@@ -30,6 +30,7 @@
 #define PPE_DRV_PORT_PON_PQ_PER_ENQ_VP		16	/**< Max pq per enqueue vp */
 #endif
 
+#define PPE_DRV_PORT_ENQ_VP_INVALID	-1		/**< PPE enqueue vp invalid */
 /*
  * Port fields update flags.
  */

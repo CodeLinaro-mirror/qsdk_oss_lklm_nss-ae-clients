@@ -34,5 +34,8 @@
 #ifdef NSS_PPE_DRV_PORT_MGMT_SUPPORT
 #include "ppe_drv_port_mgmt.h"
 #endif
+#ifdef NSS_PPE_FEATURE_DOT1P
+#include "ppe_drv_dot1p.h"
+#endif
 
 #endif /* _PPE_DRV_PUBLIC_H_ */

@@ -42,6 +42,10 @@
 #include "nss_ppenl_dot1p.h"
 #include "nss_ppenl_dot1p_if.h"
 #endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+#include "nss_ppenl_gemport.h"
+#include "nss_ppenl_gemport_if.h"
+#endif
 
 /*
  * nss_ppenl.c
@@ -98,6 +102,17 @@ static struct nss_ppenl_family family_handlers[] = {
                 .entry = NSS_PPENL_DOT1P_INIT,        	/* Init */
                 .exit = NSS_PPENL_DOT1P_EXIT,		/* exit */
                 .valid = CONFIG_NSS_PPENL_DOT1P       	/* 1 or 0 */
+        },
+#endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+        {
+                /*
+                 * NSS_PPENL_GEM_PORT
+                 */
+                .name = NSS_PPENL_GEM_PORT_FAMILY,      /* Gemp port Family */
+                .entry = NSS_PPENL_GEM_PORT_INIT,	/* Init */
+                .exit = NSS_PPENL_GEM_PORT_EXIT,	/* exit */
+                .valid = CONFIG_NSS_PPENL_GEM_PORT      /* 1 or 0 */
         },
 #endif
 	{

@@ -37,5 +37,8 @@
 #ifdef NSS_PPE_FEATURE_DOT1P
 #include "ppe_drv_dot1p.h"
 #endif
+#ifdef NSS_PPE_FEATURE_GEMPORT
+#include "ppe_drv_gemport.h"
+#endif
 
 #endif /* _PPE_DRV_PUBLIC_H_ */

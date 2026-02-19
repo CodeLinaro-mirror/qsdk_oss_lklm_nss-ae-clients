@@ -41,6 +41,10 @@
 #define PPE_DRV_DOT1P_ACTION_FLAG_DST_INFO		0x00000400	/**< Rule action for destination info command. */
 #define PPE_DRV_DOT1P_ACTION_FLAG_BASE_PQ		0x00000800	/**< Rule action to update base priority queue ID. */
 
+#define PPE_DRV_DOT1P_DEF_VID_VAL			0		/**< Default value of VID. */
+#define PPE_DRV_DOT1P_DEF_PCP_VAL			0		/**< Default value of PCP. */
+#define PPE_DRV_DOT1P_DEF_DSCP_VAL			63		/**< Default value of DSCP. */
+
 struct ppe_drv_dot1p_ctx;
 struct ppe_drv_dot1p_policer_ctx;
 

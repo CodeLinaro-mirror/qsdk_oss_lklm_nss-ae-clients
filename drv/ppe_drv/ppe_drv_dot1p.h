@@ -94,3 +94,13 @@ void ppe_drv_dot1p_entries_free(struct ppe_drv_dot1p *dot1p);
 struct ppe_drv_dot1p *ppe_drv_dot1p_entries_alloc(void);
 void ppe_drv_dot1p_policer_entries_free(struct ppe_drv_dot1p_policer *dot1p);
 struct ppe_drv_dot1p_policer *ppe_drv_dot1p_policer_entries_alloc(void);
+
+/**
+ * ppe_drv_dot1p_configure_default_dot1p_rule
+ *	Configures default dot1p rules.
+ *
+ *
+ * @return
+ * Success or error code.
+ */
+ppe_drv_ret_t ppe_drv_dot1p_configure_default_rule(void);

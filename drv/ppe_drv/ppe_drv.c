@@ -332,7 +332,7 @@ static void ppe_drv_hw_stats_sync(struct timer_list *tm)
 	 * Update h/w stats counter if acl-policer is in use.
 	 */
 	for (id = 0; id < PPE_DRV_ACL_POLICER_MAX; id++) {
-		if (p->pol_ctx->acl_pol[id].in_use) {
+		if (p->pol_ctx->acl_pol[id].is_configured) {
 			ppe_drv_acl_policer_stats_update(&p->pol_ctx->acl_pol[id]);
 		}
 	}

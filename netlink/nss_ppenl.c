@@ -46,6 +46,10 @@
 #include "nss_ppenl_gemport.h"
 #include "nss_ppenl_gemport_if.h"
 #endif
+#ifdef NSS_PPE_EDMA_DDRQ_FEATURE_SUPPORT
+#include "nss_ppenl_edma_ddrq.h"
+#include "nss_ppenl_edma_ddrq_if.h"
+#endif
 
 /*
  * nss_ppenl.c
@@ -168,7 +172,17 @@ static struct nss_ppenl_family family_handlers[] = {
 		.valid = CONFIG_NSS_PPENL_PORT_MGMT		/* 1 or 0 */
 	},
 #endif
-
+#ifdef NSS_PPE_EDMA_DDRQ_FEATURE_SUPPORT
+	{
+		/*
+		 * NSS_PPENL_EDMA_DDRQ
+		 */
+		.name = NSS_PPENL_EDMA_DDRQ_FAMILY,	/* EDMA DDRQ Family */
+		.entry = NSS_PPENL_EDMA_DDRQ_INIT,	/* Init */
+		.exit = NSS_PPENL_EDMA_DDRQ_EXIT,	/* exit */
+		.valid = CONFIG_NSS_PPENL_EDMA_DDRQ	/* 1 or 0 */
+	},
+#endif
 };
 
 #define NSS_PPENL_FAMILY_HANDLER_SZ ARRAY_SIZE(family_handlers)

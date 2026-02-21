@@ -22,6 +22,8 @@
 #include "nss_ppenl_qos_if.h"
 #include "nss_ppenl_exception.h"
 #include "nss_ppenl_exception_if.h"
+#include "nss_ppenl_cos_map.h"
+#include "nss_ppenl_cos_map_if.h"
 #ifdef NSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
 #include "nss_ppenl_dscp.h"
 #include "nss_ppenl_dscp_if.h"
@@ -97,6 +99,15 @@ static struct nss_ppenl_family family_handlers[] = {
                 .exit = NSS_PPENL_QOS_EXIT,		/* exit */
                 .valid = CONFIG_NSS_PPENL_QOS       	/* 1 or 0 */
         },
+	{
+		/*
+		 * NSS_PPENL_COS_MAP
+		 */
+		.name = NSS_PPENL_COS_MAP_FAMILY,       	/* CosMap Family */
+		.entry = NSS_PPENL_COS_MAP_INIT,        	/* Init */
+		.exit = NSS_PPENL_COS_MAP_EXIT,		/* exit */
+		.valid = CONFIG_NSS_PPENL_COS_MAP       	/* 1 or 0 */
+	},
 #ifdef NSS_PPE_FEATURE_DOT1P
         {
                 /*

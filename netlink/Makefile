@@ -5,6 +5,7 @@ ccflags-y += -DNSS_CLIENT_BUILD_ID="$(BUILD_ID)"
 ccflags-y += -DCONFIG_NSS_PPENL_ACL=1
 ccflags-y += -DCONFIG_NSS_PPENL_POLICER=1
 ccflags-y += -DCONFIG_NSS_PPENL_QOS=1
+ccflags-y += -DCONFIG_NSS_PPENL_COS_MAP=1
 ccflags-y += -DCONFIG_NSS_PPENL_EXCEPTION=1
 ccflags-y += -DCONFIG_NSS_PPENL_VLAN=1
 
@@ -23,6 +24,7 @@ qca-nss-ppe-netlink-objs := nss_ppenl.o
 qca-nss-ppe-netlink-objs += nss_ppenl_acl.o
 qca-nss-ppe-netlink-objs += nss_ppenl_policer.o
 qca-nss-ppe-netlink-objs += nss_ppenl_qos.o
+qca-nss-ppe-netlink-objs += nss_ppenl_cos_map.o
 qca-nss-ppe-netlink-objs += nss_ppenl_exception.o
 
 ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))

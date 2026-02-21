@@ -11,6 +11,7 @@
 #include "ppe_acl/ppe_acl.h"
 #include "ppe_policer/ppe_policer.h"
 #include "ppe_qos/ppe_qos.h"
+#include "ppe_cos_map/ppe_cos_map.h"
 #endif
 #ifdef NSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
 #include "ppe_dscp/ppe_dscp.h"
@@ -59,6 +60,7 @@ static int __init ppe_rule_module_init(void)
 	ppe_acl_init(d_rule);
 	ppe_policer_init(d_rule);
 	ppe_qos_init(d_rule);
+	ppe_cos_map_init(d_rule);
 #endif
 #ifdef NSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
 	ppe_dscp_init(d_rule);
@@ -104,6 +106,7 @@ static void __exit ppe_rule_module_exit(void)
 	ppe_policer_deinit();
 	ppe_acl_deinit();
 	ppe_qos_deinit();
+	ppe_cos_map_deinit();
 #endif
 #ifdef NSS_PPE_DSCP_PBIT_FEATURE_SUPPORT
 	ppe_dscp_deinit();

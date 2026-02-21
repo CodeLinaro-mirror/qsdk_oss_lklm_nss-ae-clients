@@ -109,6 +109,13 @@ qca-nss-ppe-rule-objs += ppe_gemport/ppe_gemport_stats.o
 ccflags-y += -DPPE_GEM_PORT_DEBUG_LEVEL=3
 ccflags-y += -DNSS_PPE_FEATURE_GEMPORT
 endif
+
+ifeq ($(PPE_COS_MAP_ENABLED), y)
+qca-nss-ppe-rule-objs += ppe_cos_map/ppe_cos_map.o
+qca-nss-ppe-rule-objs += ppe_cos_map/ppe_cos_map_dump.o
+qca-nss-ppe-rule-objs += ppe_cos_map/ppe_cos_map_stats.o
+ccflags-y += -DPPE_COS_MAP_DEBUG_LEVEL=3
+endif
 endif
 
 ifndef PPE_LOWMEM_PROFILE_16M

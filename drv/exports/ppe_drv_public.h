@@ -22,6 +22,7 @@
 #include "ppe_drv_policer.h"
 #include "ppe_drv_port.h"
 #include "ppe_drv_qos.h"
+#include "ppe_drv_cos_map.h"
 #include "ppe_drv_sc.h"
 #include "ppe_drv_v4.h"
 #include "ppe_drv_v6.h"

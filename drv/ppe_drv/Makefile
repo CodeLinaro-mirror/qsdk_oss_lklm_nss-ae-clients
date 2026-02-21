@@ -63,6 +63,7 @@ qca-nss-ppe-objs += ppe_drv_pppoe.o
 qca-nss-ppe-objs += ppe_drv_pppoe_session.o
 qca-nss-ppe-objs += ppe_drv_pub_ip.o
 qca-nss-ppe-objs += ppe_drv_qos.o
+qca-nss-ppe-objs += ppe_drv_cos_map.o
 qca-nss-ppe-objs += ppe_drv_sc.o
 qca-nss-ppe-objs += ppe_drv_stats.o
 qca-nss-ppe-objs += ppe_drv_vlan.o
@@ -154,5 +155,10 @@ qca-nss-ppe-objs += ppe_drv_dot1p.o
 qca-nss-ppe-objs += ppe_drv_gemport.o
 endif
 
+ifndef PPE_256M_PROFILE
+ifndef PPE_16M_PROFILE
+ccflags-y += -DNSS_PPE_COS_MAP_ENABLE
+endif
+endif
 ccflags-y += -Wall -Werror
 ccflags-y += -DPPE_DRV_DEBUG_LEVEL=3

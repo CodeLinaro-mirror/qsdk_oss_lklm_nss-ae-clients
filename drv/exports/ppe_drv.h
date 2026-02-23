@@ -624,6 +624,8 @@ typedef enum ppe_drv_ret {
 	PPE_DRV_RET_MCAST_ENTRY_DELETE_FAIL, 		/**< Multicast entry delete fail */
 	PPE_DRV_RET_MCAST_STATUS_SET_FAIL,		/**< Multicast set status failed */
 	PPE_DRV_RET_MCAST_GLOBAL_CFG_FAIL,		/**< Multicast global configuration failed */
+	PPE_DRV_RET_TUN_RPS_CREATE_RULE_FAIL,		/**< RPS Create Rule return failed */
+	PPE_DRV_RET_TUN_RPS_DESTROY_RULE_FAIL,		/**< RPS Destroy Rule return failed */
 	PPE_DRV_RET_MAX,				/**< Max limit. */
 } ppe_drv_ret_t;
 

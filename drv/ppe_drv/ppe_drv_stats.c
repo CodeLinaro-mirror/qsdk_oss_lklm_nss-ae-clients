@@ -62,7 +62,13 @@ static const char *ppe_drv_stats_sc_name_str[] = {
 	"PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC",		/* Service code for loopback port for pon pass */
 	"PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_SC_NEXT",		/* Service code for loopback port for second pass */
 	"PPE_DRV_SC_FDB_BYPASS",		/* Service code for gem port table to bypass destination selection from FDB table */
-
+	"PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_HGU_US_SC",	/* Service code for loopback port for pon pass */
+	"PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_HGU_US_SC_NEXT",	/* Service code for loopback port for second pass */
+	"PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_HGU_DS_SC",	/* Service code for loopback port for pon pass */
+	"PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_HGU_DS_SC_NEXT",	/* Service code for loopback port for second pass */
+	"PPE_DRV_SC_FEATURE_PON_HGU_PPTP",	/* Service code for enabling PPTP flow with HGU enabled */
+	"PPE_DRV_SC_GEM_LOOKUP",	/* Service code for GEM port lookup */
+	"PPE_DRV_SC_NOEDIT_TUN_RPS",		/* Service code for Tunnel RPS configuration */
 	"PPE_DRV_SC_MAX",                 /* Max service code */
 };
 
@@ -632,7 +638,7 @@ static int ppe_drv_conn_stats_sc_show(struct seq_file *m, void __attribute__((un
 
 	seq_puts(m, "\nPPE_sc_stats:\n\n");
 	stats_shadow = (uint64_t *)sc_stats;
-	for (i = 0; i <= PPE_DRV_SC_FDB_BYPASS; i++) {
+	for (i = 0; i <= PPE_DRV_SC_NOEDIT_TUN_RPS; i++) {
 		uint64_t stats1 = *stats_shadow++;
 		uint64_t stats2 = *stats_shadow++;
 		uint64_t stats3 = *stats_shadow++;

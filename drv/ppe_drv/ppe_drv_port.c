@@ -1331,6 +1331,28 @@ int32_t ppe_drv_port_num_from_dev(struct net_device *dev)
 EXPORT_SYMBOL(ppe_drv_port_num_from_dev);
 
 /*
+ * ppe_drv_port_num_from_ifname()
+ *	Get PPE port number from interface name
+ */
+int32_t ppe_drv_port_num_from_ifname(const char *ifname)
+{
+	struct net_device *dev;
+	int32_t port_num;
+
+	dev = dev_get_by_name(&init_net, ifname);
+	if (!dev) {
+		ppe_drv_warn("Failed to get netdev for interface %s", ifname);
+		return PPE_DRV_PORT_ID_INVALID;
+	}
+
+	port_num = ppe_drv_port_num_from_dev(dev);
+	dev_put(dev);
+
+	return port_num;
+}
+EXPORT_SYMBOL(ppe_drv_port_num_from_ifname);
+
+/*
  * ppe_drv_port_rfs_enabled()
  *	RFS enabled on a Port
  */

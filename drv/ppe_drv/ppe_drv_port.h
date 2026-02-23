@@ -184,6 +184,7 @@ struct ppe_drv_port *ppe_drv_port_entries_alloc(void);
 uint16_t ppe_drv_port_num_get(struct ppe_drv_port *pp);
 bool ppe_drv_port_is_physical(struct ppe_drv_port *pp);
 struct ppe_drv_port *ppe_drv_port_from_port_num(uint16_t port_num);
+int32_t ppe_drv_port_num_from_ifname(const char *ifname);
 
 void ppe_drv_port_tl_l3_if_detach(struct ppe_drv_port *pp);
 struct ppe_drv_tun_l3_if *ppe_drv_port_tl_l3_if_get_n_ref(struct ppe_drv_port *pp);

@@ -554,6 +554,27 @@ void ppe_drv_sc_config(ppe_drv_sc_t sc, ppe_drv_sc_t next_sc, uint8_t redir_port
 			);
 		break;
 
+	case PPE_DRV_SC_NOEDIT_TUN_RPS:
+		sc_cfg.dest_port_valid = A_FALSE;
+
+		/*
+		 * Don't update destination information and service code in EDMA.
+		 * Also disable decap as the packets would be decapsulated in host
+		 */
+		sc_cfg.field_update_bitmap[0] = ((1 << FLD_UPDATE_DEST_INFO) | (1 << FLD_UPDATE_SERVICE_CODE) |
+							(1 << FLD_UPDATE_MAC_HDR_BYPASS) | (1 << FLD_UPDATE_DECAP_DIS));
+
+		/*
+		 * Avoid any packet editing
+		 */
+		sc_cfg.bypass_bitmap[1] |= ((1 << L2_PKT_EDIT_BYP) | (1 << L3_PKT_EDIT_BYP));
+
+		/*
+		 * Avoid packet drop due to FAKE MAC entry mismatch
+		 */
+		sc_cfg.bypass_bitmap[1] |= (1 << FAKE_MAC_DROP_BYP);
+		break;
+
 	case PPE_DRV_SC_FLOW_ACL_FIRST ... PPE_DRV_SC_FLOW_ACL_LAST:
 		/*
 		 * These are primarily used for N-tuple lookup or flow+policer combintation.
@@ -886,5 +907,7 @@ struct ppe_drv_sc *ppe_drv_sc_entries_alloc(void)
 	ppe_drv_sc_config(PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_HGU_DS_SC_NEXT, PPE_DRV_SC_NONE, PPE_DRV_PORT_CPU);
 	ppe_drv_sc_config(PPE_DRV_SC_FEATURE_PON_HGU_PPTP, PPE_DRV_SC_NONE, PPE_DRV_PORT_CPU);
 #endif
+	ppe_drv_sc_config(PPE_DRV_SC_NOEDIT_TUN_RPS, PPE_DRV_SC_NOEDIT_TUN_RPS, PPE_DRV_PORT_CPU);
+
 	return sc;
 }

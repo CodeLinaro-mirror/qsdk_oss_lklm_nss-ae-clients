@@ -152,6 +152,10 @@ void ppe_drv_flow_v6_stats_update(struct ppe_drv_v6_conn_flow *pcf)
 	struct ppe_drv_v6_conn *cn = pcf->conn;
 	uint8_t service_class;
 
+	if (pcf->tx_port == NULL || pcf->rx_port == NULL) {
+		return;
+	}
+
 	err = fal_flow_counter_get(PPE_DRV_SWITCH_ID, pf->index, &flow_cntrs);
 	if (err != SW_OK) {
 		ppe_drv_warn("%p: failed to get stats for flow at index: %u", pf, pf->index);
@@ -227,6 +231,10 @@ void ppe_drv_flow_v4_stats_update(struct ppe_drv_v4_conn_flow *pcf)
 	struct ppe_drv_v6_conn_flow *mapt_pcf_v6, *mapt_pcr_v6;
 	struct ppe_drv_v6_conn *mapt_cn_v6;
 	uint8_t service_class;
+
+	if (pcf->tx_port == NULL || pcf->rx_port == NULL) {
+		return;
+	}
 
 	err = fal_flow_counter_get(PPE_DRV_SWITCH_ID, pf->index, &flow_cntrs);
 	if (err != SW_OK) {
@@ -641,7 +649,7 @@ static bool ppe_drv_flow_v6_wifi_qos_get(struct ppe_drv_v6_conn_flow *pcf, uint8
 	 * so that EDMA can fill the MLO assit data in skb->mark which is needed by default
 	 * for wlan vp flows.
 	 */
-	if (pcf->tx_port->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP ||
+	if ((pcf->tx_port && (pcf->tx_port->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP)) ||
 	    ppe_drv_v6_conn_flow_flags_check(pcf, PPE_DRV_V6_CONN_FLAG_FLOW_VP_VALID)) {
 		*wifi_qos_en = true;
 	}
@@ -1936,7 +1944,7 @@ static bool ppe_drv_flow_v4_wifi_qos_get(struct ppe_drv_v4_conn_flow *pcf, uint8
 	 * so that EDMA can fill the MLO assit data in skb->mark which is needed by default
 	 * for wlan vp flows.
 	 */
-	if (pcf->tx_port->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP ||
+	if ((pcf->tx_port && (pcf->tx_port->user_type == PPE_DRV_PORT_USER_TYPE_ACTIVE_VP)) ||
 	    ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_VP_VALID)) {
 		*wifi_qos_en = true;
 	}
@@ -2708,6 +2716,7 @@ struct ppe_drv_flow *ppe_drv_flow_v4_add(struct ppe_drv_v4_conn_flow *pcf, struc
 		} else {
 			flow_cfg.fwd_type = FAL_FLOW_ROUTE;
 			flow_cfg.route_port = PPE_DRV_PORT_CPU;
+			flow_cfg.route_nexthop = nh->index;
 		}
 		ppe_drv_trace("%p: RFS enabled flow\n", pcf);
 	} else if (ppe_drv_v4_conn_flow_flags_check(pcf, PPE_DRV_V4_CONN_FLAG_FLOW_PRIORITY_PPE_ASSIST)) {

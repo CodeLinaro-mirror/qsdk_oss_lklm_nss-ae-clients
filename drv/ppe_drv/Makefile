@@ -157,11 +157,5 @@ qca-nss-ppe-objs += ppe_drv_gemport.o
 qca-nss-ppe-objs += ppe_drv_veip.o
 endif
 
-ifndef PPE_256M_PROFILE
-ifndef PPE_16M_PROFILE
-ccflags-y += -DNSS_PPE_COS_MAP_ENABLE
-ccflags-y += -DNSS_PPE_MCAST_QOS_PRI_ENABLE
-endif
-endif
 ccflags-y += -Wall -Werror
 ccflags-y += -DPPE_DRV_DEBUG_LEVEL=3

@@ -2776,6 +2776,10 @@ ppe_acl_ret_t ppe_acl_rule_flow_policer_create(struct ppe_acl_rule_flow_policer 
 	return PPE_ACL_RET_SUCCESS;
 
 fail:
+	if (gen_id >= 0) {
+		ppe_acl_rule_return_gen_id(gen_id);
+	}
+
 	if (ctx) {
 #ifdef PPE_LOOPBACK_PORT_SUPPORT
 		ppe_drv_acl_uni_to_l2vp_sc_unmap(ctx);
@@ -3024,6 +3028,10 @@ ppe_acl_ret_t ppe_acl_rule_create(struct ppe_acl_rule *rule)
 	return PPE_ACL_RET_SUCCESS;
 
 fail:
+	if (gen_id >= 0) {
+		ppe_acl_rule_return_gen_id(gen_id);
+	}
+
 	if (ctx) {
 #ifdef PPE_LOOPBACK_PORT_SUPPORT
 		ppe_drv_acl_uni_to_l2vp_sc_unmap(ctx);

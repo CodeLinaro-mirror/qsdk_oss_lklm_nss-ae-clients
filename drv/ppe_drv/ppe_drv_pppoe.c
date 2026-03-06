@@ -290,19 +290,19 @@ void ppe_drv_pppoe_l3_if_attach(struct ppe_drv_pppoe *pppoe, struct ppe_drv_l3_i
  * ppe_drv_pppoe_l3_if_deref()
  *	Lets go of reference to pppoe's l3_if
  */
-void ppe_drv_pppoe_l3_if_deref(struct ppe_drv_pppoe *pppoe)
+bool ppe_drv_pppoe_l3_if_deref(struct ppe_drv_pppoe *pppoe)
 {
 	if (!kref_read(&pppoe->ref)) {
 		ppe_drv_warn("%p: operating on unused pppoe:%d", pppoe, pppoe->index);
-		return;
+		return false;
 	}
 
 	if (!pppoe->l3_if) {
 		ppe_drv_warn("%p: pppoe: %u is not attached to l3_if: %p", pppoe, pppoe->index, pppoe->l3_if);
-		return;
+		return false;
 	}
 
-	ppe_drv_l3_if_deref(pppoe->l3_if);
+	return ppe_drv_l3_if_deref(pppoe->l3_if);
 }
 
 /*

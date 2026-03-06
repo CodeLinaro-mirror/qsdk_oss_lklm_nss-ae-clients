@@ -84,6 +84,7 @@ typedef enum ppe_drv_sc_type {
 	PPE_DRV_SC_FEATURE_PON_HGU_PPTP = 51,	/* Service code for enabling PPTP flow with HGU enabled */
 #endif
 	PPE_DRV_SC_GEM_LOOKUP = 52,	/* Service code for GEM port lookup */
+	PPE_DRV_SC_NOEDIT_TUN_RPS = 53,		/* Service code to redirect the packets to CPU port with Tunnel RPS configured */
 	PPE_DRV_SC_FLOW_ACL_FIRST = PPE_DRV_SC_FLOW_ACL_START,
 					/* First service code for combining flow and ACL rule */
 	PPE_DRV_SC_FLOW_ACL_LAST = PPE_DRV_SC_FLOW_ACL_END,

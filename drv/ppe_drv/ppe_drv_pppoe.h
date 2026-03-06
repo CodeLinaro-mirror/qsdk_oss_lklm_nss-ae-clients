@@ -23,7 +23,7 @@ struct ppe_drv_pppoe {
 #endif
 };
 
-void ppe_drv_pppoe_l3_if_deref(struct ppe_drv_pppoe *pppoe);
+bool ppe_drv_pppoe_l3_if_deref(struct ppe_drv_pppoe *pppoe);
 struct ppe_drv_l3_if *ppe_drv_pppoe_l3_if_get_and_ref(struct ppe_drv_pppoe *pppoe);
 
 bool ppe_drv_pppoe_deref(struct ppe_drv_pppoe *pppoe);

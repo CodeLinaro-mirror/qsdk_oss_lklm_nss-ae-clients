@@ -905,7 +905,6 @@ ppe_drv_ret_t ppe_drv_tun_rps_rule_destroy(struct ppe_drv_tun_rps_rule_destroy *
 		if (!ppe_drv_tun_rps_l3_if_deconfigure(pgm->ctx.data.rps.tun_l3_if, pppoe)) {
 			ppe_drv_warn("TL_L3_IF deref failed\n");
 		}
-
 		pgm->ctx.data.rps.tun_l3_if = NULL;
 	}
 
@@ -932,6 +931,7 @@ ppe_drv_ret_t ppe_drv_tun_rps_rule_destroy(struct ppe_drv_tun_rps_rule_destroy *
 	spin_unlock_bh(&p->lock);
 	return PPE_DRV_RET_SUCCESS;
 }
+EXPORT_SYMBOL(ppe_drv_tun_rps_rule_destroy);
 
 /*
  * ppe_drv_tun_rps_rule_create
@@ -1240,3 +1240,4 @@ ppe_drv_ret_t ppe_drv_tun_rps_rule_create(struct ppe_drv_tun_rps_rule_create *ru
 
 	return PPE_DRV_RET_SUCCESS;
 }
+EXPORT_SYMBOL(ppe_drv_tun_rps_rule_create);

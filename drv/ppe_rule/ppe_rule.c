@@ -31,6 +31,9 @@
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M) && !defined(NSS_PPE_LOWMEM_PROFILE_256M)
 #include "ppe_mirror/ppe_mirror.h"
 #include "ppe_priority/ppe_priority.h"
+#if defined(PPE_TUN_RPS_ENABLED)
+#include "ppe_tun_rps/ppe_tun_rps.h"
+#endif
 #endif
 #ifdef NSS_PPE_FEATURE_DOT1P
 #include "ppe_dot1p/ppe_dot1p.h"
@@ -83,6 +86,9 @@ static int __init ppe_rule_module_init(void)
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M) && !defined(NSS_PPE_LOWMEM_PROFILE_256M)
 	ppe_mirror_init(d_rule);
 	ppe_priority_init(d_rule);
+#if defined(PPE_TUN_RPS_ENABLED)
+	ppe_tun_rps_init(d_rule);
+#endif
 #endif
 #ifdef NSS_PPE_FEATURE_DOT1P
 	ppe_dot1p_init(d_rule);
@@ -107,6 +113,9 @@ static void __exit ppe_rule_module_exit(void)
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M) && !defined(NSS_PPE_LOWMEM_PROFILE_256M)
 	ppe_mirror_deinit();
 	ppe_priority_deinit();
+#if defined(PPE_TUN_RPS_ENABLED)
+	ppe_tun_rps_deinit();
+#endif
 #endif
 #if !defined(NSS_PPE_LOWMEM_PROFILE_16M)
 	ppe_policer_deinit();

@@ -157,6 +157,8 @@ enum ppe_drv_static_dbg_level {
 #define PPE_DRV_COMMON_PROFILE_ID	FAL_QM_PROFILE_COMMON_ID
 #define PPE_DRV_PO_PROFILE_ID		FAL_QM_PROFILE_PO_ID
 #define PPE_DRV_REDIR_PROFILE_ID	9
+#define PPE_DRV_GRO_PROFILE_ID		10
+
 
 /*
  * MAX queue priority

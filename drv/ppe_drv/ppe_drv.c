@@ -111,6 +111,9 @@ int disable_port_mtu_check = true;
 uint32_t static_dbg_level = 0;
 static char static_dbg_level_str[PPE_DRV_STATIC_DBG_LEVEL_STR_LEN];
 uint8_t ppe_drv_redir_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+#ifdef NSS_PPE_DRV_HW_GRO
+uint8_t ppe_drv_gro_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+#endif
 uint8_t ppe_drv_16_prio_map[PPE_DRV_MAX_PRIORITY] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 static int eth2eth_offload_if_bitmap;
 static char upstream_dev_str[PPE_DRV_UPSTREAM_DEV_LEVEL_STR_LEN];
@@ -916,7 +919,7 @@ static ppe_drv_ret_t ppe_drv_gro_map_core_to_enqueue_vp(uint8_t core, uint8_t qu
 	/*
 	 * Maps enqueue with given queue
 	 */
-	status = ppe_drv_enq_vp_map_to_queue(queue_id, enq_vp, PPE_DRV_REDIR_PROFILE_ID);
+	status = ppe_drv_enq_vp_map_to_queue(queue_id, enq_vp, PPE_DRV_GRO_PROFILE_ID);
 	if (status != PPE_DRV_RET_SUCCESS) {
 		ppe_drv_warn("%p: Unable to map enq_vp:%u to queue:%u ", p, enq_vp, queue_id);
 		ppe_drv_port_enq_vp_free(enq_vp);
@@ -1805,6 +1808,13 @@ static int ppe_drv_probe(struct platform_device *pdev)
 		ppe_drv_warn("%p: failed to configure ucast priority class setting\n", p);
 		goto fail;
 	}
+
+#ifdef NSS_PPE_DRV_HW_GRO
+	if (!ppe_drv_confgiure_ucast_prio_map_tbl(PPE_DRV_GRO_PROFILE_ID, ppe_drv_gro_prio_map)) {
+		ppe_drv_warn("%p: failed to configure ucast priority class setting\n", p);
+		goto fail;
+	}
+#endif
 
 	/*
 	 *

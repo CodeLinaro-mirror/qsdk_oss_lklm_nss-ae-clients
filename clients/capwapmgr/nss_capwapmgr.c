@@ -471,7 +471,7 @@ static bool nss_capwapmgr_receive_pkt_ppe_vp(struct ppe_vp_cb_info *info, void *
 	struct sk_buff *skb = info->skb;
 	struct net_device *parent_netdev = (struct net_device *)cb_data;
 
-	nss_capwapmgr_assert(parent_dev, "Parent netdev is NULL for internal dev %p", skb->dev);
+	nss_capwapmgr_assert(parent_netdev, "Parent netdev is NULL for internal dev %p", skb->dev);
 	nss_capwapmgr_receive_pkt(parent_netdev, skb, NULL);
 
 	return true;
@@ -2953,6 +2953,12 @@ struct net_device *nss_capwapmgr_get_dtls_netdev(struct net_device *capwap_dev, 
 	}
 
 	dtls_dev = t->dtls_dev;
+	if (!dtls_dev) {
+		nss_capwapmgr_warn("%px: tunnel %d has no DTLS session configured\n", capwap_dev, tunnel_id);
+		dev_put(capwap_dev);
+		return NULL;
+	}
+
 	dev_hold(dtls_dev);
 
 	dev_put(capwap_dev);

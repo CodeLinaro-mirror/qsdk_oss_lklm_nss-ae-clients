@@ -319,7 +319,7 @@ static void nss_ppe_vlan_mgr_calculate_new_vp_port_role(int32_t port, int32_t po
  * nss_ppe_vlan_mgr_calculate_new_port_role()
  *	check if we can change this port to edge port
  */
-static bool nss_ppe_vlan_mgr_calculate_new_port_role(int32_t port, int32_t portindex)
+static bool nss_ppe_vlan_mgr_calculate_new_port_role(struct ppe_drv_iface *iface, int32_t port, int32_t portindex)
 {
 	struct nss_vlan_pvt *v;
 	bool to_edge_port = true;
@@ -354,7 +354,7 @@ static bool nss_ppe_vlan_mgr_calculate_new_port_role(int32_t port, int32_t porti
 	spin_unlock(&vlan_mgr_ctx.lock);
 
 	if (to_edge_port) {
-		if (!nss_ppe_vlan_mgr_ppe_update_port_role(v->iface, port, FAL_QINQ_EDGE_PORT)) {
+		if (!nss_ppe_vlan_mgr_ppe_update_port_role(iface, port, FAL_QINQ_EDGE_PORT)) {
 			nss_ppe_vlan_mgr_warn("failed to set %d as edge port\n", port);
 			return false;
 		}
@@ -1730,7 +1730,7 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 	 */
 	for (i = 0; i < NSS_PPE_VLAN_MGR_PORT_MAX; i++) {
 		if (v->port[i]) {
-			if (nss_ppe_vlan_mgr_calculate_new_port_role(v->port[i], i)) {
+			if (nss_ppe_vlan_mgr_calculate_new_port_role(v->iface, v->port[i], i)) {
 				nss_ppe_vlan_mgr_port_role_event(v->port[i], i);
 			}
 		}

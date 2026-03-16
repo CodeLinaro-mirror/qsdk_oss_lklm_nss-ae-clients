@@ -49,25 +49,25 @@ static ssize_t nss_dtlsmgr_ctx_fill_hw_error_stats(struct nss_dtlsmgr_stats *sta
 {
 	int i;
 
-	len += snprintf(buf + len, max_buf_len, "\nHardware Errors\n---------------\n");
-	len += snprintf(buf + len, max_buf_len, "length_error        = %lld\n", stats->fail_hw.len_error);
-	len += snprintf(buf + len, max_buf_len, "token_error         = %lld\n", stats->fail_hw.token_error);
-	len += snprintf(buf + len, max_buf_len, "bypass_error        = %lld\n", stats->fail_hw.bypass_error);
-	len += snprintf(buf + len, max_buf_len, "config_error        = %lld\n", stats->fail_hw.config_error);
-	len += snprintf(buf + len, max_buf_len, "algo_error          = %lld\n", stats->fail_hw.algo_error);
-	len += snprintf(buf + len, max_buf_len, "hash_ovf_error      = %lld\n", stats->fail_hw.hash_ovf_error);
-	len += snprintf(buf + len, max_buf_len, "ttl_error           = %lld\n", stats->fail_hw.ttl_error);
-	len += snprintf(buf + len, max_buf_len, "csum_error          = %lld\n", stats->fail_hw.csum_error);
-	len += snprintf(buf + len, max_buf_len, "timeout_error       = %lld\n", stats->fail_hw.timeout_error);
+	len += snprintf(buf + len, max_buf_len - len, "\nHardware Errors\n---------------\n");
+	len += snprintf(buf + len, max_buf_len - len, "length_error        = %lld\n", stats->fail_hw.len_error);
+	len += snprintf(buf + len, max_buf_len - len, "token_error         = %lld\n", stats->fail_hw.token_error);
+	len += snprintf(buf + len, max_buf_len - len, "bypass_error        = %lld\n", stats->fail_hw.bypass_error);
+	len += snprintf(buf + len, max_buf_len - len, "config_error        = %lld\n", stats->fail_hw.config_error);
+	len += snprintf(buf + len, max_buf_len - len, "algo_error          = %lld\n", stats->fail_hw.algo_error);
+	len += snprintf(buf + len, max_buf_len - len, "hash_ovf_error      = %lld\n", stats->fail_hw.hash_ovf_error);
+	len += snprintf(buf + len, max_buf_len - len, "ttl_error           = %lld\n", stats->fail_hw.ttl_error);
+	len += snprintf(buf + len, max_buf_len - len, "csum_error          = %lld\n", stats->fail_hw.csum_error);
+	len += snprintf(buf + len, max_buf_len - len, "timeout_error       = %lld\n", stats->fail_hw.timeout_error);
 
-	len += snprintf(buf + len, max_buf_len, "\nClassifcation Errors\n---------------------\n");
+	len += snprintf(buf + len, max_buf_len - len, "\nClassifcation Errors\n---------------------\n");
 	for (i = 0; i < NSS_DTLS_CMN_CLE_MAX; i++) {
 		/*
 		 * Don't print if there are no errors
 		 */
 		if (!stats->fail_cle[i])
 			continue;
-		len += snprintf(buf + len, max_buf_len, "cle_error_%02d   - %lld\n", i, stats->fail_cle[i]);
+		len += snprintf(buf + len, max_buf_len - len, "cle_error_%02d   - %lld\n", i, stats->fail_cle[i]);
 	}
 
 	return len;

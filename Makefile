@@ -20,10 +20,6 @@ endif
 
 KERNELVERSION := $(word 1, $(subst ., ,$(KERNELVERSION))).$(word 2, $(subst ., ,$(KERNELVERSION)))
 
-obj-y += drv/
-
+# AE tree hosts PPE client manager modules.
 obj-y += clients/
-obj-$(netlink) += netlink/
-obj-$(ppe-mirror-test) += test/
-obj-y += nss_debug/
 obj ?= .

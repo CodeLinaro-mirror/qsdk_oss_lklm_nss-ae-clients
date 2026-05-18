@@ -37,7 +37,8 @@ static const char *ppe_vp_stats_base_str[] = {
 	"Tx VP Inactive",			/* VP of Packet forwarded by VP user is inactive */
 	"Rx Fast tramist failed",		/* Rx packet fast transmit failed */
 	"Rx Qdisc Fast tramist failed",		/* Rx packet Qdisc fast transmit failed */
-	"Rx Destination VP no listcb"		/* Packet received from PPE with inactive destinaton VP */
+	"Rx Destination VP no listcb",		/* Packet received from PPE with inactive destinaton VP */
+	"Rx Destination VP no xdpcb"		/* XDP handler not registered for XDP destination VP */
 };
 
 static const char *ppe_vp_stats_rx_str[] = {

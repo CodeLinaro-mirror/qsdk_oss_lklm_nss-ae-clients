@@ -21,7 +21,9 @@ ccflags-y += -DNSS_EXT_VLAN_FEATURE_SUPPORT
 endif
 
 ifeq ($(SoC),$(filter $(SoC),ipq52xx))
+ifndef PPE_SFU_PROFILE
 ccflags-y += -DNSS_VLAN_VEIP_FEATURE_SUPPORT
+endif
 endif
 
 ifneq (,$(filter $(CONFIG_BONDING),y m))

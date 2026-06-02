@@ -45,6 +45,10 @@ static bool vp_fdb_learn_enabled = false;
 module_param(vp_fdb_learn_enabled, bool, 0644);
 MODULE_PARM_DESC(vp_fdb_learn_enabled, "VLAN-as-VP fdb learning is enabled");
 
+static bool vlan_as_veip_enabled = true;
+module_param(vlan_as_veip_enabled, bool, 0644);
+MODULE_PARM_DESC(vlan_as_veip_enabled, "VLAN-as-VEIP feature is enabled");
+
 /*
  * vlan_as_vp_dev_name contains the netdevice device names over which
  * the VLAN as VP interface feature is required.
@@ -2278,7 +2282,8 @@ static int nss_ppe_vlan_mgr_register_event(struct netdev_notifier_info *info)
 		if (is_vlan_as_vp) {
 			res = nss_ppe_vlan_mgr_alloc_configure_ppe_vp(v, dev, real_dev);
 #ifdef NSS_VLAN_VEIP_FEATURE_SUPPORT
-		} else if (((port_id = nss_ppe_vlan_mgr_get_port_id(real_dev)) != NSS_PPE_VLAN_MGR_INVALID_PORT) &&
+		} else if (vlan_as_veip_enabled &&
+			   ((port_id = nss_ppe_vlan_mgr_get_port_id(real_dev)) != NSS_PPE_VLAN_MGR_INVALID_PORT) &&
 			   ppe_drv_port_is_gem(port_id)) {
 			res = nss_ppe_vlan_mgr_alloc_configure_ppe_veip(v, dev);
 #endif

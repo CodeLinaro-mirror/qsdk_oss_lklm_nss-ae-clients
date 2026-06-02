@@ -83,6 +83,7 @@ static int nss_ppe_ath_client_register_event(struct net_device *dev)
 	vpai.usr_type = PPE_VP_USER_TYPE_NONE;
 	vpai.type = PPE_VP_TYPE_SW_L2;
 	vpai.net_dev_type = PPE_VP_NET_DEV_TYPE_WIFI;
+	vpai.core_mask = 7;
 	vpai.queue_num = ppe_drv_queue_from_core(NSS_PPE_ATH_CLIENT_WLAN_DEFAULT_CORE);
 
 	dev_hold(dev);

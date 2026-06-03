@@ -152,23 +152,52 @@ static struct net_device *nss_ppe_vlan_mgr_dsa_get_real_dev(struct net_device *d
 	return dp ? dsa_port_to_master(dp) : NULL;
 }
 
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+/*
+ * nss_ppe_vlan_mgr_is_htt_dev()
+ *	Returns true if dsa_dev's DSA master is dynamically confirmed (via PPE,
+ *	sourced from qcom,htt-dev in DT) to be an HTT (Huntington) switch.
+ */
+static bool nss_ppe_vlan_mgr_is_htt_dev(struct net_device *dsa_dev)
+{
+	struct net_device *master_dev;
+	struct ppe_drv_iface *master_iface;
+
+	if (!dsa_dev || !dsa_slave_dev_check(dsa_dev)) {
+		return false;
+	}
+
+	master_dev = nss_ppe_vlan_mgr_dsa_get_real_dev(dsa_dev);
+	if (!master_dev) {
+		return false;
+	}
+
+	master_iface = ppe_drv_iface_get_by_dev(master_dev);
+	if (!master_iface) {
+		return false;
+	}
+
+	return ppe_drv_iface_is_htt(master_iface);
+}
+#endif
+
 /*
  * nss_ppe_vlan_mgr_dsa_interface_supported()
- * 	Returns true if VLAN over DSA, is present
+ * 	Returns true if VLAN over DSA is present and supported.
  */
 static bool nss_ppe_vlan_mgr_dsa_interface_supported(struct net_device *dev)
 {
 	struct net_device *real_dev = NULL;
 	struct ppe_drv_iface *real_iface = NULL;
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	struct net_device *dsa_dev = NULL;
+#endif
 
 	if (!is_vlan_dev(dev)) {
 		nss_ppe_vlan_mgr_trace("%s is not VLAN interface\n", dev->name);
 		return false;
 	}
 
-	/*
-	 * VLAN over DSA? eg: lan1.10
-	 */
 	real_dev = nss_ppe_vlan_mgr_get_real_dev(dev);
 	real_iface = ppe_drv_iface_get_by_dev(real_dev);
 	if (!real_iface) {
@@ -176,19 +205,31 @@ static bool nss_ppe_vlan_mgr_dsa_interface_supported(struct net_device *dev)
 	}
 
 	/*
-	 * Double VLAN on DSA interface? eg: lan1.10.20
+	 * For lan1.10.20, real_dev is lan1.10 (a VLAN device itself).
+	 * Peel one more level so real_dev becomes lan1 (the DSA slave), but
+	 * only if lan1's master is dynamically confirmed to be an HTT switch.
+	 * Otherwise this path stays blocked and only single-level VLANs over
+	 * DSA (lan1.10) are allowed.
 	 */
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
 	if (is_vlan_dev(real_dev)) {
-		nss_ppe_vlan_mgr_trace("%s is Double VLAN interface over DSA is not supported\n", dev->name);
+		dsa_dev = nss_ppe_vlan_mgr_get_real_dev(real_dev);
+		if (nss_ppe_vlan_mgr_is_htt_dev(dsa_dev)) {
+			real_dev = dsa_dev;
+		}
+	}
+#endif
+
+	if (!dsa_slave_dev_check(real_dev)) {
+		nss_ppe_vlan_mgr_trace("%s: real_dev %s is not a DSA interface (or QinQ over DSA not enabled)\n",
+				dev->name, real_dev ? real_dev->name : "NULL");
 		return false;
 	}
 
 	/*
-	 * Valid DSA? eg: lan1
+	 * Confirm the DSA master also has a PPE interface.
 	 */
-	if (dsa_slave_dev_check(real_dev)) {
-		real_dev = nss_ppe_vlan_mgr_dsa_get_real_dev(real_dev);
-	}
+	real_dev = nss_ppe_vlan_mgr_dsa_get_real_dev(real_dev);
 	real_iface = real_dev ? ppe_drv_iface_get_by_dev(real_dev) : NULL;
 	if (!real_iface) {
 		nss_ppe_vlan_mgr_trace("Master of %s doesn't have real interface\n", dev->name);
@@ -197,6 +238,36 @@ static bool nss_ppe_vlan_mgr_dsa_interface_supported(struct net_device *dev)
 
 	return true;
 }
+
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+/*
+ * nss_ppe_vlan_mgr_is_htt_vlan_dsa()
+ *	Returns true if dsa_dev uses the VLAN-based DSA tag protocol and its
+ *	DSA master is dynamically confirmed to be an HTT (Huntington) switch.
+ *
+ * DSA_TAG_PROTO_QCA_8021Q identifies the DSA tagging mode. The actual
+ * DSA tag TPID programmed in VLAN rules is ETH_P_DSA_8021Q.
+ */
+static bool nss_ppe_vlan_mgr_is_htt_vlan_dsa(struct net_device *dsa_dev)
+{
+	struct dsa_port *dp = NULL;
+
+	if (!dsa_dev || !dsa_slave_dev_check(dsa_dev)) {
+		return false;
+	}
+
+	dp = dsa_port_from_netdev(dsa_dev);
+	if (!dp || !dp->cpu_dp || !dp->cpu_dp->tag_ops) {
+		return false;
+	}
+
+	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_8021Q) {
+		return false;
+	}
+
+	return nss_ppe_vlan_mgr_is_htt_dev(dsa_dev);
+}
+#endif
 #endif
 
 /*
@@ -863,21 +934,36 @@ bool nss_ppe_vlan_mgr_vp_src_exception(struct ppe_vp_cb_info *info, void *cb_dat
 #ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	/*
 	 * DSA interface, if it's not a VLAN dev?
+	 * Under QINQ, PPE strips the DSA tag in hardware so deliver directly to
+	 * the DSA slave. Without QINQ, walk up to the master to present the tag.
 	 */
 	if (!real_dev && dsa_slave_dev_check(skb->dev)) {
-		dp = dsa_port_from_netdev(skb->dev);
-		if (dp) {
-			real_dev = dsa_port_to_master(dp);
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+		if (nss_ppe_vlan_mgr_is_htt_dev(skb->dev)) {
+			real_dev = skb->dev;
+		} else
+#endif
+		{
+			dp = dsa_port_from_netdev(skb->dev);
+			if (dp) {
+				real_dev = dsa_port_to_master(dp);
+			}
 		}
 	}
 
 	/*
-	 * VLAN over DSA interface ?
+	 * VLAN over DSA interface? Walk to master unless real_dev is an
+	 * HTT-switch DSA slave, where PPE already stripped the tag.
 	 */
-	if (real_dev && dsa_slave_dev_check(real_dev)) {
-		dp = dsa_port_from_netdev(real_dev);
-		if (dp) {
-			real_dev = dsa_port_to_master(dp);
+	if ((real_dev) && (dsa_slave_dev_check(real_dev)) && (real_dev != skb->dev)) {
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+		if (!nss_ppe_vlan_mgr_is_htt_dev(real_dev))
+#endif
+		{
+			dp = dsa_port_from_netdev(real_dev);
+			if (dp) {
+				real_dev = dsa_port_to_master(dp);
+			}
 		}
 	}
 #endif
@@ -1176,7 +1262,6 @@ static int nss_ppe_vlan_mgr_alloc_configure_ppe_vp(struct nss_vlan_pvt *v, struc
 			struct net_device *vlan_as_vp_real_dev)
 {
 	ppe_vp_num_t vp_num;
-	ppe_drv_ret_t ret;
 	int res = 0;
 
 	/*
@@ -1249,15 +1334,49 @@ static int nss_ppe_vlan_mgr_alloc_configure_ppe_vp(struct nss_vlan_pvt *v, struc
 	}
 
 	/*
-	 * calculate the cvid and svid.
+	 * Calculate the cvid and svid.
+	 *
+	 * TYPE_TRIPLE means: double user VLAN over DSA (e.g. lan1.10.20).
+	 *   PPE HW sees 3 tags: DSA internal tag + S-tag (lan1.10 vid) + C-tag (lan1.10.20 vid).
+	 *   v->vid       = C-tag (innermost user VLAN, lan1.10.20) → CVID
+	 *   v->parent->vid = S-tag (outer user VLAN, lan1.10)      → SVID
+	 *
+	 * TYPE_DOUBLE means: either a regular eth0.10.20 stacked VLAN, or the first
+	 *   user VLAN on a DSA interface (lan1.10) when DSA QinQ is enabled.
+	 *   For lan1.10 the DSA internal tag is already handled by the VP; treat
+	 *   this VLAN as single-tag using the normal TPID/port-role logic.
+	 *
+	 * TYPE_SINGLE: normal single-tag, TPID/port-role decides CVID vs SVID.
 	 */
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_TRIPLE) {
+		v->ppe_cvid = v->vid;
+		v->ppe_svid = v->parent->vid;
+	} else if ((NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) &&
+		   (nss_ppe_vlan_mgr_is_htt_vlan_dsa(vlan_as_vp_real_dev))) {
+		/*
+		 * Single user VLAN over DSA (e.g. lan1.10): DSA tag is internal to PPE.
+		 * Treat as single tag — follow port role to decide cvid vs svid,
+		 * same as TYPE_SINGLE.
+		 */
+		if (((vlan_mgr_ctx.ctpid != vlan_mgr_ctx.stpid) && (v->tpid == vlan_mgr_ctx.ctpid)) ||
+				((vlan_mgr_ctx.ctpid == vlan_mgr_ctx.stpid) &&
+				 (vlan_mgr_ctx.port_role[v->port[0]] == FAL_QINQ_EDGE_PORT))) {
+			v->ppe_cvid = v->vid;
+			v->ppe_svid = FAL_VLAN_INVALID;
+		} else {
+			v->ppe_cvid = FAL_VLAN_INVALID;
+			v->ppe_svid = v->vid;
+		}
+	} else {
+#endif
 	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) {
 		v->ppe_cvid = v->vid;
 		v->ppe_svid = v->parent->vid;
 	} else {
 		if (((vlan_mgr_ctx.ctpid != vlan_mgr_ctx.stpid) && (v->tpid == vlan_mgr_ctx.ctpid)) ||
-		    ((vlan_mgr_ctx.ctpid == vlan_mgr_ctx.stpid) &&
-		     (vlan_mgr_ctx.port_role[v->port[0]] == FAL_QINQ_EDGE_PORT))) {
+				((vlan_mgr_ctx.ctpid == vlan_mgr_ctx.stpid) &&
+				 (vlan_mgr_ctx.port_role[v->port[0]] == FAL_QINQ_EDGE_PORT))) {
 			v->ppe_cvid = v->vid;
 			v->ppe_svid = FAL_VLAN_INVALID;
 		} else {
@@ -1265,18 +1384,38 @@ static int nss_ppe_vlan_mgr_alloc_configure_ppe_vp(struct nss_vlan_pvt *v, struc
 			v->ppe_svid = v->vid;
 		}
 	}
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	}
+#endif
 
 	v->xlate_info.br = NULL;
 	v->xlate_info.svid = v->ppe_svid;
 	v->xlate_info.cvid = v->ppe_cvid;
 
-	ret = ppe_drv_vlan_as_vp_add_xlate_rules(v->iface, &v->xlate_info);
-	if (ret != PPE_DRV_RET_SUCCESS) {
-		nss_ppe_vlan_mgr_warn("%s: failed to set vlan translation, error = %d \n", dev->name, ret);
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	/*
+	 * For the base DSA slave (lan1), the VP carries the internal DSA tag.
+	 * No VLAN translation rule is needed at this level; skip it.
+	 * VLAN rules are only programmed for user VLANs on top (lan1.10, lan1.10.20).
+	 */
+	if (nss_ppe_vlan_mgr_is_htt_vlan_dsa(dev)) {
+		nss_ppe_vlan_mgr_trace("%s: DSA slave — VP created, skipping VLAN xlate rules\n",
+				dev->name);
+		return res;
+	}
+#endif
+	/*
+	 * Add VLAN translation rules for:
+	 * 1. Non-DSA interfaces
+	 * 2. DSA without triple VLAN support
+	 * 3. VLAN over DSA with QinQ support
+	 */
+	if (ppe_drv_vlan_as_vp_add_xlate_rules(v->iface, &v->xlate_info) != PPE_DRV_RET_SUCCESS) {
+		nss_ppe_vlan_mgr_warn("%s: failed to set vlan translation\n", dev->name);
 		return -1;
 	}
 
-		nss_ppe_vlan_mgr_trace("%s: v->port[0]: %d, v->port[vp_num - 1]: %d\n", dev->name,
+	nss_ppe_vlan_mgr_trace("%s: v->port[0]: %d, v->port[vp_num - 1]: %d\n", dev->name,
 			v->port[0], v->port[vp_num - 1]);
 	return res;
 }
@@ -1617,6 +1756,9 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 #endif
 	enum nss_ppe_vlan_mgr_vlan br_action = NSS_PPE_VLAN_MGR_BR_VLAN_DEC;
 	struct nss_vlan_pvt *v = container_of(kref, struct nss_vlan_pvt, ref);
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	uint32_t dsa_vid = 0;
+#endif
 
 	if (v->is_vlan_over_bridge) {
 		if (!v->iface) {
@@ -1649,6 +1791,21 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 		list_del(&v->list);
 	}
 	spin_unlock(&vlan_mgr_ctx.lock);
+
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	/*
+	 * Clear the egress VLAN-to-VP mapping that was set when this VLAN
+	 * over DSA interface was created.
+	 */
+	if (v->parent) {
+		if ((v->parent->tpid == ETH_P_DSA_8021Q) ||
+				(v->parent->parent && v->parent->parent->tpid == ETH_P_DSA_8021Q)) {
+			dsa_vid = (v->parent->tpid == ETH_P_DSA_8021Q) ?
+				v->parent->vid : v->parent->parent->vid;
+			ppe_drv_vlan_dsa_vp_egress_map_reset(v->xlate_info.port_id, dsa_vid);
+		}
+	}
+#endif
 
 	/*
 	 * VP based vlan instance cleanup.
@@ -1998,6 +2155,9 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_create_instance(struct net_device *
 	struct vlan_dev_priv *vlan;
 	struct net_device *real_dev;
 	struct net_device *slave_dev;
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	struct net_device *base_dev;
+#endif
 	int32_t port_id, bond_id = -1;
 
 	if (!is_vlan_dev(dev)) {
@@ -2077,7 +2237,40 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_create_instance(struct net_device *
 			rcu_read_unlock();
 			v->bond_id = bond_id;
 		}
-	} else if (!v->parent->parent) {
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	} else if (v->parent && v->parent->parent) {
+		/*
+		 * Triple or deeper VLAN stacking (e.g. lan1.10.20.30) is not supported.
+		 * Only double VLAN over DSA interfaces is supported at this depth.
+		 */
+		if (v->parent->parent->parent) {
+			nss_ppe_vlan_mgr_warn("%s: triple VLAN stacking not supported\n", dev->name);
+			nss_ppe_vlan_mgr_instance_deref(v->parent);
+			kfree(v);
+			return NULL;
+		}
+
+		/*
+		 * lan1.10.20: double user VLAN over DSA (QinQ over DSA).
+		 * real_dev is lan1.10 here; peel one level to reach lan1 (the DSA slave).
+		 */
+		base_dev = real_dev;
+		if (is_vlan_dev(base_dev)) {
+			vlan = vlan_dev_priv(base_dev);
+			base_dev = vlan->real_dev;
+		}
+
+		if (!nss_ppe_vlan_mgr_is_htt_vlan_dsa(base_dev)) {
+			nss_ppe_vlan_mgr_warn("%s: QinQ (double user VLAN) only supported on VLAN-based DSA interfaces\n",
+					dev->name);
+			nss_ppe_vlan_mgr_instance_deref(v->parent);
+			kfree(v);
+			return NULL;
+		}
+
+		v->port[0] = v->parent->port[0];
+#endif
+	} else if (v->parent) {
 		if (is_vlan_dev(real_dev)) {
 			vlan = vlan_dev_priv(real_dev);
 			real_dev = vlan->real_dev;
@@ -2112,13 +2305,55 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_create_instance(struct net_device *
 	/*
 	 * Check if TPID is permited
 	 */
-	if ((NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) &&
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	/*
+	 * For QinQ over DSA (lan1.10.20):
+	 *   v->tpid        = C-tag TPID (innermost user VLAN, lan1.10.20) — must match ctpid
+	 *   v->parent->tpid = S-tag TPID (outer user VLAN, lan1.10)      — must match stpid
+	 * The grandparent (lan1 DSA VP) uses a DSA-internal TPID; do not validate it here.
+	 */
+	if ((NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_TRIPLE) &&
 	    ((v->tpid != vlan_mgr_ctx.ctpid) || (v->parent->tpid != vlan_mgr_ctx.stpid))) {
-		nss_ppe_vlan_mgr_warn("%s: double tag: tpid %04x not match global tpid(%04x, %04x)\n", dev->name, v->tpid, vlan_mgr_ctx.ctpid,
-				vlan_mgr_ctx.stpid);
+		nss_ppe_vlan_mgr_warn("%s: QinQ over DSA: tpid %04x/%04x not match global ctpid/stpid (%04x/%04x)\n",
+				dev->name, v->tpid, v->parent->tpid,
+				vlan_mgr_ctx.ctpid, vlan_mgr_ctx.stpid);
 		nss_ppe_vlan_mgr_instance_deref(v->parent);
 		kfree(v);
 		return NULL;
+	}
+#endif
+	if (NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_DOUBLE) {
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+		/*
+		 * For VLAN over DSA (lan2.20): accept ctpid or stpid for the user
+		 * tag. The base DSA tag TPID is ETH_P_DSA_8021Q and is stripped
+		 * by PPE HW before the xlate lookup.
+		 */
+		if (nss_ppe_vlan_mgr_is_htt_vlan_dsa(real_dev)) {
+			if (((v->tpid != vlan_mgr_ctx.ctpid) && (v->tpid != vlan_mgr_ctx.stpid)) ||
+					(v->parent->tpid != ETH_P_DSA_8021Q)) {
+				nss_ppe_vlan_mgr_warn("%s: double tag over DSA: tpid %04x/%04x not match ctpid/stpid/dsa_tpid (%04x/%04x/%04x)\n",
+						dev->name, v->tpid, v->parent->tpid,
+						vlan_mgr_ctx.ctpid, vlan_mgr_ctx.stpid, ETH_P_DSA_8021Q);
+				nss_ppe_vlan_mgr_instance_deref(v->parent);
+				kfree(v);
+				return NULL;
+			}
+		} else
+#endif
+		{
+			/*
+			 * Normal double tag: inner must match ctpid, outer must match stpid.
+			 */
+			if ((v->tpid != vlan_mgr_ctx.ctpid) || (v->parent->tpid != vlan_mgr_ctx.stpid)) {
+				nss_ppe_vlan_mgr_warn("%s: double tag: tpid %04x/%04x not match global ctpid/stpid (%04x/%04x)\n",
+						dev->name, v->tpid, v->parent->tpid,
+						vlan_mgr_ctx.ctpid, vlan_mgr_ctx.stpid);
+				nss_ppe_vlan_mgr_instance_deref(v->parent);
+				kfree(v);
+				return NULL;
+			}
+		}
 	}
 
 	if ((NSS_PPE_VLAN_MGR_TAG_CNT(v) == NSS_PPE_VLAN_MGR_TYPE_SINGLE) &&
@@ -2238,6 +2473,9 @@ static int nss_ppe_vlan_mgr_register_event(struct netdev_notifier_info *info)
 	bool is_bond_master = false;
 	bool is_vlan_as_vp = false;
 	int i = -1;
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	uint32_t dsa_vid = 0;
+#endif
 
 	if (!nss_ppe_vlan_mgr_interface_supported(dev)) {
 		nss_ppe_vlan_mgr_warn("VLAN interface (%s) is not supported\n", dev->name);
@@ -2255,6 +2493,17 @@ static int nss_ppe_vlan_mgr_register_event(struct netdev_notifier_info *info)
 	if (is_vlan_dev(real_dev)) {
 		vlan = vlan_dev_priv(real_dev);
 		real_dev = vlan->real_dev;
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+		/*
+		 * For lan1.10.20, real_dev is still lan1 (a DSA slave/VP) after two peels.
+		 * Peel one more level to reach ethx (the DSA master / PPE physical port)
+		 * so VP allocation uses a valid physical port.
+		 */
+		if (is_vlan_dev(real_dev)) {
+			vlan = vlan_dev_priv(real_dev);
+			real_dev = vlan->real_dev;
+		}
+#endif
 	}
 
 	/*
@@ -2312,6 +2561,22 @@ static int nss_ppe_vlan_mgr_register_event(struct netdev_notifier_info *info)
 	if (!is_bond_master) {
 		if (is_vlan_as_vp) {
 			res = nss_ppe_vlan_mgr_alloc_configure_ppe_vp(v, dev, real_dev);
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+			/*
+			 * For VLAN over a DSA slave (e.g. lan3.10, lan3.10.20), set the
+			 * egress VP-to-VLAN mapping using the base DSA interface's VID.
+			 */
+			if (res >= 0 && v->parent && nss_ppe_vlan_mgr_is_htt_vlan_dsa(real_dev)) {
+				dsa_vid = (v->parent->tpid == ETH_P_DSA_8021Q) ?
+					v->parent->vid : v->parent->parent->vid;
+				if (ppe_drv_vlan_dsa_vp_egress_map_set(v->xlate_info.port_id, dsa_vid) < 0) {
+					nss_ppe_vlan_mgr_warn("%s: failed to set DSA VP egress map\n", dev->name);
+					nss_ppe_vlan_mgr_instance_deref(v);
+					return NOTIFY_DONE;
+				}
+			}
+#endif
+
 #ifdef NSS_VLAN_VEIP_FEATURE_SUPPORT
 		} else if (vlan_as_veip_enabled &&
 			   ((port_id = nss_ppe_vlan_mgr_get_port_id(real_dev)) != NSS_PPE_VLAN_MGR_INVALID_PORT) &&
@@ -3184,7 +3449,19 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_dsa_create_instance(struct net_devi
 	 * This is even when there is a inner VLAN in the packet, where ideally it should be 802.1AD
 	 */
 	v->vid = dsa_tag_8021q_standalone_vid(dsa_port);
-	v->tpid = DSA_TAG_8021Q_VLAN_PROTO;
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	/*
+	 * Huntington DSA uses a non-standard TPID (0xDADB) for the standalone
+	 * DSA tag to avoid conflicting with the C/S VLAN tags. PPE must be
+	 * programmed with the same TPID to recognise and strip the DSA tag.
+	 */
+	if (nss_ppe_vlan_mgr_is_htt_dev(dev)) {
+		v->tpid = ETH_P_DSA_8021Q;
+	} else
+#endif
+	{
+		v->tpid = DSA_TAG_8021Q_VLAN_PROTO;
+	}
 	v->bond_id = -1;
 
 	v->port[0] = nss_ppe_vlan_mgr_get_port_id(real_dev);
@@ -3198,7 +3475,12 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_dsa_create_instance(struct net_devi
 	 * In no scenario, we can reach to this point where we have DOUBLE VLAN.
 	 * Hence v->parent is always NULL.
 	 */
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	if (!nss_ppe_vlan_mgr_is_htt_dev(dev) &&
+			(v->tpid != vlan_mgr_ctx.ctpid) && (v->tpid != vlan_mgr_ctx.stpid)) {
+#else
 	if ((v->tpid != vlan_mgr_ctx.ctpid) && (v->tpid != vlan_mgr_ctx.stpid)) {
+#endif
 		nss_ppe_vlan_mgr_warn("%s: single tag: tpid %04x not match global tpid(%04x, %04x)\n", dev->name, v->tpid, vlan_mgr_ctx.ctpid, vlan_mgr_ctx.stpid);
 		kfree(v);
 		return NULL;
@@ -3220,6 +3502,9 @@ static struct nss_vlan_pvt *nss_ppe_vlan_mgr_dsa_create_instance(struct net_devi
 int nss_ppe_vlan_mgr_dsa_vp_destroy(struct net_device *dev)
 {
 	struct nss_vlan_pvt *v = nss_ppe_vlan_mgr_instance_find_and_ref(dev);
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	int res;
+#endif
 
 	/*
 	 * Do we have it on record?
@@ -3231,6 +3516,18 @@ int nss_ppe_vlan_mgr_dsa_vp_destroy(struct net_device *dev)
 	}
 
 	nss_ppe_vlan_mgr_trace("Unregistering DSA dev: %s\n", dev->name);
+
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	/*
+	 * Clean up the VLAN-to-PORT HW mapping programmed for DSA QinQ support.
+	 */
+	if (nss_ppe_vlan_mgr_is_htt_dev(dev)) {
+		res = ppe_drv_vlan_dsa_cfg_reset(v->xlate_info.port_id, v->vid);
+		if (res < 0) {
+			nss_ppe_vlan_mgr_warn("DSA QinQ port map reset failed for dev:%s\n", dev->name);
+		}
+	}
+#endif
 
 	/*
 	 * Release reference got by "nss_ppe_vlan_mgr_instance_find_and_ref"
@@ -3287,6 +3584,19 @@ int nss_ppe_vlan_mgr_dsa_vp_create(struct net_device *dev, struct net_device *ma
 		goto fail;
 	}
 
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	/*
+	 * Configure VLAN-to-PORT HW mapping needed for DSA QinQ (lan1.10.20) support.
+	 */
+	if (nss_ppe_vlan_mgr_is_htt_dev(dev)) {
+		res = ppe_drv_vlan_dsa_cfg_set(v->xlate_info.port_id, v->tpid, v->vid);
+		if (res < 0) {
+			nss_ppe_vlan_mgr_instance_deref(v);
+			nss_ppe_vlan_mgr_warn("DSA QinQ port map config failed for dev:%s\n", dev->name);
+			goto fail;
+		}
+	}
+#endif
 	spin_lock(&vlan_mgr_ctx.lock);
 	list_add(&v->list, &vlan_mgr_ctx.list);
 	spin_unlock(&vlan_mgr_ctx.lock);

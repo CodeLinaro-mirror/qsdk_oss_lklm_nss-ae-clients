@@ -20,6 +20,10 @@ ifeq ($(SoC),$(filter $(SoC),ipq96xx ipq52xx))
 ccflags-y += -DNSS_EXT_VLAN_FEATURE_SUPPORT
 endif
 
+ifeq ($(CONFIG_NET_DSA)_$(filter $(SoC),ipq96xx ipq52xx),y_$(SoC))
+ccflags-y += -DNSS_VLAN_DSA_QINQ_SUPPORT
+endif
+
 ifeq ($(SoC),$(filter $(SoC),ipq52xx))
 ifndef PPE_SFU_PROFILE
 ccflags-y += -DNSS_VLAN_VEIP_FEATURE_SUPPORT

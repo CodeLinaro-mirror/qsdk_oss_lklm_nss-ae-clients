@@ -57,9 +57,17 @@
 
 #define NSS_PPE_VLAN_MGR_INVALID_PORT -1
 #define NSS_PPE_VLAN_MGR_PORT_MAX (PPE_DRV_PORTS_MAX)
-#define NSS_PPE_VLAN_MGR_TYPE_SINGLE 0	/**< Single VLAN tag in message. */
-#define NSS_PPE_VLAN_MGR_TYPE_DOUBLE 1	/**< Double VLAN tag in message. */
+#define NSS_PPE_VLAN_MGR_TYPE_SINGLE 0	/**< Single VLAN tag. */
+#define NSS_PPE_VLAN_MGR_TYPE_DOUBLE 1	/**< Double VLAN tag (e.g. eth0.10.20 or lan1.10). */
+#define NSS_PPE_VLAN_MGR_TYPE_TRIPLE 2	/**< Double user VLAN over DSA (e.g. lan1.10.20) — 3 tags visible to PPE HW. */
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+#define NSS_PPE_VLAN_MGR_TAG_CNT(v) \
+	((v->parent && v->parent->parent) ? NSS_PPE_VLAN_MGR_TYPE_TRIPLE : \
+	 (v->parent)                      ? NSS_PPE_VLAN_MGR_TYPE_DOUBLE  : \
+	                                    NSS_PPE_VLAN_MGR_TYPE_SINGLE)
+#else
 #define NSS_PPE_VLAN_MGR_TAG_CNT(v) ((v->parent) ? NSS_PPE_VLAN_MGR_TYPE_DOUBLE : NSS_PPE_VLAN_MGR_TYPE_SINGLE)
+#endif
 #define NSS_PPE_VLAN_MGR_PORT_ROLE_CHANGED 1
 
 #define NSS_PPE_VLAN_MGR_WHITESPACE		" \t\v\f\n,"

@@ -4,7 +4,7 @@ obj-m += qca-nss-ppe-gre.o
 qca-nss-ppe-gre-y := gre_mgr.o
 qca-nss-ppe-gre-y += frontends/ppe/ppe_gre_mgr.o frontends/ppe/ppe_gre_mgr_stats.o
 ccflags-y += -I$(obj)/frontends/ppe
-ccflags-y += -I$(obj)/../../exports -I$(obj)/../../drv/exports
+ccflags-y += -I$(obj)/../../exports
 ccflags-y += -DGRE_MGR_FE_PPE_ENABLE
 endif
 

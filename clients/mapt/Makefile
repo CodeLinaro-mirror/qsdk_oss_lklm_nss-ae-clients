@@ -1,6 +1,6 @@
 # Makefile for the PPE MAPT client
 
-ccflags-y += -I$(obj)/../../exports -I$(obj)/../../drv/exports
+ccflags-y += -I$(obj)/../../exports
 ccflags-y += -DNSS_PPE_MAPT_BUILD_ID="$(BUILD_ID)"
 
 obj-m += qca-nss-ppe-mapt.o

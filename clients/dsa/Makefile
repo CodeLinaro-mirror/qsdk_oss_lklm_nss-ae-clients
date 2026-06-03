@@ -14,3 +14,7 @@ endif
 ifeq ($(CONFIG_NET_DSA)_$(filter $(SoC),ipq53xx ipq54xx ipq96xx ipq52xx),y_$(SoC))
 ccflags-y += -DNSS_ATH_HDR_BASED_DSA_SUPPORT
 endif
+
+ifeq ($(CONFIG_NET_DSA)_$(filter $(SoC),ipq96xx ipq52xx),y_$(SoC))
+ccflags-y += -DNSS_ATH_DSA_VP_QUEUE_SUPPORT
+endif

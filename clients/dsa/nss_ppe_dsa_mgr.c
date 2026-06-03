@@ -315,6 +315,9 @@ static int nss_ppe_dsa_mgr_alloc_ppe_vp(struct nss_ppe_dsa_pvt *dsa_pvt,
 	struct ppe_drv_iface *base_if = NULL;
 	uint32_t queue_id = 0, pp_id = 0;
 	struct ppe_vp_ai vpai = {0};
+#ifdef NSS_ATH_DSA_VP_QUEUE_SUPPORT
+	int16_t htt_queue;
+#endif
 
 	base_if = ppe_drv_iface_get_by_dev(master_dev);
 	if (!base_if) {
@@ -333,6 +336,22 @@ static int nss_ppe_dsa_mgr_alloc_ppe_vp(struct nss_ppe_dsa_pvt *dsa_pvt,
 		nss_ppe_dsa_mgr_warn("Invalid queue id for master dev: %s\n", master_dev->name);
 		return -1;
 	}
+
+#ifdef NSS_ATH_DSA_VP_QUEUE_SUPPORT
+	/*
+	 * For DSA slaves under a Huntington switch, assign a per-port queue
+	 * using the DSA switch port index.
+	 */
+	if (ppe_drv_iface_is_htt(base_if)) {
+		htt_queue = ppe_drv_port_htt_queue_base_get(pp_id, dsa_pvt->swpt_id);
+		if (htt_queue < 0) {
+			nss_ppe_dsa_mgr_warn("Invalid HTT queue for dev %s port %d swpt_id %d\n",
+					dev->name, pp_id, dsa_pvt->swpt_id);
+			return -1;
+		}
+		queue_id = htt_queue;
+	}
+#endif
 
 	vpai.type = PPE_VP_TYPE_SW_L2;
 	vpai.queue_num = queue_id;

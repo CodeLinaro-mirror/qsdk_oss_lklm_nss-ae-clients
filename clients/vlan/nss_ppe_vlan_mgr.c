@@ -1203,6 +1203,11 @@ static ppe_vp_num_t nss_ppe_vlan_mgr_alloc_vp(struct net_device *dev, struct net
 	uint32_t port_num = 0;
 	struct ppe_vp_ai vpai = {0};
 	ppe_vp_num_t vp_num = NSS_PPE_VLAN_MGR_INVALID_PORT;
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+	struct dsa_port *dp = NULL;
+	struct ppe_drv_iface *master_if = NULL;
+	int16_t htt_queue;
+#endif
 
 	if (!nss_ppe_vlan_mgr_is_wlan_dev(vlan_as_vp_real_dev)) {
 
@@ -1219,6 +1224,26 @@ static ppe_vp_num_t nss_ppe_vlan_mgr_alloc_vp(struct net_device *dev, struct net
 			return NSS_PPE_VLAN_MGR_INVALID_PORT;
 		}
 
+#ifdef NSS_VLAN_DSA_QINQ_SUPPORT
+		/*
+		 * For DSA slaves under a Huntington switch, assign a per-port queue
+		 * using the DSA switch port index (dp->index), same as nss_ppe_dsa_mgr.
+		 */
+		if (nss_ppe_vlan_mgr_is_htt_vlan_dsa(dev)) {
+			dp = dsa_port_from_netdev(dev);
+			master_if = ppe_drv_iface_get_by_dev(vlan_as_vp_real_dev);
+
+			if (dp && master_if && ppe_drv_iface_is_htt(master_if)) {
+				htt_queue = ppe_drv_port_htt_queue_base_get(port_num, dp->index);
+				if (htt_queue < 0) {
+					nss_ppe_vlan_mgr_warn("Invalid HTT queue for dev %s port %d swpt_id %d\n",
+							dev->name, port_num, dp->index);
+					return NSS_PPE_VLAN_MGR_INVALID_PORT;
+				}
+				queue_num = htt_queue;
+			}
+		}
+#endif
 		vpai.type = PPE_VP_TYPE_SW_L2;
 		vpai.queue_num = queue_num;
 		vpai.xmit_port = port_num;

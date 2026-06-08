@@ -916,13 +916,29 @@ void nss_ppe_vxlanmgr_delete_all_remotes()
 	struct nss_ppe_vxlanmgr_tun_ctx *curr_tun_ctx;
 	unsigned bkt;
 	struct hlist_node *temp;
+	HLIST_HEAD(destroy_list);
 
+	/*
+	 * Under the spinlock, remove all entries from the global hash table
+	 * and stage them in a local list. No sleeping operations are performed
+	 * here, so holding the spinlock is safe.
+	 */
 	spin_lock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
 	hash_for_each_safe(nss_ppe_vxlanmgr_tunnel_tbl, bkt, temp, curr_tun_ctx, node) {
 		hash_del(&curr_tun_ctx->node);
-		nss_ppe_vxlanmgr_tunnel_destroy(curr_tun_ctx, curr_tun_ctx->remote_info.nss_netdev);
+		hlist_add_head(&curr_tun_ctx->node, &destroy_list);
 	}
 	spin_unlock_bh(&nss_ppe_vxlanmgr_tunnel_tbl_lock);
+
+	/*
+	 * Now perform the actual destruction outside the spinlock.
+	 * nss_ppe_vxlanmgr_tunnel_destroy() calls sleeping operations
+	 * (debugfs_remove, unregister_netdev, free_netdev) which might cause
+	 * issues in atomic context.
+	 */
+	hlist_for_each_entry_safe(curr_tun_ctx, temp, &destroy_list, node) {
+		nss_ppe_vxlanmgr_tunnel_destroy(curr_tun_ctx, curr_tun_ctx->remote_info.nss_netdev);
+	}
 }
 
 /*

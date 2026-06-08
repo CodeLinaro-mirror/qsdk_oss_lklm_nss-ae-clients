@@ -144,10 +144,6 @@ void __exit nss_ppe_vxlanmgr_exit_module(void)
 		nss_ppe_vxlanmgr_warn("failed to disable the VXLAN-GPE tunnels.");
 	}
 
-	nss_ppe_vxlanmgr_tun_stats_dentry_deinit();
-
-	nss_ppe_vxlanmgr_delete_all_remotes();
-
 	ret = unregister_fib_notifier(&init_net, &nss_ppe_vxlanmgr_fib_update_nb);
 	if (ret) {
 		nss_ppe_vxlanmgr_warn("Failed to unregister fib notifier: error %d", ret);
@@ -161,6 +157,18 @@ void __exit nss_ppe_vxlanmgr_exit_module(void)
 	unregister_switchdev_notifier(&nss_ppe_vxlanmgr_switchdev_fdb_notifier);
 	nss_ppe_vxlanmgr_wq_exit();
 	nss_ppe_vxlanmgr_gpe_wq_exit();
+
+	/*
+	 * delete_all_remotes() is called after the notifiers and workqueues are
+	 * torn down to ensure no new tunnel events can be queued while destruction
+	 * is in progress. delete_all_remotes() must precede tun_stats_dentry_deinit():
+	 * tunnel_destroy() (called per remote) invokes tun_stats_dentry_remove(),
+	 * which guards on vxlan_ctx.dentry being non-NULL; calling dentry_deinit()
+	 * first would null that pointer and leave per-tunnel debugfs entries orphaned.
+	 */
+	nss_ppe_vxlanmgr_delete_all_remotes();
+
+	nss_ppe_vxlanmgr_tun_stats_dentry_deinit();
 
 	nss_ppe_vxlanmgr_info("disabled all vxlan tunnels. VXLAN module unloaded");
 }

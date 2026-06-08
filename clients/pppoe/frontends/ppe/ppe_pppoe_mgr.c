@@ -158,10 +158,17 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 		return NOTIFY_DONE;
 	}
 
+	/*
+	 * get_session releases the reference on opt.dev internally.
+	 * Take a new reference to keep opt.dev valid throughout this handler.
+	 */
+	dev_hold(opt.dev);
+
 	iface = ppe_drv_iface_alloc(PPE_DRV_IFACE_TYPE_PPPOE, dev);
 	if (!iface) {
 		pppoe_mgr_warn("%px: PPPoE PPE iface alloc failed\n", dev);
 		pppoe_stats_inc(&ctx->stats.pppoe_iface_alloc_failure);
+		dev_put(opt.dev);
 		return NOTIFY_DONE;
 	}
 
@@ -171,6 +178,7 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 		ppe_drv_iface_deref(iface);
 		pppoe_mgr_warn("%px: failed to allocate PPE PPPoE session entry\n", dev);
 		pppoe_stats_inc(&ctx->stats.pppoe_add_session_failure);
+		dev_put(opt.dev);
 		return NOTIFY_DONE;
 	}
 
@@ -223,6 +231,7 @@ static int ppe_pppoe_mgr_connect(struct net_device *dev)
 			       info->server_mac, info->local_mac, opt.dev->name);
 
 	pppoe_stats_inc(&ctx->stats.pppoe_connect_event_success);
+	dev_put(opt.dev);
 	return NOTIFY_DONE;
 
 fail2:
@@ -239,6 +248,7 @@ fail:
 	spin_unlock(&ppe_pppoe_lock);
 	synchronize_rcu();
 	kfree(ppe_entry);
+	dev_put(opt.dev);
 	return NOTIFY_DONE;
 }
 

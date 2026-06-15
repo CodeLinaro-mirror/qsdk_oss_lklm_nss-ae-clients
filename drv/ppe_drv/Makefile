@@ -118,7 +118,7 @@ qca-nss-ppe-objs += ppe_drv_nptv6.o
 qca-nss-ppe-objs += ppe_drv_nptv6_hairpin.o
 endif
 
-ifeq ($(SoC),$(filter $(SoC),ipq95xx ipq53xx ipq54xx))
+ifeq ($(CONFIG_NET_DSA)_$(filter $(SoC),ipq95xx ipq53xx ipq54xx),y_$(SoC))
 ccflags-y += -DNSS_VLAN_BASED_DSA_SUPPORT
 endif
 
@@ -147,7 +147,7 @@ qca-nss-ppe-objs += ppe_drv_nptv6.o
 qca-nss-ppe-objs += ppe_drv_nptv6_hairpin.o
 endif
 
-ifeq ($(SoC),$(filter $(SoC),ipq53xx ipq54xx))
+ifeq ($(CONFIG_NET_DSA)_$(filter $(SoC),ipq53xx ipq54xx),y_$(SoC))
 ccflags-y += -DNSS_ATH_HDR_BASED_DSA_SUPPORT
 qca-nss-ppe-objs += ppe_drv_athtag.o
 endif

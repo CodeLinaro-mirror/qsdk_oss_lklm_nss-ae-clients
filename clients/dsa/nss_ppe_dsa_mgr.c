@@ -19,6 +19,8 @@
 #include <ppe_vp_public.h>
 #include "nss_ppe_dsa_mgr.h"
 
+#ifdef CONFIG_NET_DSA
+
 static struct nss_ppe_dsa_mgr_context g_dsa_ctx;
 
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
@@ -535,9 +537,11 @@ static int nss_ppe_dsa_mgr_changeaddr_event(struct netdev_notifier_info *info, s
 	nss_ppe_dsa_mgr_trace("slave:%s, proto: %d, MAC Addr change requested.\n", slave->name,
 		dp->cpu_dp->tag_ops->proto);
 
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
 		return nss_ppe_vlan_mgr_changeaddr_event(info);
 	}
+#endif
 
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_4B_QCA == dp->cpu_dp->tag_ops->proto) {
@@ -558,9 +562,11 @@ static int nss_ppe_dsa_mgr_changemtu_event(struct netdev_notifier_info *info, st
 	nss_ppe_dsa_mgr_trace("slave:%s, idx:%u, proto:%d. \n", slave->name,
 		dp->index, dp->cpu_dp->tag_ops->proto);
 
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
 		return nss_ppe_vlan_mgr_changemtu_event(info);
 	}
+#endif
 
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_4B_QCA == dp->cpu_dp->tag_ops->proto) {
@@ -579,9 +585,11 @@ static int nss_ppe_dsa_mgr_register_event(struct dsa_port *dp)
 	struct net_device *master = dsa_port_to_master(dp);
 	struct net_device *slave = dp->slave;
 
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
 		nss_ppe_vlan_mgr_dsa_vp_create(slave, master);
 	}
+#endif
 
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_4B_QCA == dp->cpu_dp->tag_ops->proto) {
@@ -603,9 +611,11 @@ static int nss_ppe_dsa_mgr_unregister_event(struct dsa_port *dp)
 {
 	struct net_device *slave = dp->slave;
 
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
 		nss_ppe_vlan_mgr_dsa_vp_destroy(slave);
 	}
+#endif
 
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_4B_QCA == dp->cpu_dp->tag_ops->proto) {
@@ -683,10 +693,12 @@ static int nss_ppe_dsa_mgr_tag_proto_change(struct net_device *dev, enum dsa_tag
 	nss_ppe_dsa_mgr_info("%s: Changing tag protocol from %d to %d\n", dev->name, old_proto, proto);
 
 	/* Teardown old protocol configuration */
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	if (old_proto == DSA_TAG_PROTO_QCA_8021Q)
 		nss_ppe_vlan_mgr_dsa_vp_destroy(dev);
+#endif
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
-	else if (old_proto == DSA_TAG_PROTO_4B_QCA)
+	if (old_proto == DSA_TAG_PROTO_4B_QCA)
 		nss_ppe_dsa_mgr_dsa_vp_destroy(dev);
 #endif
 
@@ -694,8 +706,10 @@ static int nss_ppe_dsa_mgr_tag_proto_change(struct net_device *dev, enum dsa_tag
 	/* For DSA_TAG_PROTO_NONE, all chip supported, no configuration for PPE besides teardown old proto */
 	if (proto == DSA_TAG_PROTO_NONE)
 		nss_ppe_dsa_mgr_info("%s: Switching to DSA_TAG_PROTO_NONE, no new configuration needed\n", dev->name);
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	else if (proto == DSA_TAG_PROTO_QCA_8021Q)
 		nss_ppe_vlan_mgr_dsa_vp_create(dev, master);
+#endif
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
 	else if (proto == DSA_TAG_PROTO_4B_QCA)
 		nss_ppe_dsa_mgr_dsa_vp_create(dev, master, dp);
@@ -770,6 +784,19 @@ static int __init nss_ppe_dsa_mgr_init_module(void)
 
 	return 0;
 }
+
+#else /* !CONFIG_NET_DSA */
+
+static int __init nss_ppe_dsa_mgr_init_module(void)
+{
+	return 0;
+}
+
+static void __exit nss_ppe_dsa_mgr_exit_module(void)
+{
+}
+
+#endif /* CONFIG_NET_DSA */
 
 module_init(nss_ppe_dsa_mgr_init_module);
 module_exit(nss_ppe_dsa_mgr_exit_module);

@@ -1,4 +1,4 @@
-ccflags-y := -I$(obj)/../../exports -I$(obj)/../../drv/exports
+ccflags-y := -I$(obj)/../../exports
 ccflags-y += -DNSS_PPE_BUILD_ID="$(BUILD_ID)"
 ccflags-y += -DNSS_PVXLANMGR_DEBUG_LEVEL=0 -Wall -Werror
 

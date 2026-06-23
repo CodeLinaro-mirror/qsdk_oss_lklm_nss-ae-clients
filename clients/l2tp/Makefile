@@ -1,6 +1,6 @@
 # Makefile for the PPE L2TP client
 
-ccflags-y += -I$(obj)/../../exports
+ccflags-y += -I$(obj)/../../exports -I$(obj)/exports
 ccflags-y += -DNSS_PPE_L2TP_BUILD_ID="$(BUILD_ID)"
 
 obj-m += qca-nss-ppe-l2tp.o

@@ -1,6 +1,6 @@
 # Makefile for DTLS manager
 
-ccflags-y := -I$(obj)/../../exports -I$(obj)/..
+ccflags-y := -I$(obj)/../../exports -I$(obj)/.. -I$(obj)/exports
 ccflags-y += -DNSS_DTLSMGR_DEBUG_LEVEL=0
 ccflags-y += -DNSS_PPE_BUILD_ID="$(BUILD_ID)"
 ccflags-y += -Wall -Werror

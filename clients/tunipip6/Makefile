@@ -1,6 +1,6 @@
 # Makefile for the PPE TUNIPIP6 client
 
-ccflags-y += -I$(obj)/../../exports
+ccflags-y += -I$(obj)/../../exports -I$(obj)/exports
 ccflags-y += -DNSS_PPE_TUNIPIP6_BUILD_ID="$(BUILD_ID)"
 
 obj-m += qca-nss-ppe-tunipip6.o

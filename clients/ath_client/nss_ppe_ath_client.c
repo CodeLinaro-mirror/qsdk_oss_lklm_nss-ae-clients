@@ -115,8 +115,9 @@ static int nss_ppe_ath_client_unregister_event(struct net_device *dev)
 		return NOTIFY_DONE;
 	}
 
-	ppe_vp_free(vp_num);
 	netdev_hw_offload_ops_unregister(dev, &ppe_vp_netdev_ops);
+	synchronize_net();
+	ppe_vp_free(vp_num);
 
 	/*
 	 * release the reference taken during register

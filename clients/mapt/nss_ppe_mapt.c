@@ -73,7 +73,7 @@ static int nss_ppe_mapt_param_set_ipv6_flow_label(const char *val, const struct 
 	unsigned int mode, fv = 0;
 
 	if (!val) {
-		return -1;
+		return -EINVAL;
 	}
 
 	strscpy(buf, val, sizeof(buf));
@@ -92,12 +92,12 @@ static int nss_ppe_mapt_param_set_ipv6_flow_label(const char *val, const struct 
 	 */
 	if (kstrtouint(buf, 0, &mode)) {
 		nss_ppe_mapt_warning("Unable to parse mapt ipv6_flow_label param\n");
-		return -1;
+		return -EINVAL;
 	}
 
 	if (mode > NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_COPY) {
 		nss_ppe_mapt_warning("Invalid ipv6_flow_label mode = %d\n", mode);
-		return -1;
+		return -EINVAL;
 	}
 
 	/*
@@ -105,7 +105,7 @@ static int nss_ppe_mapt_param_set_ipv6_flow_label(const char *val, const struct 
 	 */
 	if (arg && (mode > NSS_PPE_MAPT_IPV6_FLOW_LABEL_MODE_FIX)) {
 		nss_ppe_mapt_warning("ipv6_flow_label can accept value only in mode 0(fix)\n");
-		return -1;
+		return -EINVAL;
 	}
 
 	/*
@@ -119,12 +119,12 @@ static int nss_ppe_mapt_param_set_ipv6_flow_label(const char *val, const struct 
 			if (*arg) {
 				if (kstrtouint(arg, 0, &fv)) {
 					nss_ppe_mapt_warning("ipv6_flow_label: unable to parse value\n");
-					return -1;
+					return -EINVAL;
 				}
 
 				if (fv > 0xFFFFF) {
 					nss_ppe_mapt_warning("ipv6_flow_label: value 0x%x exceeds 20-bit (max 0xFFFFF)\n", fv);
-					return -1;
+					return -EINVAL;
 				}
 				cfg->fix_value = fv;
 			} else {

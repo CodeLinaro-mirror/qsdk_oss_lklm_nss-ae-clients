@@ -4,7 +4,7 @@ obj-m += qca-nss-ppe-pppoe-mgr.o
 qca-nss-ppe-pppoe-mgr-y := pppoe_mgr.o pppoe_stats.o
 qca-nss-ppe-pppoe-mgr-y += frontends/ppe/ppe_pppoe_mgr.o
 ccflags-y += -DPPPOE_MGR_FE_PPE_ENABLE
-ccflags-y += -I$(obj)/../exports -I$(obj)/..
+ccflags-y += -I$(obj)/../exports -I$(obj)/.. -I$(obj)/exports
 ccflags-y += -I$(obj)/frontends/ppe -I$(obj)
 endif
 

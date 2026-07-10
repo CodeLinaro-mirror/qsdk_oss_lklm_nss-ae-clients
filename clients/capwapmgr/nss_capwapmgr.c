@@ -1332,6 +1332,14 @@ static nss_capwapmgr_status_t nss_capwapmgr_ppe_create_ipv6_rule(struct nss_capw
 	pd6rc->tuple.return_ident = (uint32_t)v6->dest_port;
 
 	/*
+         * Update xlate rules
+	 */
+	memcpy(pd6rc->conn_rule.flow_ip_xlate, pd6rc->tuple.flow_ip, sizeof(pd6rc->conn_rule.flow_ip_xlate));
+	memcpy(pd6rc->conn_rule.return_ip_xlate, pd6rc->tuple.return_ip, sizeof(pd6rc->conn_rule.return_ip_xlate));
+	pd6rc->conn_rule.flow_ident_xlate = pd6rc->tuple.flow_ident;
+	pd6rc->conn_rule.return_ident_xlate = pd6rc->tuple.return_ident;
+
+	/*
 	 * Copy over the connection rules and set the CONN_VALID flag
 	 */
 	pd6rc->conn_rule.rx_if = v6->src_interface_num;

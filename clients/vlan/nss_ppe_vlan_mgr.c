@@ -23,6 +23,7 @@
 #endif
 #include <ppe_drv_public.h>
 #include <ppe_vp_public.h>
+#include <ppe_vp_tx.h>
 #include <nss_ppe_vlan_mgr.h>
 #include <ref/ref_vsi.h>
 #include "nss_ppe_vlan_mgr_priv.h"
@@ -59,6 +60,20 @@ static char vlan_as_vp_dev_name[NSS_PPE_VLAN_MGR_VLAN_AS_VP_MAX][IFNAMSIZ];
 static struct nss_ppe_vlan_mgr_context vlan_mgr_ctx;
 
 static bool nss_ppe_vlan_mgr_instance_deref(struct nss_vlan_pvt *v);
+
+#ifdef NSS_VLAN_VEIP_FEATURE_SUPPORT
+static bool nss_ppe_vlan_mgr_veip_tx_to_pon_vp(struct net_device *dev, struct sk_buff *skb);
+
+/*
+ * Hardware offload transmit ops registered against a VLAN-as-VEIP netdevice.
+ * This redirects accelerated upstream packets to the VEIP PON VP instead of
+ * the normal VLAN netdevice transmit path. Receive offload is not used.
+ */
+static struct netdev_hw_offload_ops nss_ppe_vlan_mgr_veip_netdev_ops = {
+	.xmit = nss_ppe_vlan_mgr_veip_tx_to_pon_vp,
+	.recv = NULL,
+};
+#endif
 
 #ifdef NSS_VLAN_BASED_DSA_SUPPORT
 /*
@@ -1338,6 +1353,11 @@ static int nss_ppe_vlan_mgr_alloc_configure_ppe_veip(struct nss_vlan_pvt *v, str
 		goto clear_mtu;
 	}
 
+	if (netdev_hw_offload_ops_register(dev, &nss_ppe_vlan_mgr_veip_netdev_ops, "ppe_veip") < 0) {
+		nss_ppe_vlan_mgr_warn("%s: failed to register VEIP offload ops\n", dev->name);
+		goto free_vp_structs;
+	}
+
 	/*
 	 * Configure the source interface mapping
 	 */
@@ -1401,11 +1421,13 @@ static int nss_ppe_vlan_mgr_alloc_configure_ppe_veip(struct nss_vlan_pvt *v, str
 	ret = ppe_drv_vlan_as_veip_add_xlate_rules(v->iface, &v->xlate_info);
 	if (ret != PPE_DRV_RET_SUCCESS) {
 		nss_ppe_vlan_mgr_warn("%s: failed to set vlan translation, error = %d \n", dev->name, ret);
-		goto free_vp_structs;
+		goto unregister_ol_ops;
 	}
 
 	return res;
 
+unregister_ol_ops:
+	netdev_hw_offload_ops_unregister(dev, &nss_ppe_vlan_mgr_veip_netdev_ops);
 free_vp_structs:
 	ppe_vp_veip_free_vps(v->iface);
 clear_mtu:
@@ -1590,6 +1612,9 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 	struct net_device *slave_dev;
 	struct ppe_drv_iface *slave_iface;
 	struct list_head *iter;
+#ifdef NSS_VLAN_VEIP_FEATURE_SUPPORT
+	struct net_device *dev;
+#endif
 	enum nss_ppe_vlan_mgr_vlan br_action = NSS_PPE_VLAN_MGR_BR_VLAN_DEC;
 	struct nss_vlan_pvt *v = container_of(kref, struct nss_vlan_pvt, ref);
 
@@ -1656,6 +1681,12 @@ static void nss_ppe_vlan_mgr_instance_free(struct kref *kref)
 		nss_ppe_vlan_mgr_trace("Vlan as VEIP interface: %d\n", v->xlate_info.port_id);
 		if (v->parent) {
 			nss_ppe_vlan_mgr_instance_deref(v->parent);
+		}
+
+		dev = dev_get_by_index(&init_net, v->ifindex);
+		if (dev) {
+			netdev_hw_offload_ops_unregister(dev, &nss_ppe_vlan_mgr_veip_netdev_ops);
+			dev_put(dev);
 		}
 
 		ret = ppe_drv_vlan_as_veip_del_xlate_rules(v->iface, &v->xlate_info);
@@ -3284,6 +3315,49 @@ int nss_ppe_vlan_mgr_dsa_vp_create(struct net_device *dev, struct net_device *ma
 	return -1;
 }
 EXPORT_SYMBOL(nss_ppe_vlan_mgr_dsa_vp_create);
+#endif
+
+#ifdef NSS_VLAN_VEIP_FEATURE_SUPPORT
+/*
+ * nss_ppe_vlan_mgr_veip_tx_to_pon_vp()
+ *      Queue SFE forwarded upstream packets to the VEIP PON VP.
+ *
+ * Registered as the hardware offload xmit op for VLAN-as-VEIP netdevices, so
+ * SFE calls into this instead of the VLAN netdevice's normal transmit path
+ * for accelerated packets.
+ */
+static bool nss_ppe_vlan_mgr_veip_tx_to_pon_vp(struct net_device *dev, struct sk_buff *skb)
+{
+	struct nss_vlan_pvt *v;
+	int32_t pon_vp;
+
+	v = nss_ppe_vlan_mgr_instance_find_and_ref(dev);
+	if (!v) {
+		nss_ppe_vlan_mgr_warn("%s: VEIP instance not found\n", dev->name);
+		return false;
+	}
+
+	if (!v->is_vlan_as_veip_iface || !v->iface) {
+		nss_ppe_vlan_mgr_warn("%s: VEIP instance invalid\n", dev->name);
+		nss_ppe_vlan_mgr_instance_deref(v);
+		return false;
+	}
+
+	/*
+	 * Resolve the PON VP associated with this VEIP interface.
+	 */
+	pon_vp = ppe_drv_veip_get_port(v->iface, PPE_DRV_PORT_VIRTUAL_PON);
+	if (pon_vp < 0) {
+		nss_ppe_vlan_mgr_warn("%s: VEIP PON VP not found\n", dev->name);
+		nss_ppe_vlan_mgr_instance_deref(v);
+		return false;
+	}
+
+	ppe_vp_tx_to_ppe_by_sc(pon_vp, skb, PPE_DRV_SC_LOOPBACK_PORT_FEATURE_PON_HGU_US_SC_NEXT);
+
+	nss_ppe_vlan_mgr_instance_deref(v);
+	return true;
+}
 #endif
 
 /*

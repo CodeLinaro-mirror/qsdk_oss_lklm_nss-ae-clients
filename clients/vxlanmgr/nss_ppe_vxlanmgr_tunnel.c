@@ -17,15 +17,19 @@
 #include <linux/if_ether.h>
 #include <linux/in.h>
 #include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/kernel.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
+#include <linux/udp.h>
 #include <linux/version.h>
 #include <net/addrconf.h>
 #include <net/dst.h>
 #include <net/flow.h>
 #include <net/ipv6.h>
+#include <net/net_namespace.h>
 #include <net/route.h>
-#include <net/vxlan.h>
+#include <net/udp.h>
 #include <net/vxlan.h>
 
 #include "nss_ppe_vxlanmgr_priv.h"
@@ -550,17 +554,109 @@ struct notifier_block nss_ppe_vxlanmgr_switchdev_fdb_notifier = {
 
 /*
  * nss_ppe_vxlan_src_exception()
- * handle the source VP exception.
+ *	Handle the source VP exception from PPE.
  */
 static bool nss_ppe_vxlan_src_exception(struct ppe_vp_cb_info *info, ppe_tun_data *tun_data)
 {
 	struct sk_buff *skb = info->skb;
-	struct net_device *dev = skb->dev;
+	struct net_device *nss_dev = skb->dev;
+	struct nss_ppe_vxlanmgr_nss_dev_priv *nss_dev_priv;
+	struct net_device *pdev;
+	struct vxlan_dev *vxlan;
+	struct vxlan_sock *vs;
+	struct sock *sk;
+	bool is_ipv6;
+	int ip_hdr_len;
 
-	nss_ppe_vxlanmgr_warn("%px: Dropping the skb for dev:%s", dev, dev->name);
-	dev_kfree_skb_any(skb);
+	/*
+	 * Retrieve the parent vxlan device using the ifindex stored in the
+	 * nss_netdev private data.
+	 */
+	nss_dev_priv = netdev_priv(nss_dev);
+	pdev = dev_get_by_index(&init_net, nss_dev_priv->pdev_ifindex);
+	if (unlikely(!pdev)) {
+		nss_ppe_vxlanmgr_warn("%p: Failed to get parent VxLAN dev for ifindex %d\n", skb, nss_dev_priv->pdev_ifindex);
+		dev_kfree_skb_any(skb);
+		return false;
+	}
 
-	return 0;
+	vxlan = netdev_priv(pdev);
+	is_ipv6 = !!(vxlan->cfg.flags & VXLAN_F_IPV6);
+	ip_hdr_len = is_ipv6 ? sizeof(struct ipv6hdr) : sizeof(struct iphdr);
+
+	/*
+	 * Verify that the outer UDP + VXLAN headers are still in the headroom.
+	 * PPE moves skb->data to the inner ETH frame (equivalent to skb_pull
+	 * of VXLAN_HLEN = sizeof(udphdr) + sizeof(vxlanhdr) = 16 bytes).
+	 * We need at least VXLAN_HLEN bytes of headroom to push back.
+	 * We also need ip_hdr_len more bytes for the outer IP header to be
+	 * accessible via skb->network_header.
+	 */
+	if (unlikely(skb_headroom(skb) < (VXLAN_HLEN + ip_hdr_len))) {
+		nss_ppe_vxlanmgr_warn("%p: insufficient headroom %u \n", skb, skb_headroom(skb));
+		dev_put(pdev);
+		dev_kfree_skb_any(skb);
+		return false;
+	}
+
+	/*
+	 * Restore skb->data to the UDP header.
+	 *
+	 * Before: skb->data -> [inner ETH][inner IP][payload]
+	 * After:  skb->data -> [UDP hdr][VXLAN hdr][inner ETH][inner IP][payload]
+	 *
+	 * VXLAN_HLEN = sizeof(struct udphdr) + sizeof(struct vxlanhdr) = 16 bytes.
+	 * This matches exactly what __iptunnel_pull_header() consumed in the
+	 * normal vxlan_rcv() path.
+	 */
+	skb_push(skb, VXLAN_HLEN);
+
+	/*
+	 * Set transport_header to the UDP header (= current skb->data).
+	 * vxlan_rcv() uses udp_hdr(skb) = skb->head + skb->transport_header
+	 * to locate the UDP header, and vxlan_hdr() = udp_hdr(skb) + 1 to
+	 * locate the VXLAN header.
+	 * Set network_header to the outer IP header.
+	 * The outer IP header immediately precedes the UDP header.
+	 * vxlan_rcv() saves nh = skb_network_header(skb) - skb->head before
+	 * stripping the VXLAN header, then uses it for ECN decapsulation and
+	 * MAC learning (ip_hdr(skb)->saddr = outer VTEP source IP).
+	 */
+	skb_reset_transport_header(skb);
+	skb_set_network_header(skb, -(int)ip_hdr_len);
+
+	/*
+	 * Mark checksum as unnecessary since PPE hardware has already
+	 * verified it.
+	 */
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+
+	/*
+	 * Get the vxlan UDP socket. The encap_rcv callback (vxlan_rcv) is
+	 * registered on this socket via setup_udp_tunnel_sock().
+	 */
+	rcu_read_lock();
+	vs = is_ipv6 ? rcu_dereference(vxlan->vn6_sock)
+		     : rcu_dereference(vxlan->vn4_sock);
+
+	if (unlikely(!vs || !vs->sock || !vs->sock->sk)) {
+		rcu_read_unlock();
+		nss_ppe_vxlanmgr_warn("%p: no vxlan socket for dev:%s (is_ipv6=%d)\n", skb, pdev->name, is_ipv6);
+		dev_put(pdev);
+		dev_kfree_skb_any(skb);
+		return false;
+	}
+
+	sk = vs->sock->sk;
+
+	/*
+	 * Invoke vxlan_rcv() via the registered UDP encap_rcv callback.
+	 */
+	udp_sk(sk)->encap_rcv(sk, skb);
+	rcu_read_unlock();
+
+	dev_put(pdev);
+	return true;
 }
 
 /*

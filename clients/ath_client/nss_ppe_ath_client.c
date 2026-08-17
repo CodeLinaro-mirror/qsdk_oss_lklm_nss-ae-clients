@@ -144,11 +144,6 @@ static int nss_ppe_ath_client_netdevice_event(struct notifier_block *unused,
 		return NOTIFY_DONE;
 	}
 
-	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_MONITOR) {
-		nss_ppe_ath_client_info("Skipping allocation of VP for monitor interface: %s\n", dev->name);
-		return NOTIFY_DONE;
-	}
-
 	switch (event) {
 	case NETDEV_CHANGEADDR:
 		return nss_ppe_ath_client_changeaddr_event(dev);

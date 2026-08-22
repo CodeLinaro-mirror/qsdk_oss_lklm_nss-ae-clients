@@ -46,6 +46,16 @@ static bool vp_fdb_learn_enabled = false;
 module_param(vp_fdb_learn_enabled, bool, 0644);
 MODULE_PARM_DESC(vp_fdb_learn_enabled, "VLAN-as-VP fdb learning is enabled");
 
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+#ifdef NSS_VLAN_DSA_VP_FDB_LEARN_EN
+static bool dsa_vp_fdb_learn_enabled = true;
+#else
+static bool dsa_vp_fdb_learn_enabled = false;
+#endif
+module_param(dsa_vp_fdb_learn_enabled, bool, 0644);
+MODULE_PARM_DESC(dsa_vp_fdb_learn_enabled, "VLAN-based DSA VP fdb learning is enabled");
+#endif
+
 static bool vlan_as_veip_enabled = true;
 module_param(vlan_as_veip_enabled, bool, 0644);
 MODULE_PARM_DESC(vlan_as_veip_enabled, "VLAN-as-VEIP feature is enabled");
@@ -1247,7 +1257,23 @@ static ppe_vp_num_t nss_ppe_vlan_mgr_alloc_vp(struct net_device *dev, struct net
 		vpai.type = PPE_VP_TYPE_SW_L2;
 		vpai.queue_num = queue_num;
 		vpai.xmit_port = port_num;
+
+		/*
+		 * FDB learning for VLAN-based DSA VPs (dev is either the DSA slave
+		 * itself, or a VLAN interface stacked over one, i.e. VLAN over DSA)
+		 * is controlled by dsa_vp_fdb_learn_enabled, which defaults to
+		 * enabled only on platforms that support FDB-based forwarding for
+		 * these VPs; other platforms default it to disabled since they rely
+		 * on a flow-rule-based multi Tx ring solution for HOLB that breaks
+		 * with FDB rules. Plain VLAN-as-VP interfaces always follow the
+		 * vp_fdb_learn_enabled module param.
+		 */
 		vpai.fdb_learn_enabled = vp_fdb_learn_enabled;
+#ifdef NSS_VLAN_BASED_DSA_SUPPORT
+		if (dsa_slave_dev_check(dev) || nss_ppe_vlan_mgr_dsa_interface_supported(dev)) {
+			vpai.fdb_learn_enabled = dsa_vp_fdb_learn_enabled;
+		}
+#endif
 #ifdef NSS_VLAN_MGR_WLANIF_DST_XLATE_SUPPORT
 	} else {
 

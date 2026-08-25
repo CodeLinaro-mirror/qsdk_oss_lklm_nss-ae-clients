@@ -24,7 +24,11 @@
 static struct nss_ppe_dsa_mgr_context g_dsa_ctx;
 
 #ifdef NSS_ATH_HDR_BASED_DSA_SUPPORT
+#ifdef NSS_ATH_DSA_VP_FDB_LEARN_EN
+static bool dsa_fdb_learn_enabled = true;
+#else
 static bool dsa_fdb_learn_enabled = false;
+#endif
 module_param(dsa_fdb_learn_enabled, bool, 0644);
 MODULE_PARM_DESC(dsa_fdb_learn_enabled, "DSA fdb learning is enabled");
 

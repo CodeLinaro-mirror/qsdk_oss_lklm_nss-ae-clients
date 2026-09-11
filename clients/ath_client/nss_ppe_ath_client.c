@@ -88,7 +88,6 @@ static int nss_ppe_ath_client_register_event(struct net_device *dev)
 
 	dev_hold(dev);
 	vp_num = ppe_vp_alloc(dev, &vpai);
-
 	if (unlikely((vp_num < PPE_DRV_VIRTUAL_START) || (vp_num >= PPE_DRV_VIRTUAL_END))) {
 		nss_ppe_ath_client_warn("Not a valid Virtual Port number %d dev %s\n", vp_num, dev->name);
 		dev_put(dev);
@@ -137,6 +136,7 @@ static int nss_ppe_ath_client_netdevice_event(struct notifier_block *unused,
 {
 	struct netdev_notifier_info *info = (struct netdev_notifier_info *)ptr;
 	struct net_device *dev = netdev_notifier_info_to_dev(info);
+	struct net_device *org_dev = dev;
 
 	dev = is_vlan_dev(dev) ? vlan_dev_real_dev(dev) : dev;
 	if (!dev->ieee80211_ptr) {
@@ -150,8 +150,28 @@ static int nss_ppe_ath_client_netdevice_event(struct notifier_block *unused,
 	case NETDEV_CHANGEMTU:
 		return nss_ppe_ath_client_changemtu_event(dev);
 	case NETDEV_REGISTER:
+
+		/*
+		 * Hold reference of real_dev for vlan dev event
+		 */
+		if (is_vlan_dev(org_dev)) {
+			dev_hold(dev);
+			nss_ppe_ath_client_info("VLAN Dev:%s of WLAN dev:%s\n",
+							org_dev->name, dev->name);
+			return NOTIFY_DONE;
+		}
 		return nss_ppe_ath_client_register_event(dev);
 	case NETDEV_UNREGISTER:
+
+		/*
+		 * Release reference of real_dev for vlan dev unreg event.
+		 */
+		if (is_vlan_dev(org_dev)) {
+			nss_ppe_ath_client_info("VLAN Dev:%s of WLAN dev:%s\n",
+							org_dev->name, dev->name);
+			dev_put(dev);
+			return NOTIFY_DONE;
+		}
 		return nss_ppe_ath_client_unregister_event(dev);
 	}
 

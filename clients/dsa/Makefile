@@ -20,5 +20,9 @@ ccflags-y += -DNSS_ATH_DSA_VP_QUEUE_SUPPORT
 endif
 
 ifeq ($(CONFIG_NET_DSA)_$(filter $(SoC),ipq96xx ipq52xx),y_$(SoC))
+ccflags-y += -DNSS_PPE_DSA_QUEUE_SUPPORT
+endif
+
+ifeq ($(CONFIG_NET_DSA)_$(filter $(SoC),ipq96xx ipq52xx),y_$(SoC))
 ccflags-y += -DNSS_ATH_DSA_VP_FDB_LEARN_EN
 endif

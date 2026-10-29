@@ -599,6 +599,35 @@ static int nss_ppe_dsa_mgr_changemtu_event(struct netdev_notifier_info *info, st
 	return NOTIFY_DONE;
 }
 
+#ifdef NSS_ATH_DSA_VP_QUEUE_SUPPORT
+/*
+ * nss_ppe_dsa_mgr_q2q_bp_config()
+ *	Program (or clear) HTT->HMS queue-to-queue backpressure for a DSA interface.
+ *
+ * Only vlan-based (QCA_8021Q) and ath-based (4B_QCA) DSA support q2q BP. The actual
+ * HTT/HMS queue mapping is done by ppe_drv; here we only gate on the DSA tag protocol
+ * and hand off the VP interface.
+ */
+static void nss_ppe_dsa_mgr_q2q_bp_config(struct net_device *slave, struct dsa_port *dp, bool enable)
+{
+	struct ppe_drv_iface *iface;
+	enum dsa_tag_protocol proto;
+
+	proto = nss_ppe_dsa_mgr_proto_state_get(slave);
+	if (proto != DSA_TAG_PROTO_QCA_8021Q && proto != DSA_TAG_PROTO_4B_QCA)
+		return;
+
+	iface = ppe_drv_iface_get_by_dev(slave);
+	if (!iface) {
+		nss_ppe_dsa_mgr_warn("%s: couldn't get PPE iface for q2q BP\n", slave->name);
+		return;
+	}
+
+	if (ppe_drv_qos_q2q_bp_map_set(iface, dp->index, enable) != PPE_DRV_RET_SUCCESS)
+		nss_ppe_dsa_mgr_warn("%s: q2q BP map %s failed\n", slave->name, enable ? "set" : "clear");
+}
+#endif
+
 /*
  * nss_ppe_dsa_mgr_register_event()
  *	dsa_mgr handles dsa netdev registration notification.
@@ -623,6 +652,11 @@ static int nss_ppe_dsa_mgr_register_event(struct dsa_port *dp)
 	/* Init protocol node for this device */
 	nss_ppe_dsa_mgr_proto_state_set(slave, dp->cpu_dp->tag_ops->proto);
 
+#ifdef NSS_ATH_DSA_VP_QUEUE_SUPPORT
+	/* Configure HTT->HMS queue-to-queue backpressure for vlan/ath DSA */
+	nss_ppe_dsa_mgr_q2q_bp_config(slave, dp, true);
+#endif
+
 	return NOTIFY_DONE;
 }
 
@@ -633,6 +667,11 @@ static int nss_ppe_dsa_mgr_register_event(struct dsa_port *dp)
 static int nss_ppe_dsa_mgr_unregister_event(struct dsa_port *dp)
 {
 	struct net_device *slave = dp->slave;
+
+#ifdef NSS_ATH_DSA_VP_QUEUE_SUPPORT
+	/* Clear HTT->HMS queue-to-queue backpressure before teardown */
+	nss_ppe_dsa_mgr_q2q_bp_config(slave, dp, false);
+#endif
 
 #ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	if (DSA_TAG_PROTO_QCA_8021Q == dp->cpu_dp->tag_ops->proto) {
@@ -716,6 +755,13 @@ static int nss_ppe_dsa_mgr_tag_proto_change(struct net_device *dev, enum dsa_tag
 	nss_ppe_dsa_mgr_info("%s: Changing tag protocol from %d to %d\n", dev->name, old_proto, proto);
 
 	/* Teardown old protocol configuration */
+#ifdef NSS_ATH_DSA_VP_QUEUE_SUPPORT
+	/*
+	 * Clear q2q BP for the old protocol before the proto state is updated,
+	 * so nss_ppe_dsa_mgr_q2q_bp_config() gates on the still-current old proto.
+	 */
+	nss_ppe_dsa_mgr_q2q_bp_config(dev, dp, false);
+#endif
 #ifdef NSS_VLAN_BASED_DSA_SUPPORT
 	if (old_proto == DSA_TAG_PROTO_QCA_8021Q)
 		nss_ppe_vlan_mgr_dsa_vp_destroy(dev);
@@ -740,6 +786,15 @@ static int nss_ppe_dsa_mgr_tag_proto_change(struct net_device *dev, enum dsa_tag
 
 	/* Update protocol state for this device */
 	nss_ppe_dsa_mgr_proto_state_set(dev, proto);
+
+#ifdef NSS_ATH_DSA_VP_QUEUE_SUPPORT
+	/*
+	 * Program q2q BP for the new protocol. This must run after the proto
+	 * state is updated so nss_ppe_dsa_mgr_q2q_bp_config() gates on the new
+	 * proto instead of the stale one.
+	 */
+	nss_ppe_dsa_mgr_q2q_bp_config(dev, dp, true);
+#endif
 
 	nss_ppe_dsa_mgr_info("%s: Tag protocol changed to %d successfully\n", dev->name, proto);
 
